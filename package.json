@@ -1,0 +1,12 @@
+{
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "optimize:images": "node scripts/optimize-images.mjs",
+    "convert:dishes": "node scripts/convert-dishes-to-webp.mjs",
+    "validate:assets": "node scripts/optimize-images.mjs --validate-only"
+  },
+  "devDependencies": {
+    "sharp": "^0.34.2"
+  }
+}
