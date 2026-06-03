@@ -11,7 +11,7 @@ const TRANSLATIONS = {
     viewMenu: 'לצפייה בתפריט',
     skipToMenu: 'דלג לתפריט',
     myOrder: 'ההזמנה שלי',
-    cartEmpty: 'הסל ריק — הוסיפו מנות מהתפריט',
+    cartEmpty: 'הסל ריק הוסיפו מנות מהתפריט',
     total: 'סה״כ',
     clearCart: 'רוקן סל',
     addToCart: 'הוסף לסל',
@@ -30,12 +30,19 @@ const TRANSLATIONS = {
     servedWith: 'מוגש עם: {sides}',
     maxSidesPerMain: 'ניתן לבחור עד שתי תוספות חמות לכל מנה עיקרית',
     chooseMainFirst: 'יש לבחור מנה עיקרית לפני תוספת חמה',
+    chooseSidesTitle: 'בחרו תוספות חמות',
+    chooseSidesSubtitle: 'עד 2 תוספות למנה: {name}',
+    sidesSelected: '{count} מתוך 2 נבחרו',
+    sidesContinue: 'המשך',
+    sideLabel: 'תוספת',
     contact: 'יצירת קשר',
     hours: 'שעות פעילות',
     hoursDays: 'א׳ – ה׳',
     address: 'כתובת',
     addressText: 'Analipsi 700 14, Greece',
     copyright: 'כל הזכויות שמורות',
+    footerTagline: 'The Pearl of Crete',
+    followUs: 'עקבו אחרינו',
     categories: {
       starters: 'ראשונות ונשנושים',
       mains: 'מנות עיקריות',
@@ -74,12 +81,19 @@ const TRANSLATIONS = {
     servedWith: 'Served with: {sides}',
     maxSidesPerMain: 'Up to two hot sides per main course',
     chooseMainFirst: 'Choose a main course before adding a hot side',
+    chooseSidesTitle: 'Choose hot sides',
+    chooseSidesSubtitle: 'Up to 2 sides for: {name}',
+    sidesSelected: '{count} of 2 selected',
+    sidesContinue: 'Continue',
+    sideLabel: 'Side',
     contact: 'Contact',
     hours: 'Opening Hours',
     hoursDays: 'Sun – Thu',
     address: 'Address',
     addressText: 'Analipsi 700 14, Greece',
     copyright: 'All rights reserved',
+    footerTagline: 'The Pearl of Crete',
+    followUs: 'Follow us',
     categories: {
       starters: 'Starters & Snacks',
       mains: 'Main Courses',
@@ -156,17 +170,6 @@ const MENU_DATA = {
         { id: 'salmon', name: 'נתח סלמון צרוב', description: 'פילה סלמון בזיגוג עדין.', price: 29, image: dishImage('salmon') },
         { id: 'noodles', name: 'נודלס סלמון אסייתי', description: "אטריות מוקפצות עם נתחי סלמון וירקות ברוטב סויה וג'ינג'ר.", price: 18, image: dishImage('noodles') },
       ],
-      subsections: [
-        {
-          titleKey: 'categories.hotSides',
-          items: [
-            { id: 'fries-side', name: "צ'יפס פריך", description: '', price: 0, image: dishImage('fries') },
-            { id: 'white-rice', name: 'אורז לבן עסיסי', description: '', price: 0, image: dishImage('white-rice') },
-            { id: 'baked-potatoes', name: 'תפוחי אדמה אפויים', description: '', price: 0, image: dishImage('baked-potatoes') },
-            { id: 'green-beans', name: 'שעועית ירוקה מוקפצת', description: '', price: 0, image: dishImage('green-beans') },
-          ],
-        },
-      ],
     },
     {
       id: 'salads',
@@ -211,6 +214,18 @@ const MENU_DATA = {
   ],
 };
 
+const HOT_SIDE_ITEMS = [
+  { id: 'fries-side', name: "צ'יפס פריך", description: '', price: 0, image: dishImage('fries') },
+  { id: 'white-rice', name: 'אורז לבן עסיסי', description: '', price: 0, image: dishImage('white-rice') },
+  { id: 'baked-potatoes', name: 'תפוחי אדמה אפויים', description: '', price: 0, image: dishImage('baked-potatoes') },
+  { id: 'green-beans', name: 'שעועית ירוקה מוקפצת', description: '', price: 0, image: dishImage('green-beans') },
+];
+
 const MAIN_COURSE_IDS = new Set(['schnitzel', 'chicken-steak', 'denis', 'salmon']);
 const HOT_SIDE_IDS = new Set(['fries-side', 'white-rice', 'baked-potatoes', 'green-beans']);
 const MAX_SIDES_PER_MAIN = 2;
+
+const SOCIAL_LINKS = {
+  instagram: 'https://www.instagram.com/',
+  facebook: 'https://www.facebook.com/',
+};

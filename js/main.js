@@ -16,6 +16,10 @@
   const foodModalBody = $('#food-modal-body');
   const foodModalClose = $('#food-modal-close');
   const foodModalBackdrop = $('#food-modal-backdrop');
+  const sidesModal = $('#sides-modal');
+  const sidesModalBody = $('#sides-modal-body');
+  const sidesModalClose = $('#sides-modal-close');
+  const sidesModalBackdrop = $('#sides-modal-backdrop');
   const cartToggle = $('#cart-toggle');
   const cartPanel = $('#cart-panel');
   const cartBody = $('#cart-body');
@@ -39,6 +43,8 @@
   let cartLastFocusedElement = null;
   let cartToastTimer = null;
   let openModalItemId = null;
+  let openSidesMainLineId = null;
+  let sidesModalLastFocused = null;
 
   let cartLines = [];
   let cartLineOrder = [];
@@ -135,6 +141,7 @@
     if (nextLang === currentLang) return;
 
     closeFoodModal();
+    closeSidesModal();
     currentLang = nextLang;
     setDocumentLanguage();
     updateLangToggleUI();
@@ -143,6 +150,7 @@
     rebuildMenu(true);
     renderCart();
     updateOpenFoodModal();
+    refreshSidesModal();
   }
 
   /* ---------- Menu lookup ---------- */
@@ -152,12 +160,78 @@
     return items;
   }
 
+  function getHotSideItems() {
+    return HOT_SIDE_ITEMS;
+  }
+
   function findItem(itemId) {
     for (const category of MENU_DATA.categories) {
       const item = getCategoryItems(category).find((i) => i.id === itemId);
       if (item) return item;
     }
-    return null;
+    return HOT_SIDE_ITEMS.find((item) => item.id === itemId) || null;
+  }
+
+  function getSideQtyForMain(mainLineId, sideItemId) {
+    const line = cartLines.find(
+      (l) => l.linkedToMainLineId === mainLineId && l.itemId === sideItemId
+    );
+    return line ? line.qty : 0;
+  }
+
+  function addSideToMainLine(mainLineId, sideItemId) {
+    if (!canAddSideToMain(mainLineId)) {
+      showCartToast(t('maxSidesPerMain'));
+      return false;
+    }
+
+    const existing = cartLines.find(
+      (l) => l.linkedToMainLineId === mainLineId && l.itemId === sideItemId
+    );
+
+    if (existing) {
+      existing.qty += 1;
+      moveCartLineToTop(existing.lineId);
+    } else {
+      const lineId = createCartLineId();
+      cartLines.push({
+        lineId,
+        itemId: sideItemId,
+        qty: 1,
+        linkedToMainLineId: mainLineId,
+      });
+      moveCartLineToTop(lineId);
+    }
+
+    saveCart();
+    renderCart();
+    refreshFoodCards();
+    updateOpenFoodModal();
+    refreshSidesModal();
+    return true;
+  }
+
+  function removeSideFromMainLine(mainLineId, sideItemId) {
+    const line = cartLines.find(
+      (l) => l.linkedToMainLineId === mainLineId && l.itemId === sideItemId
+    );
+    if (!line) return;
+
+    if (line.qty <= 1) {
+      removeCartLine(line.lineId);
+      saveCart();
+      renderCart();
+      refreshFoodCards();
+      updateOpenFoodModal();
+    } else {
+      line.qty -= 1;
+      saveCart();
+      renderCart();
+      refreshFoodCards();
+      updateOpenFoodModal();
+    }
+
+    refreshSidesModal();
   }
 
   function isMainCourse(itemId) {
@@ -271,6 +345,7 @@
         cartLineOrder = cartLineOrder.filter((id) => id !== sideLine.lineId);
       });
       if (lastMainLineId === lineId) lastMainLineId = null;
+      if (openSidesMainLineId === lineId) closeSidesModal();
     }
 
     cartLines = cartLines.filter((l) => l.lineId !== lineId);
@@ -324,8 +399,21 @@
     initHeroSlideshow();
     handleHeroAnimations();
     initFoodModal();
+    initSidesModal();
     initCart();
     initLanguageToggle();
+    initSocialLinks();
+  }
+
+  function initSocialLinks() {
+    const instagram = $('#footer-instagram');
+    const facebook = $('#footer-facebook');
+    if (instagram && SOCIAL_LINKS?.instagram) {
+      instagram.href = SOCIAL_LINKS.instagram;
+    }
+    if (facebook && SOCIAL_LINKS?.facebook) {
+      facebook.href = SOCIAL_LINKS.facebook;
+    }
   }
 
   function initLanguageToggle() {
@@ -459,7 +547,6 @@
 
     return `
       <button type="button" class="food-add-btn" data-action="add-to-cart" data-item-id="${escapeAttr(item.id)}" aria-label="${escapeAttr(t('addToCart'))}: ${escapeAttr(name)}">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
         <span>${escapeHtml(t('addToCart'))}</span>
       </button>
     `;
@@ -719,16 +806,156 @@
     openModalItemId = null;
     foodModal.classList.remove('is-open');
     foodModal.setAttribute('aria-hidden', 'true');
-    document.body.classList.remove('modal-open');
+    if (!openSidesMainLineId) {
+      document.body.classList.remove('modal-open');
+    }
 
     window.setTimeout(() => {
       if (foodModal.classList.contains('is-open')) return;
 
       foodModal.hidden = true;
       foodModalBody.replaceChildren();
-      lastFocusedElement?.focus?.();
-      lastFocusedElement = null;
+      if (!openSidesMainLineId) {
+        lastFocusedElement?.focus?.();
+        lastFocusedElement = null;
+      }
     }, 280);
+  }
+
+  function renderSidesModal() {
+    if (!sidesModalBody || !openSidesMainLineId) return;
+
+    const mainLine = findCartLine(openSidesMainLineId);
+    if (!mainLine) {
+      closeSidesModal();
+      return;
+    }
+
+    const mainItem = findItem(mainLine.itemId);
+    if (!mainItem) {
+      closeSidesModal();
+      return;
+    }
+
+    const selectedCount = countSidesForMain(openSidesMainLineId);
+    const cardsHtml = getHotSideItems().map((side) => {
+      const qty = getSideQtyForMain(openSidesMainLineId, side.id);
+      const selected = qty > 0;
+
+      return `
+        <button
+          type="button"
+          class="sides-picker-card${selected ? ' is-selected' : ''}"
+          data-action="toggle-side"
+          data-item-id="${escapeAttr(side.id)}"
+          aria-pressed="${selected ? 'true' : 'false'}"
+        >
+          <span class="sides-picker-image-wrap">
+            <img
+              class="sides-picker-image"
+              src="${escapeAttr(side.image)}"
+              alt=""
+              loading="lazy"
+              decoding="async"
+              width="120"
+              height="120"
+            >
+          </span>
+          <span class="sides-picker-name">${escapeHtml(getItemName(side))}</span>
+          ${selected ? '<span class="sides-picker-check" aria-hidden="true">✓</span>' : ''}
+        </button>
+      `;
+    }).join('');
+
+    sidesModalBody.innerHTML = `
+      <div class="sides-modal-content">
+        <header class="sides-modal-header">
+          <h2 id="sides-modal-title" class="sides-modal-title">${escapeHtml(t('chooseSidesTitle'))}</h2>
+          <p class="sides-modal-subtitle">${escapeHtml(tReplace('chooseSidesSubtitle', { name: getItemName(mainItem) }))}</p>
+          <p class="sides-modal-count" aria-live="polite">${escapeHtml(tReplace('sidesSelected', { count: String(selectedCount) }))}</p>
+        </header>
+        <div class="sides-picker-grid" role="group" aria-label="${escapeAttr(t('chooseSidesTitle'))}">
+          ${cardsHtml}
+        </div>
+        <footer class="sides-modal-footer">
+          <button type="button" class="btn btn-primary sides-modal-continue" data-action="sides-continue">
+            ${escapeHtml(t('sidesContinue'))}
+          </button>
+        </footer>
+      </div>
+    `;
+  }
+
+  function refreshSidesModal() {
+    if (!openSidesMainLineId || sidesModal.hidden) return;
+    renderSidesModal();
+  }
+
+  function openSidesModal(mainLineId) {
+    if (!sidesModal || !sidesModalBody) return;
+
+    openSidesMainLineId = mainLineId;
+    lastMainLineId = mainLineId;
+    sidesModalLastFocused = document.activeElement;
+
+    closeFoodModal();
+    renderSidesModal();
+
+    sidesModal.hidden = false;
+    sidesModal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('modal-open');
+
+    requestAnimationFrame(() => {
+      sidesModal.classList.add('is-open');
+      sidesModalClose?.focus();
+    });
+  }
+
+  function closeSidesModal() {
+    if (!sidesModal || sidesModal.hidden) return;
+
+    openSidesMainLineId = null;
+    sidesModal.classList.remove('is-open');
+    sidesModal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('modal-open');
+
+    window.setTimeout(() => {
+      if (sidesModal.classList.contains('is-open')) return;
+
+      sidesModal.hidden = true;
+      sidesModalBody.replaceChildren();
+      sidesModalLastFocused?.focus?.();
+      sidesModalLastFocused = null;
+    }, 280);
+  }
+
+  function initSidesModal() {
+    if (!sidesModal || !sidesModalBody) return;
+
+    sidesModalBody.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-action]');
+      if (!btn) return;
+
+      const action = btn.dataset.action;
+
+      if (action === 'toggle-side' && btn.dataset.itemId) {
+        const sideItemId = btn.dataset.itemId;
+        const qty = getSideQtyForMain(openSidesMainLineId, sideItemId);
+        if (qty > 0) {
+          removeSideFromMainLine(openSidesMainLineId, sideItemId);
+        } else {
+          addSideToMainLine(openSidesMainLineId, sideItemId);
+        }
+        return;
+      }
+
+      if (action === 'sides-continue') {
+        closeSidesModal();
+      }
+    });
+
+    sidesModalClose?.addEventListener('click', closeSidesModal);
+    sidesModalBackdrop?.addEventListener('click', closeSidesModal);
   }
 
   /* ---------- Sticky header ---------- */
@@ -940,6 +1167,10 @@
   function initGlobalKeyboard() {
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;
+      if (sidesModal && !sidesModal.hidden) {
+        closeSidesModal();
+        return;
+      }
       if (foodModal && !foodModal.hidden) {
         closeFoodModal();
         return;
@@ -954,6 +1185,7 @@
   function initCart() {
     cartLines = loadCart().lines || [];
     cartLineOrder = loadCart().order || cartLines.map((l) => l.lineId);
+    normalizeLoadedCart();
     renderCart();
 
     if (!cartToggle || !cartPanel) return;
@@ -1012,11 +1244,14 @@
   }
 
   function addToCart(itemId) {
+    let newMainLineId = null;
+
     if (isMainCourse(itemId)) {
       const lineId = createCartLineId();
       cartLines.push({ lineId, itemId, qty: 1, linkedToMainLineId: null });
       moveCartLineToTop(lineId);
       lastMainLineId = lineId;
+      newMainLineId = lineId;
     } else if (isHotSide(itemId)) {
       if (rejectHotSideAdd()) return;
 
@@ -1061,6 +1296,10 @@
     renderCart();
     refreshFoodCards();
     updateOpenFoodModal();
+
+    if (newMainLineId) {
+      openSidesModal(newMainLineId);
+    }
   }
 
   function changeItemQuantity(itemId, delta) {
@@ -1081,8 +1320,23 @@
 
     const newQty = line.qty + delta;
     if (newQty <= 0) {
+      const wasHotSide = isHotSide(line.itemId) && line.linkedToMainLineId;
+      const mainLineId = wasHotSide ? line.linkedToMainLineId : null;
+
       removeCartLine(lineId);
-    } else if (delta > 0 && isHotSide(line.itemId) && line.linkedToMainLineId) {
+      saveCart();
+      renderCart();
+      refreshFoodCards();
+      updateOpenFoodModal();
+
+      if (wasHotSide && mainLineId && findCartLine(mainLineId)) {
+        closeCartPanel();
+        openSidesModal(mainLineId);
+      }
+      return;
+    }
+
+    if (delta > 0 && isHotSide(line.itemId) && line.linkedToMainLineId) {
       if (!canAddSideToMain(line.linkedToMainLineId)) {
         showCartToast(t('maxSidesPerMain'));
         return;
@@ -1098,8 +1352,26 @@
     updateOpenFoodModal();
   }
 
+  function normalizeLoadedCart() {
+    let changed = false;
+
+    cartLines.forEach((line) => {
+      if (isHotSide(line.itemId) && !line.linkedToMainLineId) {
+        const mainLineId = findMainLineForNewSide();
+        if (mainLineId) {
+          line.linkedToMainLineId = mainLineId;
+          changed = true;
+        }
+      }
+    });
+
+    if (changed) saveCart();
+  }
+
   function getCartCount() {
-    return cartLines.reduce((sum, item) => sum + item.qty, 0);
+    return cartLines
+      .filter((line) => !isHotSide(line.itemId))
+      .reduce((sum, line) => sum + line.qty, 0);
   }
 
   function getCartTotal() {
@@ -1117,7 +1389,7 @@
     const mainItem = mainLine ? findItem(mainLine.itemId) : null;
 
     let metaHtml = '';
-    if (line.linkedToMainLineId && mainItem) {
+    if (line.linkedToMainLineId && mainItem && variant !== 'child') {
       metaHtml = `<p class="cart-item-meta">${escapeHtml(tReplace('sideForMain', { name: getItemName(mainItem) }))}</p>`;
     } else if (isMainCourse(line.itemId)) {
       const sideNames = getSideLinesForMain(line.lineId)
@@ -1132,22 +1404,27 @@
       }
     }
 
+    const mainClass = variant === 'main' ? ' cart-item--main' : '';
     const sideClass = variant === 'child' ? ' cart-item--side' : '';
     const lineTotal = item.price * line.qty;
     const imageHtml = item.image
-      ? `<div class="cart-item-thumb">
+      ? `<div class="cart-item-thumb${variant === 'child' ? ' cart-item-thumb--side' : ''}">
            <img src="${escapeAttr(item.image)}" alt="" loading="lazy" decoding="async" width="52" height="52">
          </div>`
-      : `<div class="cart-item-thumb cart-item-thumb--placeholder" aria-hidden="true"></div>`;
+      : `<div class="cart-item-thumb cart-item-thumb--placeholder${variant === 'child' ? ' cart-item-thumb--side' : ''}" aria-hidden="true"></div>`;
+
+    const unitHtml = variant === 'child'
+      ? `<p class="cart-item-badge">${escapeHtml(t('sideLabel'))}</p>`
+      : `<p class="cart-item-unit">${escapeHtml(tReplace('perUnit', { price: formatPrice(item.price) }))}</p>`;
 
     return `
-      <article class="cart-item${sideClass}" data-cart-line-id="${escapeAttr(line.lineId)}">
+      <article class="cart-item${mainClass}${sideClass}" data-cart-line-id="${escapeAttr(line.lineId)}">
         ${imageHtml}
         <div class="cart-item-body">
           <div class="cart-item-main">
             <h3 class="cart-item-name">${escapeHtml(getItemName(item))}</h3>
             ${metaHtml}
-            <p class="cart-item-unit">${escapeHtml(tReplace('perUnit', { price: formatPrice(item.price) }))}</p>
+            ${unitHtml}
           </div>
           <div class="cart-item-controls">
             <button type="button" class="cart-qty-btn" data-action="cart-dec" aria-label="${escapeAttr(t('decrease'))}">−</button>
@@ -1155,7 +1432,7 @@
             <button type="button" class="cart-qty-btn" data-action="cart-inc" aria-label="${escapeAttr(t('increase'))}">+</button>
           </div>
         </div>
-        <div class="cart-item-total">${formatPrice(lineTotal)}</div>
+        <div class="cart-item-total">${item.price > 0 ? formatPrice(lineTotal) : ''}</div>
       </article>
     `;
   }
@@ -1186,7 +1463,12 @@
       if (entry.kind === 'main-group') {
         const mainHtml = renderCartLineHtml(entry.main, 'main');
         const sidesHtml = entry.sides.map((side) => renderCartLineHtml(side, 'child')).join('');
-        return mainHtml + sidesHtml;
+        return `
+          <div class="cart-group">
+            ${mainHtml}
+            ${sidesHtml ? `<div class="cart-group-sides">${sidesHtml}</div>` : ''}
+          </div>
+        `;
       }
       return renderCartLineHtml(entry.line, 'single');
     }).join('');
