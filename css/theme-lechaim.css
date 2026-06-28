@@ -901,14 +901,14 @@ html[dir='ltr'] .food-modal-body .food-card .food-content {
 
 .hero-seo-text{
     position:absolute;
-    top:12%;
+    top:18%;
     left:50%;
+    right:auto;
     transform:translateX(-50%);
-    width:90%;
-    max-width:650px;
+    width:min(92%,700px);
     text-align:center;
-    z-index:5;
     direction:rtl;
+    z-index:5;
 }
 
 .hero-seo-text h1{
@@ -917,6 +917,7 @@ html[dir='ltr'] .food-modal-body .food-card .food-content {
     font-size:clamp(2rem,7vw,3.2rem);
     line-height:1.25;
     font-weight:700;
+    text-align:center;
 }
 
 .hero-seo-text p{
@@ -924,31 +925,13 @@ html[dir='ltr'] .food-modal-body .food-card .food-content {
     color:#fff;
     font-size:clamp(1rem,3vw,1.2rem);
     line-height:1.7;
+    text-align:center;
 }
 
-.hero-bottom{
-    width:100%;
-    display:flex;
-    justify-content:center;
-    margin-top:auto;
-    padding-bottom:40px;
+.hero-seo-text.reveal{
+    transform:translateX(-50%) translateY(20px);
 }
 
-.hero-seo-text{
-    position:absolute;
-    top:18%;
-    left:50%;
-    right:auto !important;
-    transform:translateX(-50%);
-    width:min(92%,700px);
-    text-align:center !important;
-    direction:rtl;
-    z-index:2;
-}
-
-.hero-seo-text h1,
-.hero-seo-text p{
-    text-align:center !important;
-    margin:0 auto;
-    width:100%;
+.hero-seo-text.reveal.is-visible{
+    transform:translateX(-50%) translateY(0);
 }
