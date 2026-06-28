@@ -933,3 +933,22 @@ html[dir='ltr'] .food-modal-body .food-card .food-content {
     margin-top:auto;
     padding-bottom:40px;
 }
+
+.hero-seo-text{
+    position:absolute;
+    top:18%;
+    left:50%;
+    right:auto !important;
+    transform:translateX(-50%);
+    width:min(92%,700px);
+    text-align:center !important;
+    direction:rtl;
+    z-index:2;
+}
+
+.hero-seo-text h1,
+.hero-seo-text p{
+    text-align:center !important;
+    margin:0 auto;
+    width:100%;
+}
