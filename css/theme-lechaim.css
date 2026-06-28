@@ -893,9 +893,10 @@ html[dir='ltr'] .food-modal-body .food-card .food-content {
 }
 .hero-content{
     position:relative;
+    z-index:1;
     display:flex;
     flex-direction:column;
-    justify-content:space-between;
+    justify-content:flex-end;
     align-items:center;
 }
 
@@ -934,4 +935,12 @@ html[dir='ltr'] .food-modal-body .food-card .food-content {
 
 .hero-seo-text.reveal.is-visible{
     transform:translateX(-50%) translateY(0);
+}
+
+.hero-bottom{
+    width:100%;
+    display:flex;
+    justify-content:center;
+    margin-top:auto;
+    padding-bottom:40px;
 }
