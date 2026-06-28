@@ -891,9 +891,13 @@ html[dir='ltr'] .food-modal-body .food-card .food-content {
     font-size: 0.74rem;
   }
 }
+.hero-content{
+    position:relative;
+}
+
 .hero-seo-text{
     position:absolute;
-    top:22%;
+    top:18%;
     left:50%;
     transform:translateX(-50%);
     width:min(92%,700px);
@@ -903,21 +907,24 @@ html[dir='ltr'] .food-modal-body .food-card .food-content {
 }
 
 .hero-seo-text h1{
-    font-size:clamp(2rem,7vw,3.3rem);
+    margin:0 0 10px;
+    font-size:clamp(2rem,7vw,3.2rem);
+    line-height:1.2;
     color:#fff;
-    margin-bottom:8px;
     font-weight:700;
 }
 
 .hero-seo-text h2{
-    font-size:clamp(1.15rem,4vw,1.6rem);
+    margin:0 0 18px;
+    font-size:clamp(1.2rem,4vw,1.7rem);
+    line-height:1.3;
     color:#fff;
-    margin-bottom:16px;
     font-weight:500;
 }
 
 .hero-seo-text p{
+    margin:0;
     font-size:clamp(1rem,3vw,1.2rem);
-    color:rgba(255,255,255,.95);
     line-height:1.7;
+    color:rgba(255,255,255,.95);
 }
