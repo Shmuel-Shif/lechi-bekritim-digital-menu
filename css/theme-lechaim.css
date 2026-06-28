@@ -891,30 +891,33 @@ html[dir='ltr'] .food-modal-body .food-card .food-content {
     font-size: 0.74rem;
   }
 }
-.hero-seo-text {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 150px; /* מעל הכפתור */
-  width: 100%;
-  padding: 0 24px;
-  text-align: center;
-  z-index: 2;
-  pointer-events: none;
+.hero-seo-text{
+    position:absolute;
+    top:22%;
+    left:50%;
+    transform:translateX(-50%);
+    width:min(92%,700px);
+    text-align:center;
+    z-index:2;
+    pointer-events:none;
 }
 
-.hero-seo-text h1 {
-  margin: 0 0 10px;
-  font-size: clamp(1.8rem, 6vw, 2.8rem);
-  line-height: 1.2;
-  color: #fff;
-  text-shadow: 0 3px 12px rgba(0,0,0,.6);
+.hero-seo-text h1{
+    font-size:clamp(2rem,7vw,3.3rem);
+    color:#fff;
+    margin-bottom:8px;
+    font-weight:700;
 }
 
-.hero-seo-text p {
-  margin: 0;
-  font-size: clamp(1rem, 3.5vw, 1.2rem);
-  line-height: 1.5;
-  color: rgba(255,255,255,.95);
-  text-shadow: 0 2px 8px rgba(0,0,0,.5);
+.hero-seo-text h2{
+    font-size:clamp(1.15rem,4vw,1.6rem);
+    color:#fff;
+    margin-bottom:16px;
+    font-weight:500;
+}
+
+.hero-seo-text p{
+    font-size:clamp(1rem,3vw,1.2rem);
+    color:rgba(255,255,255,.95);
+    line-height:1.7;
 }
