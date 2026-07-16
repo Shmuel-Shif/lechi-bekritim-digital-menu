@@ -50,17 +50,36 @@
   let cartLineOrder = [];
   let lastMainLineId = null;
 
-  const HERO_SLIDES = [
-    dishImage('mushrooms'),
-    dishImage('antipasti'),
-    dishImage('schnitzel'),
-    dishImage('salmon'),
-    dishImage('noodles'),
-    dishImage('baked-potatoes'),
-    dishImage('fries'),
-    dishImage('chicken-salad'),
-    dishImage('tortilla-salmon'),
-  ];
+  /* Hero keeps brand atmosphere without dish photos (new menu has no images yet). */
+  function headerFoto(filename) {
+    return `assets/images/header%20foto/${filename}`;
+  }
+
+  function shuffleArray(items) {
+    const list = items.slice();
+    for (let i = list.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const temp = list[i];
+      list[i] = list[j];
+      list[j] = temp;
+    }
+    return list;
+  }
+
+  const HERO_SLIDES = shuffleArray([
+    headerFoto('1.webp'),
+    headerFoto('2.webp'),
+    headerFoto('3.webp'),
+    headerFoto('4.webp'),
+    headerFoto('chicken-salad.webp'),
+    headerFoto('fries.webp'),
+    headerFoto('fruit-plate.webp'),
+    headerFoto('fruit-shake.webp'),
+    headerFoto('green-salad.webp'),
+    headerFoto('mushrooms.webp'),
+    headerFoto('salmon.webp'),
+    headerFoto('schnitzel.webp'),
+  ]);
 
   /* ---------- i18n ---------- */
   function t(key) {
@@ -487,9 +506,19 @@
       section.id = cat.id;
       section.dataset.category = cat.id;
 
-      const descHtml = cat.descriptionKey
-        ? `<p class="category-desc">${escapeHtml(t(cat.descriptionKey))}</p>`
-        : (cat.description ? `<p class="category-desc">${escapeHtml(cat.description)}</p>` : '');
+      const descParts = [];
+      if (cat.descriptionKey) {
+        descParts.push(`<p class="category-desc">${escapeHtml(t(cat.descriptionKey))}</p>`);
+      } else if (cat.description) {
+        descParts.push(`<p class="category-desc">${escapeHtml(cat.description)}</p>`);
+      }
+      if (cat.sidesTitleKey) {
+        descParts.push(`<p class="category-sides-title">${escapeHtml(t(cat.sidesTitleKey))}</p>`);
+      }
+      if (cat.sidesListKey) {
+        descParts.push(`<p class="category-sides-list">${escapeHtml(t(cat.sidesListKey))}</p>`);
+      }
+      const descHtml = descParts.join('');
 
       section.innerHTML = `
         <header class="category-header">
@@ -841,26 +870,30 @@
     const cardsHtml = getHotSideItems().map((side) => {
       const qty = getSideQtyForMain(openSidesMainLineId, side.id);
       const selected = qty > 0;
+      const hasImage = Boolean(side.image);
+      const imageHtml = hasImage
+        ? `<span class="sides-picker-image-wrap">
+             <img
+               class="sides-picker-image"
+               src="${escapeAttr(side.image)}"
+               alt=""
+               loading="lazy"
+               decoding="async"
+               width="120"
+               height="120"
+             >
+           </span>`
+        : '';
 
       return `
         <button
           type="button"
-          class="sides-picker-card${selected ? ' is-selected' : ''}"
+          class="sides-picker-card${selected ? ' is-selected' : ''}${hasImage ? '' : ' sides-picker-card--no-image'}"
           data-action="toggle-side"
           data-item-id="${escapeAttr(side.id)}"
           aria-pressed="${selected ? 'true' : 'false'}"
         >
-          <span class="sides-picker-image-wrap">
-            <img
-              class="sides-picker-image"
-              src="${escapeAttr(side.image)}"
-              alt=""
-              loading="lazy"
-              decoding="async"
-              width="120"
-              height="120"
-            >
-          </span>
+          ${imageHtml}
           <span class="sides-picker-name">${escapeHtml(getItemName(side))}</span>
           ${selected ? '<span class="sides-picker-check" aria-hidden="true">✓</span>' : ''}
         </button>
@@ -1125,27 +1158,42 @@
 
     HERO_SLIDES.forEach((src, index) => {
       const slide = document.createElement('div');
-      slide.className = `hero-slide${index === 0 ? ' is-active' : ''}`;
+      slide.className = 'hero-slide';
 
       const img = document.createElement('img');
       img.src = src;
       img.alt = '';
-      img.loading = 'lazy';
+      img.loading = index === 0 ? 'eager' : 'lazy';
       img.decoding = 'async';
+      img.addEventListener('error', () => {
+        const wasActive = slide.classList.contains('is-active');
+        slide.remove();
+        const remaining = $$('.hero-slide', container);
+        if (wasActive && remaining[0]) {
+          remaining[0].classList.add('is-active');
+        }
+      });
 
       slide.appendChild(img);
       container.appendChild(slide);
     });
 
-    if (reducedMotion || HERO_SLIDES.length < 2) return;
+    const initialSlides = $$('.hero-slide', container);
+    if (initialSlides[0]) {
+      initialSlides[0].classList.add('is-active');
+    }
 
-    const slides = $$('.hero-slide', container);
+    if (reducedMotion || initialSlides.length < 2) return;
+
     let current = 0;
 
     heroSlideTimer = window.setInterval(() => {
-      slides[current].classList.remove('is-active');
-      current = (current + 1) % slides.length;
-      slides[current].classList.add('is-active');
+      const activeSlides = $$('.hero-slide', container);
+      if (activeSlides.length < 2) return;
+
+      activeSlides[current]?.classList.remove('is-active');
+      current = (current + 1) % activeSlides.length;
+      activeSlides[current]?.classList.add('is-active');
     }, 3000);
   }
 
@@ -1154,9 +1202,10 @@
       $$('.hero .reveal').forEach((el) => {
         let delay = 0.76;
 
-        if (el.classList.contains('hero-logo')) delay = 0.2;
-        else if (el.classList.contains('hero-tagline')) delay = 0.38;
-        else if (el.id === 'hero-cta') delay = 0.52;
+        if (el.classList.contains('hero-title')) delay = 0.2;
+        else if (el.classList.contains('hero-kosher')) delay = 0.34;
+        else if (el.classList.contains('hero-tagline')) delay = 0.46;
+        else if (el.id === 'hero-cta') delay = 0.6;
 
         el.style.transitionDelay = `${delay}s`;
         el.classList.add('is-visible');
@@ -1355,6 +1404,18 @@
   function normalizeLoadedCart() {
     let changed = false;
 
+    const validLines = cartLines.filter((line) => {
+      if (findItem(line.itemId)) return true;
+      changed = true;
+      return false;
+    });
+
+    if (validLines.length !== cartLines.length) {
+      cartLines = validLines;
+      const validIds = new Set(cartLines.map((l) => l.lineId));
+      cartLineOrder = cartLineOrder.filter((id) => validIds.has(id));
+    }
+
     cartLines.forEach((line) => {
       if (isHotSide(line.itemId) && !line.linkedToMainLineId) {
         const mainLineId = findMainLineForNewSide();
@@ -1406,19 +1467,20 @@
 
     const mainClass = variant === 'main' ? ' cart-item--main' : '';
     const sideClass = variant === 'child' ? ' cart-item--side' : '';
+    const noImageClass = item.image ? '' : ' cart-item--no-image';
     const lineTotal = item.price * line.qty;
     const imageHtml = item.image
       ? `<div class="cart-item-thumb${variant === 'child' ? ' cart-item-thumb--side' : ''}">
            <img src="${escapeAttr(item.image)}" alt="" loading="lazy" decoding="async" width="52" height="52">
          </div>`
-      : `<div class="cart-item-thumb cart-item-thumb--placeholder${variant === 'child' ? ' cart-item-thumb--side' : ''}" aria-hidden="true"></div>`;
+      : '';
 
     const unitHtml = variant === 'child'
       ? `<p class="cart-item-badge">${escapeHtml(t('sideLabel'))}</p>`
       : `<p class="cart-item-unit">${escapeHtml(tReplace('perUnit', { price: formatPrice(item.price) }))}</p>`;
 
     return `
-      <article class="cart-item${mainClass}${sideClass}" data-cart-line-id="${escapeAttr(line.lineId)}">
+      <article class="cart-item${mainClass}${sideClass}${noImageClass}" data-cart-line-id="${escapeAttr(line.lineId)}">
         ${imageHtml}
         <div class="cart-item-body">
           <div class="cart-item-main">
