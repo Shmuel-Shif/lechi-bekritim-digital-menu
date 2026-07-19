@@ -68,16 +68,18 @@
 
   const HERO_SLIDES = shuffleArray([
     headerFoto('1.webp'),
-    headerFoto('2.webp'),
-    headerFoto('3.webp'),
-    headerFoto('4.webp'),
     headerFoto('chicken-salad.webp'),
     headerFoto('fries.webp'),
     headerFoto('fruit-plate.webp'),
+    headerFoto('3.webp'),
     headerFoto('fruit-shake.webp'),
-    headerFoto('green-salad.webp'),
+    headerFoto('hummus-egg.webp'),
+    headerFoto('kebab.webp'),
+    headerFoto('market-salad.webp'),
+    headerFoto('4.webp'),
     headerFoto('mushrooms.webp'),
     headerFoto('salmon.webp'),
+    headerFoto('2.webp'),
     headerFoto('schnitzel.webp'),
   ]);
 
@@ -199,6 +201,13 @@
   }
 
   function addSideToMainLine(mainLineId, sideItemId) {
+    const otherSides = cartLines.filter(
+      (l) => l.linkedToMainLineId === mainLineId && l.itemId !== sideItemId
+    );
+    otherSides.forEach((line) => {
+      removeCartLine(line.lineId);
+    });
+
     if (!canAddSideToMain(mainLineId)) {
       showCartToast(t('maxSidesPerMain'));
       return false;
@@ -602,6 +611,7 @@
              decoding="async"
              width="160"
              height="160"
+             onerror="this.closest('.food-card')?.classList.add('food-card--no-image');this.closest('.food-image-wrap')?.remove();"
            >
          </div>`
       : '';
@@ -791,6 +801,7 @@
              width="540"
              height="540"
              decoding="async"
+             onerror="this.closest('.food-modal-hero')?.remove();"
            >
          </div>`
       : '';
@@ -867,20 +878,21 @@
     }
 
     const selectedCount = countSidesForMain(openSidesMainLineId);
-    const cardsHtml = getHotSideItems().map((side) => {
+    const cellsHtml = getHotSideItems().map((side) => {
       const qty = getSideQtyForMain(openSidesMainLineId, side.id);
       const selected = qty > 0;
       const hasImage = Boolean(side.image);
       const imageHtml = hasImage
-        ? `<span class="sides-picker-image-wrap">
+        ? `<span class="sides-picker-thumb">
              <img
                class="sides-picker-image"
                src="${escapeAttr(side.image)}"
                alt=""
                loading="lazy"
                decoding="async"
-               width="120"
-               height="120"
+               width="72"
+               height="72"
+               onerror="this.closest('.sides-picker-cell')?.classList.add('sides-picker-cell--no-image');this.closest('.sides-picker-thumb')?.remove();"
              >
            </span>`
         : '';
@@ -888,14 +900,14 @@
       return `
         <button
           type="button"
-          class="sides-picker-card${selected ? ' is-selected' : ''}${hasImage ? '' : ' sides-picker-card--no-image'}"
+          class="sides-picker-cell${selected ? ' is-selected' : ''}${hasImage ? '' : ' sides-picker-cell--no-image'}"
           data-action="toggle-side"
           data-item-id="${escapeAttr(side.id)}"
           aria-pressed="${selected ? 'true' : 'false'}"
         >
           ${imageHtml}
           <span class="sides-picker-name">${escapeHtml(getItemName(side))}</span>
-          ${selected ? '<span class="sides-picker-check" aria-hidden="true">✓</span>' : ''}
+          <span class="sides-picker-check" aria-hidden="true">${selected ? '✓' : ''}</span>
         </button>
       `;
     }).join('');
@@ -907,8 +919,8 @@
           <p class="sides-modal-subtitle">${escapeHtml(tReplace('chooseSidesSubtitle', { name: getItemName(mainItem) }))}</p>
           <p class="sides-modal-count" aria-live="polite">${escapeHtml(tReplace('sidesSelected', { count: String(selectedCount) }))}</p>
         </header>
-        <div class="sides-picker-grid" role="group" aria-label="${escapeAttr(t('chooseSidesTitle'))}">
-          ${cardsHtml}
+        <div class="sides-picker-table" role="group" aria-label="${escapeAttr(t('chooseSidesTitle'))}">
+          ${cellsHtml}
         </div>
         <footer class="sides-modal-footer">
           <button type="button" class="btn btn-primary sides-modal-continue" data-action="sides-continue">
@@ -1155,6 +1167,8 @@
     if (!container) return;
 
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const SLIDE_MS = 5000;
+    const FADE_MS = 1600;
 
     HERO_SLIDES.forEach((src, index) => {
       const slide = document.createElement('div');
@@ -1163,8 +1177,9 @@
       const img = document.createElement('img');
       img.src = src;
       img.alt = '';
-      img.loading = index === 0 ? 'eager' : 'lazy';
+      img.loading = 'eager';
       img.decoding = 'async';
+      if (index === 0) img.fetchPriority = 'high';
       img.addEventListener('error', () => {
         const wasActive = slide.classList.contains('is-active');
         slide.remove();
@@ -1186,15 +1201,38 @@
     if (reducedMotion || initialSlides.length < 2) return;
 
     let current = 0;
+    let isTransitioning = false;
 
-    heroSlideTimer = window.setInterval(() => {
+    const goNext = () => {
       const activeSlides = $$('.hero-slide', container);
-      if (activeSlides.length < 2) return;
+      if (activeSlides.length < 2 || isTransitioning) return;
 
-      activeSlides[current]?.classList.remove('is-active');
+      isTransitioning = true;
+      const outgoing = activeSlides[current];
       current = (current + 1) % activeSlides.length;
-      activeSlides[current]?.classList.add('is-active');
-    }, 3000);
+      const incoming = activeSlides[current];
+
+      /* Freeze outgoing zoom so scale doesn't snap mid-fade */
+      const outgoingImg = outgoing?.querySelector('img');
+      if (outgoingImg) {
+        const scale = getComputedStyle(outgoingImg).transform;
+        outgoingImg.style.animation = 'none';
+        outgoingImg.style.transform = scale === 'none' ? 'scale(1)' : scale;
+      }
+
+      outgoing?.classList.remove('is-active');
+      incoming?.classList.add('is-active');
+
+      window.setTimeout(() => {
+        if (outgoingImg) {
+          outgoingImg.style.animation = '';
+          outgoingImg.style.transform = '';
+        }
+        isTransitioning = false;
+      }, FADE_MS);
+    };
+
+    heroSlideTimer = window.setInterval(goNext, SLIDE_MS);
   }
 
   function handleHeroAnimations() {
@@ -1471,7 +1509,7 @@
     const lineTotal = item.price * line.qty;
     const imageHtml = item.image
       ? `<div class="cart-item-thumb${variant === 'child' ? ' cart-item-thumb--side' : ''}">
-           <img src="${escapeAttr(item.image)}" alt="" loading="lazy" decoding="async" width="52" height="52">
+           <img src="${escapeAttr(item.image)}" alt="" loading="lazy" decoding="async" width="52" height="52" onerror="this.closest('.cart-item')?.classList.add('cart-item--no-image');this.closest('.cart-item-thumb')?.remove();">
          </div>`
       : '';
 

@@ -17,6 +17,8 @@ const LOGO_DIR = path.join(root, 'assets', 'logo');
 const FILE_TO_ID = {
   'פלטת סלטים לפתיחה.png': 'salad-plate',
   'חומוס הבית.png': 'hummus',
+  'חומוס עם ביצה.png': 'hummus-egg',
+  'חומוס בשר.png': 'hummus-meat',
   'אנטיפסטי צבעוני_.png': 'antipasti',
   'פטריות חמות.png': 'mushrooms',
   'צ_יפס פריך.png': 'fries',
@@ -45,15 +47,27 @@ const FILE_TO_ID = {
   'קפה שחור.png': 'black-coffee',
   'קפה קר ומרענן.png': 'iced-coffee',
   'תה חם עם נענע.png': 'mint-tea',
+  'שיפודי קבב.png': 'kebab',
+  'מוקפץ עוף.png': 'chicken-stirfry',
+  'סלט שוק.png': 'market-salad',
+  'פאנטה.png': 'fanta',
+  'ספרייט.png': 'sprite',
+  'רד בול.png': 'red-bull',
+  'בירה הייניקן.png': 'heineken',
+  'בירה קורונה.png': 'corona',
+  'פירה.png': 'puree',
+  'ירקות בתנור.png': 'oven-vegetables',
 };
 
 const REQUIRED_IDS = [
-  'salad-plate', 'hummus', 'antipasti', 'mushrooms', 'fries',
+  'salad-plate', 'hummus', 'hummus-egg', 'hummus-meat', 'antipasti', 'mushrooms', 'fries',
   'schnitzel', 'chicken-steak', 'denis', 'salmon', 'noodles',
   'white-rice', 'baked-potatoes', 'green-beans',
   'tortilla-salmon', 'chicken-salad', 'israeli-salad', 'green-salad',
   'fruit-plate', 'coke', 'coke-zero', 'fuzetea', 'soda', 'water',
   'fruit-shake', 'espresso', 'cappuccino', 'black-coffee', 'mint-tea', 'iced-coffee',
+  'kebab', 'chicken-stirfry', 'market-salad', 'fanta', 'sprite', 'red-bull', 'heineken', 'corona',
+  'puree', 'oven-vegetables',
 ];
 
 const WEBP_QUALITY = 85;

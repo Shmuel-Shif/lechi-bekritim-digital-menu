@@ -351,13 +351,18 @@ html[dir="ltr"] .search-panel__input {
   background-color: var(--color-navy-dark);
 }
 
+.hero-slides::after {
+  background: rgba(21, 38, 64, 0.34);
+}
+
 .hero-overlay {
+  z-index: 1;
   background: linear-gradient(
     to top,
-    rgba(21, 38, 64, 0.88) 0%,
-    rgba(21, 38, 64, 0.55) 35%,
-    rgba(21, 38, 64, 0.25) 60%,
-    rgba(21, 38, 64, 0.08) 100%
+    rgba(21, 38, 64, 0.90) 0%,
+    rgba(21, 38, 64, 0.62) 35%,
+    rgba(21, 38, 64, 0.38) 60%,
+    rgba(21, 38, 64, 0.26) 100%
   );
 }
 
@@ -626,17 +631,21 @@ html[dir="ltr"] .search-panel__input {
   color: var(--color-gold-dark);
 }
 
-.sides-picker-card {
+.sides-picker-cell {
   border-color: var(--color-cream-dark);
   background: var(--color-white);
 }
 
-.sides-picker-card.is-selected {
-  border-color: var(--color-navy);
-  background: rgba(30, 51, 84, 0.06);
+.sides-picker-cell:hover {
+  border-color: color-mix(in srgb, var(--color-cream-dark) 50%, var(--color-navy) 50%);
 }
 
-.sides-picker-check {
+.sides-picker-cell.is-selected {
+  border-color: var(--color-navy);
+  background: rgba(30, 51, 84, 0.07);
+}
+
+.sides-picker-cell.is-selected .sides-picker-check {
   background: var(--color-navy);
 }
 
