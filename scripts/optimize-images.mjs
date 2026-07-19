@@ -7,6 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
 const assetSources = [
   { source: path.join(root, 'assets', 'images', 'dishes'), target: path.join(root, 'assets', 'images', 'dishes') },
+  { source: path.join(root, 'assets', 'images', 'header foto'), target: path.join(root, 'assets', 'images', 'header foto') },
   { source: path.join(root, 'assets', 'images'), target: path.join(root, 'assets', 'images') },
   { source: path.join(root, 'assets', 'logo'), target: path.join(root, 'assets', 'logo') }
 ];

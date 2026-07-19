@@ -75,12 +75,16 @@
     headerFoto('fruit-shake.webp'),
     headerFoto('hummus-egg.webp'),
     headerFoto('kebab.webp'),
-    headerFoto('market-salad.webp'),
+    headerFoto('denis.webp'),
     headerFoto('4.webp'),
     headerFoto('mushrooms.webp'),
     headerFoto('salmon.webp'),
     headerFoto('2.webp'),
     headerFoto('schnitzel.webp'),
+    headerFoto('salad-plate.webp'),
+    headerFoto('puree.webp'),
+    headerFoto('fanta.webp'),
+    headerFoto('sprite.webp'),
   ]);
 
   /* ---------- i18n ---------- */
@@ -233,8 +237,6 @@
 
     saveCart();
     renderCart();
-    refreshFoodCards();
-    updateOpenFoodModal();
     refreshSidesModal();
     return true;
   }
@@ -249,14 +251,10 @@
       removeCartLine(line.lineId);
       saveCart();
       renderCart();
-      refreshFoodCards();
-      updateOpenFoodModal();
     } else {
       line.qty -= 1;
       saveCart();
       renderCart();
-      refreshFoodCards();
-      updateOpenFoodModal();
     }
 
     refreshSidesModal();
@@ -673,23 +671,40 @@
     return li;
   }
 
-  function refreshFoodCards() {
-    $$('.food-item').forEach((li) => {
-      const article = li.querySelector('.food-card');
-      if (!article) return;
+  /* Update only cart actions / in-cart state — never rebuild images (avoids re-fetch & CLS). */
+  function updateFoodCardActions(article, item) {
+    if (!article || !item) return;
 
-      const itemId = article.dataset.itemId;
-      const item = findItem(itemId);
-      if (!item) return;
+    const qty = getCartQtyForItem(item.id);
+    article.classList.toggle('food-card--in-cart', qty > 0);
 
-      const wasVisible = article.classList.contains('is-visible');
-      const { cardClass, innerHtml } = buildFoodCardMarkup(item);
-      article.className = cardClass;
-      if (wasVisible) {
-        article.classList.add('is-visible');
-      }
-      article.innerHTML = innerHtml;
+    const actions = article.querySelector('.food-card-actions');
+    if (actions) {
+      actions.innerHTML = renderCardActions(item);
+    }
+  }
+
+  function refreshFoodCardById(itemId) {
+    if (!itemId) return;
+    const item = findItem(itemId);
+    if (!item) return;
+
+    $$(`.food-card[data-item-id="${CSS.escape(itemId)}"]`).forEach((article) => {
+      updateFoodCardActions(article, item);
     });
+  }
+
+  function refreshFoodCards(itemIds) {
+    if (itemIds == null) {
+      $$('.food-card[data-item-id]').forEach((article) => {
+        const item = findItem(article.dataset.itemId);
+        if (item) updateFoodCardActions(article, item);
+      });
+      return;
+    }
+
+    const ids = Array.isArray(itemIds) ? itemIds : [itemIds];
+    ids.forEach(refreshFoodCardById);
   }
 
   /* ---------- Food modal ---------- */
@@ -836,8 +851,24 @@
   }
 
   function updateOpenFoodModal() {
-    if (!openModalItemId || foodModal.hidden) return;
-    openFoodModalById(openModalItemId);
+    if (!openModalItemId || !foodModal || foodModal.hidden) return;
+
+    const item = findItem(openModalItemId);
+    if (!item) return;
+
+    const card = foodModalBody?.querySelector('.food-modal-card');
+    if (!card) {
+      openFoodModalById(openModalItemId);
+      return;
+    }
+
+    const nextActions = renderModalActions(item);
+    const existingActions = card.querySelector('.food-modal-actions');
+    if (existingActions) {
+      existingActions.outerHTML = nextActions;
+    } else if (nextActions) {
+      card.insertAdjacentHTML('beforeend', nextActions);
+    }
   }
 
   function closeFoodModal() {
@@ -1169,59 +1200,112 @@
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const SLIDE_MS = 5000;
     const FADE_MS = 1600;
+    const HERO_IMG_W = 1600;
+    const HERO_IMG_H = 900;
+
+    const slides = [];
+    const preloadedHrefs = new Set();
+
+    const loadSlideImage = (entry) => {
+      if (!entry || entry.loaded) return;
+      entry.img.src = entry.src;
+      entry.loaded = true;
+    };
+
+    const preloadHref = (href, priority = 'low') => {
+      if (preloadedHrefs.has(href)) return;
+      preloadedHrefs.add(href);
+      const link = document.createElement('link');
+      link.rel = 'preload';
+      link.as = 'image';
+      link.href = href;
+      link.setAttribute('fetchpriority', priority);
+      document.head.appendChild(link);
+    };
+
+    const preloadSlide = (index, priority = 'low') => {
+      const entry = slides[index];
+      if (!entry || entry.prefetched) return;
+      entry.prefetched = true;
+      preloadHref(entry.src, priority);
+    };
 
     HERO_SLIDES.forEach((src, index) => {
       const slide = document.createElement('div');
       slide.className = 'hero-slide';
 
       const img = document.createElement('img');
-      img.src = src;
       img.alt = '';
-      img.loading = 'eager';
       img.decoding = 'async';
-      if (index === 0) img.fetchPriority = 'high';
+      img.width = HERO_IMG_W;
+      img.height = HERO_IMG_H;
+      img.setAttribute('sizes', '100vw');
+
+      const entry = { slide, img, src, loaded: false, prefetched: false };
+
+      if (index === 0) {
+        img.loading = 'eager';
+        img.fetchPriority = 'high';
+        entry.prefetched = true;
+        preloadHref(src, 'high');
+        loadSlideImage(entry);
+      } else {
+        /* Defer src until slide is about to show — avoids loading ~18 hero images upfront. */
+        img.loading = 'lazy';
+      }
+
       img.addEventListener('error', () => {
         const wasActive = slide.classList.contains('is-active');
+        const removedIndex = slides.indexOf(entry);
         slide.remove();
-        const remaining = $$('.hero-slide', container);
-        if (wasActive && remaining[0]) {
-          remaining[0].classList.add('is-active');
+        if (removedIndex >= 0) slides.splice(removedIndex, 1);
+
+        if (wasActive && slides[0]) {
+          loadSlideImage(slides[0]);
+          slides[0].slide.classList.add('is-active');
         }
       });
 
       slide.appendChild(img);
       container.appendChild(slide);
+      slides.push(entry);
     });
 
-    const initialSlides = $$('.hero-slide', container);
-    if (initialSlides[0]) {
-      initialSlides[0].classList.add('is-active');
+    if (slides[0]) {
+      slides[0].slide.classList.add('is-active');
     }
 
-    if (reducedMotion || initialSlides.length < 2) return;
+    if (reducedMotion || slides.length < 2) return;
+
+    /* Warm the next slide so the first transition is smooth */
+    loadSlideImage(slides[1]);
+    preloadSlide(1, 'low');
 
     let current = 0;
     let isTransitioning = false;
 
     const goNext = () => {
-      const activeSlides = $$('.hero-slide', container);
-      if (activeSlides.length < 2 || isTransitioning) return;
+      if (slides.length < 2 || isTransitioning) return;
 
       isTransitioning = true;
-      const outgoing = activeSlides[current];
-      current = (current + 1) % activeSlides.length;
-      const incoming = activeSlides[current];
+      const outgoing = slides[current];
+      current = (current + 1) % slides.length;
+      const incoming = slides[current];
+      const upcoming = slides[(current + 1) % slides.length];
+
+      loadSlideImage(incoming);
+      loadSlideImage(upcoming);
 
       /* Freeze outgoing zoom so scale doesn't snap mid-fade */
-      const outgoingImg = outgoing?.querySelector('img');
+      const outgoingImg = outgoing?.img;
       if (outgoingImg) {
         const scale = getComputedStyle(outgoingImg).transform;
         outgoingImg.style.animation = 'none';
         outgoingImg.style.transform = scale === 'none' ? 'scale(1)' : scale;
       }
 
-      outgoing?.classList.remove('is-active');
-      incoming?.classList.add('is-active');
+      outgoing?.slide.classList.remove('is-active');
+      incoming?.slide.classList.add('is-active');
 
       window.setTimeout(() => {
         if (outgoingImg) {
@@ -1270,8 +1354,9 @@
 
   /* ---------- Cart ---------- */
   function initCart() {
-    cartLines = loadCart().lines || [];
-    cartLineOrder = loadCart().order || cartLines.map((l) => l.lineId);
+    const loaded = loadCart();
+    cartLines = loaded.lines || [];
+    cartLineOrder = loaded.order || cartLines.map((l) => l.lineId);
     normalizeLoadedCart();
     renderCart();
 
@@ -1381,8 +1466,10 @@
 
     saveCart();
     renderCart();
-    refreshFoodCards();
-    updateOpenFoodModal();
+    if (!isHotSide(itemId)) {
+      refreshFoodCards(itemId);
+      updateOpenFoodModal();
+    }
 
     if (newMainLineId) {
       openSidesModal(newMainLineId);
@@ -1405,16 +1492,19 @@
     const line = findCartLine(lineId);
     if (!line) return;
 
+    const itemId = line.itemId;
     const newQty = line.qty + delta;
     if (newQty <= 0) {
-      const wasHotSide = isHotSide(line.itemId) && line.linkedToMainLineId;
+      const wasHotSide = isHotSide(itemId) && line.linkedToMainLineId;
       const mainLineId = wasHotSide ? line.linkedToMainLineId : null;
 
       removeCartLine(lineId);
       saveCart();
       renderCart();
-      refreshFoodCards();
-      updateOpenFoodModal();
+      if (!wasHotSide) {
+        refreshFoodCards(itemId);
+        updateOpenFoodModal();
+      }
 
       if (wasHotSide && mainLineId && findCartLine(mainLineId)) {
         closeCartPanel();
@@ -1423,7 +1513,7 @@
       return;
     }
 
-    if (delta > 0 && isHotSide(line.itemId) && line.linkedToMainLineId) {
+    if (delta > 0 && isHotSide(itemId) && line.linkedToMainLineId) {
       if (!canAddSideToMain(line.linkedToMainLineId)) {
         showCartToast(t('maxSidesPerMain'));
         return;
@@ -1435,8 +1525,10 @@
 
     saveCart();
     renderCart();
-    refreshFoodCards();
-    updateOpenFoodModal();
+    if (!isHotSide(itemId)) {
+      refreshFoodCards(itemId);
+      updateOpenFoodModal();
+    }
   }
 
   function normalizeLoadedCart() {
