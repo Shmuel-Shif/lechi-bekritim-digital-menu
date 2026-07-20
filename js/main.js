@@ -105,18 +105,33 @@
     return text;
   }
 
+  function getResolvedItem(item) {
+    if (!item) return item;
+    return window.LechaimInventory?.resolveItem?.(item) || item;
+  }
+
   function getItemName(item) {
+    const resolved = getResolvedItem(item);
     if (currentLang === 'en' && DISH_I18N.en[item.id]) {
       return DISH_I18N.en[item.id].name;
     }
-    return item.name;
+    return resolved.name;
   }
 
   function getItemDesc(item) {
+    const resolved = getResolvedItem(item);
     if (currentLang === 'en' && DISH_I18N.en[item.id]) {
       return DISH_I18N.en[item.id].desc;
     }
-    return item.description || '';
+    return resolved.description || '';
+  }
+
+  function getItemPrice(item) {
+    return getResolvedItem(item).price;
+  }
+
+  function getItemImage(item) {
+    return getResolvedItem(item).image || '';
   }
 
   function getCategoryTitle(cat) {
@@ -125,6 +140,11 @@
 
   function formatPrice(amount) {
     return `${t('currency')}${amount}`;
+  }
+
+  function formatDishPrice(amount) {
+    if (amount === 0) return t('sidesIncluded');
+    return formatPrice(amount);
   }
 
   function setDocumentLanguage() {
@@ -205,6 +225,11 @@
   }
 
   function addSideToMainLine(mainLineId, sideItemId) {
+    if (!isProductAvailable(sideItemId)) {
+      showCartToast(t('outOfStock'));
+      return false;
+    }
+
     const otherSides = cartLines.filter(
       (l) => l.linkedToMainLineId === mainLineId && l.itemId !== sideItemId
     );
@@ -429,6 +454,69 @@
     initCart();
     initLanguageToggle();
     initSocialLinks();
+    initInventory();
+  }
+
+  function isProductAvailable(itemId) {
+    if (!window.LechaimInventory) return true;
+    return LechaimInventory.isAvailable(itemId);
+  }
+
+  function syncStockBadge(article, item) {
+    if (!article || !item) return;
+
+    const available = isProductAvailable(item.id);
+    article.classList.toggle('food-card--unavailable', !available);
+
+    const wrap = article.querySelector('.food-image-wrap');
+    if (!wrap) return;
+
+    let badge = wrap.querySelector('.food-stock-badge');
+    if (!available) {
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'food-stock-badge food-stock-badge--image';
+        wrap.appendChild(badge);
+      }
+      badge.textContent = t('outOfStock');
+    } else if (badge) {
+      badge.remove();
+    }
+  }
+
+  function initInventory() {
+    if (!window.LechaimInventory) return;
+
+    const applyChange = (payload) => {
+      const productId = typeof payload === 'string' ? payload : payload?.productId;
+      const change = typeof payload === 'object' && payload?.change ? payload.change : 'availability';
+
+      if (productId) {
+        refreshFoodCardById(productId, { full: change === 'content' });
+        if (openModalItemId === productId) {
+          if (change === 'content') openFoodModalById(productId);
+          else updateOpenFoodModal();
+        }
+        if (isHotSide(productId)) refreshSidesModal();
+        return;
+      }
+
+      refreshAllFoodCardsFull();
+      updateOpenFoodModal();
+      refreshSidesModal();
+    };
+
+    LechaimInventory.load()
+      .then(() => {
+        refreshAllFoodCardsFull();
+        updateOpenFoodModal();
+        refreshSidesModal();
+      })
+      .catch(() => {
+        /* Menu stays fully available if inventory cannot load */
+      });
+
+    LechaimInventory.subscribe(applyChange);
   }
 
   function initSocialLinks() {
@@ -521,6 +609,7 @@
       }
       if (cat.sidesTitleKey) {
         descParts.push(`<p class="category-sides-title">${escapeHtml(t(cat.sidesTitleKey))}</p>`);
+        descParts.push(`<p class="category-sides-note">${escapeHtml(t('sidesIncludedNote'))}</p>`);
       }
       if (cat.sidesListKey) {
         descParts.push(`<p class="category-sides-list">${escapeHtml(t(cat.sidesListKey))}</p>`);
@@ -568,6 +657,22 @@
   function renderCardActions(item) {
     const qty = getCartQtyForItem(item.id);
     const name = getItemName(item);
+    const available = isProductAvailable(item.id);
+    const price = getItemPrice(item);
+
+    if (!available) {
+      if (qty > 0) {
+        return `
+          <div class="food-qty-control" data-stop-modal="true">
+            <button type="button" class="food-qty-btn" data-action="dec-qty" data-item-id="${escapeAttr(item.id)}" aria-label="${escapeAttr(t('decrease'))}">−</button>
+            <span class="food-qty-value" aria-live="polite">${qty}</span>
+            <button type="button" class="food-qty-btn" disabled aria-disabled="true" aria-label="${escapeAttr(t('increase'))}">+</button>
+          </div>
+        `;
+      }
+
+      return `<span class="food-stock-badge">${escapeHtml(t('outOfStock'))}</span>`;
+    }
 
     if (qty > 0) {
       return `
@@ -579,7 +684,7 @@
       `;
     }
 
-    if (item.price == null) return '';
+    if (price == null) return '';
 
     return `
       <button type="button" class="food-add-btn" data-action="add-to-cart" data-item-id="${escapeAttr(item.id)}" aria-label="${escapeAttr(t('addToCart'))}: ${escapeAttr(name)}">
@@ -589,10 +694,12 @@
   }
 
   function buildFoodCardMarkup(item) {
-    const hasImage = Boolean(item.image);
-    const canAddToCart = item.price != null;
-    const priceHtml = canAddToCart && item.price > 0
-      ? `<span class="food-price">${formatPrice(item.price)}</span>`
+    const imageSrc = getItemImage(item);
+    const hasImage = Boolean(imageSrc);
+    const price = getItemPrice(item);
+    const canAddToCart = price != null;
+    const priceHtml = canAddToCart && price > 0
+      ? `<span class="food-price">${formatDishPrice(price)}</span>`
       : '';
 
     const noteHtml = item.note
@@ -603,7 +710,7 @@
       ? `<div class="food-image-wrap">
            <img
              class="food-image"
-             src="${escapeAttr(item.image)}"
+             src="${escapeAttr(imageSrc)}"
              alt="${escapeAttr(getItemName(item))}"
              loading="lazy"
              decoding="async"
@@ -611,6 +718,7 @@
              height="160"
              onerror="this.closest('.food-card')?.classList.add('food-card--no-image');this.closest('.food-image-wrap')?.remove();"
            >
+           ${isProductAvailable(item.id) ? '' : `<span class="food-stock-badge food-stock-badge--image">${escapeHtml(t('outOfStock'))}</span>`}
          </div>`
       : '';
 
@@ -623,7 +731,8 @@
     const cardClass = [
       'food-card',
       hasImage ? '' : 'food-card--no-image',
-      qty > 0 ? 'food-card--in-cart' : ''
+      qty > 0 ? 'food-card--in-cart' : '',
+      isProductAvailable(item.id) ? '' : 'food-card--unavailable'
     ].filter(Boolean).join(' ');
 
     return {
@@ -672,11 +781,32 @@
   }
 
   /* Update only cart actions / in-cart state — never rebuild images (avoids re-fetch & CLS). */
+  function rebuildFoodCard(article, item) {
+    if (!article || !item) return;
+    const wasVisible = article.classList.contains('is-visible');
+    const { cardClass, innerHtml } = buildFoodCardMarkup(item);
+    article.className = cardClass;
+    if (wasVisible) article.classList.add('is-visible');
+    article.innerHTML = innerHtml;
+    article.setAttribute(
+      'aria-label',
+      tReplace('showDish', { name: getItemName(item) })
+    );
+  }
+
+  function refreshAllFoodCardsFull() {
+    $$('.food-card[data-item-id]').forEach((article) => {
+      const item = findItem(article.dataset.itemId);
+      if (item) rebuildFoodCard(article, item);
+    });
+  }
+
   function updateFoodCardActions(article, item) {
     if (!article || !item) return;
 
     const qty = getCartQtyForItem(item.id);
     article.classList.toggle('food-card--in-cart', qty > 0);
+    syncStockBadge(article, item);
 
     const actions = article.querySelector('.food-card-actions');
     if (actions) {
@@ -684,13 +814,14 @@
     }
   }
 
-  function refreshFoodCardById(itemId) {
+  function refreshFoodCardById(itemId, options = {}) {
     if (!itemId) return;
     const item = findItem(itemId);
     if (!item) return;
 
     $$(`.food-card[data-item-id="${CSS.escape(itemId)}"]`).forEach((article) => {
-      updateFoodCardActions(article, item);
+      if (options.full) rebuildFoodCard(article, item);
+      else updateFoodCardActions(article, item);
     });
   }
 
@@ -771,9 +902,31 @@
   }
 
   function renderModalActions(item) {
-    if (item.price == null) return '';
+    const price = getItemPrice(item);
+    if (price == null) return '';
 
     const qty = getCartQtyForItem(item.id);
+    const available = isProductAvailable(item.id);
+
+    if (!available) {
+      if (qty > 0) {
+        return `
+          <div class="food-modal-actions" data-stop-modal="true">
+            <div class="food-qty-control food-qty-control--modal">
+              <button type="button" class="food-qty-btn" data-action="dec-qty" data-item-id="${escapeAttr(item.id)}" aria-label="${escapeAttr(t('decrease'))}">−</button>
+              <span class="food-qty-value" aria-live="polite">${qty}</span>
+              <button type="button" class="food-qty-btn" disabled aria-disabled="true" aria-label="${escapeAttr(t('increase'))}">+</button>
+            </div>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="food-modal-actions" data-stop-modal="true">
+          <span class="food-stock-badge food-stock-badge--modal">${escapeHtml(t('outOfStock'))}</span>
+        </div>
+      `;
+    }
 
     if (qty > 0) {
       return `
@@ -807,27 +960,31 @@
     openModalItemId = itemId;
 
     const desc = getItemDesc(item);
-    const imageHtml = item.image
-      ? `<div class="food-modal-hero">
+    const unavailable = !isProductAvailable(item.id);
+    const imageSrc = getItemImage(item);
+    const price = getItemPrice(item);
+    const imageHtml = imageSrc
+      ? `<div class="food-modal-hero${unavailable ? ' food-modal-hero--unavailable' : ''}">
            <img
              class="food-modal-image"
-             src="${escapeAttr(item.image)}"
+             src="${escapeAttr(imageSrc)}"
              alt="${escapeAttr(getItemName(item))}"
              width="540"
              height="540"
              decoding="async"
              onerror="this.closest('.food-modal-hero')?.remove();"
            >
+           ${unavailable ? `<span class="food-stock-badge food-stock-badge--image">${escapeHtml(t('outOfStock'))}</span>` : ''}
          </div>`
       : '';
 
-    const priceHtml = item.price != null
-      ? `<p class="food-modal-price">${formatPrice(item.price)}</p>`
+    const priceHtml = price != null
+      ? `<p class="food-modal-price">${formatDishPrice(price)}</p>`
       : '';
 
     foodModalBody.innerHTML = `
       <div class="food-modal-content" data-item-id="${escapeAttr(itemId)}">
-        <article class="food-modal-card">
+        <article class="food-modal-card${unavailable ? ' food-modal-card--unavailable' : ''}">
           ${imageHtml}
           <div class="food-modal-info">
             <h2 id="food-modal-title" class="food-modal-title">${escapeHtml(getItemName(item))}</h2>
@@ -860,6 +1017,25 @@
     if (!card) {
       openFoodModalById(openModalItemId);
       return;
+    }
+
+    const unavailable = !isProductAvailable(item.id);
+    card.classList.toggle('food-modal-card--unavailable', unavailable);
+
+    const hero = card.querySelector('.food-modal-hero');
+    if (hero) {
+      hero.classList.toggle('food-modal-hero--unavailable', unavailable);
+      let badge = hero.querySelector('.food-stock-badge');
+      if (unavailable) {
+        if (!badge) {
+          badge = document.createElement('span');
+          badge.className = 'food-stock-badge food-stock-badge--image';
+          hero.appendChild(badge);
+        }
+        badge.textContent = t('outOfStock');
+      } else if (badge) {
+        badge.remove();
+      }
     }
 
     const nextActions = renderModalActions(item);
@@ -912,12 +1088,13 @@
     const cellsHtml = getHotSideItems().map((side) => {
       const qty = getSideQtyForMain(openSidesMainLineId, side.id);
       const selected = qty > 0;
-      const hasImage = Boolean(side.image);
+      const available = isProductAvailable(side.id);
+      const hasImage = Boolean(getItemImage(side));
       const imageHtml = hasImage
         ? `<span class="sides-picker-thumb">
              <img
                class="sides-picker-image"
-               src="${escapeAttr(side.image)}"
+               src="${escapeAttr(getItemImage(side))}"
                alt=""
                loading="lazy"
                decoding="async"
@@ -931,14 +1108,16 @@
       return `
         <button
           type="button"
-          class="sides-picker-cell${selected ? ' is-selected' : ''}${hasImage ? '' : ' sides-picker-cell--no-image'}"
+          class="sides-picker-cell${selected ? ' is-selected' : ''}${hasImage ? '' : ' sides-picker-cell--no-image'}${available ? '' : ' is-unavailable'}"
           data-action="toggle-side"
           data-item-id="${escapeAttr(side.id)}"
           aria-pressed="${selected ? 'true' : 'false'}"
+          ${!available && !selected ? 'disabled' : ''}
         >
           ${imageHtml}
           <span class="sides-picker-name">${escapeHtml(getItemName(side))}</span>
           <span class="sides-picker-check" aria-hidden="true">${selected ? '✓' : ''}</span>
+          ${available ? '' : `<span class="food-stock-badge food-stock-badge--side">${escapeHtml(t('outOfStock'))}</span>`}
         </button>
       `;
     }).join('');
@@ -1324,10 +1503,10 @@
       $$('.hero .reveal').forEach((el) => {
         let delay = 0.76;
 
-        if (el.classList.contains('hero-title')) delay = 0.2;
-        else if (el.classList.contains('hero-kosher')) delay = 0.34;
-        else if (el.classList.contains('hero-tagline')) delay = 0.46;
-        else if (el.id === 'hero-cta') delay = 0.6;
+        if (el.classList.contains('hero-welcome')) delay = 0.12;
+        else if (el.classList.contains('hero-title')) delay = 0.26;
+        else if (el.classList.contains('hero-kosher')) delay = 0.4;
+        else if (el.id === 'hero-cta') delay = 0.56;
 
         el.style.transitionDelay = `${delay}s`;
         el.classList.add('is-visible');
@@ -1416,6 +1595,11 @@
   }
 
   function addToCart(itemId) {
+    if (!isProductAvailable(itemId)) {
+      showCartToast(t('outOfStock'));
+      return;
+    }
+
     let newMainLineId = null;
 
     if (isMainCourse(itemId)) {
@@ -1568,7 +1752,9 @@
   function getCartTotal() {
     return cartLines.reduce((sum, line) => {
       const item = findItem(line.itemId);
-      return sum + (item ? item.price * line.qty : 0);
+      if (!item) return sum;
+      const price = getItemPrice(item);
+      return sum + ((price || 0) * line.qty);
     }, 0);
   }
 
@@ -1597,17 +1783,27 @@
 
     const mainClass = variant === 'main' ? ' cart-item--main' : '';
     const sideClass = variant === 'child' ? ' cart-item--side' : '';
-    const noImageClass = item.image ? '' : ' cart-item--no-image';
-    const lineTotal = item.price * line.qty;
-    const imageHtml = item.image
+    const imageSrc = getItemImage(item);
+    const price = getItemPrice(item) || 0;
+    const noImageClass = imageSrc ? '' : ' cart-item--no-image';
+    const lineTotal = price * line.qty;
+    const imageHtml = imageSrc
       ? `<div class="cart-item-thumb${variant === 'child' ? ' cart-item-thumb--side' : ''}">
-           <img src="${escapeAttr(item.image)}" alt="" loading="lazy" decoding="async" width="52" height="52" onerror="this.closest('.cart-item')?.classList.add('cart-item--no-image');this.closest('.cart-item-thumb')?.remove();">
+           <img src="${escapeAttr(imageSrc)}" alt="" loading="lazy" decoding="async" width="52" height="52" onerror="this.closest('.cart-item')?.classList.add('cart-item--no-image');this.closest('.cart-item-thumb')?.remove();">
          </div>`
       : '';
 
     const unitHtml = variant === 'child'
       ? `<p class="cart-item-badge">${escapeHtml(t('sideLabel'))}</p>`
-      : `<p class="cart-item-unit">${escapeHtml(tReplace('perUnit', { price: formatPrice(item.price) }))}</p>`;
+      : `<p class="cart-item-unit">${escapeHtml(tReplace('perUnit', { price: formatPrice(price) }))}</p>`;
+
+    const controlsHtml = variant === 'child'
+      ? ''
+      : `<div class="cart-item-controls">
+            <button type="button" class="cart-qty-btn" data-action="cart-dec" aria-label="${escapeAttr(t('decrease'))}">−</button>
+            <span class="cart-item-qty">${line.qty}</span>
+            <button type="button" class="cart-qty-btn" data-action="cart-inc" aria-label="${escapeAttr(t('increase'))}">+</button>
+          </div>`;
 
     return `
       <article class="cart-item${mainClass}${sideClass}${noImageClass}" data-cart-line-id="${escapeAttr(line.lineId)}">
@@ -1618,13 +1814,9 @@
             ${metaHtml}
             ${unitHtml}
           </div>
-          <div class="cart-item-controls">
-            <button type="button" class="cart-qty-btn" data-action="cart-dec" aria-label="${escapeAttr(t('decrease'))}">−</button>
-            <span class="cart-item-qty">${line.qty}</span>
-            <button type="button" class="cart-qty-btn" data-action="cart-inc" aria-label="${escapeAttr(t('increase'))}">+</button>
-          </div>
+          ${controlsHtml}
         </div>
-        <div class="cart-item-total">${item.price > 0 ? formatPrice(lineTotal) : ''}</div>
+        <div class="cart-item-total">${price > 0 ? formatPrice(lineTotal) : ''}</div>
       </article>
     `;
   }

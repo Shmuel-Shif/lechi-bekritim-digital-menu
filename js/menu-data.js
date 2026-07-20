@@ -8,10 +8,11 @@ const TRANSLATIONS = {
     pageDescription: 'תפריט דיגיטלי — לחיים בכריתים, כרתים.',
     bh: 'ב״ה',
     myCart: 'הסל שלי',
-    viewMenu: 'לצפייה בתפריט',
+    viewMenu: 'צפייה בתפריט',
+    heroWelcome: 'ברוכים הבאים',
     heroTitle: 'מסעדת לחיים בכרתים',
     heroKosher: 'כשר למהדרין',
-    heroTagline: 'דגים. שניצלים. פרגיות. קבב. סלטים ועוד..',
+    heroTagline: '',
     skipToMenu: 'דלג לתפריט',
     myOrder: 'ההזמנה שלי',
     cartEmpty: 'הסל ריק הוסיפו מנות מהתפריט',
@@ -19,6 +20,7 @@ const TRANSLATIONS = {
     clearCart: 'רוקן סל',
     addToCart: 'הוסף לסל',
     addedToCart: '{name} נוסף לסל',
+    outOfStock: 'אזל מהמלאי',
     decrease: 'הפחת כמות',
     increase: 'הוסף כמות',
     close: 'סגור',
@@ -31,6 +33,8 @@ const TRANSLATIONS = {
     mainsNote: 'כל המנות העיקריות מוגשות עם תוספת אחת חמה (למעט שיפודי קבב ומוקפץ עוף).',
     mainsSidesTitle: 'תוספות לבחירה',
     mainsSidesList: "צ'יפס פריך | אורז לבן | שעועית ירוקה | פירה | ירקות בתנור",
+    sidesIncluded: 'כלול',
+    sidesIncludedNote: 'כלול במנה העיקרית',
     sideForMain: 'תוספת ל־{name}',
     servedWith: 'מוגש עם: {sides}',
     maxSidesPerMain: 'ניתן לבחור תוספת חמה אחת לכל מנה עיקרית',
@@ -65,9 +69,10 @@ const TRANSLATIONS = {
     bh: 'B"H',
     myCart: 'My Cart',
     viewMenu: 'View Menu',
+    heroWelcome: 'Welcome',
     heroTitle: 'Lechaim Restaurant in Crete',
     heroKosher: 'Mehadrin Kosher',
-    heroTagline: 'Fish. Schnitzel. Chicken. Kebab. Salads and more..',
+    heroTagline: '',
     skipToMenu: 'Skip to menu',
     myOrder: 'My Order',
     cartEmpty: 'Your cart is empty — add dishes from the menu',
@@ -75,6 +80,7 @@ const TRANSLATIONS = {
     clearCart: 'Clear cart',
     addToCart: 'Add to cart',
     addedToCart: '{name} added to cart',
+    outOfStock: 'Out of stock',
     decrease: 'Decrease quantity',
     increase: 'Increase quantity',
     close: 'Close',
@@ -87,6 +93,8 @@ const TRANSLATIONS = {
     mainsNote: 'All main courses are served with one hot side (except kebab skewers and stir-fried chicken).',
     mainsSidesTitle: 'Sides to choose from',
     mainsSidesList: 'Crispy fries | White rice | Green beans | Mashed potatoes | Oven vegetables',
+    sidesIncluded: 'Included',
+    sidesIncludedNote: 'Included with the main course',
     sideForMain: 'Side for {name}',
     servedWith: 'Served with: {sides}',
     maxSidesPerMain: 'One hot side per main course',
@@ -107,7 +115,7 @@ const TRANSLATIONS = {
     categories: {
       starters: 'Starters & Snacks',
       mains: 'Main Courses',
-      hotSides: 'Hot Sides',
+      hotSides: 'Hot Sides to Choose',
       salads: 'Salads',
       desserts: 'Desserts',
       coldDrinks: 'Soft Drinks',
@@ -154,33 +162,37 @@ const DISH_I18N = {
       name: 'Whole Baked Sea Bream',
       desc: 'Fresh sea bream baked with herbs and olive oil.',
     },
+    'denis-fillet': {
+      name: 'Oven-Baked Sea Bream Fillet',
+      desc: 'Sea bream fillet baked with green herbs and olive oil.',
+    },
     salmon: {
       name: 'Oven-Baked Salmon',
-      desc: 'Salmon fillet with a delicate glaze.',
+      desc: 'Salmon fillet baked with delicate seasoning.',
     },
     kebab: {
       name: 'Kebab Skewers',
-      desc: 'Served on a tortilla with tahini and a small side salad.',
+      desc: 'Served with tahini and a small side salad.',
     },
     'chicken-stirfry': {
       name: 'Stir-Fried Chicken',
-      desc: 'Stir-fried spaghetti with chicken pieces and vegetables in Asian style.',
+      desc: 'Chicken pieces stir-fried with vegetables in soy and ginger sauce.',
     },
     'chicken-salad': {
       name: 'Rich Chicken Salad',
       desc: 'Warm chicken on lettuce with seasonal vegetables and vinaigrette.',
     },
     'israeli-salad': {
-      name: 'Israeli Salad',
-      desc: 'With herbs.',
+      name: 'Israeli Chopped Salad',
+      desc: 'Fresh chopped vegetable salad with herbs.',
     },
     'green-salad': {
       name: 'Green Salad',
-      desc: 'With vinaigrette.',
+      desc: 'Selection of fresh leaves with vinaigrette.',
     },
     'market-salad': {
       name: 'Market Salad',
-      desc: 'Seasonal vegetables.',
+      desc: 'Fresh seasonal vegetables.',
     },
     'fruit-plate': {
       name: 'Seasonal Fruit Platter',
@@ -197,11 +209,11 @@ const DISH_I18N = {
     water: { name: 'Mineral Water', desc: '' },
     'fruit-shake': {
       name: 'Refreshing Fruit Shake',
-      desc: "Water / orange / soda base (ask the waiter about today's fruits).",
+      desc: 'Water / orange / soda base (depending on available fruits).',
     },
     'espresso-hafukh': {
       name: 'Espresso / Hafukh',
-      desc: 'Soy milk available.',
+      desc: '',
     },
     'black-coffee': { name: 'Black Coffee', desc: '' },
     'mint-tea': { name: 'Hot Mint Tea', desc: '' },
@@ -277,7 +289,7 @@ const MENU_DATA = {
       items: [
         {
           id: 'schnitzel',
-          name: 'השניצל של השף',
+          name: 'שניצל של השף',
           description: 'חזה עוף פריך בציפוי פירורי לחם מוזהבים.',
           price: 25,
           image: dishImage('schnitzel'),
@@ -291,29 +303,36 @@ const MENU_DATA = {
         },
         {
           id: 'whole-fish',
-          name: 'דניס שלם בתנור',
+          name: 'דג שלם בתנור',
           description: 'דניס טרי אפוי עם עשבי תיבול ושמן זית.',
           price: 29,
           image: dishImage('denis'),
         },
         {
+          id: 'denis-fillet',
+          name: 'פילה דניס בתנור',
+          description: 'פילה דניס בתנור בעשבי תיבול ירוקים ושמן זית.',
+          price: 29,
+          image: dishImage('denis-fillet'),
+        },
+        {
           id: 'salmon',
           name: 'נתח סלמון בתנור',
-          description: 'פילה סלמון בזיגוג עדין.',
+          description: 'פילה סלמון אפוי בתיבול עדין.',
           price: 29,
           image: dishImage('salmon'),
         },
         {
           id: 'kebab',
           name: 'שיפודי קבב',
-          description: 'מוגש על טורטייה לצד טחינה וסלטון קטן בצד.',
+          description: 'מוגש לצד טחינה וסלטון קטן.',
           price: 27,
           image: dishImage('kebab'),
         },
         {
           id: 'chicken-stirfry',
           name: 'מוקפץ עוף',
-          description: 'ספגטי מוקפצות עם נתחי עוף וירקות בסגנון אסייתי.',
+          description: 'נתחי עוף מוקפצים עם ירקות ברוטב סויה וג\'ינג\'ר.',
           price: 20,
           image: dishImage('chicken-stirfry'),
         },
@@ -332,22 +351,22 @@ const MENU_DATA = {
         },
         {
           id: 'israeli-salad',
-          name: 'סלט ישראלי',
-          description: 'עם עשבי תיבול.',
+          name: 'סלט קצוץ ישראלי',
+          description: 'סלט ירקות קצוץ טרי עם עשבי תיבול.',
           price: 10,
           image: dishImage('israeli-salad'),
         },
         {
           id: 'green-salad',
           name: 'סלט ירוק',
-          description: 'עם רוטב ויניגרט.',
+          description: 'מבחר עלים טריים עם רוטב ויניגרט.',
           price: 9,
           image: dishImage('green-salad'),
         },
         {
           id: 'market-salad',
           name: 'סלט שוק',
-          description: 'ירקות העונה.',
+          description: 'ירקות העונה טריים.',
           price: 9,
           image: dishImage('market-salad'),
         },
@@ -382,7 +401,7 @@ const MENU_DATA = {
         {
           id: 'fruit-shake',
           name: 'שייק פירות מרענן',
-          description: 'על בסיס מים / תפוזים / סודה (שאלו את המלצר על פירות היום).',
+          description: 'על בסיס מים / תפוזים / סודה (בהתאם לפירות הזמינים).',
           price: 8,
           image: dishImage('fruit-shake'),
         },
@@ -395,7 +414,7 @@ const MENU_DATA = {
         {
           id: 'espresso-hafukh',
           name: 'קפה אספרסו / הפוך',
-          description: 'אפשרות לחלב סויה.',
+          description: '',
           price: 5,
           image: dishImage('cappuccino'),
         },
@@ -414,7 +433,7 @@ const HOT_SIDE_ITEMS = [
   { id: 'oven-vegetables', name: 'ירקות בתנור', description: '', price: 0, image: dishImage('oven-vegetables') },
 ];
 
-const MAIN_COURSE_IDS = new Set(['schnitzel', 'chicken-steak', 'whole-fish', 'salmon']);
+const MAIN_COURSE_IDS = new Set(['schnitzel', 'chicken-steak', 'whole-fish', 'denis-fillet', 'salmon']);
 const HOT_SIDE_IDS = new Set(['fries-side', 'rice', 'green-beans', 'puree', 'oven-vegetables']);
 const MAX_SIDES_PER_MAIN = 1;
 
@@ -422,3 +441,13 @@ const SOCIAL_LINKS = {
   instagram: 'https://www.instagram.com/lechim_crete/',
   facebook: 'https://www.facebook.com/share/19Pwg3YuSb/?mibextid=wwXIfr',
 };
+
+window.MENU_DATA = MENU_DATA;
+window.HOT_SIDE_ITEMS = HOT_SIDE_ITEMS;
+window.TRANSLATIONS = TRANSLATIONS;
+window.DISH_I18N = DISH_I18N;
+window.MAIN_COURSE_IDS = MAIN_COURSE_IDS;
+window.HOT_SIDE_IDS = HOT_SIDE_IDS;
+window.MAX_SIDES_PER_MAIN = MAX_SIDES_PER_MAIN;
+window.SOCIAL_LINKS = SOCIAL_LINKS;
+

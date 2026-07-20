@@ -379,6 +379,11 @@ html[dir="ltr"] .search-panel__input {
   filter: drop-shadow(0 4px 20px rgba(21, 38, 64, 0.35));
 }
 
+.hero-welcome {
+  color: var(--color-white);
+  text-shadow: 0 2px 14px rgba(21, 38, 64, 0.45);
+}
+
 .hero-tagline {
   color: var(--color-white);
   text-shadow: 0 2px 14px rgba(21, 38, 64, 0.45);

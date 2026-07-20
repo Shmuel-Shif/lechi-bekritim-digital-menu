@@ -632,6 +632,16 @@ button {
   margin-bottom: var(--space-lg);
 }
 
+.hero-welcome {
+  font-family: var(--font-hebrew);
+  font-size: clamp(1.15rem, 4vw, 1.5rem);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-white);
+  margin: 0 0 var(--space-xs);
+  text-shadow: 0 2px 14px rgba(21, 38, 64, 0.45);
+}
+
 .hero-title {
   font-family: var(--font-hebrew);
   font-size: clamp(1.5rem, 5.5vw, 2.25rem);
@@ -856,6 +866,14 @@ button {
   color: var(--color-text);
   margin-top: var(--space-md);
   margin-bottom: 0.2rem;
+}
+
+.category-sides-note {
+  font-family: var(--font-hebrew);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-text-subtle);
+  margin: 0 0 0.35rem;
 }
 
 .category-sides-list {
@@ -2474,4 +2492,69 @@ body.cart-open {
   .food-card:hover .food-image {
     transform: none;
   }
+}
+
+/* ============================================
+   INVENTORY — out of stock
+   ============================================ */
+.food-stock-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #c62828;
+  color: #fff;
+  font-family: var(--font-hebrew);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1.2;
+  padding: 0.28rem 0.5rem;
+  border-radius: 6px;
+  letter-spacing: 0.01em;
+}
+
+.food-stock-badge--image {
+  position: absolute;
+  top: 0.5rem;
+  inset-inline-start: 0.5rem;
+  z-index: 2;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.food-stock-badge--modal {
+  width: 100%;
+  max-width: 280px;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.875rem;
+}
+
+.food-stock-badge--side {
+  margin-top: 0.25rem;
+  font-size: 0.625rem;
+  padding: 0.2rem 0.35rem;
+}
+
+.food-image-wrap,
+.food-modal-hero {
+  position: relative;
+}
+
+.food-card--unavailable .food-image,
+.food-modal-hero--unavailable .food-modal-image,
+.sides-picker-cell.is-unavailable .sides-picker-image {
+  filter: grayscale(0.45);
+  opacity: 0.55;
+}
+
+.food-card--unavailable .food-add-btn {
+  display: none;
+}
+
+.sides-picker-cell.is-unavailable:not(.is-selected) {
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
+.food-qty-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }

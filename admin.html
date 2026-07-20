@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>ניהול מלאי | LECHAIM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/admin.css">
+  <link rel="icon" href="assets/logo/logo.webp" type="image/webp">
+</head>
+<body>
+  <div id="admin-app">
+    <section class="admin-login" id="admin-login" hidden>
+      <div class="admin-login__card">
+        <div class="admin-login__brand-row">
+          <img src="assets/logo/logo-image.png" alt="" class="admin-login__logo" width="64" height="64">
+          <img src="assets/logo/logo-text.png" alt="LECHAIM" class="admin-login__wordmark" width="190" height="50">
+        </div>
+        <h1 class="admin-login__title">כניסת מנהל</h1>
+        <p class="admin-login__hint">ניהול מלאי בזמן אמת</p>
+        <form id="admin-login-form" class="admin-login__form" autocomplete="on">
+          <label class="admin-field">
+            <span>Email</span>
+            <input type="email" id="admin-email" name="email" required autocomplete="username" dir="ltr">
+          </label>
+          <label class="admin-field">
+            <span>Password</span>
+            <input type="password" id="admin-password" name="password" required autocomplete="current-password" dir="ltr">
+          </label>
+          <p class="admin-error" id="admin-login-error" role="alert" hidden></p>
+          <button type="submit" class="admin-btn admin-btn--primary" id="admin-login-submit">התחבר</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="admin-panel" id="admin-panel" hidden>
+      <div class="admin-topbar">
+        <a href="index.html" class="admin-topbar__brand" aria-label="לחיים בכריתים — חזרה לתפריט">
+          <img src="assets/logo/logo-image.png" alt="" class="admin-topbar__logo" width="64" height="64">
+          <img src="assets/logo/logo-text.png" alt="LECHAIM" class="admin-topbar__wordmark" width="190" height="50">
+        </a>
+        <button type="button" class="admin-btn admin-btn--ghost" id="admin-logout">התנתק</button>
+      </div>
+
+      <header class="admin-header">
+        <div class="admin-header__text">
+          <p class="admin-header__eyebrow">ניהול</p>
+          <h1 class="admin-header__title">ניהול מלאי</h1>
+          <p class="admin-header__subtitle">לחצו על הכפתור כדי לסמן יש במלאי / אין במלאי</p>
+        </div>
+      </header>
+
+      <div class="admin-stats" id="admin-stats" aria-live="polite">
+        <div class="admin-stat">
+          <span class="admin-stat__value" id="stat-total">0</span>
+          <span class="admin-stat__label">סה״כ מנות</span>
+        </div>
+        <div class="admin-stat admin-stat--ok">
+          <span class="admin-stat__value" id="stat-available">0</span>
+          <span class="admin-stat__label">יש במלאי</span>
+        </div>
+        <div class="admin-stat admin-stat--off">
+          <span class="admin-stat__value" id="stat-unavailable">0</span>
+          <span class="admin-stat__label">אין במלאי</span>
+        </div>
+      </div>
+
+      <div class="admin-toolbar">
+        <label class="admin-search">
+          <span class="visually-hidden">חיפוש</span>
+          <input type="search" id="admin-search" placeholder="חיפוש לפי שם או קטגוריה…" autocomplete="off">
+        </label>
+        <div class="admin-filters" role="group" aria-label="סינון מלאי">
+          <button type="button" class="admin-filter is-active" data-filter="all">הכל</button>
+          <button type="button" class="admin-filter" data-filter="available">יש במלאי</button>
+          <button type="button" class="admin-filter" data-filter="unavailable">אין במלאי</button>
+        </div>
+      </div>
+
+      <p class="admin-status" id="admin-status" aria-live="polite"></p>
+      <p class="admin-error" id="admin-panel-error" role="alert" hidden></p>
+      <p class="admin-toast" id="admin-toast" role="status" aria-live="polite" hidden></p>
+
+      <div class="admin-list" id="admin-list"></div>
+    </section>
+
+    <section class="admin-boot" id="admin-boot">
+      <p>טוען…</p>
+    </section>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+  <script src="js/supabase-config.js" defer></script>
+  <!-- Same menu source as index.html — must load before inventory.js / admin.js -->
+  <script src="js/menu-data.js" defer></script>
+  <script src="js/inventory.js" defer></script>
+  <script src="js/admin.js" defer></script>
+</body>
+</html>
