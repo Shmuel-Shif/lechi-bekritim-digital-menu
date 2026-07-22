@@ -317,7 +317,7 @@ const DISH_I18N = {
       desc: '',
     },
     hafukh: {
-      name: 'Hafukh',
+      name: 'Hafukh (soy milk available)',
       desc: '',
     },
     'black-coffee': { name: 'Black Coffee', desc: '' },
@@ -545,7 +545,7 @@ const MENU_DATA = {
         },
         {
           id: 'hafukh',
-          name: 'קפה הפוך',
+          name: 'קפה הפוך (אפשרות לחלב סויה)',
           printName: 'Cafe Hafukh',
           description: '',
           price: 5,
