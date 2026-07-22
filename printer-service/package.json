@@ -1,0 +1,13 @@
+{
+  "name": "lechaim-print-service",
+  "version": "1.0.0",
+  "description": "Local print service for LECHAIM restaurant (kitchen / bar)",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

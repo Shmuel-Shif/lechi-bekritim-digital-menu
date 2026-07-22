@@ -23,12 +23,16 @@
   const statTotal = document.getElementById('stat-total');
   const statAvailable = document.getElementById('stat-available');
   const statUnavailable = document.getElementById('stat-unavailable');
+  const tabsEl = document.getElementById('admin-tabs');
+  const viewTables = document.getElementById('admin-view-tables');
+  const viewInventory = document.getElementById('admin-view-inventory');
 
   let inventorySubscribed = false;
   let toastTimer = null;
   let currentFilter = 'all';
   let currentQuery = '';
   let catalogCache = [];
+  let currentTab = 'tables';
 
   function showError(el, message) {
     if (!el) return;
@@ -56,6 +60,33 @@
     if (bootEl) bootEl.hidden = view !== 'boot';
     if (loginEl) loginEl.hidden = view !== 'login';
     if (panelEl) panelEl.hidden = view !== 'panel';
+
+    if (view !== 'panel') {
+      window.LechaimAdminTables?.stop?.();
+      window.LechaimAdminTables?.closeDrawer?.();
+    }
+  }
+
+  function setTab(tab) {
+    currentTab = tab === 'inventory' ? 'inventory' : 'tables';
+
+    tabsEl?.querySelectorAll('.admin-tab').forEach((btn) => {
+      const isActive = btn.dataset.tab === currentTab;
+      btn.classList.toggle('is-active', isActive);
+    });
+
+    if (viewTables) viewTables.hidden = currentTab !== 'tables';
+    if (viewInventory) viewInventory.hidden = currentTab !== 'inventory';
+
+    if (currentTab === 'tables') {
+      window.LechaimAdminTables?.start?.();
+    } else {
+      window.LechaimAdminTables?.stop?.();
+      window.LechaimAdminTables?.closeDrawer?.();
+      if (catalogCache.length) {
+        /* inventory already loaded */
+      }
+    }
   }
 
   function escapeHtml(str) {
@@ -258,16 +289,21 @@
   async function showPanel() {
     setView('panel');
     showError(panelError, '');
-    if (statusEl) statusEl.textContent = 'טוען מלאי…';
+    setTab('tables');
 
     try {
       await LechaimInventory.load();
-      renderList();
+      refreshCatalogCache();
+      updateStats();
+
+      if (currentTab === 'inventory') {
+        renderList();
+      }
 
       window.setTimeout(() => {
         const rt = LechaimInventory.getRealtimeStatus?.() || {};
         console.log('[admin] realtime status', rt);
-        if (statusEl) {
+        if (statusEl && currentTab === 'inventory') {
           const inv = rt.inventory || 'IDLE';
           statusEl.textContent = `${catalogCache.length} מנות · Realtime inventory=${inv}`;
         }
@@ -276,6 +312,11 @@
       if (!inventorySubscribed) {
         inventorySubscribed = true;
         LechaimInventory.subscribe((payload) => {
+          if (currentTab !== 'inventory') {
+            refreshCatalogCache();
+            updateStats();
+            return;
+          }
           const productId = typeof payload === 'string' ? payload : payload?.productId;
           if (productId) updateCard(productId);
           else renderList();
@@ -361,6 +402,18 @@
       el.classList.toggle('is-active', el === btn);
     });
     renderList();
+  });
+
+  tabsEl?.addEventListener('click', (event) => {
+    const btn = event.target.closest('.admin-tab');
+    if (!btn || btn.disabled) return;
+    const tab = btn.dataset.tab;
+    if (tab !== 'tables' && tab !== 'inventory') return;
+    setTab(tab);
+    if (tab === 'inventory') {
+      if (statusEl) statusEl.textContent = 'טוען מלאי…';
+      renderList();
+    }
   });
 
   listEl?.addEventListener('click', (event) => {

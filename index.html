@@ -10,14 +10,70 @@
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/main.css">
   <link rel="stylesheet" href="css/theme-lechaim.css">
+  <link rel="stylesheet" href="css/entry-gate.css">
   <link rel="icon" href="assets/logo/logo.webp" type="image/webp">
 </head>
-<body>
+<body class="entry-pending">
+  <!-- Entry gate: order type → table (dine-in) — language toggle always available -->
+  <div class="entry-gate" id="entry-gate" role="dialog" aria-modal="true" aria-labelledby="entry-hero-title">
+    <div class="entry-gate__chrome">
+      <button
+        type="button"
+        class="entry-gate__lang lang-toggle"
+        id="entry-lang-toggle"
+        aria-label="החלפת שפה – עברית / English"
+      >
+        <span class="lang-toggle__option lang-toggle__option--active" data-lang="he">עב</span>
+        <span class="lang-toggle__sep" aria-hidden="true">|</span>
+        <span class="lang-toggle__option" data-lang="en">EN</span>
+      </button>
+    </div>
+
+    <div class="entry-gate__shell" id="entry-shell">
+      <p class="entry-gate__bh">ב״ה</p>
+
+      <div class="entry-gate__brand">
+        <img src="assets/logo/logo-image.png" alt="" class="entry-gate__logo" width="96" height="96">
+        <img src="assets/logo/logo-text.png" alt="LECHAIM" class="entry-gate__wordmark" width="220" height="56">
+      </div>
+
+      <div class="entry-gate__hero">
+        <p class="entry-gate__welcome" id="entry-hero-welcome">ברוכים הבאים</p>
+        <h1 class="entry-gate__title" id="entry-hero-title">מסעדת לחיים בכרתים</h1>
+        <p class="entry-gate__kosher" id="entry-hero-kosher">כשר למהדרין</p>
+      </div>
+
+      <p class="entry-gate__prompt" id="entry-prompt">איך תרצו להזמין?</p>
+      <p class="entry-gate__notice" id="entry-notice" role="status" aria-live="polite" hidden></p>
+
+      <div class="entry-gate__step" id="entry-step-order">
+        <div class="entry-gate__actions">
+          <button type="button" class="entry-gate__btn entry-gate__btn--primary" data-order-type="dine-in">
+            <span class="entry-gate__btn-label" data-entry-i18n="dineIn">ישיבה במקום</span>
+          </button>
+          <button type="button" class="entry-gate__btn" data-order-type="takeaway">
+            <span class="entry-gate__btn-label" data-entry-i18n="takeAway">באים לקחת</span>
+          </button>
+          <!-- Delivery — יופעל בהמשך
+          <button type="button" class="entry-gate__btn entry-gate__btn--soon" data-order-type="delivery" aria-describedby="entry-notice">
+            <span class="entry-gate__btn-label" data-entry-i18n="delivery">משלוח</span>
+          </button>
+          -->
+        </div>
+      </div>
+
+      <div class="entry-gate__step" id="entry-step-table" hidden>
+        <div class="entry-gate__tables" id="entry-tables" role="group" aria-label="Table number"></div>
+        <button type="button" class="entry-gate__back" data-entry-back="order" data-entry-i18n="back">חזרה</button>
+      </div>
+    </div>
+  </div>
+
   <a class="skip-link" href="#menu" data-i18n="skipToMenu">דלג לתפריט</a>
 
   <!-- Header -->
   <header class="site-header" id="site-header">
-    <span class="site-header__bh" data-i18n="bh">ב״ה</span>
+    <span class="site-header__bh">ב״ה</span>
 
     <div class="header-inner container">
       <a href="#" class="brand" aria-label="לחיים בכריתים — דף הבית">
@@ -35,6 +91,29 @@
           <span class="lang-toggle__option lang-toggle__option--active" data-lang="he">עב</span>
           <span class="lang-toggle__sep" aria-hidden="true">|</span>
           <span class="lang-toggle__option" data-lang="en">EN</span>
+        </button>
+
+        <button
+          type="button"
+          class="header-action header-action--table"
+          id="table-toggle"
+          hidden
+          data-i18n-aria="changeTableAria"
+          aria-label="שנה מספר שולחן"
+        >
+          <span class="header-action__table-num" id="table-number">—</span>
+          <span data-i18n="tableLabel">שולחן</span>
+        </button>
+
+        <button
+          type="button"
+          class="header-action header-action--order-back"
+          id="order-back-toggle"
+          hidden
+          data-i18n-aria="backToOrderTypeAria"
+          aria-label="חזרה לבחירת סוג הזמנה"
+        >
+          <span data-i18n="backToOrderType">חזרה</span>
         </button>
 
         <button type="button" class="header-action header-action--cart" id="cart-toggle" aria-label="פתח סל הזמנה" aria-controls="cart-panel" aria-expanded="false">
@@ -169,22 +248,52 @@
         </button>
       </header>
       <div class="cart-body" id="cart-body"></div>
-      <footer class="cart-footer" id="cart-footer" hidden>
-        <div class="cart-total-row">
+      <footer class="cart-footer" id="cart-footer">
+        <div class="cart-total-row" id="cart-pending-total-row">
           <span class="cart-total-label" data-i18n="total">סה״כ</span>
           <span class="cart-total-price" id="cart-total-price">€0</span>
         </div>
-        <button type="button" class="cart-clear-btn" id="cart-clear" data-i18n="clearCart">רוקן סל</button>
+        <div class="cart-session-total" id="cart-session-total">
+          <span class="cart-session-total__label" data-i18n="currentTotal">סה״כ נוכחי</span>
+          <span class="cart-session-total__price" id="cart-session-total-price">€0.00</span>
+        </div>
+        <div class="cart-actions">
+          <button type="button" class="cart-send-btn" id="cart-send" data-i18n="sendOrder" disabled>
+            שלח הזמנה
+          </button>
+          <button type="button" class="cart-bill-btn" id="cart-request-bill" data-i18n="requestBill" disabled>
+            חשבון
+          </button>
+          <button type="button" class="cart-clear-btn" id="cart-clear" data-i18n="clearCart" disabled>
+            נקה עגלה
+          </button>
+        </div>
       </footer>
     </aside>
   </div>
 
+  <div class="app-confirm" id="app-confirm" hidden aria-hidden="true">
+    <button type="button" class="app-confirm__backdrop" id="app-confirm-backdrop" aria-label="Cancel"></button>
+    <div class="app-confirm__panel" role="dialog" aria-modal="true" aria-labelledby="app-confirm-text">
+      <p class="app-confirm__text" id="app-confirm-text"></p>
+      <div class="app-confirm__actions">
+        <button type="button" class="cart-send-btn" id="app-confirm-yes">כן</button>
+        <button type="button" class="cart-clear-btn" id="app-confirm-cancel">ביטול</button>
+      </div>
+    </div>
+  </div>
+
   <div class="cart-toast" id="cart-toast" role="status" aria-live="polite" hidden></div>
+  <div class="order-feedback" id="order-feedback" role="status" aria-live="polite" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
   <script src="js/menu-data.js" defer></script>
   <script src="js/inventory.js" defer></script>
+  <script src="js/order-session.js" defer></script>
+  <script src="js/order-engine.js" defer></script>
+  <script src="js/print-engine.js" defer></script>
   <script src="js/main.js" defer></script>
+  <script src="js/entry-gate.js" defer></script>
 </body>
 </html>
