@@ -592,6 +592,35 @@
   }
 
   /**
+   * Replace open-order line items (e.g. after Admin removes a dish remotely).
+   * @param {Array<object>} items
+   */
+  function setOrderItems(items) {
+    const order = getOrder();
+    if (!order) return null;
+    const list = Array.isArray(items) ? items : [];
+    return upsertOpenOrder({
+      ...order,
+      items: list.map((item) => ({
+        itemId: String(item.itemId || item.id || createId('item')),
+        productId: String(item.productId || item.product_id || ''),
+        name: item.name || item.product_name || item.printName || item.print_name || '',
+        printName: item.printName || item.print_name || '',
+        price: Number(item.price) || 0,
+        qty: Number(item.qty != null ? item.qty : item.quantity) || 0,
+        notes: item.notes == null ? '' : String(item.notes),
+        printed: item.printed !== false,
+        linkedToMainItemId: item.linkedToMainItemId || item.parent_item_id
+          ? String(item.linkedToMainItemId || item.parent_item_id)
+          : null,
+        createdAt: item.createdAt || item.created_at || nowIso(),
+        remoteItemId: item.remoteItemId || item.id || null,
+      })).filter((item) => item.qty > 0 && item.productId),
+      updatedAt: nowIso(),
+    });
+  }
+
+  /**
    * Add a catalog product to a specific open order (admin / waiter / customer send).
    * By default merges unprinted lines with same productId + notes (no parent link).
    * Pass options.allowMerge = false (or linkedToMainItemId) to keep separate order items.
@@ -690,5 +719,6 @@
     getTakeawayBoard,
     clearOrder,
     clearItems,
+    setOrderItems,
   };
 })(window);

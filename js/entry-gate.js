@@ -17,14 +17,31 @@
       kosher: 'Mehadrin Kosher',
       promptOrder: 'How would you like to order?',
       promptTable: 'Choose your table',
+      promptPickup: 'Takeaway details',
       dineIn: 'Dine In',
-      takeAway: 'Take Away',
+      takeAway: 'Takeaway',
       delivery: 'Delivery',
       back: 'Back',
       comingSoon: 'Coming Soon',
       occupied: 'Occupied',
       tableOccupied: 'This table is occupied',
       langAria: 'Switch language – Hebrew / English',
+      customerName: 'Customer Name *',
+      customerPhone: 'Phone Number *',
+      customerNotes: 'Notes (English only, optional)',
+      pickupTime: 'Pickup Time',
+      pickupAsap: 'ASAP',
+      pickupSelect: 'Select Time',
+      continueToMenu: 'Continue to menu',
+      pickupNameRequired: 'Please enter your name',
+      pickupPhoneRequired: 'Please enter a valid phone number',
+      pickupPhoneInvalid: 'Please enter a valid phone number',
+      pickupNotesEnglishOnly: 'Notes must be in English only',
+      pickupTimeRequired: 'Please select a pickup time',
+      pickupNoSlots: 'No pickup times left today — choose ASAP',
+      closedTitle: 'We are currently closed',
+      closedText: 'Our opening hours are 14:00 to 21:00',
+      closedBrowse: 'Click here to view the menu',
     },
     he: {
       welcome: 'ברוכים הבאים',
@@ -32,14 +49,31 @@
       kosher: 'כשר למהדרין',
       promptOrder: 'איך תרצו להזמין?',
       promptTable: 'בחרו מספר שולחן',
+      promptPickup: 'פרטי איסוף עצמי',
       dineIn: 'ישיבה במקום',
-      takeAway: 'באים לקחת',
+      takeAway: 'איסוף עצמי',
       delivery: 'משלוח',
       back: 'חזרה',
       comingSoon: 'Coming Soon',
       occupied: 'תפוס',
       tableOccupied: 'השולחן תפוס',
       langAria: 'החלפת שפה – עברית / English',
+      customerName: 'שם הלקוח *',
+      customerPhone: 'טלפון *',
+      customerNotes: 'Notes (אופציונלי, אנגלית בלבד)',
+      pickupTime: 'שעת איסוף',
+      pickupAsap: 'בהקדם האפשרי',
+      pickupSelect: 'בחירת שעה',
+      continueToMenu: 'המשך לתפריט',
+      pickupNameRequired: 'נא להזין שם',
+      pickupPhoneRequired: 'נא להזין מספר טלפון תקין',
+      pickupPhoneInvalid: 'נא להזין מספר טלפון תקין',
+      pickupNotesEnglishOnly: 'ההערות חייבות להיות באנגלית בלבד',
+      pickupTimeRequired: 'נא לבחור שעת איסוף',
+      pickupNoSlots: 'אין שעות פנויות היום — בחרו בהקדם האפשרי',
+      closedTitle: 'המקום סגור כרגע',
+      closedText: 'שעות הפעילות שלנו בין השעות 14:00 עד 21:00',
+      closedBrowse: 'לצפייה בתפריט לחץ כאן',
     },
   };
 
@@ -48,6 +82,7 @@
 
   const stepOrder = document.getElementById('entry-step-order');
   const stepTable = document.getElementById('entry-step-table');
+  const stepPickup = document.getElementById('entry-step-pickup');
   const tablesEl = document.getElementById('entry-tables');
   const noticeEl = document.getElementById('entry-notice');
   const promptEl = document.getElementById('entry-prompt');
@@ -56,11 +91,29 @@
   const kosherEl = document.getElementById('entry-hero-kosher');
   const langToggle = document.getElementById('entry-lang-toggle');
   const tableBackBtn = stepTable?.querySelector('[data-entry-back]');
+  const pickupForm = document.getElementById('entry-pickup-form');
+  const pickupName = document.getElementById('entry-pickup-name');
+  const pickupPhone = document.getElementById('entry-pickup-phone');
+  const pickupNotes = document.getElementById('entry-pickup-notes');
+  const pickupAsap = document.getElementById('entry-pickup-asap');
+  const pickupSelect = document.getElementById('entry-pickup-select');
+  const pickupSlot = document.getElementById('entry-pickup-slot');
+  const pickupError = document.getElementById('entry-pickup-error');
+  const closedModal = document.getElementById('entry-closed-modal');
+  const closedTitle = document.getElementById('entry-closed-title');
+  const closedText = document.getElementById('entry-closed-text');
+  const closedBrowseBtn = document.getElementById('entry-closed-browse');
+  const closedBrowseLabel = document.getElementById('entry-closed-browse-label');
 
   const state = {
     orderType: null, // 'dine-in' | 'takeaway'
     lang: 'he',
     tableNumber: null,
+    customerName: '',
+    customerPhone: '',
+    customerNotes: '',
+    pickupType: 'ASAP', // 'ASAP' | 'TIME'
+    pickupTime: null,
   };
 
   let noticeTimer = null;
@@ -94,19 +147,65 @@
       if (key && COPY.en[key] != null) el.textContent = t(key);
     });
 
+    if (closedTitle) closedTitle.textContent = t('closedTitle');
+    if (closedText) closedText.textContent = t('closedText');
+    if (closedBrowseLabel) closedBrowseLabel.textContent = t('closedBrowse');
+
     if (promptEl) {
-      const onTable = stepTable && !stepTable.hidden;
-      promptEl.textContent = onTable ? t('promptTable') : t('promptOrder');
+      promptEl.hidden = false;
+      if (stepPickup && !stepPickup.hidden) promptEl.textContent = t('promptPickup');
+      else if (stepTable && !stepTable.hidden) promptEl.textContent = t('promptTable');
+      else promptEl.textContent = t('promptOrder');
     }
 
     if (tableBackBtn) tableBackBtn.textContent = t('back');
+    if (pickupSlot) pickupSlot.setAttribute('aria-label', t('pickupSelect'));
 
     updateLangToggleUI();
     applyDocumentDir();
   }
 
+  function isOrderingHoursOpen() {
+    if (typeof window.LechaimMenu?.isOrderingAllowed === 'function') {
+      return window.LechaimMenu.isOrderingAllowed();
+    }
+    /* Fallback if menu not ready yet — same window as main.js */
+    const hour = new Date().getHours();
+    return hour >= 14 && hour < 21;
+  }
+
+  function showClosedGate() {
+    /* Keep the normal home UI underneath; float overlay with blur */
+    goToOrderType();
+    if (closedModal) {
+      closedModal.hidden = false;
+      closedModal.setAttribute('aria-hidden', 'false');
+    }
+    document.body.classList.add('entry-closed-open');
+    applyEntryCopy();
+    closedBrowseBtn?.focus();
+  }
+
+  function hideClosedGate() {
+    if (closedModal) {
+      closedModal.hidden = true;
+      closedModal.setAttribute('aria-hidden', 'true');
+    }
+    document.body.classList.remove('entry-closed-open');
+  }
+
+  function enterBrowseOnly() {
+    hideClosedGate();
+    enterMenu(buildMenuContext({
+      browseOnly: true,
+      orderType: null,
+      tableNumber: null,
+      lang: state.lang,
+    }));
+  }
+
   function showStep(step) {
-    [stepOrder, stepTable].forEach((el) => {
+    [stepOrder, stepTable, stepPickup].forEach((el) => {
       if (!el) return;
       el.hidden = el !== step;
     });
@@ -294,7 +393,9 @@
   }
 
   function closeGate() {
+    hideClosedGate();
     document.body.classList.remove('entry-pending');
+    document.body.classList.remove('entry-closed-open');
     gate.hidden = true;
     gate.setAttribute('aria-hidden', 'true');
     changingTable = false;
@@ -302,22 +403,46 @@
 
   function buildMenuContext(extra = {}) {
     const fromSession = Session?.toMenuContext?.({ lang: state.lang }) || {};
-    const orderType = extra.orderType != null
-      ? extra.orderType
-      : (state.orderType || fromSession.orderType || null);
+    const browseOnly = Boolean(extra.browseOnly);
+    const orderType = browseOnly
+      ? null
+      : (extra.orderType != null
+        ? extra.orderType
+        : (state.orderType || fromSession.orderType || null));
     const isTakeaway = orderType === 'takeaway';
 
     return {
+      browseOnly,
       orderType,
-      tableNumber: isTakeaway
+      tableNumber: browseOnly
         ? null
-        : (extra.tableNumber !== undefined
-          ? extra.tableNumber
-          : (state.tableNumber != null ? state.tableNumber : fromSession.tableNumber)),
+        : (isTakeaway
+          ? null
+          : (extra.tableNumber !== undefined
+            ? extra.tableNumber
+            : (state.tableNumber != null ? state.tableNumber : fromSession.tableNumber))),
       lang: extra.lang || state.lang || fromSession.lang || null,
-      sessionId: isTakeaway ? (fromSession.sessionId || null) : (fromSession.sessionId || null),
-      openedAt: fromSession.openedAt || null,
-      status: fromSession.status || null,
+      sessionId: browseOnly ? null : (fromSession.sessionId || null),
+      openedAt: browseOnly ? null : (fromSession.openedAt || null),
+      status: browseOnly ? null : (fromSession.status || null),
+      customerName: isTakeaway
+        ? (extra.customerName ?? state.customerName ?? fromSession.customerName ?? '')
+        : null,
+      customerPhone: isTakeaway
+        ? (extra.customerPhone ?? state.customerPhone ?? fromSession.customerPhone ?? '')
+        : null,
+      customerNotes: isTakeaway
+        ? (extra.customerNotes ?? state.customerNotes ?? fromSession.customerNotes ?? '')
+        : null,
+      pickupType: isTakeaway
+        ? (extra.pickupType ?? state.pickupType ?? fromSession.pickupType ?? 'ASAP')
+        : null,
+      pickupTime: isTakeaway
+        ? (extra.pickupTime ?? state.pickupTime ?? fromSession.pickupTime ?? null)
+        : null,
+      publicOrderNo: isTakeaway
+        ? (extra.publicOrderNo ?? fromSession.publicOrderNo ?? null)
+        : null,
     };
   }
 
@@ -353,10 +478,16 @@
   function goToOrderType() {
     state.orderType = null;
     state.tableNumber = null;
+    state.customerName = '';
+    state.customerPhone = '';
+    state.customerNotes = '';
+    state.pickupType = 'ASAP';
+    state.pickupTime = null;
     tablesEl?.querySelectorAll('.entry-gate__table').forEach((btn) => {
       btn.classList.remove('is-selected');
     });
     if (tableBackBtn) tableBackBtn.dataset.entryBack = 'order';
+    resetPickupForm();
     showStep(stepOrder);
   }
 
@@ -366,6 +497,197 @@
     if (tableBackBtn) tableBackBtn.dataset.entryBack = 'order';
     showStep(stepTable);
     refreshOccupiedTables();
+  }
+
+  function pad2(n) {
+    return String(n).padStart(2, '0');
+  }
+
+  /** Hebrew → Latin for thermal printers (readable names). */
+  function transliterateToEnglish(raw) {
+    const text = String(raw || '').normalize('NFKC').trim();
+    if (!text) return '';
+    if (!/[\u0590-\u05FF]/.test(text)) {
+      return text.replace(/\s+/g, ' ').trim();
+    }
+
+    return text
+      .split(/\s+/)
+      .map((word) => titleCaseLatin(transliterateHebrewWord(word)))
+      .filter(Boolean)
+      .join(' ');
+  }
+
+  function titleCaseLatin(value) {
+    const s = String(value || '').toLowerCase();
+    if (!s) return '';
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
+  function transliterateHebrewWord(word) {
+    const chars = [...String(word || '')];
+    let out = '';
+    let i = 0;
+
+    while (i < chars.length) {
+      const ch = chars[i];
+      const next = chars[i + 1];
+
+      if (ch === '\u05E9') { out += 'sh'; i += 1; continue; } // ש
+      if (ch === '\u05D7') { out += 'ch'; i += 1; continue; } // ח
+      if (ch === '\u05E6' || ch === '\u05E5') { out += 'tz'; i += 1; continue; } // צץ
+
+      if (ch === '\u05D5') { // ו
+        if (next === '\u05D0' || next === '\u05E2') { // וא / וע → ue (שמואל)
+          out += 'ue';
+          i += 2;
+          continue;
+        }
+        if (next === '\u05D9') { // וי
+          out += 'oi';
+          i += 2;
+          continue;
+        }
+        out += i === 0 ? 'v' : 'o';
+        i += 1;
+        continue;
+      }
+
+      if (ch === '\u05D9') { // י
+        out += i === 0 ? 'y' : 'i';
+        i += 1;
+        continue;
+      }
+
+      if (ch === '\u05D0') { // א
+        if (i === 0) out += 'a';
+        i += 1;
+        continue;
+      }
+
+      if (ch === '\u05D4') { // ה
+        if (i !== chars.length - 1) out += 'h';
+        i += 1;
+        continue;
+      }
+
+      if (ch === '\u05E2') { // ע
+        out += 'a';
+        i += 1;
+        continue;
+      }
+
+      if (ch === '\u05E4' || ch === '\u05E3') { // פ ף
+        out += (ch === '\u05E3' || i === chars.length - 1) ? 'f' : 'p';
+        i += 1;
+        continue;
+      }
+
+      const simple = {
+        '\u05D1': 'b', '\u05D2': 'g', '\u05D3': 'd', '\u05D6': 'z', '\u05D8': 't',
+        '\u05DB': 'k', '\u05DA': 'k', '\u05DC': 'l', '\u05DE': 'm', '\u05DD': 'm',
+        '\u05E0': 'n', '\u05DF': 'n', '\u05E1': 's', '\u05E7': 'k', '\u05E8': 'r',
+        '\u05EA': 't',
+      };
+      if (simple[ch]) {
+        out += simple[ch];
+        i += 1;
+        continue;
+      }
+
+      if (/[A-Za-z0-9]/.test(ch)) {
+        out += ch;
+      }
+      i += 1;
+    }
+
+    return out.replace(/(.)\1+/g, '$1$1');
+  }
+
+  function isValidPhone(value) {
+    const digits = String(value || '').replace(/[^\d]/g, '');
+    return digits.length >= 9 && digits.length <= 15;
+  }
+
+  function isEnglishNotes(value) {
+    const s = String(value || '').trim();
+    if (!s) return true;
+    return /^[A-Za-z0-9\s.,!?'"()\-+:;/&@#]+$/.test(s);
+  }
+
+  function buildPickupSlots() {
+    const slots = [];
+    const openMinutes = 15 * 60;
+    const closeMinutes = 21 * 60;
+    const now = new Date();
+    let startMinutes = now.getHours() * 60 + now.getMinutes();
+    startMinutes = Math.ceil((startMinutes + 1) / 15) * 15;
+
+    let cursor = Math.max(startMinutes, openMinutes);
+    if (cursor % 15 !== 0) cursor = Math.ceil(cursor / 15) * 15;
+
+    /* If nothing left today, still offer the full service window */
+    if (cursor > closeMinutes) {
+      cursor = openMinutes;
+    }
+
+    for (let m = cursor; m <= closeMinutes; m += 15) {
+      const hh = Math.floor(m / 60);
+      const mm = m % 60;
+      if (hh > 23) break;
+      slots.push(`${pad2(hh)}:${pad2(mm)}`);
+    }
+    return slots;
+  }
+
+  function fillPickupSlots() {
+    if (!pickupSlot) return;
+    const slots = buildPickupSlots();
+    if (!slots.length) {
+      pickupSlot.innerHTML = '<option value="">—</option>';
+      return;
+    }
+    pickupSlot.innerHTML = slots.map((slot) => (
+      `<option value="${slot}">${slot}</option>`
+    )).join('');
+  }
+
+  function resetPickupForm() {
+    if (pickupForm) pickupForm.reset();
+    if (pickupAsap) pickupAsap.checked = true;
+    if (pickupSlot) {
+      pickupSlot.hidden = true;
+      pickupSlot.required = false;
+    }
+    if (pickupError) {
+      pickupError.hidden = true;
+      pickupError.textContent = '';
+    }
+  }
+
+  function syncPickupTimeUi() {
+    const useTime = Boolean(pickupSelect?.checked);
+    if (pickupSlot) {
+      pickupSlot.hidden = !useTime;
+      pickupSlot.required = useTime;
+      if (useTime) fillPickupSlots();
+    }
+  }
+
+  function showPickupError(message) {
+    if (!pickupError) return;
+    pickupError.hidden = false;
+    pickupError.textContent = message;
+  }
+
+  function goToPickup() {
+    state.orderType = 'takeaway';
+    state.tableNumber = null;
+    resetPickupForm();
+    fillPickupSlots();
+    syncPickupTimeUi();
+    showStep(stepPickup);
+    pickupName?.focus();
   }
 
   function finishWithTable(table) {
@@ -388,25 +710,88 @@
     }));
   }
 
-  function finishTakeaway() {
+  function finishTakeaway(details = {}) {
     state.orderType = 'takeaway';
     state.tableNumber = null;
+    state.customerName = details.customerName || '';
+    state.customerPhone = details.customerPhone || '';
+    state.customerNotes = details.customerNotes || '';
+    state.pickupType = details.pickupType === 'TIME' ? 'TIME' : 'ASAP';
+    state.pickupTime = state.pickupType === 'TIME' ? (details.pickupTime || null) : null;
     changingTable = false;
     tablesEl?.querySelectorAll('.entry-gate__table').forEach((btn) => {
       btn.classList.remove('is-selected');
     });
 
     if (Session) {
-      Session.startTakeaway({ lang: state.lang });
+      Session.startTakeaway({
+        lang: state.lang,
+        customerName: state.customerName,
+        customerPhone: state.customerPhone,
+        customerNotes: state.customerNotes,
+        pickupType: state.pickupType,
+        pickupTime: state.pickupTime,
+      });
     }
 
-    enterMenu({
+    enterMenu(buildMenuContext({
       orderType: 'takeaway',
       tableNumber: null,
       lang: state.lang,
-      sessionId: Session?.getSession?.()?.sessionId || null,
-      openedAt: Session?.getSession?.()?.openedAt || null,
-      status: Session?.getSession?.()?.status || null,
+      customerName: state.customerName,
+      customerPhone: state.customerPhone,
+      customerNotes: state.customerNotes,
+      pickupType: state.pickupType,
+      pickupTime: state.pickupTime,
+    }));
+  }
+
+  function submitPickupForm(event) {
+    event?.preventDefault?.();
+    const nameRaw = String(pickupName?.value || '').trim();
+    const phone = String(pickupPhone?.value || '').trim();
+    const notes = String(pickupNotes?.value || '').trim();
+    const pickupType = pickupSelect?.checked ? 'TIME' : 'ASAP';
+    const pickupTime = pickupType === 'TIME' ? String(pickupSlot?.value || '').trim() : null;
+    const nameEn = transliterateToEnglish(nameRaw);
+
+    if (!nameRaw || !nameEn) {
+      showPickupError(t('pickupNameRequired'));
+      pickupName?.focus();
+      return;
+    }
+    if (!phone) {
+      showPickupError(t('pickupPhoneRequired'));
+      pickupPhone?.focus();
+      return;
+    }
+    if (!isValidPhone(phone)) {
+      showPickupError(t('pickupPhoneInvalid'));
+      pickupPhone?.focus();
+      return;
+    }
+    if (notes && !isEnglishNotes(notes)) {
+      showPickupError(t('pickupNotesEnglishOnly'));
+      pickupNotes?.focus();
+      return;
+    }
+    if (pickupType === 'TIME' && !pickupTime) {
+      showPickupError(t('pickupTimeRequired'));
+      pickupSlot?.focus();
+      return;
+    }
+
+    if (pickupError) {
+      pickupError.hidden = true;
+      pickupError.textContent = '';
+    }
+
+    finishTakeaway({
+      customerName: nameEn,
+      customerPhone: phone,
+      customerNotes: notes,
+      pickupType,
+      pickupTime,
     });
   }
 
@@ -444,6 +829,10 @@
 
     setLang(state.lang);
     openGate();
+    if (!isOrderingHoursOpen()) {
+      showClosedGate();
+      return true;
+    }
     goToOrderType();
     return true;
   }
@@ -457,11 +846,20 @@
     changingTable = false;
     state.orderType = null;
     state.tableNumber = null;
+    state.customerName = '';
+    state.customerPhone = '';
+    state.customerNotes = '';
+    state.pickupType = 'ASAP';
+    state.pickupTime = null;
     tablesEl?.querySelectorAll('.entry-gate__table').forEach((btn) => {
       btn.classList.remove('is-selected');
     });
     setLang(state.lang || 'he');
     openGate();
+    if (!isOrderingHoursOpen()) {
+      showClosedGate();
+      return;
+    }
     goToOrderType();
   }
 
@@ -595,7 +993,7 @@
       }
       if (type === 'takeaway') {
         state.orderType = 'takeaway';
-        finishTakeaway();
+        goToPickup();
       }
       return;
     }
@@ -616,6 +1014,19 @@
     if (backBtn) goToOrderType();
   });
 
+  pickupForm?.addEventListener('submit', submitPickupForm);
+  pickupAsap?.addEventListener('change', syncPickupTimeUi);
+  pickupSelect?.addEventListener('change', syncPickupTimeUi);
+  pickupNotes?.addEventListener('input', () => {
+    /* Soft guide: keep English-friendly characters while typing */
+    const cleaned = String(pickupNotes.value || '').replace(/[^\x20-\x7E\n\r\t]/g, '');
+    if (cleaned !== pickupNotes.value) pickupNotes.value = cleaned;
+  });
+
+  closedBrowseBtn?.addEventListener('click', () => {
+    enterBrowseOnly();
+  });
+
   window.LechaimEntryGate = {
     reopenTablePicker,
     reopenOrderTypePicker,
@@ -627,8 +1038,15 @@
   gate.setAttribute('aria-hidden', 'false');
 
   (async function bootEntryGate() {
-    if (await tryResumeSession()) return;
     setLang('he');
+
+    /* Outside opening hours — closed modal; browse skips order/table/name */
+    if (!isOrderingHoursOpen()) {
+      showClosedGate();
+      return;
+    }
+
+    if (await tryResumeSession()) return;
     goToOrderType();
   })();
 })();

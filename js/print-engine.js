@@ -114,11 +114,49 @@
 
   function formatTableLine(order) {
     const type = String(order?.orderType || '').toLowerCase();
-    if (type === 'takeaway' || type === 'take-away') return 'TAKE AWAY';
+    if (type === 'takeaway' || type === 'take-away') {
+      const no = order.publicOrderNo || order.public_order_no;
+      if (no != null && Number(no) > 0) return `TAKEAWAY #${Number(no)}`;
+      return 'TAKEAWAY';
+    }
     if (order?.tableNumber != null && order.tableNumber !== '') {
       return `TABLE ${order.tableNumber}`;
     }
     return 'TABLE —';
+  }
+
+  function formatPickupLabel(order) {
+    if (!order) return 'ASAP';
+    const type = String(order.pickupType || order.pickup_type || '').toUpperCase();
+    const time = order.pickupTime || order.pickup_time || null;
+    if (type === 'TIME' && time) return String(time);
+    return 'ASAP';
+  }
+
+  function buildSelfPickupBlock(order) {
+    const type = String(order?.orderType || '').toLowerCase();
+    if (type !== 'takeaway' && type !== 'take-away') return [];
+
+    const orderNo = order.publicOrderNo || order.public_order_no;
+    const name = order.customerName || order.customer_name || '—';
+    const phone = order.customerPhone || order.customer_phone || '—';
+    const pickup = formatPickupLabel(order);
+    const notes = order.customerNotes || order.notes || '';
+
+    const lines = [];
+    if (orderNo != null && Number(orderNo) > 0) {
+      lines.push(`ORDER #${Number(orderNo)}`);
+    }
+    lines.push(
+      `Customer: ${name}`,
+      `Phone: ${phone}`,
+      `Pickup: ${pickup}`,
+    );
+    if (notes) {
+      lines.push(`Notes: ${notes}`);
+    }
+    lines.push('');
+    return lines;
   }
 
   function collectDrinkProductIds() {
@@ -513,6 +551,7 @@
     const body = formatItemLines(items);
     const seq = Number(ticketSeq) > 0 ? Number(ticketSeq) : 1;
     const tableLine = formatTableLine(order);
+    const pickupBlock = buildSelfPickupBlock(order);
 
     return [
       `${POS.fontA}${POS.size2x}${POS.boldOn}${LINE}`,
@@ -524,6 +563,7 @@
       /* Table number — emphasized */
       tableLine,
       '',
+      ...pickupBlock,
       `Order ${seq}`,
       '',
       /* Time — emphasized */
@@ -575,6 +615,39 @@
    * Kitchen → Bar → mark printed only when both succeed.
    * One table-order sequence number is shared by kitchen + bar for this wave.
    */
+  function playPrintSuccessSound() {
+    try {
+      const Ctx = global.AudioContext || global.webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = playPrintSuccessSound._ctx || new Ctx();
+      playPrintSuccessSound._ctx = ctx;
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+
+      const now = ctx.currentTime;
+      /* Soft “new ticket” ding — different from admin alert */
+      const tones = [
+        { freq: 523.25, at: 0, dur: 0.16 },
+        { freq: 659.25, at: 0.12, dur: 0.16 },
+        { freq: 783.99, at: 0.24, dur: 0.28 },
+      ];
+      tones.forEach((tone) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = tone.freq;
+        gain.gain.setValueAtTime(0.0001, now + tone.at);
+        gain.gain.exponentialRampToValueAtTime(0.22, now + tone.at + 0.025);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + tone.at + tone.dur);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + tone.at);
+        osc.stop(now + tone.at + tone.dur + 0.02);
+      });
+    } catch (err) {
+      console.warn('[LechaimPrintEngine] print sound failed', err);
+    }
+  }
+
   async function printOrder(order) {
     const resolved = resolveOrder(order);
     if (!resolved) return false;
@@ -603,6 +676,7 @@
       }
     }
 
+    playPrintSuccessSound();
     return true;
   }
 
@@ -720,8 +794,47 @@
     if (!blocks.length) return '';
 
     const stamp = formatBillDateTime(resolved.updatedAt || resolved.createdAt || Date.now());
-    const total = blocks.reduce((sum, row) => sum + (Number(row.lineTotal) || 0), 0);
+    const itemsTotal = blocks.reduce((sum, row) => sum + (Number(row.lineTotal) || 0), 0);
+    const subtotal = resolved.subtotal != null && Number.isFinite(Number(resolved.subtotal))
+      ? Number(resolved.subtotal)
+      : itemsTotal;
+    const discountPercent = resolved.discountPercent != null
+      ? Number(resolved.discountPercent)
+      : (resolved.discount_percent != null ? Number(resolved.discount_percent) : null);
+    const discountAmount = resolved.discountAmount != null
+      ? Number(resolved.discountAmount)
+      : (resolved.discount_amount != null ? Number(resolved.discount_amount) : null);
+    const couponCode = resolved.couponCode || resolved.coupon_code || null;
+    const hasDiscount = Boolean(
+      couponCode &&
+      discountAmount != null &&
+      Number.isFinite(discountAmount) &&
+      discountAmount > 0
+    );
+    const payable = hasDiscount
+      ? (resolved.billTotal != null
+        ? Number(resolved.billTotal)
+        : Math.max(0, subtotal - discountAmount))
+      : itemsTotal;
+
     const tableLine = formatTableLine(resolved);
+    const pickupInfo = (() => {
+      const type = String(resolved.orderType || '').toLowerCase();
+      if (type !== 'takeaway' && type !== 'take-away') return [];
+      const orderNo = resolved.publicOrderNo || resolved.public_order_no;
+      const lines = [];
+      if (orderNo != null && Number(orderNo) > 0) {
+        lines.push(`ORDER #${Number(orderNo)}`);
+      }
+      lines.push(
+        `Customer: ${resolved.customerName || resolved.customer_name || '—'}`,
+        `Phone: ${resolved.customerPhone || resolved.customer_phone || '—'}`,
+        `Pickup: ${formatPickupLabel(resolved)}`,
+      );
+      const notes = resolved.customerNotes || resolved.notes;
+      if (notes) lines.push(`Notes: ${notes}`);
+      return lines;
+    })();
     const body = [];
     const W = 42;
 
@@ -738,6 +851,19 @@
       }
     });
 
+    const totalsBlock = hasDiscount
+      ? [
+          padBillLine('Subtotal', formatMoneyEuro(subtotal), W),
+          `Coupon: ${couponCode}`,
+          padBillLine(`Discount -${discountPercent != null ? discountPercent : ''}%`, `-${formatMoneyEuro(discountAmount)}`, W),
+          `${POS.boldOn}` + padBillLine('TOTAL', formatMoneyEuro(payable), W),
+          `${POS.boldOff}`,
+        ]
+      : [
+          `${POS.boldOn}` + padBillLine('TOTAL', formatMoneyEuro(payable), W),
+          `${POS.boldOff}`,
+        ];
+
     /* Compact normal-size layout (~half of kitchen size2x tickets) */
     return [
       `${POS.fontA}${POS.sizeNormal}${POS.boldOn}${LINE}`,
@@ -746,11 +872,11 @@
       tableLine,
       stamp,
       `${POS.boldOff}`,
+      ...(pickupInfo.length ? [DIV, ...pickupInfo] : []),
       DIV,
       ...body,
       DIV,
-      `${POS.boldOn}` + padBillLine('TOTAL', formatMoneyEuro(total), W),
-      `${POS.boldOff}`,
+      ...totalsBlock,
       'Service does not include tip.',
       '',
       `${POS.boldOn}THANK YOU!${POS.boldOff}`,

@@ -17,6 +17,15 @@
   <!-- Entry gate: order type → table (dine-in) — language toggle always available -->
   <div class="entry-gate" id="entry-gate" role="dialog" aria-modal="true" aria-labelledby="entry-hero-title">
     <div class="entry-gate__chrome">
+      <img
+        src="assets/logo/kosher-badge.png"
+        alt="כשר למהדרין"
+        class="entry-gate__kosher-badge"
+        width="72"
+        height="72"
+        loading="eager"
+        decoding="async"
+      >
       <button
         type="button"
         class="entry-gate__lang lang-toggle"
@@ -52,7 +61,7 @@
             <span class="entry-gate__btn-label" data-entry-i18n="dineIn">ישיבה במקום</span>
           </button>
           <button type="button" class="entry-gate__btn" data-order-type="takeaway">
-            <span class="entry-gate__btn-label" data-entry-i18n="takeAway">באים לקחת</span>
+            <span class="entry-gate__btn-label" data-entry-i18n="takeAway">איסוף עצמי</span>
           </button>
           <!-- Delivery — יופעל בהמשך
           <button type="button" class="entry-gate__btn entry-gate__btn--soon" data-order-type="delivery" aria-describedby="entry-notice">
@@ -62,9 +71,96 @@
         </div>
       </div>
 
+      <div class="entry-gate__step" id="entry-step-pickup" hidden>
+        <form class="entry-pickup" id="entry-pickup-form" novalidate>
+          <label class="entry-pickup__field">
+            <span class="entry-pickup__label" data-entry-i18n="customerName">שם הלקוח *</span>
+            <input
+              type="text"
+              id="entry-pickup-name"
+              class="entry-pickup__input"
+              name="customerName"
+              autocomplete="name"
+              required
+              maxlength="80"
+            >
+          </label>
+
+          <label class="entry-pickup__field">
+            <span class="entry-pickup__label" data-entry-i18n="customerPhone">טלפון *</span>
+            <input
+              type="tel"
+              id="entry-pickup-phone"
+              class="entry-pickup__input"
+              name="customerPhone"
+              autocomplete="tel"
+              inputmode="tel"
+              required
+              maxlength="32"
+              dir="ltr"
+            >
+          </label>
+
+          <label class="entry-pickup__field">
+            <span class="entry-pickup__label" data-entry-i18n="customerNotes">Notes (English only, optional)</span>
+            <textarea
+              id="entry-pickup-notes"
+              class="entry-pickup__input entry-pickup__textarea"
+              name="customerNotes"
+              rows="2"
+              maxlength="240"
+              dir="ltr"
+              lang="en"
+              placeholder="English only (optional)"
+            ></textarea>
+          </label>
+
+          <fieldset class="entry-pickup__time">
+            <legend class="entry-pickup__label" data-entry-i18n="pickupTime">שעת איסוף</legend>
+            <label class="entry-pickup__radio">
+              <input type="radio" name="pickupType" value="ASAP" id="entry-pickup-asap" checked>
+              <span data-entry-i18n="pickupAsap">בהקדם האפשרי</span>
+            </label>
+            <label class="entry-pickup__radio">
+              <input type="radio" name="pickupType" value="TIME" id="entry-pickup-select">
+              <span data-entry-i18n="pickupSelect">בחירת שעה</span>
+            </label>
+            <select
+              id="entry-pickup-slot"
+              class="entry-pickup__input entry-pickup__select"
+              hidden
+              aria-label="Pickup time"
+            ></select>
+          </fieldset>
+
+          <p class="entry-pickup__error" id="entry-pickup-error" role="alert" hidden></p>
+
+          <button type="submit" class="entry-gate__btn entry-gate__btn--primary" id="entry-pickup-submit">
+            <span class="entry-gate__btn-label" data-entry-i18n="continueToMenu">המשך לתפריט</span>
+          </button>
+        </form>
+        <button type="button" class="entry-gate__back" data-entry-back="order" data-entry-i18n="back">חזרה</button>
+      </div>
+
       <div class="entry-gate__step" id="entry-step-table" hidden>
         <div class="entry-gate__tables" id="entry-tables" role="group" aria-label="Table number"></div>
         <button type="button" class="entry-gate__back" data-entry-back="order" data-entry-i18n="back">חזרה</button>
+      </div>
+    </div>
+
+    <div class="entry-closed-overlay" id="entry-closed-modal" hidden aria-hidden="true">
+      <div class="entry-closed-overlay__backdrop" aria-hidden="true"></div>
+      <div
+        class="entry-closed-overlay__panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="entry-closed-title"
+      >
+        <p class="entry-closed-overlay__title" id="entry-closed-title">המקום סגור כרגע</p>
+        <p class="entry-closed-overlay__text" id="entry-closed-text">שעות הפעילות שלנו בין השעות 14:00 עד 21:00</p>
+        <button type="button" class="entry-gate__btn entry-gate__btn--primary" id="entry-closed-browse">
+          <span class="entry-gate__btn-label" id="entry-closed-browse-label">לצפייה בתפריט לחץ כאן</span>
+        </button>
       </div>
     </div>
   </div>
@@ -165,6 +261,15 @@
     <div class="container footer-inner">
       <div class="footer-brand">
         <img src="assets/logo/logo.webp" alt="לחיים בכריתים — LeChaim" class="footer-brand__logo" width="200" height="80" loading="lazy" decoding="async">
+        <img
+          src="assets/logo/kosher-badge.png"
+          alt="כשר למהדרין"
+          class="footer-kosher"
+          width="110"
+          height="110"
+          loading="lazy"
+          decoding="async"
+        >
       </div>
 
       <div class="footer-grid">
@@ -254,15 +359,12 @@
           <span class="cart-total-price" id="cart-total-price">€0</span>
         </div>
         <div class="cart-session-total" id="cart-session-total">
-          <span class="cart-session-total__label" data-i18n="currentTotal">סה״כ נוכחי</span>
+          <span class="cart-session-total__label" data-i18n="currentTotal">סה״כ עגלה</span>
           <span class="cart-session-total__price" id="cart-session-total-price">€0.00</span>
         </div>
         <div class="cart-actions">
           <button type="button" class="cart-send-btn" id="cart-send" data-i18n="sendOrder" disabled>
             שלח הזמנה
-          </button>
-          <button type="button" class="cart-bill-btn" id="cart-request-bill" data-i18n="requestBill" disabled>
-            חשבון
           </button>
           <button type="button" class="cart-clear-btn" id="cart-clear" data-i18n="clearCart" disabled>
             נקה עגלה
@@ -276,6 +378,26 @@
     <button type="button" class="app-confirm__backdrop" id="app-confirm-backdrop" aria-label="Cancel"></button>
     <div class="app-confirm__panel" role="dialog" aria-modal="true" aria-labelledby="app-confirm-text">
       <p class="app-confirm__text" id="app-confirm-text"></p>
+
+      <div class="app-confirm__coupon" id="app-confirm-coupon" hidden>
+        <p class="app-confirm__coupon-label" id="app-confirm-coupon-label">יש לך קוד קופון?</p>
+        <div class="app-confirm__coupon-row">
+          <input
+            type="text"
+            id="app-confirm-coupon-input"
+            class="app-confirm__coupon-input"
+            autocomplete="off"
+            spellcheck="false"
+            dir="ltr"
+            maxlength="64"
+            placeholder=""
+          >
+          <button type="button" class="app-confirm__coupon-apply" id="app-confirm-coupon-apply">החל קופון</button>
+        </div>
+        <p class="app-confirm__coupon-status" id="app-confirm-coupon-status" role="status" aria-live="polite" hidden></p>
+        <div class="app-confirm__coupon-totals" id="app-confirm-coupon-totals" hidden></div>
+      </div>
+
       <div class="app-confirm__actions">
         <button type="button" class="cart-send-btn" id="app-confirm-yes">כן</button>
         <button type="button" class="cart-clear-btn" id="app-confirm-cancel">ביטול</button>
@@ -285,6 +407,33 @@
 
   <div class="cart-toast" id="cart-toast" role="status" aria-live="polite" hidden></div>
   <div class="order-feedback" id="order-feedback" role="status" aria-live="polite" hidden></div>
+
+  <div class="order-receipt" id="order-receipt" hidden aria-hidden="true">
+    <button type="button" class="order-receipt__backdrop" id="order-receipt-backdrop" aria-label="סגור"></button>
+    <div class="order-receipt__panel" role="dialog" aria-modal="true" aria-labelledby="order-receipt-title">
+      <button type="button" class="order-receipt__close" id="order-receipt-close" aria-label="סגור" hidden>×</button>
+      <header class="order-receipt__header">
+        <p class="order-receipt__eyebrow" id="order-receipt-eyebrow">LECHAIM</p>
+        <h2 class="order-receipt__title" id="order-receipt-title">ההזמנה נשלחה</h2>
+        <p class="order-receipt__order-no" id="order-receipt-order-no" hidden></p>
+        <p class="order-receipt__remember" id="order-receipt-remember" hidden></p>
+        <p class="order-receipt__meta" id="order-receipt-meta"></p>
+      </header>
+      <div class="order-receipt__body" id="order-receipt-body"></div>
+      <div class="order-receipt__total">
+        <span id="order-receipt-total-label">סה״כ</span>
+        <strong id="order-receipt-total">€0.00</strong>
+      </div>
+      <footer class="order-receipt__actions">
+        <button type="button" class="cart-send-btn" id="order-receipt-continue" data-i18n="receiptContinue">הוסף פריטים להזמנה קיימת</button>
+        <button type="button" class="cart-clear-btn" id="order-receipt-new" data-i18n="receiptNewOrder">הזמנה חדשה</button>
+      </footer>
+    </div>
+  </div>
+
+  <div class="ordering-hours-banner" id="ordering-hours-banner" hidden role="status" aria-live="polite">
+    <p id="ordering-hours-banner-text"></p>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>

@@ -692,6 +692,35 @@ body {
   font-weight: 700;
   font-size: 0.875rem;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  position: relative;
+}
+
+.admin-tab__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--color-navy);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.admin-tab.is-active .admin-tab__badge {
+  background: #fff;
+  color: var(--color-navy);
+}
+
+.admin-tab__badge[data-count="0"],
+.admin-tab__badge[hidden] {
+  display: none !important;
 }
 
 .admin-tab.is-active {
@@ -745,15 +774,60 @@ body {
   gap: 0.65rem;
 }
 
-.tables-takeaway {
-  margin-top: 1.5rem;
+.tables-category {
+  margin-top: 1.25rem;
 }
 
-.tables-takeaway__title {
+.tables-category:first-of-type {
+  margin-top: 0.85rem;
+}
+
+.tables-category__title {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
   font-family: var(--font-display);
   font-size: 1.15rem;
-  margin-bottom: 0.65rem;
+  margin: 0 0 0.65rem;
   color: var(--color-navy);
+}
+
+.tables-category__badge {
+  position: relative;
+  top: -2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--color-navy);
+  color: #fff;
+  font-family: var(--font-hebrew, inherit);
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.tables-category__badge[data-count="0"],
+.tables-category__badge[hidden] {
+  display: none !important;
+}
+
+.tables-category__empty {
+  margin: 0.25rem 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.tables-category__empty[hidden] {
+  display: none !important;
+}
+
+.tables-takeaway {
+  margin-top: 1.5rem;
 }
 
 .table-card {
@@ -801,6 +875,125 @@ body {
   font-size: 1rem;
   font-weight: 800;
   color: var(--color-navy);
+}
+
+.table-card__coupon {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  margin-top: 0.15rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: rgba(31, 107, 58, 0.16);
+  color: #14532d;
+}
+
+.table-card__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  margin-top: 0.2rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 8px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  background: rgba(30, 51, 84, 0.12);
+  color: var(--color-navy, #152640);
+}
+
+.table-card--pickup .table-card__badge {
+  background: rgba(196, 160, 106, 0.28);
+  color: #5c4318;
+}
+
+.table-card__customer,
+.table-card__phone,
+.table-card__pickup {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  justify-self: start;
+  text-align: start;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table-card--active .table-card__badge,
+.table-card--pending_print .table-card__badge,
+.table-card--bill_requested .table-card__badge {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+.table-card--active .table-card__customer,
+.table-card--active .table-card__phone,
+.table-card--active .table-card__pickup,
+.table-card--pending_print .table-card__customer,
+.table-card--pending_print .table-card__phone,
+.table-card--pending_print .table-card__pickup,
+.table-card--bill_requested .table-card__customer,
+.table-card--bill_requested .table-card__phone,
+.table-card--bill_requested .table-card__pickup {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.table-drawer__pickup {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.9rem 1rem;
+  margin-bottom: 0;
+  border-radius: 14px;
+  background: rgba(196, 160, 106, 0.14);
+  border: 1px solid rgba(196, 160, 106, 0.35);
+}
+
+.table-drawer__pickup-badge {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #5c4318;
+}
+
+.table-drawer__pickup-grid {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.table-drawer__pickup-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.table-drawer__pickup-row span {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.table-drawer__pickup-row strong {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--color-navy);
+  text-align: end;
+  word-break: break-word;
+}
+
+.table-card--active .table-card__coupon,
+.table-card--pending_print .table-card__coupon,
+.table-card--bill_requested .table-card__coupon {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
 }
 
 /* פנוי — אפור רגוע */
@@ -966,9 +1159,14 @@ body {
 
 .table-drawer__meta {
   display: grid;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+}
+
+.table-drawer__meta-row {
+  display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.5rem;
-  margin-bottom: 1rem;
 }
 
 .table-drawer__meta-item {
@@ -1031,6 +1229,28 @@ body {
   color: var(--color-navy);
 }
 
+.table-drawer__remove {
+  flex: 0 0 auto;
+  width: 1.7rem;
+  height: 1.7rem;
+  margin-inline-start: 0.15rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: #fff;
+  color: #8a2f2f;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.table-drawer__remove:hover {
+  background: #f8e8e8;
+  border-color: #d4a0a0;
+}
+
 .table-drawer__notes {
   margin-top: 0.35rem;
   font-size: 0.8rem;
@@ -1044,9 +1264,8 @@ body {
 }
 
 .table-drawer__total {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
+  gap: 0.35rem;
   padding: 0.85rem 0.9rem;
   background: var(--color-white);
   border: 1px solid var(--color-border);
@@ -1054,6 +1273,27 @@ body {
   margin-bottom: 0.85rem;
   font-weight: 700;
   color: var(--color-navy);
+}
+
+.table-drawer__total-line,
+.table-drawer__coupon {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: baseline;
+  font-weight: 600;
+}
+
+.table-drawer__total-line--pay {
+  margin-top: 0.2rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid rgba(21, 38, 64, 0.12);
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.table-drawer__coupon strong {
+  font-family: ui-monospace, monospace;
 }
 
 .table-drawer__actions {
@@ -1096,7 +1336,7 @@ body.table-drawer-open {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .table-drawer__meta {
+  .table-drawer__meta-row {
     grid-template-columns: 1fr;
   }
 }
@@ -1275,6 +1515,242 @@ body.table-drawer-open {
   min-width: 8rem;
 }
 
+.admin-modal__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+  width: 100%;
+}
+
+.admin-modal__actions .admin-btn {
+  justify-self: stretch;
+  min-width: 0;
+}
+
+.admin-btn--danger {
+  background: #8a2f2f;
+  color: #fff;
+  border-color: #8a2f2f;
+}
+
+.admin-btn--danger:hover {
+  filter: brightness(1.05);
+}
+
 body.admin-modal-open {
   overflow: hidden;
+}
+
+.admin-coupon-modal__panel {
+  width: min(100%, 400px);
+  text-align: start;
+  gap: 0.85rem;
+}
+
+.admin-coupon-modal__title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--color-navy, #152640);
+}
+
+.admin-coupon-modal__ask {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-navy, #152640);
+}
+
+.admin-coupon-modal__row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.admin-coupon-modal__input {
+  flex: 1 1 10rem;
+  min-width: 0;
+  border: 1px solid var(--color-cream-dark, #e5ddd0);
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem;
+  font: inherit;
+  color: var(--color-navy, #152640);
+}
+
+.admin-coupon-modal__status {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #14532d;
+}
+
+.admin-coupon-modal__status.is-error {
+  color: #8b1e1e;
+}
+
+.admin-coupon-modal__status[hidden],
+.admin-coupon-modal__totals[hidden] {
+  display: none !important;
+}
+
+.admin-coupon-modal__totals {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+  color: var(--color-navy, #152640);
+}
+
+.admin-coupon-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+/* ---------- Coupon statistics ---------- */
+.coupon-stats {
+  display: grid;
+  gap: 1rem;
+  max-width: 720px;
+}
+
+.coupon-card {
+  background: var(--color-white, #fff);
+  border: 1px solid var(--color-border, #ddd);
+  border-radius: 16px;
+  padding: 1.25rem 1.2rem;
+  box-shadow: 0 8px 24px rgba(21, 38, 64, 0.06);
+  display: grid;
+  gap: 0.85rem;
+}
+
+.coupon-card__header {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.coupon-card__title {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--color-navy, #152640);
+}
+
+.coupon-card__code {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--color-text-muted, #5b6570);
+}
+
+.coupon-card__code strong {
+  color: var(--color-navy, #152640);
+  font-family: ui-monospace, monospace;
+}
+
+.coupon-card__rule {
+  border: 0;
+  border-top: 1px dashed rgba(21, 38, 64, 0.18);
+  margin: 0;
+}
+
+.coupon-card__stats {
+  margin: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.coupon-card__stats > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: baseline;
+}
+
+.coupon-card__stats dt {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--color-text-muted, #5b6570);
+  font-weight: 600;
+}
+
+.coupon-card__stats dd {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--color-navy, #152640);
+}
+
+.coupon-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.coupon-orders-empty {
+  margin: 0;
+  color: var(--color-text-muted, #5b6570);
+}
+
+.coupon-orders-modal__panel {
+  width: min(100%, 720px);
+  max-height: min(88vh, 640px);
+  text-align: start;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 0.85rem;
+}
+
+.coupon-orders-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.coupon-orders-modal__title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--color-navy, #152640);
+}
+
+.coupon-orders-modal__body {
+  overflow: auto;
+  min-height: 0;
+}
+
+.coupon-orders-table-wrap {
+  overflow: auto;
+}
+
+.coupon-orders-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.coupon-orders-table th,
+.coupon-orders-table td {
+  padding: 0.55rem 0.45rem;
+  border-bottom: 1px solid rgba(21, 38, 64, 0.1);
+  text-align: start;
+  white-space: nowrap;
+}
+
+.coupon-orders-table th {
+  font-weight: 700;
+  color: var(--color-text-muted, #5b6570);
+}
+
+.coupon-orders-table td:nth-child(n+4) {
+  font-variant-numeric: tabular-nums;
+}
+
+.coupon-card--table tbody tr[data-coupon-row] {
+  cursor: pointer;
+}
+
+.coupon-card--table tbody tr[data-coupon-row]:hover {
+  background: rgba(21, 38, 64, 0.04);
 }

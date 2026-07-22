@@ -103,6 +103,14 @@
         : new Date().toISOString(),
       status,
       lang: session.lang === 'he' || session.lang === 'en' ? session.lang : null,
+      customerName: typeof session.customerName === 'string' ? session.customerName : '',
+      customerPhone: typeof session.customerPhone === 'string' ? session.customerPhone : '',
+      customerNotes: typeof session.customerNotes === 'string' ? session.customerNotes : '',
+      pickupType: session.pickupType === 'TIME' ? 'TIME' : (session.pickupType === 'ASAP' ? 'ASAP' : null),
+      pickupTime: typeof session.pickupTime === 'string' && session.pickupTime ? session.pickupTime : null,
+      publicOrderNo: Number.isFinite(Number(session.publicOrderNo)) && Number(session.publicOrderNo) > 0
+        ? Number(session.publicOrderNo)
+        : null,
     };
   }
 
@@ -122,6 +130,14 @@
       openedAt: typeof raw.openedAt === 'string' && raw.openedAt ? raw.openedAt : new Date().toISOString(),
       status: STATUS.ACTIVE,
       lang: raw.lang === 'he' || raw.lang === 'en' ? raw.lang : null,
+      customerName: typeof raw.customerName === 'string' ? raw.customerName : '',
+      customerPhone: typeof raw.customerPhone === 'string' ? raw.customerPhone : '',
+      customerNotes: typeof raw.customerNotes === 'string' ? raw.customerNotes : '',
+      pickupType: raw.pickupType === 'TIME' ? 'TIME' : 'ASAP',
+      pickupTime: typeof raw.pickupTime === 'string' && raw.pickupTime ? raw.pickupTime : null,
+      publicOrderNo: Number.isFinite(Number(raw.publicOrderNo)) && Number(raw.publicOrderNo) > 0
+        ? Number(raw.publicOrderNo)
+        : null,
     };
   }
 
@@ -185,6 +201,7 @@
 
   function startTakeaway(options = {}) {
     const existing = getSession();
+    const pickupType = options.pickupType === 'TIME' ? 'TIME' : 'ASAP';
     const payload = {
       sessionId: createSessionId(),
       orderType: ORDER_TYPE.TAKEAWAY,
@@ -194,9 +211,38 @@
       lang: options.lang === 'he' || options.lang === 'en'
         ? options.lang
         : (existing?.lang || null),
+      customerName: typeof options.customerName === 'string' ? options.customerName.trim() : '',
+      customerPhone: typeof options.customerPhone === 'string' ? options.customerPhone.trim() : '',
+      customerNotes: typeof options.customerNotes === 'string' ? options.customerNotes.trim() : '',
+      pickupType,
+      pickupTime: pickupType === 'TIME' && typeof options.pickupTime === 'string'
+        ? options.pickupTime.trim()
+        : null,
+      publicOrderNo: null,
     };
     writeRaw(payload);
     return payload;
+  }
+
+  function patchSession(patch = {}) {
+    const existing = getSession();
+    if (!existing) return null;
+    const next = { ...existing };
+    if (patch.publicOrderNo !== undefined) {
+      const n = Number(patch.publicOrderNo);
+      next.publicOrderNo = Number.isFinite(n) && n > 0 ? n : null;
+    }
+    if (typeof patch.customerName === 'string') next.customerName = patch.customerName;
+    if (typeof patch.customerPhone === 'string') next.customerPhone = patch.customerPhone;
+    if (typeof patch.customerNotes === 'string') next.customerNotes = patch.customerNotes;
+    if (patch.pickupType === 'TIME' || patch.pickupType === 'ASAP') next.pickupType = patch.pickupType;
+    if (patch.pickupTime !== undefined) {
+      next.pickupTime = typeof patch.pickupTime === 'string' && patch.pickupTime
+        ? patch.pickupTime
+        : null;
+    }
+    writeRaw(next);
+    return next;
   }
 
   function setLang(lang) {
@@ -241,6 +287,12 @@
       sessionId: session.sessionId,
       openedAt: session.openedAt,
       status: session.status,
+      customerName: session.customerName || '',
+      customerPhone: session.customerPhone || '',
+      customerNotes: session.customerNotes || '',
+      pickupType: session.pickupType || null,
+      pickupTime: session.pickupTime || null,
+      publicOrderNo: session.publicOrderNo != null ? Number(session.publicOrderNo) : null,
     };
   }
 
@@ -257,6 +309,7 @@
     startDineIn,
     updateTable,
     startTakeaway,
+    patchSession,
     setLang,
     clearSession,
     toMenuContext,

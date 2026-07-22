@@ -46,9 +46,16 @@
       </div>
 
       <nav class="admin-tabs" id="admin-tabs" aria-label="ניווט ניהול">
-        <button type="button" class="admin-tab is-active" data-tab="tables">שולחנות</button>
+        <button type="button" class="admin-tab is-active" data-tab="tables">
+          שולחנות
+          <span class="admin-tab__badge" id="tab-badge-tables" data-count="0" hidden>0</span>
+        </button>
+        <button type="button" class="admin-tab" data-tab="takeaway">
+          איסוף עצמי
+          <span class="admin-tab__badge" id="tab-badge-takeaway" data-count="0" hidden>0</span>
+        </button>
         <button type="button" class="admin-tab" data-tab="inventory">מלאי</button>
-        <button type="button" class="admin-tab" data-tab="stats" disabled title="בקרוב">סטטיסטיקות</button>
+        <button type="button" class="admin-tab" data-tab="stats">סטטיסטיקות</button>
         <button type="button" class="admin-tab" data-tab="settings" disabled title="בקרוב">הגדרות</button>
       </nav>
 
@@ -57,26 +64,33 @@
 
       <!-- Tables tab -->
       <div class="admin-view" id="admin-view-tables">
-        <header class="admin-header">
-          <div class="admin-header__text">
-            <p class="admin-header__eyebrow">ניהול</p>
-            <h1 class="admin-header__title">שולחנות</h1>
-            <p class="admin-header__subtitle">מצב המסעדה בזמן אמת</p>
+        <section class="tables-category" id="tables-dinein">
+          <header class="admin-header">
+            <div class="admin-header__text">
+              <p class="admin-header__eyebrow">ניהול</p>
+              <h1 class="admin-header__title">שולחנות</h1>
+              <p class="admin-header__subtitle">מצב המסעדה בזמן אמת</p>
+            </div>
+          </header>
+          <div class="admin-legend" aria-hidden="true">
+            <span class="admin-legend__item"><i class="admin-dot admin-dot--free"></i> פנוי</span>
+            <span class="admin-legend__item"><i class="admin-dot admin-dot--active"></i> פעיל</span>
+            <span class="admin-legend__item"><i class="admin-dot admin-dot--pending"></i> ממתין לאישור</span>
+            <span class="admin-legend__item"><i class="admin-dot admin-dot--bill"></i> ביקש חשבון</span>
           </div>
-        </header>
+          <div class="tables-grid" id="tables-grid"></div>
+        </section>
 
-        <div class="admin-legend" aria-hidden="true">
-          <span class="admin-legend__item"><i class="admin-dot admin-dot--free"></i> פנוי</span>
-          <span class="admin-legend__item"><i class="admin-dot admin-dot--active"></i> פעיל</span>
-          <span class="admin-legend__item"><i class="admin-dot admin-dot--pending"></i> ממתין לאישור</span>
-          <span class="admin-legend__item"><i class="admin-dot admin-dot--bill"></i> ביקש חשבון</span>
-        </div>
-
-        <div class="tables-grid" id="tables-grid"></div>
-
-        <section class="tables-takeaway" id="tables-takeaway" hidden>
-          <h2 class="tables-takeaway__title">Take Away</h2>
+        <section class="tables-category tables-takeaway" id="tables-takeaway" hidden>
+          <header class="admin-header">
+            <div class="admin-header__text">
+              <p class="admin-header__eyebrow">ניהול</p>
+              <h1 class="admin-header__title">איסוף עצמי</h1>
+              <p class="admin-header__subtitle">הזמנות Takeaway פעילות</p>
+            </div>
+          </header>
           <div class="tables-takeaway__grid" id="tables-takeaway-grid"></div>
+          <p class="tables-category__empty" id="tables-takeaway-empty">אין הזמנות איסוף עצמי כרגע</p>
         </section>
       </div>
 
@@ -119,6 +133,19 @@
 
         <p class="admin-status" id="admin-status" aria-live="polite"></p>
         <div class="admin-list" id="admin-list"></div>
+      </div>
+
+      <!-- Stats / Coupons tab -->
+      <div class="admin-view" id="admin-view-stats" hidden>
+        <header class="admin-header">
+          <div class="admin-header__text">
+            <p class="admin-header__eyebrow">ניהול</p>
+            <h1 class="admin-header__title">סטטיסטיקות</h1>
+            <p class="admin-header__subtitle">קופונים והנחות</p>
+          </div>
+        </header>
+
+        <div id="coupon-stats-root" class="coupon-stats"></div>
       </div>
     </section>
 
@@ -171,6 +198,55 @@
       </div>
     </div>
 
+    <div class="admin-modal" id="admin-confirm-modal" hidden aria-hidden="true">
+      <button type="button" class="admin-modal__backdrop" id="admin-confirm-backdrop" aria-label="סגור"></button>
+      <div class="admin-modal__panel" role="dialog" aria-modal="true" aria-labelledby="admin-confirm-text">
+        <p class="admin-modal__text" id="admin-confirm-text">האם להסיר?</p>
+        <div class="admin-modal__actions">
+          <button type="button" class="admin-btn admin-btn--danger" id="admin-confirm-yes">כן, הסר</button>
+          <button type="button" class="admin-btn admin-btn--ghost" id="admin-confirm-cancel">ביטול</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="admin-modal" id="admin-coupon-modal" hidden aria-hidden="true">
+      <button type="button" class="admin-modal__backdrop" id="admin-coupon-backdrop" aria-label="סגור"></button>
+      <div class="admin-modal__panel admin-coupon-modal__panel" role="dialog" aria-modal="true" aria-labelledby="admin-coupon-title">
+        <h2 class="admin-coupon-modal__title" id="admin-coupon-title">חשבון</h2>
+        <p class="admin-coupon-modal__ask" id="admin-coupon-ask">יש לך קוד קופון?</p>
+        <div class="admin-coupon-modal__row">
+          <input
+            type="text"
+            id="admin-coupon-input"
+            class="admin-coupon-modal__input"
+            autocomplete="off"
+            spellcheck="false"
+            dir="ltr"
+            maxlength="64"
+            placeholder="קוד קופון"
+          >
+          <button type="button" class="admin-btn admin-btn--soft" id="admin-coupon-apply">החל קופון</button>
+        </div>
+        <p class="admin-coupon-modal__status" id="admin-coupon-status" role="status" aria-live="polite" hidden></p>
+        <div class="admin-coupon-modal__totals" id="admin-coupon-totals" hidden></div>
+        <div class="admin-coupon-modal__actions">
+          <button type="button" class="admin-btn admin-btn--bill" id="admin-coupon-print">הדפס חשבון</button>
+          <button type="button" class="admin-btn admin-btn--ghost" id="admin-coupon-cancel">ביטול</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="admin-modal coupon-orders-modal" id="coupon-orders-modal" hidden aria-hidden="true">
+      <button type="button" class="admin-modal__backdrop" id="coupon-orders-backdrop" aria-label="סגור"></button>
+      <div class="admin-modal__panel coupon-orders-modal__panel" role="dialog" aria-modal="true" aria-labelledby="coupon-orders-title">
+        <header class="coupon-orders-modal__header">
+          <h2 class="coupon-orders-modal__title" id="coupon-orders-title">הזמנות קופון</h2>
+          <button type="button" class="admin-btn admin-btn--ghost" id="coupon-orders-close">סגור</button>
+        </header>
+        <div class="coupon-orders-modal__body" id="coupon-orders-body"></div>
+      </div>
+    </div>
+
     <section class="admin-boot" id="admin-boot">
       <p>טוען…</p>
     </section>
@@ -185,6 +261,7 @@
   <script src="js/order-engine.js" defer></script>
   <script src="js/print-engine.js" defer></script>
   <script src="js/admin-tables.js" defer></script>
+  <script src="js/admin-coupons.js" defer></script>
   <script src="js/admin.js" defer></script>
 </body>
 </html>

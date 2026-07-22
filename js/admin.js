@@ -29,6 +29,7 @@
   const tabsEl = document.getElementById('admin-tabs');
   const viewTables = document.getElementById('admin-view-tables');
   const viewInventory = document.getElementById('admin-view-inventory');
+  const viewStats = document.getElementById('admin-view-stats');
 
   let inventorySubscribed = false;
   let currentFilter = 'all';
@@ -75,24 +76,31 @@
   }
 
   function setTab(tab) {
-    currentTab = tab === 'inventory' ? 'inventory' : 'tables';
+    if (tab === 'inventory') currentTab = 'inventory';
+    else if (tab === 'stats') currentTab = 'stats';
+    else if (tab === 'takeaway') currentTab = 'takeaway';
+    else currentTab = 'tables';
 
     tabsEl?.querySelectorAll('.admin-tab').forEach((btn) => {
       const isActive = btn.dataset.tab === currentTab;
       btn.classList.toggle('is-active', isActive);
     });
 
-    if (viewTables) viewTables.hidden = currentTab !== 'tables';
+    const onBoard = currentTab === 'tables' || currentTab === 'takeaway';
+    if (viewTables) viewTables.hidden = !onBoard;
     if (viewInventory) viewInventory.hidden = currentTab !== 'inventory';
+    if (viewStats) viewStats.hidden = currentTab !== 'stats';
 
-    if (currentTab === 'tables') {
+    if (onBoard) {
       window.LechaimAdminTables?.start?.();
+      window.LechaimAdminTables?.setBoardFilter?.(currentTab === 'takeaway' ? 'takeaway' : 'tables');
     } else {
       window.LechaimAdminTables?.stop?.();
       window.LechaimAdminTables?.closeDrawer?.();
-      if (catalogCache.length) {
-        /* inventory already loaded */
-      }
+    }
+
+    if (currentTab === 'stats') {
+      window.LechaimAdminCoupons?.start?.();
     }
   }
 
@@ -415,7 +423,7 @@
     const btn = event.target.closest('.admin-tab');
     if (!btn || btn.disabled) return;
     const tab = btn.dataset.tab;
-    if (tab !== 'tables' && tab !== 'inventory') return;
+    if (tab !== 'tables' && tab !== 'takeaway' && tab !== 'inventory' && tab !== 'stats') return;
     setTab(tab);
     if (tab === 'inventory') {
       if (statusEl) statusEl.textContent = 'טוען מלאי…';

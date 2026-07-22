@@ -969,7 +969,7 @@ html[dir='ltr'] .food-modal-body .food-card .food-content {
   }
 
   .site-header .header-actions {
-    gap: 6px;
+    gap: 1px;
     padding-inline-end: 32px;
   }
 

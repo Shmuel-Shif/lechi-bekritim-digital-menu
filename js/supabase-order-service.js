@@ -87,6 +87,27 @@
   }
 
   /**
+   * Next customer-facing Takeaway order number (starts at 1001).
+   */
+  async function allocatePublicOrderNo(sb) {
+    const { data, error } = await sb
+      .from(TABLE_SESSIONS)
+      .select('public_order_no')
+      .not('public_order_no', 'is', null)
+      .order('public_order_no', { ascending: false })
+      .limit(1);
+
+    if (error) {
+      console.warn('[LechaimSupabaseOrders] allocatePublicOrderNo failed', error);
+      return 1001 + Math.floor(Math.random() * 90);
+    }
+
+    const last = Number(data?.[0]?.public_order_no);
+    if (Number.isFinite(last) && last >= 1001) return last + 1;
+    return 1001;
+  }
+
+  /**
    * Create a new order session (dine_in or takeaway).
    * @param {object} options
    * @param {string} options.orderType
@@ -120,21 +141,56 @@
       language: normalizeLang(options.language || options.lang),
       status: 'active',
       bill_requested: false,
-      notes: options.notes == null ? null : String(options.notes),
+      notes: options.notes == null
+        ? (options.customerNotes ?? options.customer_notes ?? null)
+        : String(options.notes),
+      pickup_type: options.pickupType ?? options.pickup_type ?? null,
+      pickup_time: options.pickupTime ?? options.pickup_time ?? null,
     };
+
+    if (orderType === 'takeaway') {
+      const pickupType = String(row.pickup_type || 'ASAP').toUpperCase() === 'TIME' ? 'TIME' : 'ASAP';
+      row.pickup_type = pickupType;
+      row.pickup_time = pickupType === 'TIME' && row.pickup_time
+        ? String(row.pickup_time)
+        : null;
+    } else {
+      row.pickup_type = null;
+      row.pickup_time = null;
+      row.public_order_no = null;
+    }
 
     if (options.sessionId || options.session_id) {
       row.session_id = options.sessionId || options.session_id;
     }
 
-    const { data, error } = await sb
-      .from(TABLE_SESSIONS)
-      .insert(row)
-      .select('*')
-      .single();
+    let lastError = null;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      if (orderType === 'takeaway') {
+        row.public_order_no = await allocatePublicOrderNo(sb);
+      }
 
-    throwIfError(error, 'createSession');
-    return data;
+      const { data, error } = await sb
+        .from(TABLE_SESSIONS)
+        .insert(row)
+        .select('*')
+        .single();
+
+      if (!error) return data;
+
+      /* Unique public_order_no race — retry with a fresh number */
+      const isUniqueConflict = error.code === '23505'
+        || /public_order_no|duplicate/i.test(String(error.message || ''));
+      if (orderType === 'takeaway' && isUniqueConflict) {
+        lastError = error;
+        continue;
+      }
+
+      throwIfError(error, 'createSession');
+    }
+
+    throwIfError(lastError, 'createSession');
+    return null;
   }
 
   /**
@@ -242,6 +298,112 @@
 
     throwIfError(error, 'createOrderItems');
     return data || [];
+  }
+
+  /**
+   * Delete one order item (and its linked side children). Authenticated Admin.
+   * @param {string} itemId
+   */
+  async function deleteOrderItem(itemId) {
+    const sb = getClient();
+    if (!itemId) {
+      throw new Error('[LechaimSupabaseOrders.deleteOrderItem] itemId is required');
+    }
+
+    const id = String(itemId);
+
+    const { error: childError } = await sb
+      .from(TABLE_ITEMS)
+      .delete()
+      .eq('parent_item_id', id);
+    throwIfError(childError, 'deleteOrderItem.children');
+
+    const { data: deleted, error } = await sb
+      .from(TABLE_ITEMS)
+      .delete()
+      .eq('id', id)
+      .select('id, order_id')
+      .maybeSingle();
+    throwIfError(error, 'deleteOrderItem');
+
+    if (deleted?.order_id) {
+      const { data: remaining, error: sumErr } = await sb
+        .from(TABLE_ITEMS)
+        .select('quantity, price')
+        .eq('order_id', deleted.order_id);
+      if (!sumErr) {
+        const total = (remaining || []).reduce((sum, row) => (
+          sum + (Number(row.price) || 0) * (Number(row.quantity) || 0)
+        ), 0);
+        const rounded = Math.round(total * 100) / 100;
+        await sb
+          .from(TABLE_ORDERS)
+          .update({ total: rounded })
+          .eq('id', deleted.order_id);
+
+        const { data: orderRow } = await sb
+          .from(TABLE_ORDERS)
+          .select('session_id')
+          .eq('id', deleted.order_id)
+          .maybeSingle();
+
+        if (orderRow?.session_id) {
+          await refreshSessionBillTotals(sb, orderRow.session_id);
+        }
+      }
+    }
+
+    return deleted || null;
+  }
+
+  /**
+   * Recalculate session subtotal / discount after line items change.
+   */
+  async function refreshSessionBillTotals(sb, sessionId) {
+    if (!sessionId) return;
+
+    const { data: orders, error } = await sb
+      .from(TABLE_ORDERS)
+      .select('id, total, order_items(quantity, price)')
+      .eq('session_id', sessionId);
+    if (error) {
+      console.warn('[LechaimSupabaseOrders] refreshSessionBillTotals', error);
+      return;
+    }
+
+    let subtotal = 0;
+    (orders || []).forEach((order) => {
+      const lines = Array.isArray(order.order_items) ? order.order_items : [];
+      if (lines.length) {
+        lines.forEach((row) => {
+          subtotal += (Number(row.price) || 0) * (Number(row.quantity) || 0);
+        });
+      } else {
+        subtotal += Number(order.total) || 0;
+      }
+    });
+    subtotal = Math.round(subtotal * 100) / 100;
+
+    const { data: session } = await sb
+      .from(TABLE_SESSIONS)
+      .select('discount_percent, coupon_code')
+      .eq('session_id', sessionId)
+      .maybeSingle();
+
+    if (!session) return;
+
+    const patch = { subtotal };
+    const pct = Number(session.discount_percent);
+    if (session.coupon_code && Number.isFinite(pct) && pct > 0) {
+      patch.discount_amount = Math.round(subtotal * (pct / 100) * 100) / 100;
+    } else if (session.coupon_code) {
+      patch.discount_amount = 0;
+    }
+
+    await sb
+      .from(TABLE_SESSIONS)
+      .update(patch)
+      .eq('session_id', sessionId);
   }
 
   /**
@@ -450,8 +612,34 @@
     if (patch.notes !== undefined) {
       next.notes = patch.notes;
     }
+    if (patch.customerNotes !== undefined || patch.customer_notes !== undefined) {
+      next.notes = patch.customerNotes ?? patch.customer_notes;
+    }
     if (patch.language !== undefined || patch.lang !== undefined) {
       next.language = normalizeLang(patch.language ?? patch.lang);
+    }
+    if (patch.pickupType !== undefined || patch.pickup_type !== undefined) {
+      const raw = patch.pickupType ?? patch.pickup_type;
+      next.pickup_type = raw == null ? null : (String(raw).toUpperCase() === 'TIME' ? 'TIME' : 'ASAP');
+    }
+    if (patch.pickupTime !== undefined || patch.pickup_time !== undefined) {
+      next.pickup_time = patch.pickupTime ?? patch.pickup_time;
+    }
+
+    if (patch.couponCode !== undefined || patch.coupon_code !== undefined) {
+      next.coupon_code = patch.couponCode ?? patch.coupon_code;
+    }
+    if (patch.discountPercent !== undefined || patch.discount_percent !== undefined) {
+      const pct = Number(patch.discountPercent ?? patch.discount_percent);
+      next.discount_percent = Number.isFinite(pct) ? pct : null;
+    }
+    if (patch.discountAmount !== undefined || patch.discount_amount !== undefined) {
+      const amt = Number(patch.discountAmount ?? patch.discount_amount);
+      next.discount_amount = Number.isFinite(amt) ? amt : null;
+    }
+    if (patch.subtotal !== undefined) {
+      const sub = Number(patch.subtotal);
+      next.subtotal = Number.isFinite(sub) ? sub : null;
     }
 
     if (!Object.keys(next).length) {
@@ -526,11 +714,113 @@
     };
   }
 
+  /**
+   * Validate a coupon code via SECURITY DEFINER RPC (does not expose the full catalog).
+   * @param {string} code
+   * @returns {Promise<{ code: string, discount_percent: number }|null>}
+   */
+  async function validateCoupon(code) {
+    const sb = getClient();
+    const trimmed = String(code || '').trim();
+    if (!trimmed) return null;
+
+    const { data, error } = await sb.rpc('validate_coupon', { p_code: trimmed });
+    throwIfError(error, 'validateCoupon');
+
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row || row.discount_percent == null) return null;
+
+    return {
+      code: String(row.code || trimmed),
+      discount_percent: Number(row.discount_percent),
+    };
+  }
+
+  /**
+   * Increment coupon usage counter after a successful bill apply.
+   * @param {string} code
+   */
+  async function incrementCouponUse(code) {
+    const sb = getClient();
+    const trimmed = String(code || '').trim();
+    if (!trimmed) return;
+    const { error } = await sb.rpc('increment_coupon_use', { p_code: trimmed });
+    throwIfError(error, 'incrementCouponUse');
+  }
+
+  /**
+   * Coupon usage report from order_sessions (authenticated Admin).
+   * @returns {Promise<{ summaries: object[], ordersByCode: Record<string, object[]> }>}
+   */
+  async function getCouponUsageReport() {
+    const sb = getClient();
+    const { data, error } = await sb
+      .from(TABLE_SESSIONS)
+      .select(
+        'session_id, table_number, order_type, coupon_code, discount_percent, discount_amount, subtotal, created_at, updated_at, closed_at, status'
+      )
+      .not('coupon_code', 'is', null)
+      .order('updated_at', { ascending: false });
+
+    throwIfError(error, 'getCouponUsageReport');
+
+    const rows = (data || []).filter((row) => row?.coupon_code);
+    const ordersByCode = {};
+
+    rows.forEach((row) => {
+      const code = String(row.coupon_code).trim();
+      if (!code) return;
+      const key = code.toLowerCase();
+      const subtotal = Number(row.subtotal) || 0;
+      const discount = Number(row.discount_amount) || 0;
+      const total = Math.max(0, subtotal - discount);
+      const entry = {
+        sessionId: row.session_id,
+        orderLabel: `#${String(row.session_id || '').replace(/-/g, '').slice(-4).toUpperCase()}`,
+        date: row.updated_at || row.created_at || null,
+        tableNumber: row.table_number == null ? null : Number(row.table_number),
+        orderType: row.order_type,
+        couponCode: code,
+        discountPercent: row.discount_percent == null ? null : Number(row.discount_percent),
+        subtotal,
+        discountAmount: discount,
+        total,
+        status: row.status,
+      };
+      if (!ordersByCode[key]) ordersByCode[key] = [];
+      ordersByCode[key].push(entry);
+    });
+
+    const summaries = Object.keys(ordersByCode).map((key) => {
+      const list = ordersByCode[key];
+      const revenue = list.reduce((sum, row) => sum + (Number(row.total) || 0), 0);
+      const discountGiven = list.reduce((sum, row) => sum + (Number(row.discountAmount) || 0), 0);
+      const lastUsed = list.reduce((max, row) => {
+        const t = row.date ? new Date(row.date).getTime() : 0;
+        return t > max ? t : max;
+      }, 0);
+      return {
+        code: list[0]?.couponCode || key,
+        orders: list.length,
+        revenue: Math.round(revenue * 100) / 100,
+        discountGiven: Math.round(discountGiven * 100) / 100,
+        averageOrder: list.length
+          ? Math.round((revenue / list.length) * 100) / 100
+          : 0,
+        lastUsed: lastUsed ? new Date(lastUsed).toISOString() : null,
+        discountPercent: list[0]?.discountPercent ?? null,
+      };
+    }).sort((a, b) => b.orders - a.orders);
+
+    return { summaries, ordersByCode };
+  }
+
   global.LechaimSupabaseOrders = {
     isConfigured,
     createSession,
     createOrder,
     createOrderItems,
+    deleteOrderItem,
     getSession,
     getOpenSessions,
     getSessionOrders,
@@ -538,6 +828,9 @@
     getUnprintedOrdersWithItems,
     markOrderPrinted,
     updateSessionStatus,
+    validateCoupon,
+    incrementCouponUse,
+    getCouponUsageReport,
     subscribeToOrders,
   };
 })(window);

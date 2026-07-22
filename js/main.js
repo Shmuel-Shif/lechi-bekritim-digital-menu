@@ -38,15 +38,38 @@
   const cartBackdrop = $('#cart-backdrop');
   const cartClear = $('#cart-clear');
   const cartSend = $('#cart-send');
-  const cartRequestBill = $('#cart-request-bill');
+  const cartRequestBill = null;
   const cartToast = $('#cart-toast');
   const orderFeedback = $('#order-feedback');
+  const orderReceipt = $('#order-receipt');
+  const orderReceiptBackdrop = $('#order-receipt-backdrop');
+  const orderReceiptTitle = $('#order-receipt-title');
+  const orderReceiptEyebrow = $('#order-receipt-eyebrow');
+  const orderReceiptOrderNo = $('#order-receipt-order-no');
+  const orderReceiptRemember = $('#order-receipt-remember');
+  const orderReceiptMeta = $('#order-receipt-meta');
+  const orderReceiptBody = $('#order-receipt-body');
+  const orderReceiptTotal = $('#order-receipt-total');
+  const orderReceiptTotalLabel = $('#order-receipt-total-label');
+  const orderReceiptContinue = $('#order-receipt-continue');
+  const orderReceiptNew = $('#order-receipt-new');
+  const orderReceiptClose = $('#order-receipt-close');
+  const orderingHoursBanner = $('#ordering-hours-banner');
+  const orderingHoursBannerText = $('#ordering-hours-banner-text');
   const appConfirm = $('#app-confirm');
   const appConfirmText = $('#app-confirm-text');
   const appConfirmYes = $('#app-confirm-yes');
   const appConfirmCancel = $('#app-confirm-cancel');
   const appConfirmBackdrop = $('#app-confirm-backdrop');
+  const appConfirmCoupon = $('#app-confirm-coupon');
+  const appConfirmCouponLabel = $('#app-confirm-coupon-label');
+  const appConfirmCouponInput = $('#app-confirm-coupon-input');
+  const appConfirmCouponApply = $('#app-confirm-coupon-apply');
+  const appConfirmCouponStatus = $('#app-confirm-coupon-status');
+  const appConfirmCouponTotals = $('#app-confirm-coupon-totals');
   let appConfirmKind = null;
+  /** @type {null|{ code: string, discountPercent: number, discountAmount: number, subtotal: number, total: number }} */
+  let pendingBillCoupon = null;
 
   const CART_STORAGE_KEY = 'lechaim-keri-cart';
 
@@ -68,6 +91,57 @@
   let cartLines = [];
   let cartLineOrder = [];
   let lastMainLineId = null;
+  let remoteSessionTotalOverride = null;
+  let remoteTotalSyncTimer = null;
+
+  /*
+   * ---------------------------------------------------------------------------
+   * Ordering hours (restaurant local time)
+   * Open daily 14:00–21:00. Outside that window: browse catalog only.
+   * ---------------------------------------------------------------------------
+   */
+  const ORDERING_HOURS_ENABLED = true;
+  const ORDERING_OPEN_HOUR = 14;
+  const ORDERING_CLOSE_HOUR = 21; /* exclusive */
+
+  function isWithinOrderingHours(date = new Date()) {
+    const hour = date.getHours();
+    return hour >= ORDERING_OPEN_HOUR && hour < ORDERING_CLOSE_HOUR;
+  }
+
+  function isOrderingAllowed() {
+    if (!ORDERING_HOURS_ENABLED) return true;
+    return isWithinOrderingHours();
+  }
+
+  function refreshOrderingHoursUi() {
+    const browseOnly = Boolean(window.LechaimOrderContext?.browseOnly);
+    const allowed = isOrderingAllowed() && !browseOnly;
+    document.body.classList.toggle('ordering-closed', !allowed);
+    document.body.classList.toggle('browse-only', browseOnly);
+
+    if (orderingHoursBanner) {
+      orderingHoursBanner.hidden = allowed;
+      if (orderingHoursBannerText) {
+        orderingHoursBannerText.textContent = t('orderingClosedBanner');
+      }
+    }
+
+    if (cartToggle) {
+      cartToggle.hidden = browseOnly;
+      if (browseOnly) {
+        cartToggle.setAttribute('aria-hidden', 'true');
+        closeCartPanel();
+      } else {
+        cartToggle.removeAttribute('aria-hidden');
+      }
+    }
+
+    if (!allowed) {
+      setSendButtonState({ empty: true });
+      if (cartClear) cartClear.disabled = true;
+    }
+  }
 
   /* Hero keeps brand atmosphere without dish photos (new menu has no images yet). */
   function headerFoto(filename) {
@@ -169,6 +243,9 @@
   }
 
   function getSessionOrderTotal() {
+    if (remoteSessionTotalOverride != null && Number.isFinite(remoteSessionTotalOverride)) {
+      return Math.max(0, Number(remoteSessionTotalOverride));
+    }
     const engine = window.LechaimOrderEngine;
     const order = engine?.getOrder?.();
     if (!order) return 0;
@@ -236,6 +313,7 @@
     renderCart();
     updateOpenFoodModal();
     refreshSidesModal();
+    refreshOrderingHoursUi();
   }
 
   /* ---------- Menu lookup ---------- */
@@ -499,6 +577,8 @@
     initInventory();
     initTableHeader();
     updateTableHeader();
+    hideOrderFeedback();
+    refreshOrderingHoursUi();
   }
 
   /**
@@ -541,21 +621,37 @@
       currentLang = options.lang;
     }
 
+    const browseOnly = Boolean(options.browseOnly);
+
     window.LechaimOrderContext = {
-      orderType: options.orderType || null,
-      tableNumber: options.orderType === 'takeaway'
+      browseOnly,
+      orderType: browseOnly ? null : (options.orderType || null),
+      tableNumber: browseOnly
         ? null
-        : (options.tableNumber != null ? Number(options.tableNumber) : null),
+        : (options.orderType === 'takeaway'
+          ? null
+          : (options.tableNumber != null ? Number(options.tableNumber) : null)),
       lang: currentLang,
-      sessionId: options.sessionId || null,
-      openedAt: options.openedAt || null,
-      status: options.status || null,
+      sessionId: browseOnly ? null : (options.sessionId || null),
+      openedAt: browseOnly ? null : (options.openedAt || null),
+      status: browseOnly ? null : (options.status || null),
+      customerName: !browseOnly && options.orderType === 'takeaway' ? (options.customerName || '') : null,
+      customerPhone: !browseOnly && options.orderType === 'takeaway' ? (options.customerPhone || '') : null,
+      customerNotes: !browseOnly && options.orderType === 'takeaway' ? (options.customerNotes || '') : null,
+      pickupType: !browseOnly && options.orderType === 'takeaway' ? (options.pickupType || 'ASAP') : null,
+      pickupTime: !browseOnly && options.orderType === 'takeaway' ? (options.pickupTime || null) : null,
+      publicOrderNo: !browseOnly && options.orderType === 'takeaway'
+        ? (options.publicOrderNo != null ? Number(options.publicOrderNo) : null)
+        : null,
     };
 
     /* Do not create an empty open order on table entry — only after first send. */
 
     init();
     scrollToHeroWelcome();
+    refreshOrderingHoursUi();
+
+    if (browseOnly) return;
 
     verifyRemoteSessionOrReset()
       .then((didReset) => {
@@ -583,12 +679,33 @@
     const typeChanged = options.orderType != null && options.orderType !== prev.orderType;
 
     window.LechaimOrderContext = {
+      browseOnly: options.browseOnly !== undefined ? Boolean(options.browseOnly) : Boolean(prev.browseOnly),
       orderType,
       tableNumber: nextTable,
       lang: options.lang || prev.lang || currentLang,
       sessionId: options.sessionId !== undefined ? options.sessionId : prev.sessionId,
       openedAt: options.openedAt !== undefined ? options.openedAt : prev.openedAt,
       status: options.status !== undefined ? options.status : prev.status,
+      customerName: isTakeaway
+        ? (options.customerName !== undefined ? options.customerName : prev.customerName)
+        : null,
+      customerPhone: isTakeaway
+        ? (options.customerPhone !== undefined ? options.customerPhone : prev.customerPhone)
+        : null,
+      customerNotes: isTakeaway
+        ? (options.customerNotes !== undefined ? options.customerNotes : prev.customerNotes)
+        : null,
+      pickupType: isTakeaway
+        ? (options.pickupType !== undefined ? options.pickupType : (prev.pickupType || 'ASAP'))
+        : null,
+      pickupTime: isTakeaway
+        ? (options.pickupTime !== undefined ? options.pickupTime : prev.pickupTime)
+        : null,
+      publicOrderNo: isTakeaway
+        ? (options.publicOrderNo !== undefined
+          ? (options.publicOrderNo != null ? Number(options.publicOrderNo) : null)
+          : prev.publicOrderNo)
+        : null,
     };
 
     if (tableChanged || typeChanged) {
@@ -616,6 +733,13 @@
     if (!tableBtn || !numEl) return;
 
     const ctx = window.LechaimOrderContext || {};
+    if (ctx.browseOnly) {
+      tableBtn.hidden = true;
+      if (backBtn) backBtn.hidden = true;
+      numEl.textContent = '—';
+      return;
+    }
+
     const isDineIn = ctx.orderType === 'dine-in' && ctx.tableNumber != null;
     const isTakeaway = ctx.orderType === 'takeaway';
     const locked = hasActiveOrderItems();
@@ -678,6 +802,7 @@
   window.LechaimMenu = {
     start: startApp,
     updateOrderContext,
+    isOrderingAllowed,
     notifyTableLocked() {
       showOrderFeedback('err', t('tableChangeLocked'));
     },
@@ -886,6 +1011,13 @@
     const name = getItemName(item);
     const available = isProductAvailable(item.id);
     const price = getItemPrice(item);
+
+    if (!isOrderingAllowed()) {
+      if (price == null) return '';
+      return `
+        <span class="food-order-closed-note" role="status">${escapeHtml(t('orderingClosedAction'))}</span>
+      `;
+    }
 
     if (!available) {
       if (qty > 0) {
@@ -1113,6 +1245,11 @@
     const action = btn.dataset.action;
     const itemId = btn.dataset.itemId;
 
+    if ((action === 'add-to-cart' || action === 'inc-qty') && !isOrderingAllowed()) {
+      showCartToast(t('orderingClosedToast'));
+      return;
+    }
+
     if (action === 'add-to-cart' && itemId) {
       addToCart(itemId);
       return;
@@ -1131,6 +1268,14 @@
   function renderModalActions(item) {
     const price = getItemPrice(item);
     if (price == null) return '';
+
+    if (!isOrderingAllowed()) {
+      return `
+        <div class="food-modal-actions" data-stop-modal="true">
+          <p class="food-modal-closed-note" role="status">${escapeHtml(t('orderingClosedAction'))}</p>
+        </div>
+      `;
+    }
 
     const qty = getCartQtyForItem(item.id);
     const available = isProductAvailable(item.id);
@@ -1343,7 +1488,7 @@
         >
           ${imageHtml}
           <span class="sides-picker-name">${escapeHtml(getItemName(side))}</span>
-          <span class="sides-picker-check" aria-hidden="true">${selected ? '✓' : ''}</span>
+          <span class="sides-picker-check" aria-hidden="true"></span>
           ${available ? '' : `<span class="food-stock-badge food-stock-badge--side">${escapeHtml(t('outOfStock'))}</span>`}
         </button>
       `;
@@ -1744,6 +1889,10 @@
   function initGlobalKeyboard() {
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;
+      if (orderReceipt && !orderReceipt.hidden) {
+        closeOrderReceipt();
+        return;
+      }
       if (appConfirm && !appConfirm.hidden) {
         closeAppConfirm();
         return;
@@ -1782,12 +1931,30 @@
     cartRequestBill?.addEventListener('click', openBillConfirm);
     appConfirmYes?.addEventListener('click', () => {
       const kind = appConfirmKind;
+      const coupon = pendingBillCoupon;
       closeAppConfirm();
-      if (kind === 'bill') handleRequestBill();
+      if (kind === 'bill') handleRequestBill(coupon);
       if (kind === 'clear') confirmClearCart();
     });
     appConfirmCancel?.addEventListener('click', closeAppConfirm);
     appConfirmBackdrop?.addEventListener('click', closeAppConfirm);
+    appConfirmCouponApply?.addEventListener('click', () => {
+      applyCouponFromConfirm().catch((err) => {
+        console.warn('[coupon] apply failed', err);
+      });
+    });
+    appConfirmCouponInput?.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      applyCouponFromConfirm().catch((err) => {
+        console.warn('[coupon] apply failed', err);
+      });
+    });
+
+    orderReceiptContinue?.addEventListener('click', closeOrderReceipt);
+    orderReceiptNew?.addEventListener('click', startSeparateNewOrder);
+    orderReceiptClose?.addEventListener('click', closeOrderReceipt);
+    orderReceiptBackdrop?.addEventListener('click', closeOrderReceipt);
 
     cartBody.addEventListener('click', (event) => {
       const btn = event.target.closest('[data-action]');
@@ -1811,9 +1978,141 @@
     return Boolean(order?.items?.some((item) => item && Number(item.qty) > 0));
   }
 
+  function formatEuro(amount) {
+    const n = Number(amount) || 0;
+    return `€${n.toFixed(2)}`;
+  }
+
+  function getSessionSubtotal() {
+    const order = window.LechaimOrderEngine?.getOrder?.();
+    if (order && typeof window.LechaimOrderEngine.getOrderTotal === 'function') {
+      return Number(window.LechaimOrderEngine.getOrderTotal(order)) || 0;
+    }
+    return (order?.items || []).reduce((sum, item) => (
+      sum + (Number(item.price) || 0) * (Number(item.qty) || 0)
+    ), 0);
+  }
+
+  function resetCouponConfirmUi() {
+    pendingBillCoupon = null;
+    if (appConfirmCouponInput) appConfirmCouponInput.value = '';
+    if (appConfirmCouponStatus) {
+      appConfirmCouponStatus.hidden = true;
+      appConfirmCouponStatus.textContent = '';
+      appConfirmCouponStatus.classList.remove('is-error');
+    }
+    if (appConfirmCouponTotals) {
+      appConfirmCouponTotals.hidden = true;
+      appConfirmCouponTotals.innerHTML = '';
+    }
+    if (appConfirmCouponApply) appConfirmCouponApply.disabled = false;
+  }
+
+  function setCouponConfirmVisible(show) {
+    if (!appConfirmCoupon) return;
+    appConfirmCoupon.hidden = !show;
+    if (show) {
+      if (appConfirmCouponLabel) appConfirmCouponLabel.textContent = t('couponAsk');
+      if (appConfirmCouponApply) appConfirmCouponApply.textContent = t('couponApply');
+      if (appConfirmCouponInput) {
+        appConfirmCouponInput.placeholder = t('couponPlaceholder');
+        appConfirmCouponInput.value = '';
+      }
+    }
+  }
+
+  function renderCouponTotals(coupon) {
+    if (!appConfirmCouponTotals || !coupon) return;
+    const discountLabel = t('couponDiscount').replace('{percent}', String(coupon.discountPercent));
+    appConfirmCouponTotals.hidden = false;
+    appConfirmCouponTotals.innerHTML = `
+      <div>${escapeHtml(t('couponSubtotal'))}: ${escapeHtml(formatEuro(coupon.subtotal))}</div>
+      <div>${escapeHtml(discountLabel)}: −${escapeHtml(formatEuro(coupon.discountAmount))}</div>
+      <div><strong>${escapeHtml(t('couponPay'))}: ${escapeHtml(formatEuro(coupon.total))}</strong></div>
+    `;
+  }
+
+  async function applyCouponFromConfirm() {
+    if (appConfirmKind !== 'bill') return;
+    const api = window.LechaimSupabaseOrders;
+    const code = String(appConfirmCouponInput?.value || '').trim();
+    if (!code) {
+      pendingBillCoupon = null;
+      if (appConfirmCouponStatus) {
+        appConfirmCouponStatus.hidden = false;
+        appConfirmCouponStatus.classList.add('is-error');
+        appConfirmCouponStatus.textContent = t('couponFail');
+      }
+      if (appConfirmCouponTotals) {
+        appConfirmCouponTotals.hidden = true;
+        appConfirmCouponTotals.innerHTML = '';
+      }
+      return;
+    }
+
+    if (!api?.isConfigured?.() || typeof api.validateCoupon !== 'function') {
+      if (appConfirmCouponStatus) {
+        appConfirmCouponStatus.hidden = false;
+        appConfirmCouponStatus.classList.add('is-error');
+        appConfirmCouponStatus.textContent = t('couponFail');
+      }
+      return;
+    }
+
+    if (appConfirmCouponApply) appConfirmCouponApply.disabled = true;
+    try {
+      const validated = await api.validateCoupon(code);
+      if (!validated?.discount_percent) {
+        pendingBillCoupon = null;
+        if (appConfirmCouponStatus) {
+          appConfirmCouponStatus.hidden = false;
+          appConfirmCouponStatus.classList.add('is-error');
+          appConfirmCouponStatus.textContent = t('couponFail');
+        }
+        if (appConfirmCouponTotals) {
+          appConfirmCouponTotals.hidden = true;
+          appConfirmCouponTotals.innerHTML = '';
+        }
+        return;
+      }
+
+      const subtotal = getSessionSubtotal();
+      const discountPercent = Number(validated.discount_percent) || 0;
+      const discountAmount = Math.round((subtotal * discountPercent / 100) * 100) / 100;
+      const total = Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100);
+
+      pendingBillCoupon = {
+        code: String(validated.code || code),
+        discountPercent,
+        discountAmount,
+        subtotal,
+        total,
+      };
+
+      if (appConfirmCouponStatus) {
+        appConfirmCouponStatus.hidden = false;
+        appConfirmCouponStatus.classList.remove('is-error');
+        appConfirmCouponStatus.textContent = t('couponOk').replace('{percent}', String(discountPercent));
+      }
+      renderCouponTotals(pendingBillCoupon);
+    } catch (err) {
+      console.warn('[coupon] validate failed', err);
+      pendingBillCoupon = null;
+      if (appConfirmCouponStatus) {
+        appConfirmCouponStatus.hidden = false;
+        appConfirmCouponStatus.classList.add('is-error');
+        appConfirmCouponStatus.textContent = t('couponFail');
+      }
+    } finally {
+      if (appConfirmCouponApply) appConfirmCouponApply.disabled = false;
+    }
+  }
+
   function openAppConfirm(kind, message, yesLabel, cancelLabel) {
     if (!appConfirm) return;
     appConfirmKind = kind;
+    resetCouponConfirmUi();
+    setCouponConfirmVisible(kind === 'bill');
     if (appConfirmText) appConfirmText.textContent = message;
     if (appConfirmYes) appConfirmYes.textContent = yesLabel;
     if (appConfirmCancel) appConfirmCancel.textContent = cancelLabel;
@@ -1828,6 +2127,8 @@
     appConfirm.hidden = true;
     appConfirm.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('app-confirm-open');
+    resetCouponConfirmUi();
+    setCouponConfirmVisible(false);
   }
 
   function openBillConfirm() {
@@ -1846,9 +2147,10 @@
   /**
    * Customer Request Bill — marks table as bill_requested only.
    * Does NOT print. Waiter prints the bill from Admin ("חשבון").
-   * Dual-writes bill_requested to Supabase when mapped session exists.
+   * Dual-writes bill_requested (+ optional coupon) to Supabase.
+   * @param {null|{ code: string, discountPercent: number, discountAmount: number, subtotal: number, total: number }} [coupon]
    */
-  function handleRequestBill() {
+  function handleRequestBill(coupon = null) {
     try {
       const session = ensureActiveOrderSession();
       if (!session) {
@@ -1873,7 +2175,15 @@
         return;
       }
 
-      syncBillRequestedToSupabaseQuietly(session, order);
+      if (coupon?.code) {
+        updated.couponCode = coupon.code;
+        updated.discountPercent = coupon.discountPercent;
+        updated.discountAmount = coupon.discountAmount;
+        updated.subtotal = coupon.subtotal;
+        updated.billTotal = coupon.total;
+      }
+
+      syncBillRequestedToSupabaseQuietly(session, order, coupon);
       showOrderFeedback('ok', t('requestBillSuccess'));
       renderCart();
     } catch (err) {
@@ -1921,6 +2231,199 @@
     updateOpenFoodModal();
   }
 
+  function formatReceiptMoney(amount) {
+    const n = Number(amount) || 0;
+    return `€${n.toFixed(2)}`;
+  }
+
+  function closeOrderReceipt() {
+    if (!orderReceipt) return;
+    orderReceipt.hidden = true;
+    orderReceipt.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('order-receipt-open');
+  }
+
+  function showOrderReceipt(waveItems) {
+    if (!orderReceipt) {
+      showOrderFeedback('ok', t('orderSentSuccess'));
+      return;
+    }
+
+    const ctx = window.LechaimOrderContext || {};
+    const isTakeaway = ctx.orderType === 'takeaway' || ctx.orderType === 'take-away';
+    const items = Array.isArray(waveItems) ? waveItems.filter((row) => row && Number(row.qty) > 0) : [];
+    const total = items.reduce((sum, row) => (
+      sum + (Number(row.price) || 0) * (Number(row.qty) || 0)
+    ), 0);
+    const publicOrderNo = Number(ctx.publicOrderNo);
+    const hasOrderNo = isTakeaway && Number.isFinite(publicOrderNo) && publicOrderNo > 0;
+
+    if (orderReceiptEyebrow) orderReceiptEyebrow.textContent = t('receiptEyebrow');
+    if (orderReceiptTitle) orderReceiptTitle.textContent = t('receiptTitle');
+    if (orderReceiptTotalLabel) orderReceiptTotalLabel.textContent = t('receiptTotal');
+    if (orderReceiptContinue) orderReceiptContinue.textContent = t('receiptContinue');
+    if (orderReceiptNew) {
+      orderReceiptNew.textContent = t('receiptNewOrder');
+      orderReceiptNew.hidden = !isTakeaway;
+    }
+    if (orderReceiptClose) {
+      orderReceiptClose.hidden = isTakeaway;
+      orderReceiptClose.setAttribute('aria-label', t('receiptClose'));
+    }
+
+    if (orderReceiptOrderNo) {
+      if (hasOrderNo) {
+        orderReceiptOrderNo.hidden = false;
+        orderReceiptOrderNo.textContent = `${t('receiptOrderNo')} #${publicOrderNo}`;
+      } else {
+        orderReceiptOrderNo.hidden = true;
+        orderReceiptOrderNo.textContent = '';
+      }
+    }
+
+    if (orderReceiptRemember) {
+      if (hasOrderNo) {
+        orderReceiptRemember.hidden = false;
+        orderReceiptRemember.textContent = t('receiptRememberNo');
+      } else {
+        orderReceiptRemember.hidden = true;
+        orderReceiptRemember.textContent = '';
+      }
+    }
+
+    if (orderReceiptMeta) {
+      if (isTakeaway) {
+        const pickup = ctx.pickupType === 'TIME' && ctx.pickupTime
+          ? t('receiptPickupAt').replace('{time}', String(ctx.pickupTime))
+          : t('receiptPickupAsap');
+        const bits = [t('receiptTakeaway')];
+        if (ctx.customerName) bits.push(ctx.customerName);
+        bits.push(pickup);
+        orderReceiptMeta.textContent = bits.join(' · ');
+      } else {
+        orderReceiptMeta.textContent = t('receiptTable').replace(
+          '{n}',
+          ctx.tableNumber != null ? String(ctx.tableNumber) : '—'
+        );
+      }
+    }
+
+    if (orderReceiptBody) {
+      if (!items.length) {
+        orderReceiptBody.innerHTML = `<p class="order-receipt__empty">${escapeHtml(t('receiptEmpty'))}</p>`;
+      } else {
+        orderReceiptBody.innerHTML = `
+          <ul class="order-receipt__list">
+            ${items.map((item) => {
+              const name = item.name || item.printName || item.productId || '';
+              const lineTotal = (Number(item.price) || 0) * (Number(item.qty) || 0);
+              return `
+                <li class="order-receipt__line">
+                  <span class="order-receipt__qty">${escapeHtml(String(item.qty))}×</span>
+                  <span class="order-receipt__name">${escapeHtml(name)}</span>
+                  <span class="order-receipt__price">${escapeHtml(formatReceiptMoney(lineTotal))}</span>
+                </li>
+              `;
+            }).join('')}
+          </ul>
+        `;
+      }
+    }
+
+    if (orderReceiptTotal) orderReceiptTotal.textContent = formatReceiptMoney(total);
+
+    closeCartPanel();
+    hideOrderFeedback();
+    orderReceipt.hidden = false;
+    orderReceipt.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('order-receipt-open');
+    if (isTakeaway) {
+      orderReceiptContinue?.focus();
+    } else {
+      orderReceiptClose?.focus() || orderReceiptContinue?.focus();
+    }
+  }
+
+  /**
+   * Start a brand-new customer order without waiting for Admin to close the previous one.
+   * Previous order stays open in Supabase / Admin.
+   */
+  function startSeparateNewOrder() {
+    const ctx = window.LechaimOrderContext || {};
+    const localId = ctx.sessionId || window.LechaimOrderSession?.getSession?.()?.sessionId;
+    const tableNumber = ctx.tableNumber != null ? Number(ctx.tableNumber) : null;
+    const isTakeaway = ctx.orderType === 'takeaway' || ctx.orderType === 'take-away';
+
+    closeOrderReceipt();
+    closeCartPanel();
+
+    try {
+      if (localId) {
+        const map = readSupabaseSessionMap();
+        delete map[String(localId)];
+        writeSupabaseSessionMap(map);
+      }
+    } catch (err) {
+      console.warn('[new-order] session map clear failed', err);
+    }
+
+    try {
+      const order = window.LechaimOrderEngine?.getOrder?.();
+      if (order?.orderId) {
+        window.LechaimOrderEngine.closeOrder?.({ orderId: order.orderId });
+      } else if (!isTakeaway && tableNumber != null) {
+        window.LechaimOrderEngine.closeTable?.(tableNumber);
+      } else {
+        window.LechaimOrderEngine.clearOrder?.();
+      }
+    } catch (err) {
+      console.warn('[new-order] local order close failed', err);
+    }
+
+    try {
+      window.LechaimOrderSession?.clearSession?.();
+    } catch (err) {
+      console.warn('[new-order] clearSession failed', err);
+    }
+
+    cartLines = [];
+    cartLineOrder = [];
+    lastMainLineId = null;
+    remoteSessionTotalOverride = null;
+    if (remoteTotalSyncTimer) {
+      window.clearInterval(remoteTotalSyncTimer);
+      remoteTotalSyncTimer = null;
+    }
+    try {
+      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify({ lines: [], order: [] }));
+    } catch (_) { /* ignore */ }
+
+    window.LechaimOrderContext = {
+      orderType: null,
+      tableNumber: null,
+      lang: currentLang,
+      sessionId: null,
+      openedAt: null,
+      status: null,
+      customerName: null,
+      customerPhone: null,
+      customerNotes: null,
+      pickupType: null,
+      pickupTime: null,
+      publicOrderNo: null,
+    };
+
+    updateTableHeader();
+    renderCart();
+    refreshFoodCards();
+
+    if (typeof window.LechaimEntryGate?.resetToEntry === 'function') {
+      window.LechaimEntryGate.resetToEntry();
+    } else if (typeof window.LechaimEntryGate?.reopenOrderTypePicker === 'function') {
+      window.LechaimEntryGate.reopenOrderTypePicker();
+    }
+  }
+
   function setSendButtonState({ sending = false, empty = false } = {}) {
     if (!cartSend) return;
     if (sending) {
@@ -1932,16 +2435,19 @@
     cartSend.textContent = t('sendOrder');
   }
 
+  function hideOrderFeedback() {
+    if (!orderFeedback) return;
+    orderFeedback.classList.remove('is-visible', 'order-feedback--ok', 'order-feedback--err');
+    orderFeedback.hidden = true;
+    orderFeedback.innerHTML = '';
+  }
+
   function showOrderFeedback(kind, message) {
     if (!orderFeedback || !message) return;
 
-    const icon = kind === 'ok' ? '✅' : '❌';
     orderFeedback.classList.remove('order-feedback--ok', 'order-feedback--err', 'is-visible');
     orderFeedback.classList.add(kind === 'ok' ? 'order-feedback--ok' : 'order-feedback--err');
-    orderFeedback.innerHTML = `
-      <span class="order-feedback__icon" aria-hidden="true">${icon}</span>
-      <span class="order-feedback__text">${escapeHtml(message)}</span>
-    `;
+    orderFeedback.innerHTML = `<span class="order-feedback__text">${escapeHtml(message)}</span>`;
     orderFeedback.hidden = false;
 
     requestAnimationFrame(() => {
@@ -1951,10 +2457,7 @@
     window.clearTimeout(orderFeedbackTimer);
     orderFeedbackTimer = window.setTimeout(() => {
       orderFeedback.classList.remove('is-visible');
-      window.setTimeout(() => {
-        orderFeedback.hidden = true;
-        orderFeedback.innerHTML = '';
-      }, 280);
+      window.setTimeout(hideOrderFeedback, 280);
     }, 2500);
   }
 
@@ -1980,7 +2483,14 @@
     const lang = ctx.lang === 'en' || ctx.lang === 'he' ? ctx.lang : currentLang;
 
     if (orderType === 'takeaway') {
-      session = Session.startTakeaway({ lang });
+      session = Session.startTakeaway({
+        lang,
+        customerName: ctx.customerName || '',
+        customerPhone: ctx.customerPhone || '',
+        customerNotes: ctx.customerNotes || '',
+        pickupType: ctx.pickupType || 'ASAP',
+        pickupTime: ctx.pickupTime || null,
+      });
     } else if (orderType === 'dinein' && Session.isValidTable?.(ctx.tableNumber)) {
       session = Session.startDineIn(Number(ctx.tableNumber), { lang });
     } else {
@@ -2003,11 +2513,24 @@
       openedAt: session.openedAt,
       status: session.status,
       lang: session.lang || currentLang,
+      customerName: isTakeaway ? (session.customerName || '') : null,
+      customerPhone: isTakeaway ? (session.customerPhone || '') : null,
+      customerNotes: isTakeaway ? (session.customerNotes || '') : null,
+      pickupType: isTakeaway ? (session.pickupType || 'ASAP') : null,
+      pickupTime: isTakeaway ? (session.pickupTime || null) : null,
+      publicOrderNo: isTakeaway
+        ? (session.publicOrderNo != null ? Number(session.publicOrderNo) : null)
+        : null,
     });
   }
 
   async function handleSendOrder() {
     if (isSendingOrder) return;
+
+    if (!isOrderingAllowed()) {
+      showOrderFeedback('err', t('orderingClosedToast'));
+      return;
+    }
 
     if (!cartLines.length) {
       showOrderFeedback('err', t('cartEmpty'));
@@ -2115,7 +2638,9 @@
       }
 
       clearCartAfterSuccessfulSend();
-      showOrderFeedback('ok', t('orderSentSuccess'));
+      showOrderReceipt(waveItems);
+      initRemoteSessionClosedWatcher();
+      syncRemoteSessionTotal().catch(() => {});
     } catch (err) {
       console.error('[cart] send order failed', err);
       showOrderFeedback('err', t('orderSentFail'));
@@ -2181,13 +2706,19 @@
     }
 
     const map = readSupabaseSessionMap();
-    if (map[localId]) return map[localId];
+    const ctxEarly = window.LechaimOrderContext || {};
+    const rawTypeEarly = localOrder?.orderType || localSession?.orderType || ctxEarly.orderType;
+    const isTakeawayEarly = String(rawTypeEarly).toLowerCase().includes('take');
+    if (map[localId]) {
+      await ensurePublicOrderNoRemembered(map[localId], isTakeawayEarly);
+      return map[localId];
+    }
 
-    const ctx = window.LechaimOrderContext || {};
-    const rawType = localOrder?.orderType || localSession?.orderType || ctx.orderType;
-    const isTakeaway = String(rawType).toLowerCase().includes('take');
-    const orderType = isTakeaway ? 'takeaway' : 'dine_in';
-    const tableNumber = isTakeaway
+    const ctx = ctxEarly;
+    const rawType = rawTypeEarly;
+    const isTakeawayResolved = isTakeawayEarly;
+    const orderType = isTakeawayResolved ? 'takeaway' : 'dine_in';
+    const tableNumber = isTakeawayResolved
       ? null
       : Number(localOrder?.tableNumber ?? localSession?.tableNumber ?? ctx.tableNumber);
 
@@ -2210,6 +2741,21 @@
         orderType,
         tableNumber: orderType === 'dine_in' ? tableNumber : null,
         language: currentLang,
+        customerName: isTakeawayResolved
+          ? (localSession?.customerName || ctx.customerName || null)
+          : null,
+        customerPhone: isTakeawayResolved
+          ? (localSession?.customerPhone || ctx.customerPhone || null)
+          : null,
+        notes: isTakeawayResolved
+          ? (localSession?.customerNotes || ctx.customerNotes || null)
+          : null,
+        pickupType: isTakeawayResolved
+          ? (localSession?.pickupType || ctx.pickupType || 'ASAP')
+          : null,
+        pickupTime: isTakeawayResolved
+          ? (localSession?.pickupTime || ctx.pickupTime || null)
+          : null,
       });
     } catch (err) {
       /* Race / unique open table: reuse existing open session */
@@ -2234,7 +2780,47 @@
 
     map[localId] = created.session_id;
     writeSupabaseSessionMap(map);
+    rememberPublicOrderNo(created.public_order_no);
     return created.session_id;
+  }
+
+  function rememberPublicOrderNo(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n) || n <= 0) return;
+
+    const prev = window.LechaimOrderContext || {};
+    window.LechaimOrderContext = {
+      ...prev,
+      publicOrderNo: n,
+    };
+
+    try {
+      window.LechaimOrderSession?.patchSession?.({ publicOrderNo: n });
+    } catch (err) {
+      console.warn('[order-no] failed to persist local session number', err);
+    }
+  }
+
+  async function ensurePublicOrderNoRemembered(remoteSessionId, isTakeaway) {
+    if (!isTakeaway || !remoteSessionId) return;
+    const existing = Number(window.LechaimOrderContext?.publicOrderNo);
+    if (Number.isFinite(existing) && existing > 0) return;
+
+    const localNo = Number(window.LechaimOrderSession?.getSession?.()?.publicOrderNo);
+    if (Number.isFinite(localNo) && localNo > 0) {
+      rememberPublicOrderNo(localNo);
+      return;
+    }
+
+    try {
+      const api = window.LechaimSupabaseOrders;
+      const remote = await api?.getSession?.(remoteSessionId);
+      if (remote?.public_order_no != null) {
+        rememberPublicOrderNo(remote.public_order_no);
+      }
+    } catch (err) {
+      console.warn('[order-no] failed to load public_order_no', err);
+    }
   }
 
   async function createSupabaseOrderItems(orderId, waveItems) {
@@ -2338,7 +2924,7 @@
     return null;
   }
 
-  function syncBillRequestedToSupabaseQuietly(localSession, localOrder) {
+  function syncBillRequestedToSupabaseQuietly(localSession, localOrder, coupon = null) {
     const api = window.LechaimSupabaseOrders;
     if (!api?.isConfigured?.()) {
       console.warn('[dual-write] bill_requested skipped — Supabase not configured');
@@ -2352,8 +2938,24 @@
           console.warn('[dual-write] bill_requested skipped — no Supabase session mapped');
           return;
         }
-        await api.updateSessionStatus(sessionId, { status: 'bill_requested' });
-        console.log('Bill requested synced to Supabase', { sessionId });
+
+        const patch = { status: 'bill_requested' };
+        if (coupon?.code) {
+          patch.couponCode = coupon.code;
+          patch.discountPercent = coupon.discountPercent;
+          patch.discountAmount = coupon.discountAmount;
+          patch.subtotal = coupon.subtotal;
+        }
+
+        await api.updateSessionStatus(sessionId, patch);
+        if (coupon?.code && typeof api.incrementCouponUse === 'function') {
+          try {
+            await api.incrementCouponUse(coupon.code);
+          } catch (incErr) {
+            console.warn('[dual-write] coupon use increment failed', incErr);
+          }
+        }
+        console.log('Bill requested synced to Supabase', { sessionId, coupon: coupon?.code || null });
       } catch (err) {
         console.warn('[dual-write] bill_requested sync failed — local bill still OK', err);
       }
@@ -2366,6 +2968,12 @@
     const tableNumber = ctx.tableNumber != null
       ? Number(ctx.tableNumber)
       : window.LechaimOrderSession?.getTableNumber?.();
+
+    remoteSessionTotalOverride = null;
+    if (remoteTotalSyncTimer) {
+      window.clearInterval(remoteTotalSyncTimer);
+      remoteTotalSyncTimer = null;
+    }
 
     try {
       if (localId) {
@@ -2466,19 +3074,87 @@
       sessionWatchUnsub = null;
     }
 
+    if (remoteTotalSyncTimer) {
+      window.clearInterval(remoteTotalSyncTimer);
+      remoteTotalSyncTimer = null;
+    }
+
+    const syncTotals = () => {
+      syncRemoteSessionTotal(remoteId).catch((err) => {
+        console.warn('[session-watch] total sync failed', err);
+      });
+    };
+
+    syncTotals();
+    remoteTotalSyncTimer = window.setInterval(syncTotals, 8000);
+
     try {
       sessionWatchUnsub = api.subscribeToOrders((payload) => {
-        if (payload?.table !== 'order_sessions') return;
-        const row = payload.new || payload.payload?.new;
-        if (!row || String(row.session_id) !== String(remoteId)) return;
-        if (row.status === 'closed') {
-          console.log('[session-watch] Realtime closed — returning to entry');
-          returnCustomerToEntryGate();
+        const table = payload?.table;
+        if (table === 'order_sessions') {
+          const row = payload.new || payload.payload?.new;
+          if (!row || String(row.session_id) !== String(remoteId)) return;
+          if (row.status === 'closed') {
+            console.log('[session-watch] Realtime closed — returning to entry');
+            returnCustomerToEntryGate();
+          }
+          return;
+        }
+
+        if (table === 'order_items' || table === 'orders') {
+          syncTotals();
         }
       });
     } catch (err) {
       console.warn('[session-watch] subscribe failed', err);
     }
+  }
+
+  async function syncRemoteSessionTotal(remoteSessionId) {
+    const api = window.LechaimSupabaseOrders;
+    const sessionId = remoteSessionId || lookupMappedSupabaseSessionId(
+      window.LechaimOrderContext?.sessionId ||
+      window.LechaimOrderSession?.getSession?.()?.sessionId
+    );
+    if (!sessionId || !api?.getSessionOrders) return;
+
+    const orders = await api.getSessionOrders(sessionId);
+    let total = 0;
+    const remoteItems = [];
+
+    (orders || []).forEach((order) => {
+      const lines = Array.isArray(order.order_items) ? order.order_items : [];
+      lines.forEach((row) => {
+        const qty = Number(row.quantity) || 0;
+        if (qty <= 0) return;
+        total += (Number(row.price) || 0) * qty;
+        remoteItems.push({
+          itemId: String(row.id),
+          remoteItemId: String(row.id),
+          productId: String(row.product_id || ''),
+          name: row.product_name || row.print_name || row.product_id || '',
+          printName: row.print_name || '',
+          price: Number(row.price) || 0,
+          qty,
+          notes: row.notes == null ? '' : String(row.notes),
+          printed: true,
+          linkedToMainItemId: row.parent_item_id ? String(row.parent_item_id) : null,
+          createdAt: row.created_at || null,
+        });
+      });
+    });
+
+    remoteSessionTotalOverride = Math.round(total * 100) / 100;
+
+    try {
+      if (window.LechaimOrderEngine?.getOrder?.() && typeof window.LechaimOrderEngine.setOrderItems === 'function') {
+        window.LechaimOrderEngine.setOrderItems(remoteItems);
+      }
+    } catch (err) {
+      console.warn('[session-watch] setOrderItems failed', err);
+    }
+
+    renderCart();
   }
 
   /**
@@ -2580,6 +3256,11 @@
   }
 
   function addToCart(itemId) {
+    if (!isOrderingAllowed()) {
+      showCartToast(t('orderingClosedToast'));
+      return;
+    }
+
     if (!isProductAvailable(itemId)) {
       showCartToast(t('outOfStock'));
       return;
@@ -2658,6 +3339,11 @@
   }
 
   function changeQuantity(lineId, delta) {
+    if (!isOrderingAllowed() && delta > 0) {
+      showCartToast(t('orderingClosedToast'));
+      return;
+    }
+
     const line = findCartLine(lineId);
     if (!line) return;
 
