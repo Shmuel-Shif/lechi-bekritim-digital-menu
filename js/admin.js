@@ -12,7 +12,10 @@
   const loginError = document.getElementById('admin-login-error');
   const panelError = document.getElementById('admin-panel-error');
   const statusEl = document.getElementById('admin-status');
-  const toastEl = document.getElementById('admin-toast');
+  const successModal = document.getElementById('admin-success-modal');
+  const successText = document.getElementById('admin-success-text');
+  const successOk = document.getElementById('admin-success-ok');
+  const successBackdrop = document.getElementById('admin-success-backdrop');
   const listEl = document.getElementById('admin-list');
   const logoutBtn = document.getElementById('admin-logout');
   const emailInput = document.getElementById('admin-email');
@@ -28,7 +31,6 @@
   const viewInventory = document.getElementById('admin-view-inventory');
 
   let inventorySubscribed = false;
-  let toastTimer = null;
   let currentFilter = 'all';
   let currentQuery = '';
   let catalogCache = [];
@@ -45,15 +47,20 @@
     el.textContent = message;
   }
 
+  function closeAdminModal() {
+    if (!successModal) return;
+    successModal.hidden = true;
+    successModal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('admin-modal-open');
+  }
+
   function showToast(message) {
-    if (!toastEl) return;
-    toastEl.hidden = false;
-    toastEl.textContent = message;
-    window.clearTimeout(toastTimer);
-    toastTimer = window.setTimeout(() => {
-      toastEl.hidden = true;
-      toastEl.textContent = '';
-    }, 2200);
+    if (!successModal) return;
+    if (successText) successText.textContent = message;
+    successModal.hidden = false;
+    successModal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('admin-modal-open');
+    successOk?.focus();
   }
 
   function setView(view) {
@@ -420,6 +427,14 @@
     const stockBtn = event.target.closest('[data-action="toggle-stock"]');
     if (stockBtn) {
       handleToggle(stockBtn);
+    }
+  });
+
+  successOk?.addEventListener('click', closeAdminModal);
+  successBackdrop?.addEventListener('click', closeAdminModal);
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && successModal && !successModal.hidden) {
+      closeAdminModal();
     }
   });
 

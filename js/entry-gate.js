@@ -22,6 +22,8 @@
       delivery: 'Delivery',
       back: 'Back',
       comingSoon: 'Coming Soon',
+      occupied: 'Occupied',
+      tableOccupied: 'This table is occupied',
       langAria: 'Switch language – Hebrew / English',
     },
     he: {
@@ -35,6 +37,8 @@
       delivery: 'משלוח',
       back: 'חזרה',
       comingSoon: 'Coming Soon',
+      occupied: 'תפוס',
+      tableOccupied: 'השולחן תפוס',
       langAria: 'החלפת שפה – עברית / English',
     },
   };
@@ -121,19 +125,159 @@
   }
 
   function buildTables() {
-    if (!tablesEl || tablesEl.childElementCount) return;
-
-    const fragment = document.createDocumentFragment();
-    for (let n = TABLE_MIN; n <= TABLE_MAX; n += 1) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'entry-gate__table';
-      btn.dataset.table = String(n);
-      btn.textContent = String(n);
-      btn.setAttribute('aria-label', `Table ${n}`);
-      fragment.appendChild(btn);
+    if (!tablesEl) return;
+    if (!tablesEl.childElementCount) {
+      const fragment = document.createDocumentFragment();
+      for (let n = TABLE_MIN; n <= TABLE_MAX; n += 1) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'entry-gate__table';
+        btn.dataset.table = String(n);
+        btn.textContent = String(n);
+        btn.setAttribute('aria-label', `Table ${n}`);
+        fragment.appendChild(btn);
+      }
+      tablesEl.appendChild(fragment);
     }
-    tablesEl.appendChild(fragment);
+  }
+
+  function collectLocalOccupiedTables() {
+    const occupied = new Set();
+    const board = window.LechaimOrderEngine?.getTablesBoard?.() || [];
+    board.forEach((row) => {
+      if (row?.uiStatus === 'active' || row?.uiStatus === 'bill_requested') {
+        occupied.add(Number(row.tableNumber));
+      }
+    });
+    return occupied;
+  }
+
+  /**
+   * Same rule as Admin: a table is occupied only when an open Supabase
+   * session has at least one order with items (or a positive total).
+   * Empty "active" sessions must not block table selection.
+   */
+  function remoteSessionHasLiveOrder(session, orders) {
+    if (!session) return false;
+    const list = Array.isArray(orders) ? orders : [];
+    if (!list.length) return false;
+
+    let hasItems = false;
+    let total = 0;
+    list.forEach((order) => {
+      const lines = order?.order_items || [];
+      lines.forEach((row) => {
+        if (Number(row?.qty) > 0) {
+          hasItems = true;
+          total += (Number(row.unit_price) || 0) * (Number(row.qty) || 0);
+        }
+      });
+      if (!lines.length && Number(order?.total) > 0) {
+        total += Number(order.total) || 0;
+      }
+    });
+    return hasItems || total > 0;
+  }
+
+  async function collectRemoteOccupiedTables() {
+    const occupied = new Set();
+    const api = window.LechaimSupabaseOrders;
+
+    if (api?.isConfigured?.() && typeof api.getOpenSessionsWithOrders === 'function') {
+      try {
+        const rows = await api.getOpenSessionsWithOrders();
+        (rows || []).forEach(({ session, orders }) => {
+          if (!session || session.table_number == null) return;
+          const type = String(session.order_type || '');
+          if (type !== 'dine_in' && type !== 'dinein') return;
+          if (!remoteSessionHasLiveOrder(session, orders)) return;
+          occupied.add(Number(session.table_number));
+        });
+        return occupied;
+      } catch (err) {
+        console.warn('[entry-gate] occupied tables (with orders) failed', err);
+      }
+    }
+
+    /* Fallback: sessions only — may over-mark; prefer API path above. */
+    const cfg = window.LECHAIM_SUPABASE_CONFIG;
+    if (!cfg?.url || !cfg?.anonKey || !window.supabase?.createClient) {
+      return occupied;
+    }
+
+    try {
+      const sb = window.supabase.createClient(cfg.url, cfg.anonKey);
+      const { data, error } = await sb
+        .from('order_sessions')
+        .select('table_number, session_id')
+        .eq('order_type', 'dine_in')
+        .in('status', ['active', 'bill_requested'])
+        .not('table_number', 'is', null);
+
+      if (error) {
+        console.warn('[entry-gate] occupied tables query failed', error.message || error);
+        return occupied;
+      }
+
+      const sessions = data || [];
+      if (!sessions.length) return occupied;
+
+      const ids = sessions.map((row) => row.session_id).filter(Boolean);
+      const { data: orderRows, error: orderErr } = await sb
+        .from('orders')
+        .select('session_id, total, order_items(qty, unit_price)')
+        .in('session_id', ids);
+
+      if (orderErr) {
+        console.warn('[entry-gate] occupied orders query failed', orderErr.message || orderErr);
+        return occupied;
+      }
+
+      const bySession = new Map();
+      ids.forEach((id) => bySession.set(id, []));
+      (orderRows || []).forEach((order) => {
+        const list = bySession.get(order.session_id);
+        if (list) list.push(order);
+      });
+
+      sessions.forEach((session) => {
+        if (remoteSessionHasLiveOrder(session, bySession.get(session.session_id) || [])) {
+          occupied.add(Number(session.table_number));
+        }
+      });
+    } catch (err) {
+      console.warn('[entry-gate] occupied tables fetch failed', err);
+    }
+
+    return occupied;
+  }
+
+  async function refreshOccupiedTables() {
+    if (!tablesEl) return;
+
+    const occupied = collectLocalOccupiedTables();
+    const remote = await collectRemoteOccupiedTables();
+    remote.forEach((n) => occupied.add(n));
+
+    /* While changing table, keep the current table selectable */
+    if (changingTable && state.tableNumber != null) {
+      occupied.delete(Number(state.tableNumber));
+    }
+
+    tablesEl.querySelectorAll('.entry-gate__table').forEach((btn) => {
+      const n = Number(btn.dataset.table);
+      const isOccupied = occupied.has(n);
+      btn.classList.toggle('is-occupied', isOccupied);
+      btn.disabled = isOccupied;
+      btn.setAttribute('aria-disabled', isOccupied ? 'true' : 'false');
+      if (isOccupied) {
+        btn.textContent = t('occupied');
+        btn.setAttribute('aria-label', `${t('occupied')} — Table ${n}`);
+      } else {
+        btn.textContent = String(n);
+        btn.setAttribute('aria-label', `Table ${n}`);
+      }
+    });
   }
 
   function highlightSelectedTable(tableNumber) {
@@ -200,6 +344,9 @@
     state.lang = lang;
     Session?.setLang?.(lang);
     applyEntryCopy();
+    if (stepTable && !stepTable.hidden) {
+      refreshOccupiedTables();
+    }
   }
 
   function goToOrderType() {
@@ -217,7 +364,7 @@
     highlightSelectedTable(state.tableNumber);
     if (tableBackBtn) tableBackBtn.dataset.entryBack = 'order';
     showStep(stepTable);
-    applyEntryCopy();
+    refreshOccupiedTables();
   }
 
   function finishWithTable(table) {
@@ -300,11 +447,92 @@
     return true;
   }
 
-  function tryResumeSession() {
+  /**
+   * Called by the customer app when Supabase marks the session closed.
+   * Does not clear storage itself — main.js clears local state first.
+   */
+  function resetToEntry() {
+    started = true;
+    changingTable = false;
+    state.orderType = null;
+    state.tableNumber = null;
+    tablesEl?.querySelectorAll('.entry-gate__table').forEach((btn) => {
+      btn.classList.remove('is-selected');
+    });
+    setLang(state.lang || 'he');
+    openGate();
+    goToOrderType();
+  }
+
+  function clearLocalSessionMapEntry(localSessionId) {
+    if (!localSessionId) return;
+    try {
+      const raw = localStorage.getItem('lechaim-supabase-session-map');
+      const map = raw ? JSON.parse(raw) : {};
+      if (!map || typeof map !== 'object') return;
+      delete map[String(localSessionId)];
+      localStorage.setItem('lechaim-supabase-session-map', JSON.stringify(map));
+    } catch (err) {
+      console.warn('[entry-gate] session map clear failed', err);
+    }
+  }
+
+  async function isMappedRemoteSessionClosed(localSessionId) {
+    const api = window.LechaimSupabaseOrders;
+    if (!localSessionId || !api?.isConfigured?.() || typeof api.getSession !== 'function') {
+      return false;
+    }
+
+    let remoteId = null;
+    try {
+      const raw = localStorage.getItem('lechaim-supabase-session-map');
+      const map = raw ? JSON.parse(raw) : {};
+      remoteId = map?.[String(localSessionId)] || null;
+    } catch (_) {
+      return false;
+    }
+    if (!remoteId) return false;
+
+    try {
+      const remote = await api.getSession(remoteId);
+      return Boolean(remote && remote.status === 'closed');
+    } catch (err) {
+      console.warn('[entry-gate] getSession failed', err);
+      return false;
+    }
+  }
+
+  async function discardClosedLocalSession(session) {
+    if (!session) return;
+    clearLocalSessionMapEntry(session.sessionId);
+    try {
+      Session?.clearSession?.();
+    } catch (err) {
+      console.warn('[entry-gate] clearSession failed', err);
+    }
+    try {
+      if (session.tableNumber != null && window.LechaimOrderEngine?.closeTable) {
+        window.LechaimOrderEngine.closeTable(session.tableNumber);
+      }
+    } catch (err) {
+      console.warn('[entry-gate] local closeTable failed', err);
+    }
+  }
+
+  /**
+   * Resume an open dine-in session into the menu (unless Supabase says closed).
+   */
+  async function tryResumeSession() {
     if (!Session?.hasActiveDineInSession()) return false;
 
     const session = Session.getSession();
     if (!session) return false;
+
+    if (await isMappedRemoteSessionClosed(session.sessionId)) {
+      console.log('[entry-gate] mapped Supabase session is closed — not resuming');
+      await discardClosedLocalSession(session);
+      return false;
+    }
 
     state.orderType = 'dine-in';
     state.tableNumber = session.tableNumber;
@@ -341,16 +569,24 @@
       }
       if (type === 'dine-in') {
         state.orderType = 'dine-in';
-        /* Existing active table → skip picker and resume */
+        /* Existing active table → skip picker and resume (unless remote closed) */
         if (!changingTable && Session?.hasActiveDineInSession()) {
           const session = Session.getSession();
-          state.tableNumber = session.tableNumber;
-          Session.setLang?.(state.lang);
-          enterMenu(buildMenuContext({
-            orderType: 'dine-in',
-            tableNumber: session.tableNumber,
-            lang: state.lang,
-          }));
+          (async () => {
+            if (await isMappedRemoteSessionClosed(session?.sessionId)) {
+              console.log('[entry-gate] mapped Supabase session is closed — show table picker');
+              await discardClosedLocalSession(session);
+              goToTable();
+              return;
+            }
+            state.tableNumber = session.tableNumber;
+            Session.setLang?.(state.lang);
+            enterMenu(buildMenuContext({
+              orderType: 'dine-in',
+              tableNumber: session.tableNumber,
+              lang: state.lang,
+            }));
+          })();
           return;
         }
         goToTable();
@@ -365,6 +601,10 @@
 
     const tableBtn = event.target.closest('[data-table]');
     if (tableBtn && stepTable && !stepTable.hidden) {
+      if (tableBtn.disabled || tableBtn.classList.contains('is-occupied')) {
+        showNotice(t('tableOccupied'));
+        return;
+      }
       const table = Number(tableBtn.dataset.table);
       if (!Number.isInteger(table) || table < TABLE_MIN || table > TABLE_MAX) return;
       finishWithTable(table);
@@ -378,14 +618,16 @@
   window.LechaimEntryGate = {
     reopenTablePicker,
     reopenOrderTypePicker,
+    resetToEntry,
   };
 
   document.body.classList.add('entry-pending');
   gate.hidden = false;
   gate.setAttribute('aria-hidden', 'false');
 
-  if (tryResumeSession()) return;
-
-  setLang('he');
-  goToOrderType();
+  (async function bootEntryGate() {
+    if (await tryResumeSession()) return;
+    setLang('he');
+    goToOrderType();
+  })();
 })();

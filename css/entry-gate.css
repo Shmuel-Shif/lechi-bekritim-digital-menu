@@ -290,6 +290,28 @@ body.entry-pending > *:not(#entry-gate) {
   color: #fff;
 }
 
+.entry-gate__table.is-occupied {
+  background: linear-gradient(165deg, #3d9a5f 0%, #2f6f47 100%);
+  border-color: #245a38;
+  color: #fff;
+  cursor: not-allowed;
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  opacity: 1;
+}
+
+.entry-gate__table.is-occupied:hover {
+  transform: none;
+  border-color: #245a38;
+}
+
+.entry-gate__table.is-occupied.is-selected {
+  background: linear-gradient(165deg, #3d9a5f 0%, #2f6f47 100%);
+  border-color: #245a38;
+  color: #fff;
+}
+
 @media (max-width: 360px) {
   .entry-gate__tables {
     grid-template-columns: repeat(3, minmax(0, 1fr));

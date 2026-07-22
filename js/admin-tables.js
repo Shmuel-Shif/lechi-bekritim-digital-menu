@@ -1,12 +1,13 @@
 /**
- * LECHAIM — Admin Tables board (Stage 5)
- * Live table status from LechaimOrderSession + LechaimOrderEngine (localStorage).
+ * LECHAIM — Admin Tables board (Stage 5 + Stage 4 Supabase read)
+ * Prefers live data from LechaimSupabaseOrders; falls back to localStorage Order Engine.
  * In-admin menu picker to add dishes by category.
  */
 (function () {
   'use strict';
 
   const Engine = () => window.LechaimOrderEngine;
+  const OrdersApi = () => window.LechaimSupabaseOrders;
   const gridEl = document.getElementById('tables-grid');
   const takeawaySection = document.getElementById('tables-takeaway');
   const takeawayGrid = document.getElementById('tables-takeaway-grid');
@@ -24,7 +25,6 @@
   const menuSearch = document.getElementById('table-menu-search');
   const menuCats = document.getElementById('table-menu-cats');
   const menuList = document.getElementById('table-menu-list');
-  const toastEl = document.getElementById('admin-toast');
   const successModal = document.getElementById('admin-success-modal');
   const successText = document.getElementById('admin-success-text');
   const successOk = document.getElementById('admin-success-ok');
@@ -32,28 +32,24 @@
 
   let pollTimer = null;
   let selectedKey = null;
-  let toastTimer = null;
   let menuMode = false;
   let menuCategoryId = 'all';
   let menuQuery = '';
   let catalogCache = [];
+  let boardCache = [];
+  let takeawayCache = [];
+  let dataSource = 'local'; /* 'supabase' | 'local' */
+  let hasSupabaseSnapshot = false;
+  let unsubscribeRealtime = null;
+  let refreshTimer = null;
+  let loadPromise = null;
 
   function showToast(message) {
-    if (!toastEl) return;
-    toastEl.hidden = false;
-    toastEl.textContent = message;
-    window.clearTimeout(toastTimer);
-    toastTimer = window.setTimeout(() => {
-      toastEl.hidden = true;
-      toastEl.textContent = '';
-    }, 2200);
+    showSuccessModal(message);
   }
 
   function showSuccessModal(message) {
-    if (!successModal) {
-      showToast(message);
-      return;
-    }
+    if (!successModal) return;
     if (successText) successText.textContent = message;
     successModal.hidden = false;
     successModal.setAttribute('aria-hidden', 'false');
@@ -141,11 +137,199 @@
   }
 
   function getSelectedEntry() {
+    if (!selectedKey) return null;
+    return findSelectedEntry(boardCache, takeawayCache);
+  }
+
+  function mapRemoteItem(row) {
+    return {
+      itemId: String(row.id),
+      productId: String(row.product_id || ''),
+      name: row.product_name || row.print_name || row.product_id || '',
+      printName: row.print_name || '',
+      price: Number(row.price) || 0,
+      qty: Number(row.quantity) || 0,
+      notes: row.notes == null ? '' : String(row.notes),
+      printed: true,
+      linkedToMainItemId: row.parent_item_id ? String(row.parent_item_id) : null,
+      createdAt: row.created_at || null,
+    };
+  }
+
+  function flattenSessionOrders(session, orders) {
+    const items = [];
+    let total = 0;
+    (orders || []).forEach((order) => {
+      const lines = Array.isArray(order.order_items) ? order.order_items : [];
+      lines.forEach((row) => {
+        const mapped = mapRemoteItem(row);
+        if (mapped.qty > 0) {
+          items.push(mapped);
+          total += mapped.price * mapped.qty;
+        }
+      });
+      if (!lines.length && Number(order.total) > 0) {
+        total += Number(order.total) || 0;
+      }
+    });
+
+    const uiOrderType = session.order_type === 'takeaway' ? 'takeaway' : 'dinein';
+    let status = 'active';
+    if (session.status === 'bill_requested' || session.bill_requested) {
+      status = 'bill_requested';
+    }
+
+    return {
+      orderId: String(session.session_id),
+      sessionId: String(session.session_id),
+      tableNumber: session.table_number == null ? null : Number(session.table_number),
+      orderType: uiOrderType,
+      status,
+      createdAt: session.created_at || null,
+      updatedAt: session.updated_at || null,
+      closedAt: session.closed_at || null,
+      items,
+      _source: 'supabase',
+      _supabaseSessionId: String(session.session_id),
+      _remoteOrders: orders || [],
+      _sessionTotal: total,
+    };
+  }
+
+  function buildBoardsFromSupabase(rows) {
+    const sessionApi = window.LechaimOrderSession;
+    const min = sessionApi?.TABLE_MIN || 60;
+    const max = sessionApi?.TABLE_MAX || 73;
+
+    const dineInByTable = new Map();
+    const takeaway = [];
+
+    (rows || []).forEach(({ session, orders }) => {
+      const synthetic = flattenSessionOrders(session, orders);
+      if (!synthetic.items.length && !(Number(synthetic._sessionTotal) > 0)) return;
+
+      if (synthetic.orderType === 'takeaway') {
+        takeaway.push({
+          tableNumber: null,
+          uiStatus: synthetic.status === 'bill_requested' ? 'bill_requested' : 'active',
+          orderType: 'takeaway',
+          order: synthetic,
+          total: synthetic._sessionTotal,
+          itemCount: synthetic.items.reduce((sum, item) => sum + (Number(item.qty) || 0), 0),
+          openedAt: synthetic.createdAt,
+          updatedAt: synthetic.updatedAt,
+        });
+        return;
+      }
+
+      if (synthetic.tableNumber != null) {
+        dineInByTable.set(Number(synthetic.tableNumber), synthetic);
+      }
+    });
+
+    const board = [];
+    for (let n = min; n <= max; n += 1) {
+      const match = dineInByTable.get(n) || null;
+      let uiStatus = 'free';
+      if (match?.status === 'bill_requested') uiStatus = 'bill_requested';
+      else if (match) uiStatus = 'active';
+
+      board.push({
+        tableNumber: n,
+        uiStatus,
+        orderType: match?.orderType || 'dinein',
+        order: match,
+        total: match ? match._sessionTotal : 0,
+        itemCount: match
+          ? match.items.reduce((sum, item) => sum + (Number(item.qty) || 0), 0)
+          : 0,
+        openedAt: match?.createdAt || null,
+        updatedAt: match?.updatedAt || null,
+      });
+    }
+
+    return { board, takeaway };
+  }
+
+  function loadLocalBoards() {
     const engine = Engine();
-    if (!engine || !selectedKey) return null;
-    const board = engine.getTablesBoard?.() || [];
-    const takeaway = engine.getTakeawayBoard?.() || [];
-    return findSelectedEntry(board, takeaway);
+    return {
+      board: engine?.getTablesBoard?.() || [],
+      takeaway: engine?.getTakeawayBoard?.() || [],
+      source: 'local',
+    };
+  }
+
+  async function loadBoardData() {
+    const api = OrdersApi();
+    if (api?.isConfigured?.()) {
+      try {
+        const rows = await api.getOpenSessionsWithOrders();
+        const built = buildBoardsFromSupabase(rows);
+        hasSupabaseSnapshot = true;
+        return { ...built, source: 'supabase' };
+      } catch (err) {
+        console.warn('[admin-tables] Supabase board failed', err);
+        /* Keep last successful Supabase board — do not wipe with empty Admin localStorage. */
+        if (hasSupabaseSnapshot) {
+          console.warn('[admin-tables] keeping last Supabase snapshot (stale-while-revalidate)');
+          return {
+            board: boardCache,
+            takeaway: takeawayCache,
+            source: 'supabase',
+            stale: true,
+          };
+        }
+        console.warn('[admin-tables] no Supabase snapshot yet — falling back to localStorage');
+      }
+    }
+    return loadLocalBoards();
+  }
+
+  function paintBoard(board, takeaway) {
+    if (!gridEl) return;
+
+    gridEl.innerHTML = board.map(renderCard).join('');
+
+    if (takeawayGrid && takeawaySection) {
+      if (takeaway.length) {
+        takeawaySection.hidden = false;
+        takeawayGrid.innerHTML = takeaway.map(renderCard).join('');
+      } else {
+        takeawaySection.hidden = true;
+        takeawayGrid.innerHTML = '';
+      }
+    }
+
+    const selected = findSelectedEntry(board, takeaway);
+    if (selectedKey && selected?.order) {
+      fillDrawer(selected);
+    } else if (selectedKey && (!selected || !selected.order)) {
+      closeDrawer();
+    }
+  }
+
+  async function refreshBoardData() {
+    if (loadPromise) return loadPromise;
+    loadPromise = (async () => {
+      const data = await loadBoardData();
+      boardCache = data.board;
+      takeawayCache = data.takeaway;
+      dataSource = data.source;
+      paintBoard(boardCache, takeawayCache);
+    })().finally(() => {
+      loadPromise = null;
+    });
+    return loadPromise;
+  }
+
+  function scheduleBoardRefresh() {
+    window.clearTimeout(refreshTimer);
+    refreshTimer = window.setTimeout(() => {
+      refreshBoardData().catch((err) => {
+        console.warn('[admin-tables] refresh failed', err);
+      });
+    }, 250);
   }
 
   function loadCatalog() {
@@ -337,7 +521,6 @@
 
   function openDrawer(entry) {
     if (!entry?.order) {
-      showToast('השולחן פנוי');
       return;
     }
     selectedKey = entryKey(entry);
@@ -358,10 +541,9 @@
     document.body.classList.remove('table-drawer-open');
   }
 
-  function handleAddProduct(productId) {
-    const engine = Engine();
+  async function handleAddProduct(productId) {
     const entry = getSelectedEntry();
-    if (!engine?.addProductToOrder || !entry?.order || !productId) return;
+    if (!entry?.order || !productId) return;
 
     const product = (catalogCache.length ? catalogCache : loadCatalog())
       .find((item) => item.id === productId);
@@ -374,19 +556,51 @@
       return;
     }
 
-    const updated = engine.addProductToOrder(entry.order.orderId, product, 1);
-    if (!updated) {
-      showToast('לא ניתן להוסיף');
-      return;
-    }
+    const price = Number(product.price) || 0;
+    const printName = window.LechaimPrintEngine?.resolvePrintName?.({
+      productId: product.id,
+      name: product.name,
+      printName: product.printName,
+    }) || product.printName || product.name || '';
 
-    showSuccessModal(`המוצר נוסף בהצלחה\n${product.name}`);
-    renderBoard();
-    if (menuMode) renderMenuPicker();
+    try {
+      if (dataSource === 'supabase' && entry.order._supabaseSessionId && OrdersApi()?.isConfigured?.()) {
+        const api = OrdersApi();
+        const sessionId = entry.order._supabaseSessionId;
+        const remoteOrder = await api.createOrder({
+          sessionId,
+          total: price,
+          status: 'submitted',
+        });
+        if (!remoteOrder?.id) throw new Error('createOrder failed');
+        await api.createOrderItems(remoteOrder.id, [{
+          productId: product.id,
+          productName: product.name || '',
+          printName,
+          quantity: 1,
+          price,
+          category: product.categoryId || null,
+          notes: null,
+        }]);
+      } else {
+        const engine = Engine();
+        const updated = engine?.addProductToOrder?.(entry.order.orderId, product, 1);
+        if (!updated) {
+          showToast('לא ניתן להוסיף');
+          return;
+        }
+      }
+
+      showSuccessModal(`המוצר נוסף בהצלחה\n${product.name}`);
+      await refreshBoardData();
+      if (menuMode) renderMenuPicker();
+    } catch (err) {
+      console.error('[admin-tables] add product failed', err);
+      showToast('לא ניתן להוסיף');
+    }
   }
 
   async function handlePrintCustomerBill(entry) {
-    const engine = Engine();
     if (!entry?.order?.orderId) {
       showToast('אין הזמנה פעילה');
       return;
@@ -403,19 +617,29 @@
         return;
       }
 
-      engine.requestBill?.(entry.order.orderId);
+      if (dataSource === 'supabase' && entry.order._supabaseSessionId && OrdersApi()?.updateSessionStatus) {
+        try {
+          await OrdersApi().updateSessionStatus(entry.order._supabaseSessionId, {
+            status: 'bill_requested',
+          });
+        } catch (err) {
+          console.warn('[admin-tables] Supabase bill_requested update failed', err);
+        }
+      } else {
+        Engine()?.requestBill?.(entry.order.orderId);
+      }
+
       showToast('החשבון הודפס בבר · השולחן מסומן: ביקש חשבון');
       setDrawerView('detail');
-      renderBoard();
+      await refreshBoardData();
     } catch (err) {
       console.error('[admin-tables] print customer bill failed', err);
       showToast('הדפסת החשבון נכשלה');
     }
   }
 
-  function handleAction(action) {
-    const engine = Engine();
-    if (!engine || !selectedKey) return;
+  async function handleAction(action) {
+    if (!selectedKey) return;
 
     const entry = getSelectedEntry();
     if (!entry?.order) return;
@@ -426,67 +650,84 @@
     }
 
     if (action === 'print-bill') {
-      handlePrintCustomerBill(entry);
+      await handlePrintCustomerBill(entry);
       return;
     }
 
     if (action === 'close-table') {
-      const closed = entry.orderType === 'takeaway'
-        ? engine.closeOrder?.({ orderId: entry.order.orderId })
-        : engine.closeTable?.(entry.tableNumber);
+      try {
+        let closed = false;
 
-      if (!closed) {
+        if (dataSource === 'supabase' && entry.order._supabaseSessionId && OrdersApi()?.updateSessionStatus) {
+          await OrdersApi().updateSessionStatus(entry.order._supabaseSessionId, {
+            status: 'closed',
+          });
+          closed = true;
+        } else {
+          const engine = Engine();
+          closed = entry.orderType === 'takeaway'
+            ? Boolean(engine?.closeOrder?.({ orderId: entry.order.orderId }))
+            : Boolean(engine?.closeTable?.(entry.tableNumber));
+        }
+
+        if (!closed) {
+          showToast('לא ניתן לסגור');
+          return;
+        }
+
+        showToast(entry.orderType === 'takeaway' ? 'Take Away נסגר' : `שולחן ${entry.tableNumber} נסגר`);
+        closeDrawer();
+        await refreshBoardData();
+      } catch (err) {
+        console.error('[admin-tables] close table failed', err);
         showToast('לא ניתן לסגור');
-        return;
       }
-      showToast(entry.orderType === 'takeaway' ? 'Take Away נסגר' : `שולחן ${entry.tableNumber} נסגר`);
-      closeDrawer();
-      renderBoard();
     }
   }
 
   function renderBoard() {
-    const engine = Engine();
-    if (!engine || !gridEl) return;
-
-    const board = engine.getTablesBoard?.() || [];
-    const takeaway = engine.getTakeawayBoard?.() || [];
-
-    gridEl.innerHTML = board.map(renderCard).join('');
-
-    if (takeawayGrid && takeawaySection) {
-      if (takeaway.length) {
-        takeawaySection.hidden = false;
-        takeawayGrid.innerHTML = takeaway.map(renderCard).join('');
-      } else {
-        takeawaySection.hidden = true;
-        takeawayGrid.innerHTML = '';
-      }
-    }
-
-    const selected = findSelectedEntry(board, takeaway);
-    if (selectedKey && selected?.order) {
-      fillDrawer(selected);
-    } else if (selectedKey && (!selected || !selected.order)) {
-      closeDrawer();
-    }
+    refreshBoardData().catch((err) => {
+      console.warn('[admin-tables] renderBoard failed', err);
+    });
   }
 
   function onGridClick(event) {
     const card = event.target.closest('[data-entry-key]');
     if (!card) return;
     const key = card.dataset.entryKey;
-    const engine = Engine();
-    const board = engine?.getTablesBoard?.() || [];
-    const takeaway = engine?.getTakeawayBoard?.() || [];
     const entry = String(key).startsWith('takeaway')
-      ? (takeaway.find((row) => entryKey(row) === key) || takeaway[0])
-      : board.find((row) => entryKey(row) === key);
+      ? (takeawayCache.find((row) => entryKey(row) === key) || takeawayCache[0])
+      : boardCache.find((row) => entryKey(row) === key);
     if (entry) openDrawer(entry);
+  }
+
+  function startRealtime() {
+    stopRealtime();
+    const api = OrdersApi();
+    if (!api?.isConfigured?.() || typeof api.subscribeToOrders !== 'function') return;
+    try {
+      unsubscribeRealtime = api.subscribeToOrders(() => {
+        scheduleBoardRefresh();
+      });
+    } catch (err) {
+      console.warn('[admin-tables] Realtime subscribe failed', err);
+    }
+  }
+
+  function stopRealtime() {
+    if (typeof unsubscribeRealtime === 'function') {
+      try {
+        unsubscribeRealtime();
+      } catch (err) {
+        console.warn('[admin-tables] Realtime unsubscribe failed', err);
+      }
+    }
+    unsubscribeRealtime = null;
   }
 
   function startPolling() {
     stopPolling();
+    startRealtime();
     renderBoard();
     pollTimer = window.setInterval(renderBoard, 1000);
   }
@@ -496,6 +737,8 @@
       window.clearInterval(pollTimer);
       pollTimer = null;
     }
+    window.clearTimeout(refreshTimer);
+    stopRealtime();
   }
 
   function init() {

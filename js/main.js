@@ -4,6 +4,12 @@
 (function () {
   'use strict';
 
+  try {
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
+    }
+  } catch (_) { /* ignore */ }
+
   const $ = (sel, ctx = document) => ctx.querySelector(sel);
   const $$ = (sel, ctx = document) => [...ctx.querySelectorAll(sel)];
 
@@ -496,6 +502,34 @@
   }
 
   /**
+   * Always land on the menu hero (ברוכים הבאים + צפייה בתפריט),
+   * never mid-page from scroll restoration or #menu hash.
+   */
+  function scrollToHeroWelcome() {
+    try {
+      if ('scrollRestoration' in history) {
+        history.scrollRestoration = 'manual';
+      }
+    } catch (_) { /* ignore */ }
+
+    try {
+      if (location.hash) {
+        history.replaceState(null, '', `${location.pathname}${location.search}`);
+      }
+    } catch (_) { /* ignore */ }
+
+    const goTop = () => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    };
+
+    goTop();
+    requestAnimationFrame(goTop);
+    window.setTimeout(goTop, 0);
+  }
+
+  /**
    * Called by entry-gate.js after order type / language / table selection.
    * Keeps menu, cart, and inventory logic unchanged.
    */
@@ -521,6 +555,16 @@
     /* Do not create an empty open order on table entry — only after first send. */
 
     init();
+    scrollToHeroWelcome();
+
+    verifyRemoteSessionOrReset()
+      .then((didReset) => {
+        if (!didReset) initRemoteSessionClosedWatcher();
+      })
+      .catch((err) => {
+        console.warn('[session-watch] startup check failed', err);
+        initRemoteSessionClosedWatcher();
+      });
   }
 
   function updateOrderContext(options = {}) {
@@ -562,6 +606,7 @@
 
     updateTableHeader();
     if (appStarted) renderCart();
+    scrollToHeroWelcome();
   }
 
   function updateTableHeader() {
@@ -636,6 +681,7 @@
     notifyTableLocked() {
       showOrderFeedback('err', t('tableChangeLocked'));
     },
+    returnToEntry: returnCustomerToEntryGate,
   };
 
   function isProductAvailable(itemId) {
@@ -1800,6 +1846,7 @@
   /**
    * Customer Request Bill — marks table as bill_requested only.
    * Does NOT print. Waiter prints the bill from Admin ("חשבון").
+   * Dual-writes bill_requested to Supabase when mapped session exists.
    */
   function handleRequestBill() {
     try {
@@ -1826,6 +1873,7 @@
         return;
       }
 
+      syncBillRequestedToSupabaseQuietly(session, order);
       showOrderFeedback('ok', t('requestBillSuccess'));
       renderCart();
     } catch (err) {
@@ -2044,12 +2092,23 @@
         LechaimOrderEngine.syncFromCart(cartLines, resolveCartProductForOrder);
       }
 
+      const waveItems = typeof LechaimOrderEngine.getUnprintedItems === 'function'
+        ? LechaimOrderEngine.getUnprintedItems().map((item) => ({ ...item }))
+        : [];
+
       const printed = await LechaimPrintEngine.printOrder();
       if (printed !== true) {
         console.error('[cart] printOrder returned false');
         showOrderFeedback('err', t('orderSentFail'));
         return;
       }
+
+      /* Stage 3 dual-write: local flow already succeeded; sync to Supabase in background. */
+      syncOrderToSupabaseQuietly({
+        localSession: session,
+        localOrder: LechaimOrderEngine.getOrder?.() || order,
+        waveItems,
+      });
 
       clearCartAfterSuccessfulSend();
       showOrderFeedback('ok', t('orderSentSuccess'));
@@ -2060,6 +2119,400 @@
       isSendingOrder = false;
       renderCart();
     }
+  }
+
+  const SUPABASE_SESSION_MAP_KEY = 'lechaim-supabase-session-map';
+
+  function readSupabaseSessionMap() {
+    try {
+      const raw = localStorage.getItem(SUPABASE_SESSION_MAP_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function writeSupabaseSessionMap(map) {
+    try {
+      localStorage.setItem(SUPABASE_SESSION_MAP_KEY, JSON.stringify(map));
+    } catch (err) {
+      console.warn('[dual-write] failed to persist session map', err);
+    }
+  }
+
+  function findProductCategoryId(productId) {
+    const id = String(productId || '');
+    if (!id) return null;
+    const categories = window.MENU_DATA?.categories;
+    if (Array.isArray(categories)) {
+      for (let i = 0; i < categories.length; i += 1) {
+        const cat = categories[i];
+        const pools = [cat.items || []];
+        (cat.subsections || []).forEach((sub) => pools.push(sub.items || []));
+        for (let p = 0; p < pools.length; p += 1) {
+          if (pools[p].some((entry) => entry && String(entry.id) === id)) {
+            return cat.id || null;
+          }
+        }
+      }
+    }
+    const hotSides = window.HOT_SIDE_ITEMS;
+    if (Array.isArray(hotSides) && hotSides.some((entry) => entry && String(entry.id) === id)) {
+      return 'hotSides';
+    }
+    return null;
+  }
+
+  async function resolveSupabaseSessionId(localSession, localOrder) {
+    const api = window.LechaimSupabaseOrders;
+    const localId = String(
+      localSession?.sessionId ||
+      localOrder?.sessionId ||
+      window.LechaimOrderContext?.sessionId ||
+      ''
+    );
+    if (!localId) {
+      throw new Error('Missing local sessionId for dual-write');
+    }
+
+    const map = readSupabaseSessionMap();
+    if (map[localId]) return map[localId];
+
+    const ctx = window.LechaimOrderContext || {};
+    const rawType = localOrder?.orderType || localSession?.orderType || ctx.orderType;
+    const isTakeaway = String(rawType).toLowerCase().includes('take');
+    const orderType = isTakeaway ? 'takeaway' : 'dine_in';
+    const tableNumber = isTakeaway
+      ? null
+      : Number(localOrder?.tableNumber ?? localSession?.tableNumber ?? ctx.tableNumber);
+
+    if (orderType === 'dine_in' && Number.isFinite(tableNumber)) {
+      const open = await api.getOpenSessions();
+      const existing = (open || []).find((row) => (
+        row.order_type === 'dine_in' &&
+        Number(row.table_number) === tableNumber
+      ));
+      if (existing?.session_id) {
+        map[localId] = existing.session_id;
+        writeSupabaseSessionMap(map);
+        return existing.session_id;
+      }
+    }
+
+    let created;
+    try {
+      created = await api.createSession({
+        orderType,
+        tableNumber: orderType === 'dine_in' ? tableNumber : null,
+        language: currentLang,
+      });
+    } catch (err) {
+      /* Race / unique open table: reuse existing open session */
+      if (orderType === 'dine_in' && Number.isFinite(tableNumber)) {
+        const open = await api.getOpenSessions();
+        const existing = (open || []).find((row) => (
+          row.order_type === 'dine_in' &&
+          Number(row.table_number) === tableNumber
+        ));
+        if (existing?.session_id) {
+          map[localId] = existing.session_id;
+          writeSupabaseSessionMap(map);
+          return existing.session_id;
+        }
+      }
+      throw err;
+    }
+
+    if (!created?.session_id) {
+      throw new Error('createSession returned no session_id');
+    }
+
+    map[localId] = created.session_id;
+    writeSupabaseSessionMap(map);
+    return created.session_id;
+  }
+
+  async function createSupabaseOrderItems(orderId, waveItems) {
+    const api = window.LechaimSupabaseOrders;
+    const resolvePrintName = window.LechaimPrintEngine?.resolvePrintName;
+    const list = Array.isArray(waveItems) ? waveItems : [];
+    if (!list.length) return [];
+
+    const mains = list.filter((item) => !item.linkedToMainItemId);
+    const sides = list.filter((item) => item.linkedToMainItemId);
+    const localToRemote = new Map();
+
+    function toPayload(item, parentRemoteId) {
+      const printName = typeof resolvePrintName === 'function'
+        ? resolvePrintName(item)
+        : (item.printName || item.name || '');
+      return {
+        productId: item.productId,
+        productName: item.name || '',
+        printName,
+        quantity: Number(item.qty) || 1,
+        price: Number(item.price) || 0,
+        category: findProductCategoryId(item.productId),
+        notes: item.notes || null,
+        sideDish: null,
+        parentItemId: parentRemoteId || null,
+      };
+    }
+
+    const mainRows = await api.createOrderItems(
+      orderId,
+      mains.map((item) => toPayload(item, null))
+    );
+
+    mains.forEach((item, index) => {
+      if (mainRows[index]?.id && item.itemId) {
+        localToRemote.set(String(item.itemId), mainRows[index].id);
+      }
+    });
+
+    if (sides.length) {
+      await api.createOrderItems(
+        orderId,
+        sides.map((item) => {
+          const parentRemoteId = localToRemote.get(String(item.linkedToMainItemId)) || null;
+          return toPayload(item, parentRemoteId);
+        })
+      );
+    }
+
+    return mainRows;
+  }
+
+  function lookupMappedSupabaseSessionId(localSessionId) {
+    if (!localSessionId) return null;
+    const map = readSupabaseSessionMap();
+    return map[String(localSessionId)] || null;
+  }
+
+  async function findOpenSupabaseSessionIdForContext(localSession, localOrder) {
+    const api = window.LechaimSupabaseOrders;
+    if (!api?.isConfigured?.()) return null;
+
+    const localId = String(
+      localSession?.sessionId ||
+      localOrder?.sessionId ||
+      window.LechaimOrderContext?.sessionId ||
+      ''
+    );
+    const mapped = lookupMappedSupabaseSessionId(localId);
+    if (mapped) return mapped;
+
+    const ctx = window.LechaimOrderContext || {};
+    const rawType = localOrder?.orderType || localSession?.orderType || ctx.orderType;
+    const isTakeaway = String(rawType).toLowerCase().includes('take');
+    if (isTakeaway) return null;
+
+    const tableNumber = Number(
+      localOrder?.tableNumber ?? localSession?.tableNumber ?? ctx.tableNumber
+    );
+    if (!Number.isFinite(tableNumber)) return null;
+
+    const open = await api.getOpenSessions();
+    const existing = (open || []).find((row) => (
+      row.order_type === 'dine_in' &&
+      Number(row.table_number) === tableNumber
+    ));
+    if (existing?.session_id && localId) {
+      const map = readSupabaseSessionMap();
+      map[localId] = existing.session_id;
+      writeSupabaseSessionMap(map);
+      return existing.session_id;
+    }
+    return null;
+  }
+
+  function syncBillRequestedToSupabaseQuietly(localSession, localOrder) {
+    const api = window.LechaimSupabaseOrders;
+    if (!api?.isConfigured?.()) {
+      console.warn('[dual-write] bill_requested skipped — Supabase not configured');
+      return;
+    }
+
+    (async () => {
+      try {
+        const sessionId = await findOpenSupabaseSessionIdForContext(localSession, localOrder);
+        if (!sessionId) {
+          console.warn('[dual-write] bill_requested skipped — no Supabase session mapped');
+          return;
+        }
+        await api.updateSessionStatus(sessionId, { status: 'bill_requested' });
+        console.log('Bill requested synced to Supabase', { sessionId });
+      } catch (err) {
+        console.warn('[dual-write] bill_requested sync failed — local bill still OK', err);
+      }
+    })();
+  }
+
+  function clearLocalCustomerStateAfterRemoteClose() {
+    const ctx = window.LechaimOrderContext || {};
+    const localId = ctx.sessionId || window.LechaimOrderSession?.getSession?.()?.sessionId;
+    const tableNumber = ctx.tableNumber != null
+      ? Number(ctx.tableNumber)
+      : window.LechaimOrderSession?.getTableNumber?.();
+
+    try {
+      if (localId) {
+        const map = readSupabaseSessionMap();
+        delete map[String(localId)];
+        writeSupabaseSessionMap(map);
+      }
+    } catch (err) {
+      console.warn('[session-watch] failed to clear session map', err);
+    }
+
+    try {
+      window.LechaimOrderSession?.clearSession?.();
+    } catch (err) {
+      console.warn('[session-watch] clearSession failed', err);
+    }
+
+    try {
+      cartLines = [];
+      cartLineOrder = [];
+      lastMainLineId = null;
+      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify({ lines: [], order: [] }));
+    } catch (err) {
+      console.warn('[session-watch] cart clear failed', err);
+    }
+
+    try {
+      if (tableNumber != null && window.LechaimOrderEngine?.closeTable) {
+        window.LechaimOrderEngine.closeTable(tableNumber);
+      }
+    } catch (err) {
+      console.warn('[session-watch] local closeTable failed', err);
+    }
+
+    window.LechaimOrderContext = {
+      orderType: null,
+      tableNumber: null,
+      sessionId: null,
+      openedAt: null,
+      status: null,
+      lang: currentLang,
+    };
+  }
+
+  let sessionWatchUnsub = null;
+
+  function returnCustomerToEntryGate() {
+    if (typeof sessionWatchUnsub === 'function') {
+      try { sessionWatchUnsub(); } catch (_) { /* ignore */ }
+      sessionWatchUnsub = null;
+    }
+    clearLocalCustomerStateAfterRemoteClose();
+    if (typeof window.LechaimEntryGate?.resetToEntry === 'function') {
+      window.LechaimEntryGate.resetToEntry();
+      return;
+    }
+    window.location.reload();
+  }
+
+  async function isMappedSupabaseSessionClosed() {
+    const api = window.LechaimSupabaseOrders;
+    if (!api?.isConfigured?.() || typeof api.getSession !== 'function') return false;
+
+    const localId = window.LechaimOrderContext?.sessionId ||
+      window.LechaimOrderSession?.getSession?.()?.sessionId;
+    const remoteId = lookupMappedSupabaseSessionId(localId);
+    if (!remoteId) return false;
+
+    try {
+      const remote = await api.getSession(remoteId);
+      return Boolean(remote && remote.status === 'closed');
+    } catch (err) {
+      console.warn('[session-watch] getSession failed', err);
+      return false;
+    }
+  }
+
+  async function verifyRemoteSessionOrReset() {
+    if (await isMappedSupabaseSessionClosed()) {
+      console.log('[session-watch] remote session closed — returning to entry');
+      returnCustomerToEntryGate();
+      return true;
+    }
+    return false;
+  }
+
+  function initRemoteSessionClosedWatcher() {
+    const api = window.LechaimSupabaseOrders;
+    if (!api?.isConfigured?.() || typeof api.subscribeToOrders !== 'function') return;
+
+    const localId = window.LechaimOrderContext?.sessionId ||
+      window.LechaimOrderSession?.getSession?.()?.sessionId;
+    const remoteId = lookupMappedSupabaseSessionId(localId);
+    if (!remoteId) return;
+
+    if (typeof sessionWatchUnsub === 'function') {
+      try { sessionWatchUnsub(); } catch (_) { /* ignore */ }
+      sessionWatchUnsub = null;
+    }
+
+    try {
+      sessionWatchUnsub = api.subscribeToOrders((payload) => {
+        if (payload?.table !== 'order_sessions') return;
+        const row = payload.new || payload.payload?.new;
+        if (!row || String(row.session_id) !== String(remoteId)) return;
+        if (row.status === 'closed') {
+          console.log('[session-watch] Realtime closed — returning to entry');
+          returnCustomerToEntryGate();
+        }
+      });
+    } catch (err) {
+      console.warn('[session-watch] subscribe failed', err);
+    }
+  }
+
+  function syncOrderToSupabaseQuietly({ localSession, localOrder, waveItems }) {
+    const api = window.LechaimSupabaseOrders;
+    if (!api || typeof api.isConfigured !== 'function' || !api.isConfigured()) {
+      console.warn('[dual-write] Supabase order service not configured — skip sync');
+      return;
+    }
+
+    const items = Array.isArray(waveItems) ? waveItems : [];
+    if (!items.length) {
+      console.warn('[dual-write] no wave items to sync — skip');
+      return;
+    }
+
+    (async () => {
+      try {
+        const sessionId = await resolveSupabaseSessionId(localSession, localOrder);
+        const total = items.reduce((sum, item) => (
+          sum + (Number(item.price) || 0) * (Number(item.qty) || 0)
+        ), 0);
+
+        const remoteOrder = await api.createOrder({
+          sessionId,
+          total,
+          language: currentLang,
+          status: 'submitted',
+        });
+
+        if (!remoteOrder?.id) {
+          throw new Error('createOrder returned no id');
+        }
+
+        await createSupabaseOrderItems(remoteOrder.id, items);
+        console.log('Order synced to Supabase', {
+          sessionId,
+          orderId: remoteOrder.id,
+          orderNumber: remoteOrder.order_number,
+          itemCount: items.length,
+        });
+        initRemoteSessionClosedWatcher();
+      } catch (err) {
+        console.warn('[dual-write] Supabase sync failed — local order still OK', err);
+      }
+    })();
   }
 
   function loadCart() {

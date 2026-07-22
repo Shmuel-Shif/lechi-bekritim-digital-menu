@@ -744,6 +744,7 @@
       DIV,
       `${POS.boldOn}` + padBillLine('TOTAL', formatMoneyEuro(total), W),
       `${POS.boldOff}`,
+      'Service does not include tip.',
       '',
       `${POS.boldOn}THANK YOU!${POS.boldOff}`,
       'We hope you enjoyed your meal.',
