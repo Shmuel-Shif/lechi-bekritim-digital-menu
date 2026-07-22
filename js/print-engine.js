@@ -582,18 +582,25 @@
     const { all, kitchen, bar } = splitPrintableItems(resolved);
     if (!all.length) return true;
 
-    const ticketSeq = (kitchen.length || bar.length)
-      ? allocateTicketSequence(resolved)
-      : 1;
+    let ticketSeq;
+    if (resolved.ticketSeq != null && Number.isFinite(Number(resolved.ticketSeq))) {
+      ticketSeq = Number(resolved.ticketSeq);
+    } else if (kitchen.length || bar.length) {
+      ticketSeq = allocateTicketSequence(resolved);
+    } else {
+      ticketSeq = 1;
+    }
 
     const kitchenOk = await printKitchen(resolved, ticketSeq);
     const barOk = await printBar(resolved, ticketSeq);
 
     if (!kitchenOk || !barOk) return false;
 
-    const ids = all.map((item) => item.itemId).filter(Boolean);
-    if (ids.length && global.LechaimOrderEngine?.markPrinted) {
-      global.LechaimOrderEngine.markPrinted(ids);
+    if (!resolved._skipLocalMarkPrinted) {
+      const ids = all.map((item) => item.itemId).filter(Boolean);
+      if (ids.length && global.LechaimOrderEngine?.markPrinted) {
+        global.LechaimOrderEngine.markPrinted(ids);
+      }
     }
 
     return true;

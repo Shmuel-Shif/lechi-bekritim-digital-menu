@@ -734,6 +734,7 @@ body {
 
 .admin-dot--free { background: #9aa3ad; }
 .admin-dot--active { background: #2f6f47; }
+.admin-dot--pending { background: #2563eb; }
 .admin-dot--bill { background: #d97706; }
 
 /* ---------- Tables board ---------- */
@@ -841,6 +842,33 @@ body {
   box-shadow:
     0 8px 22px rgba(47, 111, 71, 0.42),
     inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+/* ממתין לאישור/הדפסה — כרטיס כחול */
+.table-card--pending_print {
+  border-color: #1d4ed8;
+  background: linear-gradient(165deg, #3b82f6 0%, #2563eb 55%, #1d4ed8 100%);
+  box-shadow:
+    0 6px 18px rgba(37, 99, 235, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.table-card--pending_print .table-card__num,
+.table-card--pending_print .table-card__status,
+.table-card--pending_print .table-card__total {
+  color: #fff;
+}
+
+.table-card--pending_print .table-card__type,
+.table-card--pending_print .table-card__items,
+.table-card--pending_print .table-card__time {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.table-card--pending_print:hover {
+  box-shadow:
+    0 8px 22px rgba(37, 99, 235, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 /* ביקש חשבון — כרטיס כתום מלא */
@@ -1031,6 +1059,21 @@ body {
 .table-drawer__actions {
   display: grid;
   gap: 0.5rem;
+}
+
+.admin-btn--approve {
+  background: rgba(37, 99, 235, 0.16);
+  color: #1e40af;
+  border: 1px solid rgba(37, 99, 235, 0.4);
+  font-weight: 700;
+}
+
+.admin-btn--approve:hover:not(:disabled) {
+  background: rgba(37, 99, 235, 0.26);
+}
+
+.admin-btn--approve[hidden] {
+  display: none !important;
 }
 
 .admin-btn--bill {

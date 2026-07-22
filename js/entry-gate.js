@@ -167,9 +167,10 @@
     list.forEach((order) => {
       const lines = order?.order_items || [];
       lines.forEach((row) => {
-        if (Number(row?.qty) > 0) {
+        const qty = Number(row?.quantity ?? row?.qty) || 0;
+        if (qty > 0) {
           hasItems = true;
-          total += (Number(row.unit_price) || 0) * (Number(row.qty) || 0);
+          total += (Number(row.price ?? row.unit_price) || 0) * qty;
         }
       });
       if (!lines.length && Number(order?.total) > 0) {
@@ -225,7 +226,7 @@
       const ids = sessions.map((row) => row.session_id).filter(Boolean);
       const { data: orderRows, error: orderErr } = await sb
         .from('orders')
-        .select('session_id, total, order_items(qty, unit_price)')
+        .select('session_id, total, order_items(quantity, price)')
         .in('session_id', ids);
 
       if (orderErr) {

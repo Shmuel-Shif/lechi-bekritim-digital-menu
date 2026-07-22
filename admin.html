@@ -68,6 +68,7 @@
         <div class="admin-legend" aria-hidden="true">
           <span class="admin-legend__item"><i class="admin-dot admin-dot--free"></i> פנוי</span>
           <span class="admin-legend__item"><i class="admin-dot admin-dot--active"></i> פעיל</span>
+          <span class="admin-legend__item"><i class="admin-dot admin-dot--pending"></i> ממתין לאישור</span>
           <span class="admin-legend__item"><i class="admin-dot admin-dot--bill"></i> ביקש חשבון</span>
         </div>
 
@@ -139,6 +140,9 @@
           <div class="table-drawer__total" id="table-drawer-total"></div>
 
           <footer class="table-drawer__actions">
+            <button type="button" class="admin-btn admin-btn--approve" data-table-action="approve-print" id="table-approve-print" hidden>
+              אשר והדפס
+            </button>
             <button type="button" class="admin-btn admin-btn--soft" data-table-action="add-items">הוסף מנות</button>
             <button type="button" class="admin-btn admin-btn--bill" data-table-action="print-bill">חשבון</button>
             <button type="button" class="admin-btn admin-btn--primary" data-table-action="close-table">סגור שולחן</button>

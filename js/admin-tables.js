@@ -43,6 +43,9 @@
   let unsubscribeRealtime = null;
   let refreshTimer = null;
   let loadPromise = null;
+  const knownOrderIds = new Set();
+  let orderIdsSeeded = false;
+  let approvePrintBusy = false;
 
   function showToast(message) {
     showSuccessModal(message);
@@ -107,9 +110,21 @@
   }
 
   function statusLabel(uiStatus) {
+    if (uiStatus === 'pending_print') return 'ממתין לאישור';
     if (uiStatus === 'active') return 'פעיל';
     if (uiStatus === 'bill_requested') return 'ביקש חשבון';
     return 'פנוי';
+  }
+
+  function hasUnprintedRemoteOrders(orders) {
+    return (orders || []).some((order) => order && order.id && !order.printed_at);
+  }
+
+  function resolveEntryUiStatus(synthetic) {
+    if (!synthetic) return 'free';
+    if (hasUnprintedRemoteOrders(synthetic._remoteOrders)) return 'pending_print';
+    if (synthetic.status === 'bill_requested') return 'bill_requested';
+    return 'active';
   }
 
   function orderTypeLabel(orderType) {
@@ -211,7 +226,7 @@
       if (synthetic.orderType === 'takeaway') {
         takeaway.push({
           tableNumber: null,
-          uiStatus: synthetic.status === 'bill_requested' ? 'bill_requested' : 'active',
+          uiStatus: resolveEntryUiStatus(synthetic),
           orderType: 'takeaway',
           order: synthetic,
           total: synthetic._sessionTotal,
@@ -231,8 +246,7 @@
     for (let n = min; n <= max; n += 1) {
       const match = dineInByTable.get(n) || null;
       let uiStatus = 'free';
-      if (match?.status === 'bill_requested') uiStatus = 'bill_requested';
-      else if (match) uiStatus = 'active';
+      if (match) uiStatus = resolveEntryUiStatus(match);
 
       board.push({
         tableNumber: n,
@@ -316,6 +330,9 @@
       boardCache = data.board;
       takeawayCache = data.takeaway;
       dataSource = data.source;
+      if (!data.stale) {
+        syncKnownOrderIdsAfterBoardLoad(boardCache, takeawayCache);
+      }
       paintBoard(boardCache, takeawayCache);
     })().finally(() => {
       loadPromise = null;
@@ -429,6 +446,199 @@
 
     if (drawerTotal) {
       drawerTotal.innerHTML = `<span>סה״כ לתשלום</span><strong>${escapeHtml(formatMoney(entry.total))}</strong>`;
+    }
+
+    updateApprovePrintButton(entry);
+  }
+
+  function updateApprovePrintButton(entry) {
+    const btn = document.getElementById('table-approve-print');
+    if (!btn) return;
+    const pending = entry?.uiStatus === 'pending_print'
+      || hasUnprintedRemoteOrders(entry?.order?._remoteOrders);
+    btn.hidden = !pending;
+    btn.disabled = approvePrintBusy;
+  }
+
+  function playOrderNotifyChime() {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = playOrderNotifyChime._ctx || new Ctx();
+      playOrderNotifyChime._ctx = ctx;
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+
+      const now = ctx.currentTime;
+      const tones = [880, 1174];
+      tones.forEach((freq, index) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, now);
+        const start = now + index * 0.12;
+        gain.gain.exponentialRampToValueAtTime(0.12, start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.18);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + 0.2);
+      });
+    } catch (err) {
+      console.warn('[admin-tables] notify chime failed', err);
+    }
+  }
+
+  function collectBoardOrderIds(board, takeaway) {
+    const ids = new Set();
+    [...(board || []), ...(takeaway || [])].forEach((entry) => {
+      (entry?.order?._remoteOrders || []).forEach((order) => {
+        if (order?.id) ids.add(String(order.id));
+      });
+    });
+    return ids;
+  }
+
+  function syncKnownOrderIdsAfterBoardLoad(board, takeaway) {
+    const current = collectBoardOrderIds(board, takeaway);
+    if (!orderIdsSeeded) {
+      current.forEach((id) => knownOrderIds.add(id));
+      orderIdsSeeded = true;
+      return;
+    }
+
+    let shouldChime = false;
+    current.forEach((id) => {
+      if (!knownOrderIds.has(id)) {
+        knownOrderIds.add(id);
+        shouldChime = true;
+      }
+    });
+    if (shouldChime) playOrderNotifyChime();
+  }
+
+  /**
+   * Map one Supabase order wave to print-engine shape.
+   */
+  function mapRemoteWaveToPrintOrder(sessionMeta, order, items) {
+    const session = sessionMeta || {};
+    const list = Array.isArray(items) ? items : [];
+    const mappedItems = list
+      .map((row) => {
+        const qty = Number(row.quantity) || 0;
+        if (qty <= 0) return null;
+        return {
+          itemId: String(row.id),
+          productId: String(row.product_id || ''),
+          name: row.print_name || row.product_name || row.product_id || '',
+          printName: row.print_name || '',
+          price: Number(row.price) || 0,
+          qty,
+          notes: row.notes == null ? '' : String(row.notes),
+          printed: false,
+          linkedToMainItemId: row.parent_item_id ? String(row.parent_item_id) : null,
+          createdAt: row.created_at || null,
+        };
+      })
+      .filter(Boolean);
+
+    const isTakeaway = session.orderType === 'takeaway' || session.order_type === 'takeaway';
+
+    return {
+      orderId: String(order.id),
+      sessionId: String(order.session_id || session.sessionId || ''),
+      tableNumber: isTakeaway
+        ? null
+        : (session.tableNumber != null
+          ? Number(session.tableNumber)
+          : (session.table_number == null ? null : Number(session.table_number))),
+      orderType: isTakeaway ? 'takeaway' : 'dinein',
+      status: 'active',
+      createdAt: order.created_at || null,
+      updatedAt: order.updated_at || null,
+      items: mappedItems,
+      ticketSeq: Number(order.order_number) || 1,
+      _skipLocalMarkPrinted: true,
+      _supabaseOrderId: String(order.id),
+    };
+  }
+
+  async function handleApprovePrint(entry) {
+    if (approvePrintBusy || !entry?.order) return;
+
+    const api = OrdersApi();
+    const print = window.LechaimPrintEngine;
+    if (!api?.markOrderPrinted || typeof print?.printOrder !== 'function') {
+      showToast('הדפסה לא זמינה');
+      return;
+    }
+
+    const remoteOrders = (entry.order._remoteOrders || [])
+      .filter((order) => order && order.id && !order.printed_at)
+      .sort((a, b) => (Number(a.order_number) || 0) - (Number(b.order_number) || 0));
+
+    if (!remoteOrders.length) {
+      showToast('אין הזמנות ממתינות להדפסה');
+      closeDrawer();
+      await refreshBoardData().catch((err) => {
+        console.warn('[admin-tables] refresh after empty approve failed', err);
+      });
+      return;
+    }
+
+    approvePrintBusy = true;
+    updateApprovePrintButton(entry);
+
+    let printedOk = false;
+    try {
+      const sessionMeta = {
+        sessionId: entry.order._supabaseSessionId || entry.order.sessionId,
+        tableNumber: entry.tableNumber,
+        orderType: entry.orderType,
+      };
+
+      for (const order of remoteOrders) {
+        const items = Array.isArray(order.order_items) ? order.order_items : [];
+        const synthetic = mapRemoteWaveToPrintOrder(sessionMeta, order, items);
+
+        if (!synthetic.items.length) {
+          await api.markOrderPrinted(order.id);
+          continue;
+        }
+
+        const ok = await print.printOrder(synthetic);
+        if (ok !== true) {
+          console.error('[admin-tables] printOrder returned', ok, { orderId: order.id });
+          showToast('ההדפסה נכשלה — נסה שוב');
+          return;
+        }
+
+        try {
+          await api.markOrderPrinted(order.id);
+        } catch (markErr) {
+          console.error('[admin-tables] markOrderPrinted failed after successful print', markErr);
+          showToast('הודפס בהצלחה, אך עדכון הסטטוס נכשל\n(בדוק עמודת printed_at ב־Supabase)');
+          return;
+        }
+      }
+
+      printedOk = true;
+    } catch (err) {
+      console.error('[admin-tables] approve-print failed', err);
+      showToast('ההדפסה נכשלה');
+      return;
+    } finally {
+      approvePrintBusy = false;
+    }
+
+    if (!printedOk) return;
+
+    showToast('ההזמנה אושרה והודפסה');
+    closeDrawer();
+    try {
+      await refreshBoardData();
+    } catch (err) {
+      console.warn('[admin-tables] refresh after approve-print failed', err);
     }
   }
 
@@ -644,6 +854,11 @@
     const entry = getSelectedEntry();
     if (!entry?.order) return;
 
+    if (action === 'approve-print') {
+      await handleApprovePrint(entry);
+      return;
+    }
+
     if (action === 'add-items') {
       openMenuPicker();
       return;
@@ -706,7 +921,18 @@
     const api = OrdersApi();
     if (!api?.isConfigured?.() || typeof api.subscribeToOrders !== 'function') return;
     try {
-      unsubscribeRealtime = api.subscribeToOrders(() => {
+      unsubscribeRealtime = api.subscribeToOrders((payload) => {
+        const table = payload?.table;
+        const eventType = payload?.eventType || payload?.event;
+        if (table === 'orders' && (eventType === 'INSERT' || eventType === 'insert')) {
+          const id = payload?.new?.id;
+          if (id && orderIdsSeeded && !knownOrderIds.has(String(id))) {
+            knownOrderIds.add(String(id));
+            playOrderNotifyChime();
+          } else if (id) {
+            knownOrderIds.add(String(id));
+          }
+        }
         scheduleBoardRefresh();
       });
     } catch (err) {

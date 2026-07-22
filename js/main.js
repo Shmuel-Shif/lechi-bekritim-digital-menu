@@ -2014,8 +2014,8 @@
       return;
     }
 
-    if (!window.LechaimOrderEngine?.ensureActiveOrder || !window.LechaimPrintEngine?.printOrder) {
-      console.error('[cart] Order/Print engine missing');
+    if (!window.LechaimOrderEngine?.ensureActiveOrder) {
+      console.error('[cart] Order engine missing');
       showOrderFeedback('err', t('orderSentFail'));
       return;
     }
@@ -2096,19 +2096,23 @@
         ? LechaimOrderEngine.getUnprintedItems().map((item) => ({ ...item }))
         : [];
 
-      const printed = await LechaimPrintEngine.printOrder();
-      if (printed !== true) {
-        console.error('[cart] printOrder returned false');
+      if (!waveItems.length) {
+        console.error('[cart] no wave items to sync');
         showOrderFeedback('err', t('orderSentFail'));
         return;
       }
 
-      /* Stage 3 dual-write: local flow already succeeded; sync to Supabase in background. */
-      syncOrderToSupabaseQuietly({
+      /* Customer devices sync to Supabase only — restaurant PC prints. */
+      await syncOrderToSupabase({
         localSession: session,
         localOrder: LechaimOrderEngine.getOrder?.() || order,
         waveItems,
       });
+
+      const waveIds = waveItems.map((item) => item.itemId).filter(Boolean);
+      if (waveIds.length && typeof LechaimOrderEngine.markPrinted === 'function') {
+        LechaimOrderEngine.markPrinted(waveIds);
+      }
 
       clearCartAfterSuccessfulSend();
       showOrderFeedback('ok', t('orderSentSuccess'));
@@ -2235,7 +2239,6 @@
 
   async function createSupabaseOrderItems(orderId, waveItems) {
     const api = window.LechaimSupabaseOrders;
-    const resolvePrintName = window.LechaimPrintEngine?.resolvePrintName;
     const list = Array.isArray(waveItems) ? waveItems : [];
     if (!list.length) return [];
 
@@ -2243,14 +2246,22 @@
     const sides = list.filter((item) => item.linkedToMainItemId);
     const localToRemote = new Map();
 
+    function resolveItemPrintName(item) {
+      if (item?.printName != null && String(item.printName).trim()) {
+        return String(item.printName).trim();
+      }
+      const catalog = findItem(item?.productId);
+      if (catalog?.printName != null && String(catalog.printName).trim()) {
+        return String(catalog.printName).trim();
+      }
+      return String(item?.name || item?.productId || '').trim() || 'Item';
+    }
+
     function toPayload(item, parentRemoteId) {
-      const printName = typeof resolvePrintName === 'function'
-        ? resolvePrintName(item)
-        : (item.printName || item.name || '');
       return {
         productId: item.productId,
         productName: item.name || '',
-        printName,
+        printName: resolveItemPrintName(item),
         quantity: Number(item.qty) || 1,
         price: Number(item.price) || 0,
         category: findProductCategoryId(item.productId),
@@ -2470,49 +2481,53 @@
     }
   }
 
-  function syncOrderToSupabaseQuietly({ localSession, localOrder, waveItems }) {
+  /**
+   * Sync local wave to Supabase. Resolves on success; rejects on failure.
+   * Restaurant PC prints via Admin — customer never calls print-engine.
+   */
+  async function syncOrderToSupabase({ localSession, localOrder, waveItems }) {
     const api = window.LechaimSupabaseOrders;
     if (!api || typeof api.isConfigured !== 'function' || !api.isConfigured()) {
-      console.warn('[dual-write] Supabase order service not configured — skip sync');
-      return;
+      throw new Error('[dual-write] Supabase order service not configured');
     }
 
     const items = Array.isArray(waveItems) ? waveItems : [];
     if (!items.length) {
-      console.warn('[dual-write] no wave items to sync — skip');
-      return;
+      throw new Error('[dual-write] no wave items to sync');
     }
 
-    (async () => {
-      try {
-        const sessionId = await resolveSupabaseSessionId(localSession, localOrder);
-        const total = items.reduce((sum, item) => (
-          sum + (Number(item.price) || 0) * (Number(item.qty) || 0)
-        ), 0);
+    const sessionId = await resolveSupabaseSessionId(localSession, localOrder);
+    const total = items.reduce((sum, item) => (
+      sum + (Number(item.price) || 0) * (Number(item.qty) || 0)
+    ), 0);
 
-        const remoteOrder = await api.createOrder({
-          sessionId,
-          total,
-          language: currentLang,
-          status: 'submitted',
-        });
+    const remoteOrder = await api.createOrder({
+      sessionId,
+      total,
+      language: currentLang,
+      status: 'submitted',
+    });
 
-        if (!remoteOrder?.id) {
-          throw new Error('createOrder returned no id');
-        }
+    if (!remoteOrder?.id) {
+      throw new Error('createOrder returned no id');
+    }
 
-        await createSupabaseOrderItems(remoteOrder.id, items);
-        console.log('Order synced to Supabase', {
-          sessionId,
-          orderId: remoteOrder.id,
-          orderNumber: remoteOrder.order_number,
-          itemCount: items.length,
-        });
-        initRemoteSessionClosedWatcher();
-      } catch (err) {
-        console.warn('[dual-write] Supabase sync failed — local order still OK', err);
-      }
-    })();
+    await createSupabaseOrderItems(remoteOrder.id, items);
+    console.log('Order synced to Supabase', {
+      sessionId,
+      orderId: remoteOrder.id,
+      orderNumber: remoteOrder.order_number,
+      itemCount: items.length,
+    });
+    initRemoteSessionClosedWatcher();
+    return remoteOrder;
+  }
+
+  /** @deprecated fire-and-forget wrapper kept for any residual callers */
+  function syncOrderToSupabaseQuietly(args) {
+    syncOrderToSupabase(args).catch((err) => {
+      console.warn('[dual-write] Supabase sync failed — local order still OK', err);
+    });
   }
 
   function loadCart() {

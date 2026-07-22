@@ -333,6 +333,79 @@
   }
 
   /**
+   * Orders awaiting restaurant print, with items + parent session.
+   * @returns {Promise<Array<{ session: object, order: object, items: object[] }>>}
+   */
+  async function getUnprintedOrdersWithItems() {
+    const sb = getClient();
+    const { data, error } = await sb
+      .from(TABLE_ORDERS)
+      .select('*, order_items(*)')
+      .is('printed_at', null)
+      .order('created_at', { ascending: true });
+
+    throwIfError(error, 'getUnprintedOrdersWithItems');
+
+    const rows = data || [];
+    if (!rows.length) return [];
+
+    const sessionIds = [...new Set(rows.map((row) => row.session_id).filter(Boolean))];
+    let sessionsById = new Map();
+    if (sessionIds.length) {
+      const { data: sessions, error: sessionErr } = await sb
+        .from(TABLE_SESSIONS)
+        .select('*')
+        .in('session_id', sessionIds);
+      throwIfError(sessionErr, 'getUnprintedOrdersWithItems.sessions');
+      sessionsById = new Map((sessions || []).map((row) => [row.session_id, row]));
+    }
+
+    return rows.map((row) => {
+      const items = Array.isArray(row.order_items) ? row.order_items : [];
+      const order = { ...row };
+      delete order.order_items;
+      return {
+        session: sessionsById.get(row.session_id) || null,
+        order,
+        items,
+      };
+    });
+  }
+
+  /**
+   * Mark an order printed (idempotent).
+   * @param {string} orderId
+   */
+  async function markOrderPrinted(orderId) {
+    const sb = getClient();
+    if (!orderId) {
+      throw new Error('[LechaimSupabaseOrders.markOrderPrinted] orderId is required');
+    }
+
+    const stamped = new Date().toISOString();
+    const { data, error } = await sb
+      .from(TABLE_ORDERS)
+      .update({ printed_at: stamped })
+      .eq('id', orderId)
+      .select('id, printed_at');
+
+    throwIfError(error, 'markOrderPrinted');
+    if (data?.length) return data[0];
+
+    /* Already stamped or race — confirm row exists */
+    const { data: existing, error: readErr } = await sb
+      .from(TABLE_ORDERS)
+      .select('id, printed_at')
+      .eq('id', orderId)
+      .maybeSingle();
+
+    throwIfError(readErr, 'markOrderPrinted.read');
+    if (existing?.printed_at) return existing;
+
+    throw new Error('[LechaimSupabaseOrders.markOrderPrinted] order not updated (check printed_at column / RLS)');
+  }
+
+  /**
    * Update session status / bill_requested / closed_at.
    * @param {string} sessionId
    * @param {object} patch
@@ -462,6 +535,8 @@
     getOpenSessions,
     getSessionOrders,
     getOpenSessionsWithOrders,
+    getUnprintedOrdersWithItems,
+    markOrderPrinted,
     updateSessionStatus,
     subscribeToOrders,
   };

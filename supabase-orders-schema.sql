@@ -126,6 +126,20 @@ create index if not exists orders_created_at_idx
 create index if not exists orders_status_idx
   on public.orders (status);
 
+-- Restaurant PC print tracking (customer syncs; Admin marks after print)
+alter table public.orders
+  add column if not exists printed_at timestamptz null;
+
+comment on column public.orders.printed_at is
+  'Set when kitchen/bar tickets were printed on the restaurant PC. NULL = awaiting print.';
+
+create index if not exists orders_unprinted_idx
+  on public.orders (created_at)
+  where printed_at is null;
+
+-- One-time (run once on existing production before enabling Admin auto-print):
+-- update public.orders set printed_at = created_at where printed_at is null;
+
 create or replace function public.set_orders_updated_at()
 returns trigger
 language plpgsql
