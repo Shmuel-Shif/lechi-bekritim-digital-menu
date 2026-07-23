@@ -4,7 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#1e3354">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="LECHAIM Admin">
   <title>ניהול מסעדה | LECHAIM</title>
+  <link rel="manifest" href="admin.webmanifest">
+  <link rel="apple-touch-icon" href="assets/pwa/admin-icon-192.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
@@ -33,6 +40,9 @@
           <p class="admin-error" id="admin-login-error" role="alert" hidden></p>
           <button type="submit" class="admin-btn admin-btn--primary" id="admin-login-submit">התחבר</button>
         </form>
+        <button type="button" class="admin-btn admin-btn--soft admin-install-btn" data-admin-install hidden>
+          התקן כאפליקציה במחשב
+        </button>
       </div>
     </section>
 
@@ -42,7 +52,10 @@
           <img src="assets/logo/logo-image.png" alt="" class="admin-topbar__logo" width="64" height="64">
           <img src="assets/logo/logo-text.png" alt="LECHAIM" class="admin-topbar__wordmark" width="190" height="50">
         </a>
-        <button type="button" class="admin-btn admin-btn--ghost" id="admin-logout">התנתק</button>
+        <div class="admin-topbar__actions">
+          <button type="button" class="admin-btn admin-btn--soft" data-admin-install hidden>התקן אפליקציה</button>
+          <button type="button" class="admin-btn admin-btn--ghost" id="admin-logout">התנתק</button>
+        </div>
       </div>
 
       <nav class="admin-tabs" id="admin-tabs" aria-label="ניווט ניהול">
@@ -263,5 +276,6 @@
   <script src="js/admin-tables.js" defer></script>
   <script src="js/admin-coupons.js" defer></script>
   <script src="js/admin.js" defer></script>
+  <script src="js/admin-pwa.js" defer></script>
 </body>
 </html>

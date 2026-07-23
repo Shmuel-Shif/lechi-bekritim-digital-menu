@@ -303,6 +303,18 @@ body {
   object-fit: contain;
 }
 
+.admin-topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.admin-install-btn {
+  width: 100%;
+  margin-top: 0.75rem;
+}
+
 .admin-header {
   display: flex;
   align-items: flex-start;

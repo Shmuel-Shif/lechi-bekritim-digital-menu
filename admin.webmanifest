@@ -1,0 +1,35 @@
+{
+  "id": "/admin.html",
+  "name": "LECHAIM — ניהול מסעדה",
+  "short_name": "LECHAIM Admin",
+  "description": "ניהול שולחנות, איסוף עצמי ומלאי — מסעדת לחיים בכרתים",
+  "start_url": "./admin.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#ebe4d8",
+  "theme_color": "#1e3354",
+  "lang": "he",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "assets/pwa/admin-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/pwa/admin-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/pwa/admin-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
