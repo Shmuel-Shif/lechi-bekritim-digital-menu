@@ -102,16 +102,15 @@
           </label>
 
           <label class="entry-pickup__field">
-            <span class="entry-pickup__label" data-entry-i18n="customerNotes">Notes (English only, optional)</span>
+            <span class="entry-pickup__label" data-entry-i18n="customerNotes">הערות (אופציונלי)</span>
             <textarea
               id="entry-pickup-notes"
               class="entry-pickup__input entry-pickup__textarea"
               name="customerNotes"
               rows="2"
               maxlength="240"
-              dir="ltr"
-              lang="en"
-              placeholder="English only (optional)"
+              dir="auto"
+              placeholder="עברית או English (אופציונלי)"
             ></textarea>
           </label>
 
@@ -213,9 +212,9 @@
         </button>
 
         <button type="button" class="header-action header-action--cart" id="cart-toggle" aria-label="פתח סל הזמנה" aria-controls="cart-panel" aria-expanded="false">
-          <img src="assets/icons/cart.svg" alt="" width="24" height="24">
+          <img src="assets/icons/cart.svg" alt="" width="24" height="24" id="cart-toggle-icon">
           <span class="header-action__badge" id="cart-badge" data-count="0" hidden>0</span>
-          <span data-i18n="myCart">הסל שלי</span>
+          <span id="cart-toggle-label" data-i18n="myCart">הסל שלי</span>
         </button>
       </div>
     </div>
@@ -365,6 +364,9 @@
         <div class="cart-actions">
           <button type="button" class="cart-send-btn" id="cart-send" data-i18n="sendOrder" disabled>
             שלח הזמנה
+          </button>
+          <button type="button" class="cart-bill-btn" id="cart-request-bill" data-i18n="requestBill" disabled hidden>
+            בקש חשבון
           </button>
           <button type="button" class="cart-clear-btn" id="cart-clear" data-i18n="clearCart" disabled>
             נקה עגלה

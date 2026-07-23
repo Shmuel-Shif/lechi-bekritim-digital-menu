@@ -511,6 +511,14 @@
     return closeOrder({ tableNumber: Number(tableNumber) });
   }
 
+  /** Close the open takeaway slot (one per device). */
+  function closeTakeaway() {
+    const list = readOpenOrders();
+    const order = findOpenOrder(list, { orderType: 'takeaway' });
+    if (!order?.orderId) return null;
+    return closeOrder({ orderId: order.orderId });
+  }
+
   function getHistory() {
     return readHistory();
   }
@@ -713,6 +721,7 @@
     requestBill,
     closeOrder,
     closeTable,
+    closeTakeaway,
     getHistory,
     getOpenOrders,
     getTablesBoard,

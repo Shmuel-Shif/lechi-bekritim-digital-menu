@@ -2347,6 +2347,18 @@ body.ordering-closed #cart-clear {
   opacity: 0.45;
 }
 
+#cart-toggle.is-order-view {
+  gap: 0.35rem;
+}
+
+#cart-toggle.is-order-view img {
+  opacity: 0.95;
+}
+
+#cart-toggle.is-order-view .header-action__badge {
+  display: none !important;
+}
+
 .food-order-closed-note,
 .food-modal-closed-note {
   display: block;

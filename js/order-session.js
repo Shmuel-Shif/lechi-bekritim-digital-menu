@@ -151,6 +151,15 @@
     );
   }
 
+  function hasActiveTakeawaySession() {
+    const session = getSession();
+    return Boolean(
+      session &&
+      session.orderType === ORDER_TYPE.TAKEAWAY &&
+      session.status === STATUS.ACTIVE
+    );
+  }
+
   function getOrderType() {
     return getSession()?.orderType || null;
   }
@@ -306,6 +315,7 @@
     getOrderType,
     getTableNumber,
     hasActiveDineInSession,
+    hasActiveTakeawaySession,
     startDineIn,
     updateTable,
     startTakeaway,

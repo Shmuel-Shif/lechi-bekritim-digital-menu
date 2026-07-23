@@ -236,7 +236,7 @@
     return findSelectedEntry(boardCache, takeawayCache);
   }
 
-  function mapRemoteItem(row) {
+  function mapRemoteItem(row, extras = {}) {
     return {
       itemId: String(row.id),
       productId: String(row.product_id || ''),
@@ -248,16 +248,26 @@
       printed: true,
       linkedToMainItemId: row.parent_item_id ? String(row.parent_item_id) : null,
       createdAt: row.created_at || null,
+      isLateAdd: Boolean(extras.isLateAdd),
     };
   }
 
   function flattenSessionOrders(session, orders) {
     const items = [];
     let total = 0;
-    (orders || []).forEach((order) => {
+    const sortedOrders = [...(orders || [])].sort((a, b) => {
+      const ta = Date.parse(a?.created_at || '') || 0;
+      const tb = Date.parse(b?.created_at || '') || 0;
+      if (ta !== tb) return ta - tb;
+      return String(a?.id || '').localeCompare(String(b?.id || ''));
+    });
+
+    sortedOrders.forEach((order) => {
+      /* Blue = not printed yet. After Approve & Print → normal color again. */
+      const isLateAdd = !order?.printed_at;
       const lines = Array.isArray(order.order_items) ? order.order_items : [];
       lines.forEach((row) => {
-        const mapped = mapRemoteItem(row);
+        const mapped = mapRemoteItem(row, { isLateAdd });
         if (mapped.qty > 0) {
           items.push(mapped);
           total += mapped.price * mapped.qty;
@@ -558,6 +568,11 @@
         drawerTitle.textContent = `שולחן ${entry.tableNumber}`;
       }
     }
+
+    const closeTableBtn = drawer?.querySelector('[data-table-action="close-table"]');
+    if (closeTableBtn) {
+      closeTableBtn.textContent = entry.orderType === 'takeaway' ? 'סגור הזמנה' : 'סגור שולחן';
+    }
     if (drawerType) {
       drawerType.textContent = menuMode
         ? `${orderTypeLabel(entry.orderType)} · הוספת מנות`
@@ -595,7 +610,7 @@
               ${order.customerNotes
                 ? `<div class="table-drawer__pickup-row">
                     <span>הערות</span>
-                    <strong dir="ltr">${escapeHtml(order.customerNotes)}</strong>
+                    <strong class="table-drawer__customer-notes" dir="auto">${escapeHtml(order.customerNotes)}</strong>
                   </div>`
                 : ''}
             </div>
@@ -624,10 +639,10 @@
         drawerItems.innerHTML = `
           <ul class="table-drawer__list">
             ${order.items.map((item) => `
-              <li>
+              <li class="${item.isLateAdd ? 'table-drawer__item--late' : ''}">
                 <div class="table-drawer__line">
                   <span class="table-drawer__qty">${escapeHtml(String(item.qty))}×</span>
-                  <span class="table-drawer__name">${escapeHtml(item.name || item.productId)}</span>
+                  <span class="table-drawer__name${item.isLateAdd ? ' table-drawer__name--late' : ''}">${escapeHtml(item.name || item.productId)}</span>
                   <span class="table-drawer__price">${escapeHtml(formatMoney((Number(item.price) || 0) * (Number(item.qty) || 0)))}</span>
                   ${item.itemId
                     ? `<button
@@ -639,7 +654,7 @@
                       >×</button>`
                     : ''}
                 </div>
-                ${item.notes ? `<p class="table-drawer__notes">${escapeHtml(item.notes)}</p>` : ''}
+                ${item.notes ? `<p class="table-drawer__notes" dir="auto">${escapeHtml(item.notes)}</p>` : ''}
               </li>
             `).join('')}
           </ul>

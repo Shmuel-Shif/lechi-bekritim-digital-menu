@@ -38,7 +38,7 @@
   const cartBackdrop = $('#cart-backdrop');
   const cartClear = $('#cart-clear');
   const cartSend = $('#cart-send');
-  const cartRequestBill = null;
+  const cartRequestBill = $('#cart-request-bill');
   const cartToast = $('#cart-toast');
   const orderFeedback = $('#order-feedback');
   const orderReceipt = $('#order-receipt');
@@ -72,6 +72,7 @@
   let pendingBillCoupon = null;
 
   const CART_STORAGE_KEY = 'lechaim-keri-cart';
+  const TAKEAWAY_LOCK_KEY = 'lechaim-takeaway-order-lock';
 
   let currentLang = 'he';
   let activeCategoryId = null;
@@ -93,6 +94,7 @@
   let lastMainLineId = null;
   let remoteSessionTotalOverride = null;
   let remoteTotalSyncTimer = null;
+  let takeawayReceiptItems = null;
 
   /*
    * ---------------------------------------------------------------------------
@@ -119,6 +121,7 @@
     const allowed = isOrderingAllowed() && !browseOnly;
     document.body.classList.toggle('ordering-closed', !allowed);
     document.body.classList.toggle('browse-only', browseOnly);
+    document.body.classList.toggle('takeaway-locked', isTakeawayOrderLocked());
 
     if (orderingHoursBanner) {
       orderingHoursBanner.hidden = allowed;
@@ -137,10 +140,170 @@
       }
     }
 
+    updateCartToggleMode();
+
     if (!allowed) {
       setSendButtonState({ empty: true });
       if (cartClear) cartClear.disabled = true;
     }
+  }
+
+  function isTakeawayContext() {
+    const ctx = window.LechaimOrderContext || {};
+    return ctx.orderType === 'takeaway' || ctx.orderType === 'take-away';
+  }
+
+  function readTakeawayLock() {
+    try {
+      const raw = localStorage.getItem(TAKEAWAY_LOCK_KEY);
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (!parsed || typeof parsed !== 'object') return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+
+  function writeTakeawayLock(payload) {
+    try {
+      localStorage.setItem(TAKEAWAY_LOCK_KEY, JSON.stringify(payload));
+    } catch (err) {
+      console.warn('[takeaway-lock] persist failed', err);
+    }
+  }
+
+  function clearTakeawayLock() {
+    takeawayReceiptItems = null;
+    try {
+      localStorage.removeItem(TAKEAWAY_LOCK_KEY);
+    } catch (_) { /* ignore */ }
+    const ctx = window.LechaimOrderContext;
+    if (ctx) ctx.takeawayLocked = false;
+    document.body.classList.remove('takeaway-locked');
+    updateCartToggleMode();
+  }
+
+  function isTakeawayOrderLocked() {
+    if (!isTakeawayContext()) return false;
+    const sessionId = window.LechaimOrderContext?.sessionId
+      || window.LechaimOrderSession?.getSession?.()?.sessionId
+      || null;
+    const lock = readTakeawayLock();
+
+    if (lock) {
+      if (!sessionId || !lock.sessionId || String(lock.sessionId) !== String(sessionId)) {
+        /* Stale lock from a previous takeaway on this phone */
+        clearTakeawayLock();
+        return false;
+      }
+      return true;
+    }
+
+    return Boolean(window.LechaimOrderContext?.takeawayLocked);
+  }
+
+  function lockTakeawayAfterSend(waveItems) {
+    if (!isTakeawayContext()) return;
+    const wave = Array.isArray(waveItems)
+      ? waveItems.filter((row) => row && Number(row.qty) > 0).map((row) => ({
+        productId: row.productId || row.itemId || '',
+        name: row.name || row.printName || row.productId || '',
+        printName: row.printName || '',
+        price: Number(row.price) || 0,
+        qty: Number(row.qty) || 0,
+      }))
+      : [];
+
+    const orderItems = (window.LechaimOrderEngine?.getOrder?.()?.items || [])
+      .filter((item) => item && Number(item.qty) > 0)
+      .map((item) => ({
+        productId: item.productId || item.itemId || '',
+        name: item.name || item.printName || item.productId || '',
+        printName: item.printName || '',
+        price: Number(item.price) || 0,
+        qty: Number(item.qty) || 0,
+      }));
+
+    const items = orderItems.length ? orderItems : (() => {
+      const prev = getTakeawayReceiptItems();
+      return prev.length ? prev.concat(wave) : wave;
+    })();
+
+    takeawayReceiptItems = items;
+    const sessionId = window.LechaimOrderContext?.sessionId
+      || window.LechaimOrderSession?.getSession?.()?.sessionId
+      || null;
+    writeTakeawayLock({
+      sessionId,
+      items,
+      publicOrderNo: window.LechaimOrderContext?.publicOrderNo ?? null,
+      lockedAt: new Date().toISOString(),
+    });
+    window.LechaimOrderContext = {
+      ...(window.LechaimOrderContext || {}),
+      takeawayLocked: true,
+    };
+    document.body.classList.add('takeaway-locked');
+    updateCartToggleMode();
+    updateTableHeader();
+  }
+
+  function restoreTakeawayLockIfNeeded() {
+    if (!isTakeawayContext()) return;
+    const lock = readTakeawayLock();
+    if (!lock?.items?.length) return;
+    const sessionId = window.LechaimOrderContext?.sessionId
+      || window.LechaimOrderSession?.getSession?.()?.sessionId;
+    if (!sessionId || !lock.sessionId || String(lock.sessionId) !== String(sessionId)) {
+      clearTakeawayLock();
+      return;
+    }
+    takeawayReceiptItems = lock.items;
+    window.LechaimOrderContext = {
+      ...(window.LechaimOrderContext || {}),
+      takeawayLocked: true,
+      publicOrderNo: lock.publicOrderNo != null
+        ? Number(lock.publicOrderNo)
+        : window.LechaimOrderContext?.publicOrderNo,
+    };
+    document.body.classList.add('takeaway-locked');
+    updateCartToggleMode();
+    updateTableHeader();
+  }
+
+  function getTakeawayReceiptItems() {
+    /* Prefer live order engine (kept in sync with Admin add/remove via Supabase). */
+    const order = window.LechaimOrderEngine?.getOrder?.();
+    const engineItems = (order?.items || []).filter((item) => item && Number(item.qty) > 0);
+    if (engineItems.length) return engineItems;
+
+    if (Array.isArray(takeawayReceiptItems) && takeawayReceiptItems.length) {
+      return takeawayReceiptItems;
+    }
+    const lock = readTakeawayLock();
+    if (Array.isArray(lock?.items) && lock.items.length) return lock.items;
+    return [];
+  }
+
+  function updateCartToggleMode() {
+    if (!cartToggle) return;
+    const locked = isTakeawayOrderLocked();
+    const cartCount = getCartCount();
+    const showOrderIcon = locked && cartCount === 0;
+    const icon = $('#cart-toggle-icon');
+    const label = $('#cart-toggle-label');
+    cartToggle.classList.toggle('is-order-view', showOrderIcon);
+    if (icon) {
+      icon.src = showOrderIcon ? 'assets/icons/order.svg' : 'assets/icons/cart.svg';
+    }
+    if (label) {
+      label.textContent = showOrderIcon ? t('myOrderView') : t('myCart');
+      if (showOrderIcon) label.removeAttribute('data-i18n');
+      else label.setAttribute('data-i18n', 'myCart');
+    }
+    cartToggle.setAttribute('aria-label', showOrderIcon ? t('openMyOrder') : t('openCart'));
+    cartToggle.setAttribute('aria-controls', showOrderIcon ? 'order-receipt' : 'cart-panel');
+    if (showOrderIcon && cartBadge) cartBadge.hidden = true;
   }
 
   /* Hero keeps brand atmosphere without dish photos (new menu has no images yet). */
@@ -649,6 +812,7 @@
 
     init();
     scrollToHeroWelcome();
+    restoreTakeawayLockIfNeeded();
     refreshOrderingHoursUi();
 
     if (browseOnly) return;
@@ -677,13 +841,16 @@
       options.tableNumber !== undefined &&
       Number(nextTable) !== Number(prev.tableNumber);
     const typeChanged = options.orderType != null && options.orderType !== prev.orderType;
+    const nextSessionId = options.sessionId !== undefined ? options.sessionId : prev.sessionId;
+    const sessionChanged = options.sessionId !== undefined
+      && String(options.sessionId || '') !== String(prev.sessionId || '');
 
     window.LechaimOrderContext = {
       browseOnly: options.browseOnly !== undefined ? Boolean(options.browseOnly) : Boolean(prev.browseOnly),
       orderType,
       tableNumber: nextTable,
       lang: options.lang || prev.lang || currentLang,
-      sessionId: options.sessionId !== undefined ? options.sessionId : prev.sessionId,
+      sessionId: nextSessionId,
       openedAt: options.openedAt !== undefined ? options.openedAt : prev.openedAt,
       status: options.status !== undefined ? options.status : prev.status,
       customerName: isTakeaway
@@ -704,11 +871,16 @@
       publicOrderNo: isTakeaway
         ? (options.publicOrderNo !== undefined
           ? (options.publicOrderNo != null ? Number(options.publicOrderNo) : null)
-          : prev.publicOrderNo)
+          : (sessionChanged ? null : prev.publicOrderNo))
         : null,
+      takeawayLocked: false,
     };
 
-    if (tableChanged || typeChanged) {
+    if (sessionChanged || typeChanged) {
+      clearTakeawayLock();
+    }
+
+    if (tableChanged || typeChanged || sessionChanged) {
       cartLines = [];
       cartLineOrder = [];
       lastMainLineId = null;
@@ -722,6 +894,8 @@
     /* Do not create empty open orders when browsing / switching tables. */
 
     updateTableHeader();
+    restoreTakeawayLockIfNeeded();
+    refreshOrderingHoursUi();
     if (appStarted) renderCart();
     scrollToHeroWelcome();
   }
@@ -765,8 +939,9 @@
     numEl.textContent = '—';
 
     if (backBtn) {
-      backBtn.hidden = !isTakeaway;
-      if (isTakeaway) {
+      /* After first takeaway send — stay on menu until Admin closes the order. */
+      backBtn.hidden = !isTakeaway || isTakeawayOrderLocked();
+      if (isTakeaway && !isTakeawayOrderLocked()) {
         backBtn.setAttribute('aria-label', t('backToOrderTypeAria'));
       }
     }
@@ -792,6 +967,10 @@
     if (backBtn && backBtn.dataset.bound !== '1') {
       backBtn.dataset.bound = '1';
       backBtn.addEventListener('click', () => {
+        if (isTakeawayOrderLocked()) {
+          showCartToast(t('takeawayLockedToast'));
+          return;
+        }
         if (typeof window.LechaimEntryGate?.reopenOrderTypePicker === 'function') {
           window.LechaimEntryGate.reopenOrderTypePicker();
         }
@@ -2261,13 +2440,17 @@
     if (orderReceiptEyebrow) orderReceiptEyebrow.textContent = t('receiptEyebrow');
     if (orderReceiptTitle) orderReceiptTitle.textContent = t('receiptTitle');
     if (orderReceiptTotalLabel) orderReceiptTotalLabel.textContent = t('receiptTotal');
-    if (orderReceiptContinue) orderReceiptContinue.textContent = t('receiptContinue');
+    if (orderReceiptContinue) {
+      orderReceiptContinue.textContent = t('receiptContinue');
+      /* Takeaway + dine-in: add to existing. Never offer a separate new takeaway order. */
+      orderReceiptContinue.hidden = false;
+    }
     if (orderReceiptNew) {
       orderReceiptNew.textContent = t('receiptNewOrder');
-      orderReceiptNew.hidden = !isTakeaway;
+      orderReceiptNew.hidden = true;
     }
     if (orderReceiptClose) {
-      orderReceiptClose.hidden = isTakeaway;
+      orderReceiptClose.hidden = false;
       orderReceiptClose.setAttribute('aria-label', t('receiptClose'));
     }
 
@@ -2337,11 +2520,7 @@
     orderReceipt.hidden = false;
     orderReceipt.setAttribute('aria-hidden', 'false');
     document.body.classList.add('order-receipt-open');
-    if (isTakeaway) {
-      orderReceiptContinue?.focus();
-    } else {
-      orderReceiptClose?.focus() || orderReceiptContinue?.focus();
-    }
+    orderReceiptContinue?.focus();
   }
 
   /**
@@ -2350,9 +2529,16 @@
    */
   function startSeparateNewOrder() {
     const ctx = window.LechaimOrderContext || {};
+    const isTakeaway = ctx.orderType === 'takeaway' || ctx.orderType === 'take-away';
+    /* Takeaway: one open order per phone until Admin closes it. */
+    if (isTakeaway && isTakeawayOrderLocked()) {
+      closeOrderReceipt();
+      showCartToast(t('takeawayLockedToast'));
+      return;
+    }
+
     const localId = ctx.sessionId || window.LechaimOrderSession?.getSession?.()?.sessionId;
     const tableNumber = ctx.tableNumber != null ? Number(ctx.tableNumber) : null;
-    const isTakeaway = ctx.orderType === 'takeaway' || ctx.orderType === 'take-away';
 
     closeOrderReceipt();
     closeCartPanel();
@@ -2390,6 +2576,7 @@
     cartLineOrder = [];
     lastMainLineId = null;
     remoteSessionTotalOverride = null;
+    clearTakeawayLock();
     if (remoteTotalSyncTimer) {
       window.clearInterval(remoteTotalSyncTimer);
       remoteTotalSyncTimer = null;
@@ -2638,6 +2825,7 @@
       }
 
       clearCartAfterSuccessfulSend();
+      lockTakeawayAfterSend(waveItems);
       showOrderReceipt(waveItems);
       initRemoteSessionClosedWatcher();
       syncRemoteSessionTotal().catch(() => {});
@@ -2968,11 +3156,26 @@
     const tableNumber = ctx.tableNumber != null
       ? Number(ctx.tableNumber)
       : window.LechaimOrderSession?.getTableNumber?.();
+    const wasTakeaway = ctx.orderType === 'takeaway'
+      || ctx.orderType === 'take-away'
+      || window.LechaimOrderSession?.getOrderType?.() === 'takeaway'
+      || window.LechaimOrderSession?.getOrderType?.() === window.LechaimOrderSession?.ORDER_TYPE?.TAKEAWAY;
 
     remoteSessionTotalOverride = null;
     if (remoteTotalSyncTimer) {
       window.clearInterval(remoteTotalSyncTimer);
       remoteTotalSyncTimer = null;
+    }
+    clearTakeawayLock();
+
+    try {
+      if (wasTakeaway && window.LechaimOrderEngine?.closeTakeaway) {
+        window.LechaimOrderEngine.closeTakeaway();
+      } else if (tableNumber != null && window.LechaimOrderEngine?.closeTable) {
+        window.LechaimOrderEngine.closeTable(tableNumber);
+      }
+    } catch (err) {
+      console.warn('[session-watch] local order close failed', err);
     }
 
     try {
@@ -3000,14 +3203,6 @@
       console.warn('[session-watch] cart clear failed', err);
     }
 
-    try {
-      if (tableNumber != null && window.LechaimOrderEngine?.closeTable) {
-        window.LechaimOrderEngine.closeTable(tableNumber);
-      }
-    } catch (err) {
-      console.warn('[session-watch] local closeTable failed', err);
-    }
-
     window.LechaimOrderContext = {
       orderType: null,
       tableNumber: null,
@@ -3015,6 +3210,11 @@
       openedAt: null,
       status: null,
       lang: currentLang,
+      takeawayLocked: false,
+      publicOrderNo: null,
+      customerName: null,
+      customerPhone: null,
+      customerNotes: null,
     };
   }
 
@@ -3086,7 +3286,7 @@
     };
 
     syncTotals();
-    remoteTotalSyncTimer = window.setInterval(syncTotals, 8000);
+    remoteTotalSyncTimer = window.setInterval(syncTotals, 4000);
 
     try {
       sessionWatchUnsub = api.subscribeToOrders((payload) => {
@@ -3101,7 +3301,15 @@
           return;
         }
 
-        if (table === 'order_items' || table === 'orders') {
+        if (table === 'orders') {
+          const row = payload.new || payload.old || payload.payload?.new || payload.payload?.old;
+          if (row?.session_id != null && String(row.session_id) !== String(remoteId)) return;
+          syncTotals();
+          return;
+        }
+
+        if (table === 'order_items') {
+          /* Item rows may lack session_id — refresh this session's full order. */
           syncTotals();
         }
       });
@@ -3112,10 +3320,9 @@
 
   async function syncRemoteSessionTotal(remoteSessionId) {
     const api = window.LechaimSupabaseOrders;
-    const sessionId = remoteSessionId || lookupMappedSupabaseSessionId(
-      window.LechaimOrderContext?.sessionId ||
-      window.LechaimOrderSession?.getSession?.()?.sessionId
-    );
+    const localSessionId = window.LechaimOrderContext?.sessionId
+      || window.LechaimOrderSession?.getSession?.()?.sessionId;
+    const sessionId = remoteSessionId || lookupMappedSupabaseSessionId(localSessionId);
     if (!sessionId || !api?.getSessionOrders) return;
 
     const orders = await api.getSessionOrders(sessionId);
@@ -3147,14 +3354,39 @@
     remoteSessionTotalOverride = Math.round(total * 100) / 100;
 
     try {
-      if (window.LechaimOrderEngine?.getOrder?.() && typeof window.LechaimOrderEngine.setOrderItems === 'function') {
+      const ctx = window.LechaimOrderContext || {};
+      if (typeof window.LechaimOrderEngine?.ensureActiveOrder === 'function') {
+        window.LechaimOrderEngine.ensureActiveOrder({
+          orderType: ctx.orderType,
+          tableNumber: ctx.tableNumber,
+          sessionId: ctx.sessionId || localSessionId,
+        });
+      }
+      if (typeof window.LechaimOrderEngine?.setOrderItems === 'function') {
         window.LechaimOrderEngine.setOrderItems(remoteItems);
       }
     } catch (err) {
       console.warn('[session-watch] setOrderItems failed', err);
     }
 
+    /* Keep takeaway "ההזמנה שלי" receipt in sync with Admin edits. */
+    if (isTakeawayContext()) {
+      takeawayReceiptItems = remoteItems;
+      if (isTakeawayOrderLocked() || readTakeawayLock()) {
+        writeTakeawayLock({
+          sessionId: localSessionId || window.LechaimOrderContext?.sessionId || null,
+          items: remoteItems,
+          publicOrderNo: window.LechaimOrderContext?.publicOrderNo ?? null,
+          lockedAt: readTakeawayLock()?.lockedAt || new Date().toISOString(),
+        });
+      }
+    }
+
     renderCart();
+
+    if (orderReceipt && !orderReceipt.hidden) {
+      showOrderReceipt(remoteItems);
+    }
   }
 
   /**
@@ -3496,6 +3728,8 @@
     const count = getCartCount();
     const empty = count === 0;
 
+    updateCartToggleMode();
+
     if (cartBadge) {
       cartBadge.textContent = String(count);
       cartBadge.setAttribute('data-count', String(count));
@@ -3511,7 +3745,11 @@
 
     /* Bill depends on sent order items — update even while send is in progress */
     if (cartRequestBill) {
-      cartRequestBill.disabled = !hasActiveOrderItems();
+      const showBill = !isTakeawayContext()
+        && !Boolean(window.LechaimOrderContext?.browseOnly)
+        && isOrderingAllowed();
+      cartRequestBill.hidden = !showBill;
+      cartRequestBill.disabled = !showBill || !hasActiveOrderItems();
       if (!isSendingOrder) {
         cartRequestBill.textContent = t('requestBill');
       }
@@ -3549,6 +3787,11 @@
   }
 
   function openCartPanel() {
+    if (isTakeawayOrderLocked() && getCartCount() === 0) {
+      showOrderReceipt(getTakeawayReceiptItems());
+      return;
+    }
+
     if (!cartPanel) return;
 
     cartLastFocusedElement = document.activeElement;

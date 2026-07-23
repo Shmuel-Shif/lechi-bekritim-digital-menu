@@ -28,7 +28,7 @@
       langAria: 'Switch language – Hebrew / English',
       customerName: 'Customer Name *',
       customerPhone: 'Phone Number *',
-      customerNotes: 'Notes (English only, optional)',
+      customerNotes: 'Notes (optional)',
       pickupTime: 'Pickup Time',
       pickupAsap: 'ASAP',
       pickupSelect: 'Select Time',
@@ -36,7 +36,6 @@
       pickupNameRequired: 'Please enter your name',
       pickupPhoneRequired: 'Please enter a valid phone number',
       pickupPhoneInvalid: 'Please enter a valid phone number',
-      pickupNotesEnglishOnly: 'Notes must be in English only',
       pickupTimeRequired: 'Please select a pickup time',
       pickupNoSlots: 'No pickup times left today — choose ASAP',
       closedTitle: 'We are currently closed',
@@ -60,7 +59,7 @@
       langAria: 'החלפת שפה – עברית / English',
       customerName: 'שם הלקוח *',
       customerPhone: 'טלפון *',
-      customerNotes: 'Notes (אופציונלי, אנגלית בלבד)',
+      customerNotes: 'הערות (אופציונלי)',
       pickupTime: 'שעת איסוף',
       pickupAsap: 'בהקדם האפשרי',
       pickupSelect: 'בחירת שעה',
@@ -68,7 +67,6 @@
       pickupNameRequired: 'נא להזין שם',
       pickupPhoneRequired: 'נא להזין מספר טלפון תקין',
       pickupPhoneInvalid: 'נא להזין מספר טלפון תקין',
-      pickupNotesEnglishOnly: 'ההערות חייבות להיות באנגלית בלבד',
       pickupTimeRequired: 'נא לבחור שעת איסוף',
       pickupNoSlots: 'אין שעות פנויות היום — בחרו בהקדם האפשרי',
       closedTitle: 'המקום סגור כרגע',
@@ -609,12 +607,6 @@
     return digits.length >= 9 && digits.length <= 15;
   }
 
-  function isEnglishNotes(value) {
-    const s = String(value || '').trim();
-    if (!s) return true;
-    return /^[A-Za-z0-9\s.,!?'"()\-+:;/&@#]+$/.test(s);
-  }
-
   function buildPickupSlots() {
     const slots = [];
     const openMinutes = 15 * 60;
@@ -723,6 +715,16 @@
       btn.classList.remove('is-selected');
     });
 
+    /* Wipe previous takeaway on this phone so "ההזמנה שלי" cannot show an old order. */
+    try {
+      localStorage.removeItem('lechaim-takeaway-order-lock');
+    } catch (_) { /* ignore */ }
+    try {
+      window.LechaimOrderEngine?.closeTakeaway?.();
+    } catch (err) {
+      console.warn('[entry-gate] close previous takeaway failed', err);
+    }
+
     if (Session) {
       Session.startTakeaway({
         lang: state.lang,
@@ -743,6 +745,7 @@
       customerNotes: state.customerNotes,
       pickupType: state.pickupType,
       pickupTime: state.pickupTime,
+      publicOrderNo: null,
     }));
   }
 
@@ -768,11 +771,6 @@
     if (!isValidPhone(phone)) {
       showPickupError(t('pickupPhoneInvalid'));
       pickupPhone?.focus();
-      return;
-    }
-    if (notes && !isEnglishNotes(notes)) {
-      showPickupError(t('pickupNotesEnglishOnly'));
-      pickupNotes?.focus();
       return;
     }
     if (pickupType === 'TIME' && !pickupTime) {
@@ -918,34 +916,83 @@
     }
   }
 
-  /**
-   * Resume an open dine-in session into the menu (unless Supabase says closed).
-   */
-  async function tryResumeSession() {
-    if (!Session?.hasActiveDineInSession()) return false;
+  function clearTakeawayLockStorage() {
+    try {
+      localStorage.removeItem('lechaim-takeaway-order-lock');
+    } catch (_) { /* ignore */ }
+  }
 
-    const session = Session.getSession();
+  async function resumeTakeawaySession(session) {
     if (!session) return false;
 
     if (await isMappedRemoteSessionClosed(session.sessionId)) {
-      console.log('[entry-gate] mapped Supabase session is closed — not resuming');
+      console.log('[entry-gate] takeaway Supabase session closed — not resuming');
       await discardClosedLocalSession(session);
+      clearTakeawayLockStorage();
       return false;
     }
 
-    state.orderType = 'dine-in';
-    state.tableNumber = session.tableNumber;
+    state.orderType = 'takeaway';
+    state.tableNumber = null;
+    state.customerName = session.customerName || '';
+    state.customerPhone = session.customerPhone || '';
+    state.customerNotes = session.customerNotes || '';
+    state.pickupType = session.pickupType === 'TIME' ? 'TIME' : 'ASAP';
+    state.pickupTime = state.pickupType === 'TIME' ? (session.pickupTime || null) : null;
     if (session.lang === 'he' || session.lang === 'en') {
       state.lang = session.lang;
     }
 
     setLang(state.lang);
+    Session?.setLang?.(state.lang);
     enterMenu(buildMenuContext({
-      orderType: 'dine-in',
-      tableNumber: session.tableNumber,
+      orderType: 'takeaway',
+      tableNumber: null,
       lang: state.lang,
+      customerName: state.customerName,
+      customerPhone: state.customerPhone,
+      customerNotes: state.customerNotes,
+      pickupType: state.pickupType,
+      pickupTime: state.pickupTime,
+      publicOrderNo: session.publicOrderNo != null ? Number(session.publicOrderNo) : null,
     }));
     return true;
+  }
+
+  /**
+   * Resume an open dine-in or takeaway session into the menu (unless Supabase says closed).
+   */
+  async function tryResumeSession() {
+    if (Session?.hasActiveDineInSession()) {
+      const session = Session.getSession();
+      if (!session) return false;
+
+      if (await isMappedRemoteSessionClosed(session.sessionId)) {
+        console.log('[entry-gate] mapped Supabase session is closed — not resuming');
+        await discardClosedLocalSession(session);
+        return false;
+      }
+
+      state.orderType = 'dine-in';
+      state.tableNumber = session.tableNumber;
+      if (session.lang === 'he' || session.lang === 'en') {
+        state.lang = session.lang;
+      }
+
+      setLang(state.lang);
+      enterMenu(buildMenuContext({
+        orderType: 'dine-in',
+        tableNumber: session.tableNumber,
+        lang: state.lang,
+      }));
+      return true;
+    }
+
+    if (Session?.hasActiveTakeawaySession()) {
+      return resumeTakeawaySession(Session.getSession());
+    }
+
+    return false;
   }
 
   langToggle?.addEventListener('click', (event) => {
@@ -993,6 +1040,14 @@
       }
       if (type === 'takeaway') {
         state.orderType = 'takeaway';
+        /* Open takeaway session → resume same order (no second order from this phone). */
+        if (Session?.hasActiveTakeawaySession()) {
+          (async () => {
+            const resumed = await resumeTakeawaySession(Session.getSession());
+            if (!resumed) goToPickup();
+          })();
+          return;
+        }
         goToPickup();
       }
       return;
@@ -1017,11 +1072,6 @@
   pickupForm?.addEventListener('submit', submitPickupForm);
   pickupAsap?.addEventListener('change', syncPickupTimeUi);
   pickupSelect?.addEventListener('change', syncPickupTimeUi);
-  pickupNotes?.addEventListener('input', () => {
-    /* Soft guide: keep English-friendly characters while typing */
-    const cleaned = String(pickupNotes.value || '').replace(/[^\x20-\x7E\n\r\t]/g, '');
-    if (cleaned !== pickupNotes.value) pickupNotes.value = cleaned;
-  });
 
   closedBrowseBtn?.addEventListener('click', () => {
     enterBrowseOnly();

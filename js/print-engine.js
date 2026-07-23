@@ -137,24 +137,18 @@
     const type = String(order?.orderType || '').toLowerCase();
     if (type !== 'takeaway' && type !== 'take-away') return [];
 
-    const orderNo = order.publicOrderNo || order.public_order_no;
     const name = order.customerName || order.customer_name || '—';
     const phone = order.customerPhone || order.customer_phone || '—';
     const pickup = formatPickupLabel(order);
-    const notes = order.customerNotes || order.notes || '';
 
     const lines = [];
-    if (orderNo != null && Number(orderNo) > 0) {
-      lines.push(`ORDER #${Number(orderNo)}`);
-    }
     lines.push(
       `Customer: ${name}`,
       `Phone: ${phone}`,
       `Pickup: ${pickup}`,
     );
-    if (notes) {
-      lines.push(`Notes: ${notes}`);
-    }
+    /* Customer notes stay in Admin only — not on kitchen bon.
+       Order number is already on the TAKEAWAY # line (large). */
     lines.push('');
     return lines;
   }
@@ -821,18 +815,13 @@
     const pickupInfo = (() => {
       const type = String(resolved.orderType || '').toLowerCase();
       if (type !== 'takeaway' && type !== 'take-away') return [];
-      const orderNo = resolved.publicOrderNo || resolved.public_order_no;
       const lines = [];
-      if (orderNo != null && Number(orderNo) > 0) {
-        lines.push(`ORDER #${Number(orderNo)}`);
-      }
       lines.push(
         `Customer: ${resolved.customerName || resolved.customer_name || '—'}`,
         `Phone: ${resolved.customerPhone || resolved.customer_phone || '—'}`,
         `Pickup: ${formatPickupLabel(resolved)}`,
       );
-      const notes = resolved.customerNotes || resolved.notes;
-      if (notes) lines.push(`Notes: ${notes}`);
+      /* Notes + ORDER # are Admin / TAKEAWAY header only. */
       return lines;
     })();
     const body = [];
@@ -854,8 +843,11 @@
     const totalsBlock = hasDiscount
       ? [
           padBillLine('Subtotal', formatMoneyEuro(subtotal), W),
-          `Coupon: ${couponCode}`,
-          padBillLine(`Discount -${discountPercent != null ? discountPercent : ''}%`, `-${formatMoneyEuro(discountAmount)}`, W),
+          padBillLine(
+            `Discount -${discountPercent != null ? discountPercent : ''}%`,
+            `-${formatMoneyEuro(discountAmount)}`,
+            W
+          ),
           `${POS.boldOn}` + padBillLine('TOTAL', formatMoneyEuro(payable), W),
           `${POS.boldOff}`,
         ]
