@@ -2347,6 +2347,24 @@ body.ordering-closed #cart-clear {
   opacity: 0.45;
 }
 
+/* Browse-only menu: hide cart + any order controls; keep language + back */
+body.browse-only #cart-toggle,
+body.browse-only #cart-overlay,
+body.browse-only #cart-panel,
+body.browse-only .food-add-btn,
+body.browse-only .food-qty-control,
+body.browse-only .food-qty-btn,
+body.browse-only .food-modal-actions,
+body.browse-only .food-order-closed-note,
+body.browse-only .food-modal-closed-note,
+body.browse-only .ordering-hours-banner {
+  display: none !important;
+}
+
+body.browse-only #order-back-toggle {
+  display: flex !important;
+}
+
 #cart-toggle.is-order-view {
   gap: 0.35rem;
 }

@@ -776,6 +776,7 @@ body {
 .admin-dot--free { background: #9aa3ad; }
 .admin-dot--active { background: #2f6f47; }
 .admin-dot--pending { background: #2563eb; }
+.admin-dot--preparing { background: #6b7280; }
 .admin-dot--bill { background: #d97706; }
 
 /* ---------- Tables board ---------- */
@@ -937,6 +938,7 @@ body {
 
 .table-card--active .table-card__badge,
 .table-card--pending_print .table-card__badge,
+.table-card--preparing .table-card__badge,
 .table-card--bill_requested .table-card__badge {
   background: rgba(255, 255, 255, 0.22);
   color: #fff;
@@ -948,6 +950,9 @@ body {
 .table-card--pending_print .table-card__customer,
 .table-card--pending_print .table-card__phone,
 .table-card--pending_print .table-card__pickup,
+.table-card--preparing .table-card__customer,
+.table-card--preparing .table-card__phone,
+.table-card--preparing .table-card__pickup,
 .table-card--bill_requested .table-card__customer,
 .table-card--bill_requested .table-card__phone,
 .table-card--bill_requested .table-card__pickup {
@@ -1003,6 +1008,7 @@ body {
 
 .table-card--active .table-card__coupon,
 .table-card--pending_print .table-card__coupon,
+.table-card--preparing .table-card__coupon,
 .table-card--bill_requested .table-card__coupon {
   background: rgba(255, 255, 255, 0.22);
   color: #fff;
@@ -1074,6 +1080,33 @@ body {
   box-shadow:
     0 8px 22px rgba(37, 99, 235, 0.45),
     inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+/* בהכנה (אושר, ממתין להדפסה) — כרטיס אפור */
+.table-card--preparing {
+  border-color: #6b7280;
+  background: linear-gradient(165deg, #9ca3af 0%, #6b7280 55%, #4b5563 100%);
+  box-shadow:
+    0 6px 18px rgba(75, 85, 99, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.table-card--preparing .table-card__num,
+.table-card--preparing .table-card__status,
+.table-card--preparing .table-card__total {
+  color: #fff;
+}
+
+.table-card--preparing .table-card__type,
+.table-card--preparing .table-card__items,
+.table-card--preparing .table-card__time {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.table-card--preparing:hover {
+  box-shadow:
+    0 8px 22px rgba(75, 85, 99, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
 
 /* ביקש חשבון — כרטיס כתום מלא */
@@ -1337,6 +1370,21 @@ body {
 }
 
 .admin-btn--approve[hidden] {
+  display: none !important;
+}
+
+.admin-btn--print {
+  background: rgba(75, 85, 99, 0.16);
+  color: #374151;
+  border: 1px solid rgba(75, 85, 99, 0.4);
+  font-weight: 700;
+}
+
+.admin-btn--print:hover:not(:disabled) {
+  background: rgba(75, 85, 99, 0.26);
+}
+
+.admin-btn--print[hidden] {
   display: none !important;
 }
 

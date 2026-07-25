@@ -28,6 +28,7 @@
   const statUnavailable = document.getElementById('stat-unavailable');
   const tabsEl = document.getElementById('admin-tabs');
   const viewTables = document.getElementById('admin-view-tables');
+  const viewShabbat = document.getElementById('admin-view-shabbat');
   const viewInventory = document.getElementById('admin-view-inventory');
   const viewStats = document.getElementById('admin-view-stats');
 
@@ -72,6 +73,7 @@
     if (view !== 'panel') {
       window.LechaimAdminTables?.stop?.();
       window.LechaimAdminTables?.closeDrawer?.();
+      window.LechaimAdminShabbat?.stop?.();
     }
   }
 
@@ -79,6 +81,7 @@
     if (tab === 'inventory') currentTab = 'inventory';
     else if (tab === 'stats') currentTab = 'stats';
     else if (tab === 'takeaway') currentTab = 'takeaway';
+    else if (tab === 'shabbat') currentTab = 'shabbat';
     else currentTab = 'tables';
 
     tabsEl?.querySelectorAll('.admin-tab').forEach((btn) => {
@@ -88,19 +91,28 @@
 
     const onBoard = currentTab === 'tables' || currentTab === 'takeaway';
     if (viewTables) viewTables.hidden = !onBoard;
+    if (viewShabbat) viewShabbat.hidden = currentTab !== 'shabbat';
     if (viewInventory) viewInventory.hidden = currentTab !== 'inventory';
     if (viewStats) viewStats.hidden = currentTab !== 'stats';
 
+    /*
+     * Keep order watchers (Realtime + chime) alive on every Admin tab.
+     * Only the visible board UI changes — never stop listening while logged in.
+     */
+    window.LechaimAdminTables?.start?.();
+    window.LechaimAdminShabbat?.start?.();
     if (onBoard) {
-      window.LechaimAdminTables?.start?.();
       window.LechaimAdminTables?.setBoardFilter?.(currentTab === 'takeaway' ? 'takeaway' : 'tables');
     } else {
-      window.LechaimAdminTables?.stop?.();
       window.LechaimAdminTables?.closeDrawer?.();
+    }
+    if (currentTab !== 'shabbat') {
+      window.LechaimAdminShabbat?.closeDrawer?.();
     }
 
     if (currentTab === 'stats') {
       window.LechaimAdminCoupons?.start?.();
+      window.LechaimAdminShabbatStats?.start?.();
     }
   }
 
@@ -423,7 +435,13 @@
     const btn = event.target.closest('.admin-tab');
     if (!btn || btn.disabled) return;
     const tab = btn.dataset.tab;
-    if (tab !== 'tables' && tab !== 'takeaway' && tab !== 'inventory' && tab !== 'stats') return;
+    if (
+      tab !== 'tables'
+      && tab !== 'takeaway'
+      && tab !== 'shabbat'
+      && tab !== 'inventory'
+      && tab !== 'stats'
+    ) return;
     setTab(tab);
     if (tab === 'inventory') {
       if (statusEl) statusEl.textContent = 'טוען מלאי…';

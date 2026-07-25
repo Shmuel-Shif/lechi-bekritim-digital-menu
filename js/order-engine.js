@@ -32,9 +32,18 @@
   }
 
   function normalizeOrderType(value) {
+    /* Local engine: dine-in + takeaway only (Shabbat uses shabbat-app + Supabase) */
     if (value === 'dinein' || value === 'dine-in' || value === 'dine_in') return 'dinein';
     if (value === 'takeaway' || value === 'take-away' || value === 'take_away') return 'takeaway';
-    return value || null;
+    if (value === 'shabbat' || value === 'shabbos' || value === 'shabat') {
+      console.warn('[order-engine] Shabbat orders are not handled by the local order engine');
+      return null;
+    }
+    if (value) {
+      console.warn(`[order-engine] Unknown order type: ${value}`);
+      return null;
+    }
+    return null;
   }
 
   function normalizeStatus(value) {

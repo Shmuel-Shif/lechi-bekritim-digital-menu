@@ -113,16 +113,30 @@
   }
 
   function formatTableLine(order) {
-    const type = String(order?.orderType || '').toLowerCase();
-    if (type === 'takeaway' || type === 'take-away') {
-      const no = order.publicOrderNo || order.public_order_no;
-      if (no != null && Number(no) > 0) return `TAKEAWAY #${Number(no)}`;
-      return 'TAKEAWAY';
+    const classified = global.LechaimOrderTypes?.classifyOrderType?.(
+      order?.orderType || order?.order_type,
+      'print-engine.formatTableLine'
+    );
+    switch (classified) {
+      case 'takeaway': {
+        const no = order.publicOrderNo || order.public_order_no;
+        if (no != null && Number(no) > 0) return `TAKEAWAY #${Number(no)}`;
+        return 'TAKEAWAY';
+      }
+      case 'shabbat':
+        /* Shabbat orders are not printed from the regular kitchen flow */
+        return 'SHABBAT';
+      case 'dine_in':
+        if (order?.tableNumber != null && order.tableNumber !== '') {
+          return `TABLE ${order.tableNumber}`;
+        }
+        return 'TABLE —';
+      default:
+        if (order?.tableNumber != null && order.tableNumber !== '') {
+          return `TABLE ${order.tableNumber}`;
+        }
+        return 'TABLE —';
     }
-    if (order?.tableNumber != null && order.tableNumber !== '') {
-      return `TABLE ${order.tableNumber}`;
-    }
-    return 'TABLE —';
   }
 
   function formatPickupLabel(order) {
@@ -134,19 +148,31 @@
   }
 
   function buildSelfPickupBlock(order) {
-    const type = String(order?.orderType || '').toLowerCase();
-    if (type !== 'takeaway' && type !== 'take-away') return [];
+    const classified = global.LechaimOrderTypes?.classifyOrderType?.(
+      order?.orderType || order?.order_type,
+      'print-engine.selfPickup'
+    );
+    if (classified !== 'takeaway' && classified !== 'shabbat') return [];
 
     const name = order.customerName || order.customer_name || '—';
     const phone = order.customerPhone || order.customer_phone || '—';
     const pickup = formatPickupLabel(order);
 
     const lines = [];
-    lines.push(
-      `Customer: ${name}`,
-      `Phone: ${phone}`,
-      `Pickup: ${pickup}`,
-    );
+    if (classified === 'shabbat') {
+      lines.push(
+        'SHABBAT ORDER',
+        `Customer: ${name}`,
+        `Phone: ${phone}`,
+        `Pickup: ${pickup}`,
+      );
+    } else {
+      lines.push(
+        `Customer: ${name}`,
+        `Phone: ${phone}`,
+        `Pickup: ${pickup}`,
+      );
+    }
     /* Customer notes stay in Admin only — not on kitchen bon.
        Order number is already on the TAKEAWAY # line (large). */
     lines.push('');
@@ -813,8 +839,11 @@
 
     const tableLine = formatTableLine(resolved);
     const pickupInfo = (() => {
-      const type = String(resolved.orderType || '').toLowerCase();
-      if (type !== 'takeaway' && type !== 'take-away') return [];
+      const classified = global.LechaimOrderTypes?.classifyOrderType?.(
+        resolved.orderType || resolved.order_type,
+        'print-engine.customerBill'
+      );
+      if (classified !== 'takeaway') return [];
       const lines = [];
       lines.push(
         `Customer: ${resolved.customerName || resolved.customer_name || '—'}`,

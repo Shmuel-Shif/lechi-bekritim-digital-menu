@@ -57,12 +57,18 @@
 
       <div class="entry-gate__step" id="entry-step-order">
         <div class="entry-gate__actions">
+          <button type="button" class="entry-gate__btn entry-gate__btn--primary" data-order-type="browse" id="entry-browse-menu">
+            <span class="entry-gate__btn-label" data-entry-i18n="browseMenu">צפייה בתפריט</span>
+          </button>
           <button type="button" class="entry-gate__btn entry-gate__btn--primary" data-order-type="dine-in">
             <span class="entry-gate__btn-label" data-entry-i18n="dineIn">ישיבה במקום</span>
           </button>
-          <button type="button" class="entry-gate__btn" data-order-type="takeaway">
+          <button type="button" class="entry-gate__btn entry-gate__btn--primary" data-order-type="takeaway">
             <span class="entry-gate__btn-label" data-entry-i18n="takeAway">איסוף עצמי</span>
           </button>
+          <a href="shabbat.html" class="entry-gate__btn entry-gate__btn--primary" id="entry-shabbat-link">
+            <span class="entry-gate__btn-label" data-entry-i18n="shabbatOrders">הזמנות לשבת</span>
+          </a>
           <!-- Delivery — יופעל בהמשך
           <button type="button" class="entry-gate__btn entry-gate__btn--soon" data-order-type="delivery" aria-describedby="entry-notice">
             <span class="entry-gate__btn-label" data-entry-i18n="delivery">משלוח</span>
@@ -141,27 +147,24 @@
         <button type="button" class="entry-gate__back" data-entry-back="order" data-entry-i18n="back">חזרה</button>
       </div>
 
+      <div class="entry-gate__step" id="entry-step-pickup-closed" hidden>
+        <div class="entry-pickup-closed" role="status">
+          <p class="entry-pickup-closed__title" data-entry-i18n="pickupClosedTitle">לא זמין כרגע.</p>
+          <p class="entry-pickup-closed__text" data-entry-i18n="pickupClosedText">ניתן לבצע הזמנות לאיסוף עצמי החל מיום ראשון.<br>בין השעות 14:00 - 21:00</p>
+          <button type="button" class="entry-gate__btn entry-gate__btn--primary" id="entry-pickup-closed-browse" data-entry-i18n="pickupClosedBrowse">
+            לצפייה בתפריט
+          </button>
+        </div>
+        <button type="button" class="entry-gate__back" data-entry-back="order" data-entry-i18n="back">חזרה</button>
+      </div>
+
       <div class="entry-gate__step" id="entry-step-table" hidden>
+        <p class="entry-gate__hint" id="entry-table-hint" data-entry-i18n="tableHint">רק נציג אחד מהשולחן יבצע את ההזמנה דרך המערכת.<br>שאר הסועדים יכולים לבחור באפשרות "צפייה בתפריט" כדי לעיין במנות, במחירים ובתיאורים.</p>
         <div class="entry-gate__tables" id="entry-tables" role="group" aria-label="Table number"></div>
         <button type="button" class="entry-gate__back" data-entry-back="order" data-entry-i18n="back">חזרה</button>
       </div>
     </div>
 
-    <div class="entry-closed-overlay" id="entry-closed-modal" hidden aria-hidden="true">
-      <div class="entry-closed-overlay__backdrop" aria-hidden="true"></div>
-      <div
-        class="entry-closed-overlay__panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="entry-closed-title"
-      >
-        <p class="entry-closed-overlay__title" id="entry-closed-title">המקום סגור כרגע</p>
-        <p class="entry-closed-overlay__text" id="entry-closed-text">שעות הפעילות שלנו בין השעות 14:00 עד 21:00</p>
-        <button type="button" class="entry-gate__btn entry-gate__btn--primary" id="entry-closed-browse">
-          <span class="entry-gate__btn-label" id="entry-closed-browse-label">לצפייה בתפריט לחץ כאן</span>
-        </button>
-      </div>
-    </div>
   </div>
 
   <a class="skip-link" href="#menu" data-i18n="skipToMenu">דלג לתפריט</a>
@@ -439,6 +442,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
+  <script src="js/order-types.js" defer></script>
   <script src="js/supabase-order-service.js" defer></script>
   <script src="js/menu-data.js" defer></script>
   <script src="js/inventory.js" defer></script>

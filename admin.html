@@ -67,6 +67,10 @@
           איסוף עצמי
           <span class="admin-tab__badge" id="tab-badge-takeaway" data-count="0" hidden>0</span>
         </button>
+        <button type="button" class="admin-tab" data-tab="shabbat">
+          הזמנות לשבת
+          <span class="admin-tab__badge" id="tab-badge-shabbat" data-count="0" hidden>0</span>
+        </button>
         <button type="button" class="admin-tab" data-tab="inventory">מלאי</button>
         <button type="button" class="admin-tab" data-tab="stats">סטטיסטיקות</button>
         <button type="button" class="admin-tab" data-tab="settings" disabled title="בקרוב">הגדרות</button>
@@ -89,6 +93,7 @@
             <span class="admin-legend__item"><i class="admin-dot admin-dot--free"></i> פנוי</span>
             <span class="admin-legend__item"><i class="admin-dot admin-dot--active"></i> פעיל</span>
             <span class="admin-legend__item"><i class="admin-dot admin-dot--pending"></i> ממתין לאישור</span>
+            <span class="admin-legend__item"><i class="admin-dot admin-dot--preparing"></i> בהכנה</span>
             <span class="admin-legend__item"><i class="admin-dot admin-dot--bill"></i> ביקש חשבון</span>
           </div>
           <div class="tables-grid" id="tables-grid"></div>
@@ -104,6 +109,26 @@
           </header>
           <div class="tables-takeaway__grid" id="tables-takeaway-grid"></div>
           <p class="tables-category__empty" id="tables-takeaway-empty">אין הזמנות איסוף עצמי כרגע</p>
+        </section>
+      </div>
+
+      <!-- Shabbat tab -->
+      <div class="admin-view" id="admin-view-shabbat" hidden>
+        <section class="tables-category">
+          <header class="admin-header">
+            <div class="admin-header__text">
+              <p class="admin-header__eyebrow">ניהול</p>
+              <h1 class="admin-header__title">הזמנות לשבת</h1>
+              <p class="admin-header__subtitle">הזמנות שבת פעילות · אישור בלבד (ללא הדפסה)</p>
+            </div>
+          </header>
+          <div class="admin-legend" aria-hidden="true">
+            <span class="admin-legend__item"><i class="admin-dot admin-dot--pending"></i> ממתין לאישור</span>
+            <span class="admin-legend__item"><i class="admin-dot admin-dot--preparing"></i> אושר</span>
+            <span class="admin-legend__item"><i class="admin-dot admin-dot--active"></i> פעיל</span>
+          </div>
+          <div class="tables-takeaway__grid" id="shabbat-orders-grid"></div>
+          <p class="tables-category__empty" id="shabbat-orders-empty">אין הזמנות שבת כרגע</p>
         </section>
       </div>
 
@@ -159,8 +184,47 @@
         </header>
 
         <div id="coupon-stats-root" class="coupon-stats"></div>
+        <div id="shabbat-stats-root" class="coupon-stats" style="margin-top:1.5rem"></div>
       </div>
     </section>
+
+    <!-- Shabbat detail drawer (same actions as takeaway: Approve / Print / Add / Close) -->
+    <div class="table-drawer" id="shabbat-drawer" hidden aria-hidden="true">
+      <button type="button" class="table-drawer__backdrop" id="shabbat-drawer-backdrop" aria-label="סגור"></button>
+      <aside class="table-drawer__panel" role="dialog" aria-modal="true" aria-labelledby="shabbat-drawer-title">
+        <header class="table-drawer__header">
+          <div>
+            <p class="table-drawer__eyebrow" id="shabbat-drawer-type">הזמנות לשבת</p>
+            <h2 class="table-drawer__title" id="shabbat-drawer-title">הזמנה</h2>
+          </div>
+          <button type="button" class="admin-btn admin-btn--ghost" id="shabbat-drawer-close">סגור</button>
+        </header>
+
+        <div class="table-drawer__view" id="shabbat-drawer-detail">
+          <div class="table-drawer__meta" id="shabbat-drawer-meta"></div>
+          <div class="table-drawer__items" id="shabbat-drawer-items"></div>
+          <div class="table-drawer__total" id="shabbat-drawer-total"></div>
+          <footer class="table-drawer__actions">
+            <button type="button" class="admin-btn admin-btn--approve" id="shabbat-approve" hidden>אשר</button>
+            <button type="button" class="admin-btn admin-btn--print" id="shabbat-print" hidden>הדפס</button>
+            <button type="button" class="admin-btn admin-btn--soft" id="shabbat-add-items">הוסף מנות</button>
+            <button type="button" class="admin-btn admin-btn--primary" id="shabbat-close-order">סגור הזמנה</button>
+          </footer>
+        </div>
+
+        <div class="table-drawer__view table-drawer__menu" id="shabbat-drawer-menu" hidden>
+          <div class="table-menu__toolbar">
+            <button type="button" class="admin-btn admin-btn--ghost" id="shabbat-menu-back">חזרה להזמנה</button>
+            <label class="table-menu__search">
+              <span class="visually-hidden">חיפוש מנה</span>
+              <input type="search" id="shabbat-menu-search" placeholder="חיפוש מנה…" autocomplete="off">
+            </label>
+          </div>
+          <div class="table-menu__cats" id="shabbat-menu-cats" role="tablist" aria-label="קטגוריות"></div>
+          <div class="table-menu__list" id="shabbat-menu-list"></div>
+        </div>
+      </aside>
+    </div>
 
     <!-- Table detail drawer -->
     <div class="table-drawer" id="table-drawer" hidden aria-hidden="true">
@@ -180,8 +244,11 @@
           <div class="table-drawer__total" id="table-drawer-total"></div>
 
           <footer class="table-drawer__actions">
-            <button type="button" class="admin-btn admin-btn--approve" data-table-action="approve-print" id="table-approve-print" hidden>
-              אשר והדפס
+            <button type="button" class="admin-btn admin-btn--approve" data-table-action="approve-order" id="table-approve-order" hidden>
+              אשר
+            </button>
+            <button type="button" class="admin-btn admin-btn--print" data-table-action="print-order" id="table-print-order" hidden>
+              הדפס
             </button>
             <button type="button" class="admin-btn admin-btn--soft" data-table-action="add-items">הוסף מנות</button>
             <button type="button" class="admin-btn admin-btn--bill" data-table-action="print-bill">חשבון</button>
@@ -216,7 +283,7 @@
       <div class="admin-modal__panel" role="dialog" aria-modal="true" aria-labelledby="admin-confirm-text">
         <p class="admin-modal__text" id="admin-confirm-text">האם להסיר?</p>
         <div class="admin-modal__actions">
-          <button type="button" class="admin-btn admin-btn--danger" id="admin-confirm-yes">כן, הסר</button>
+          <button type="button" class="admin-btn admin-btn--danger" id="admin-confirm-yes">כן</button>
           <button type="button" class="admin-btn admin-btn--ghost" id="admin-confirm-cancel">ביטול</button>
         </div>
       </div>
@@ -267,14 +334,18 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
+  <script src="js/order-types.js" defer></script>
   <script src="js/supabase-order-service.js" defer></script>
   <script src="js/menu-data.js" defer></script>
+  <script src="js/shabbat-menu-data.js" defer></script>
   <script src="js/inventory.js" defer></script>
   <script src="js/order-session.js" defer></script>
   <script src="js/order-engine.js" defer></script>
   <script src="js/print-engine.js" defer></script>
   <script src="js/admin-tables.js" defer></script>
+  <script src="js/admin-shabbat.js" defer></script>
   <script src="js/admin-coupons.js" defer></script>
+  <script src="js/admin-shabbat-stats.js" defer></script>
   <script src="js/admin.js" defer></script>
   <script src="js/admin-pwa.js" defer></script>
 </body>

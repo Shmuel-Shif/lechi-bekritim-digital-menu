@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="הזמנות לשבת — לחיים בכריתים">
+  <title>הזמנות לשבת | לחיים בכריתים</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/theme-lechaim.css">
+  <link rel="stylesheet" href="css/entry-gate.css">
+  <link rel="stylesheet" href="css/shabbat.css">
+  <link rel="icon" href="assets/logo/logo.webp" type="image/webp">
+</head>
+<body class="shabbat-page">
+  <!-- Customer details (full page — same pattern as takeaway entry step) -->
+  <div class="entry-gate" id="shabbat-entry-gate" role="dialog" aria-modal="true" aria-labelledby="shabbat-entry-title" hidden>
+    <div class="entry-gate__chrome">
+      <img
+        src="assets/logo/kosher-badge.png"
+        alt="כשר למהדרין"
+        class="entry-gate__kosher-badge"
+        width="72"
+        height="72"
+        loading="eager"
+        decoding="async"
+      >
+      <button
+        type="button"
+        class="entry-gate__lang lang-toggle"
+        id="shabbat-entry-lang-toggle"
+        aria-label="החלפת שפה – עברית / English"
+      >
+        <span class="lang-toggle__option lang-toggle__option--active" data-lang="he">עב</span>
+        <span class="lang-toggle__sep" aria-hidden="true">|</span>
+        <span class="lang-toggle__option" data-lang="en">EN</span>
+      </button>
+    </div>
+
+    <div class="entry-gate__shell">
+      <p class="entry-gate__bh">ב״ה</p>
+      <div class="entry-gate__brand">
+        <img src="assets/logo/logo-image.png" alt="" class="entry-gate__logo" width="96" height="96">
+        <img src="assets/logo/logo-text.png" alt="LECHAIM" class="entry-gate__wordmark" width="220" height="56">
+      </div>
+      <p class="entry-gate__prompt" id="shabbat-entry-title" data-i18n="brand">הזמנות לשבת</p>
+      <p class="shabbat-entry-pickup-note" data-i18n="pickupFixed">איסוף ביום שישי בין השעות 13:00–14:00</p>
+
+      <div class="entry-gate__step" id="shabbat-entry-step">
+        <form class="entry-pickup" id="shabbat-pickup-form" novalidate>
+          <label class="entry-pickup__field">
+            <span class="entry-pickup__label" data-i18n="customerName">שם הלקוח *</span>
+            <input type="text" id="shabbat-pickup-name" class="entry-pickup__input" name="customerName" autocomplete="name" required maxlength="80">
+          </label>
+          <label class="entry-pickup__field">
+            <span class="entry-pickup__label" data-i18n="customerPhone">טלפון *</span>
+            <input type="tel" id="shabbat-pickup-phone" class="entry-pickup__input" name="customerPhone" autocomplete="tel" inputmode="tel" required maxlength="32" dir="ltr">
+          </label>
+          <label class="entry-pickup__field">
+            <span class="entry-pickup__label" data-i18n="customerNotes">הערות (אופציונלי)</span>
+            <textarea id="shabbat-pickup-notes" class="entry-pickup__input entry-pickup__textarea" name="customerNotes" rows="2" maxlength="240" dir="auto"></textarea>
+          </label>
+          <p class="entry-pickup__error" id="shabbat-pickup-error" role="alert" hidden></p>
+          <button type="submit" class="entry-gate__btn entry-gate__btn--primary" id="shabbat-pickup-submit">
+            <span class="entry-gate__btn-label" data-i18n="continueToMenu">המשך לתפריט</span>
+          </button>
+        </form>
+        <a href="index.html" class="entry-gate__back" id="shabbat-entry-back" data-i18n="backHome">חזרה</a>
+      </div>
+    </div>
+  </div>
+
+  <header class="site-header is-scrolled" id="site-header">
+    <span class="site-header__bh">ב״ה</span>
+    <div class="header-inner container">
+      <a href="index.html" class="brand" aria-label="לחיים בכריתים — דף הבית">
+        <img src="assets/logo/logo-image.png" alt="" class="brand__icon" width="64" height="64" loading="eager" decoding="async">
+        <img src="assets/logo/logo-text.png" alt="LECHAIM — The Pearl of Crete" class="brand__wordmark" width="190" height="50" loading="eager" decoding="async">
+      </a>
+      <div class="header-actions">
+        <button
+          type="button"
+          class="lang-toggle header-actions__lang"
+          id="shabbat-lang-toggle"
+          aria-label="החלפת שפה – עברית / English"
+        >
+          <span class="lang-toggle__option lang-toggle__option--active" data-lang="he">עב</span>
+          <span class="lang-toggle__sep" aria-hidden="true">|</span>
+          <span class="lang-toggle__option" data-lang="en">EN</span>
+        </button>
+        <a href="index.html" class="header-action header-action--home" id="shabbat-back-home" data-i18n="backHome">חזרה</a>
+        <button type="button" class="header-action header-action--cart" id="shabbat-cart-toggle" aria-label="פתח סל" aria-controls="shabbat-cart-panel" aria-expanded="false" hidden>
+          <img src="assets/icons/cart.svg" alt="" width="24" height="24" id="shabbat-cart-icon">
+          <span class="header-action__badge" id="shabbat-cart-badge" data-count="0" hidden>0</span>
+          <span id="shabbat-cart-label" data-i18n="myCart">הסל שלי</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Closed state -->
+  <section class="shabbat-closed" id="shabbat-closed" hidden>
+    <div class="shabbat-closed__panel">
+      <p class="shabbat-closed__title" id="shabbat-closed-title" data-i18n="closedTitle">ההזמנות לשבת סגורות</p>
+      <p class="shabbat-closed__text" id="shabbat-closed-text" data-i18n="closedText">ניתן להזמין שוב החל ביום ראשון.<br>ימים א׳–ד׳ · יום ה׳ עד 12:00</p>
+      <button type="button" class="entry-gate__btn entry-gate__btn--primary" id="shabbat-browse-menu" data-i18n="closedBrowse">
+        לצפייה בתפריט
+      </button>
+    </div>
+  </section>
+
+  <!-- Open ordering UI -->
+  <div id="shabbat-app" class="shabbat-app" hidden>
+    <section class="shabbat-hero">
+      <h1 class="shabbat-hero__title" data-i18n="brand">הזמנות לשבת</h1>
+      <aside class="shabbat-menu-notes container" id="shabbat-menu-notes" role="note">
+        <h2 class="shabbat-menu-notes__title" data-i18n="noticeTitle">שימו לב</h2>
+        <div id="shabbat-menu-notes-body"></div>
+      </aside>
+    </section>
+
+    <div class="category-nav-wrapper" id="shabbat-nav-wrapper">
+      <nav class="category-nav container" aria-label="קטגוריות">
+        <div class="category-nav-scroll">
+          <ul class="category-nav-list" id="shabbat-nav-list"></ul>
+        </div>
+      </nav>
+    </div>
+
+    <main class="menu-main" id="shabbat-menu">
+      <div class="container">
+        <div id="shabbat-menu-sections"></div>
+        <p class="shabbat-menu-empty" id="shabbat-menu-empty" data-i18n="menuComingSoon" hidden>התפריט לשבת יתעדכן בקרוב</p>
+      </div>
+    </main>
+  </div>
+
+  <footer class="site-footer" id="shabbat-footer">
+    <div class="footer-accent" aria-hidden="true"></div>
+    <div class="container footer-inner">
+      <div class="footer-brand">
+        <img src="assets/logo/logo.webp" alt="לחיים בכריתים — LeChaim" class="footer-brand__logo" width="200" height="80" loading="lazy" decoding="async">
+        <img
+          src="assets/logo/kosher-badge.png"
+          alt="כשר למהדרין"
+          class="footer-kosher"
+          width="110"
+          height="110"
+          loading="lazy"
+          decoding="async"
+        >
+      </div>
+
+      <div class="footer-grid">
+        <div class="footer-card footer-card--contact">
+          <h3 class="footer-heading" data-i18n="contact">יצירת קשר</h3>
+          <p class="footer-follow" data-i18n="followUs">עקבו אחרינו</p>
+          <div class="footer-social" role="list">
+            <a href="tel:+306946502236" class="footer-icon-link footer-icon-link--phone" aria-label="התקשרו +30 694 650 2236" role="listitem">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.01-.24 11.36 11.36 0 003.56.57 1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1 11.36 11.36 0 00.57 3.56 1 1 0 01-.24 1.01l-2.2 2.2z"/></svg>
+            </a>
+            <a href="https://wa.me/306946502236" class="footer-icon-link footer-icon-link--whatsapp" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp" role="listitem">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.881 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+            </a>
+            <a href="https://www.instagram.com/lechim_crete/" class="footer-icon-link footer-icon-link--instagram" target="_blank" rel="noopener noreferrer" aria-label="Instagram" role="listitem">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.766 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
+            </a>
+            <a href="https://www.facebook.com/share/19Pwg3YuSb/?mibextid=wwXIfr" class="footer-icon-link footer-icon-link--facebook" target="_blank" rel="noopener noreferrer" aria-label="Facebook" role="listitem">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 10V7.5c0-.83.67-1.5 1.5-1.5H17V3h-3.5C11.57 3 10 4.57 10 6.5V10H7v3h3v8h3v-8h2.5l.5-3H13z"/></svg>
+            </a>
+          </div>
+          <p class="footer-phone">
+            <a href="tel:+306946502236" class="footer-link footer-link--phone">+30 694 650 2236</a>
+          </p>
+        </div>
+
+        <div class="footer-card">
+          <h3 class="footer-heading" data-i18n="hours">שעות פעילות</h3>
+          <ul class="footer-hours">
+            <li><span data-i18n="hoursDays">א׳ – ה׳</span><span>14:00 – 21:00</span></li>
+          </ul>
+        </div>
+
+        <div class="footer-card">
+          <h3 class="footer-heading" data-i18n="address">כתובת</h3>
+          <address class="footer-address">
+            <a href="https://maps.app.goo.gl/vMejA76qL8hCLQkF7?g_st=ac" class="footer-link footer-link--map" target="_blank" rel="noopener noreferrer" data-i18n="addressText">
+              Analipsi 700 14, Greece
+            </a>
+          </address>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <div class="container footer-bottom-inner">
+        <p class="footer-copy">&copy; <span id="shabbat-year"></span> <span data-i18n="copyright">מסעדת לחיים בכרתים כשר למהדרין</span></p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Cart (same structure as main / takeaway menu) -->
+  <div class="cart-panel" id="shabbat-cart-panel" hidden aria-hidden="true">
+    <button type="button" class="cart-backdrop" id="shabbat-cart-backdrop" aria-label="סגור סל"></button>
+    <aside class="cart-drawer" role="dialog" aria-modal="true" aria-labelledby="shabbat-cart-title">
+      <header class="cart-header">
+        <h2 class="cart-title" id="shabbat-cart-title" data-i18n="myCart">הסל שלי</h2>
+        <button type="button" class="cart-close" id="shabbat-cart-close" aria-label="סגור">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </header>
+      <div class="cart-body" id="shabbat-cart-body"></div>
+      <footer class="cart-footer">
+        <div class="cart-total-row">
+          <span class="cart-total-label" data-i18n="total">סה״כ</span>
+          <span class="cart-total-price" id="shabbat-cart-total">€0</span>
+        </div>
+        <div class="cart-actions">
+          <button type="button" class="cart-send-btn" id="shabbat-continue" data-i18n="continueOrder" disabled>שלח הזמנה</button>
+          <button type="button" class="cart-clear-btn" id="shabbat-clear" data-i18n="clearCart" disabled>נקה עגלה</button>
+        </div>
+      </footer>
+    </aside>
+  </div>
+
+  <!-- Order receipt (same UX as takeaway after send) -->
+  <div class="order-receipt" id="shabbat-order-receipt" hidden aria-hidden="true">
+    <button type="button" class="order-receipt__backdrop" id="shabbat-receipt-backdrop" aria-label="סגור"></button>
+    <div class="order-receipt__panel" role="dialog" aria-modal="true" aria-labelledby="shabbat-receipt-title">
+      <button type="button" class="order-receipt__close" id="shabbat-receipt-close" aria-label="סגור">×</button>
+      <header class="order-receipt__header">
+        <p class="order-receipt__eyebrow" id="shabbat-receipt-eyebrow">כרטיס הזמנה</p>
+        <h2 class="order-receipt__title" id="shabbat-receipt-title">ההזמנה נשלחה</h2>
+        <p class="order-receipt__meta" id="shabbat-receipt-meta"></p>
+      </header>
+      <div class="order-receipt__body" id="shabbat-receipt-body"></div>
+      <div class="order-receipt__total">
+        <span id="shabbat-receipt-total-label">סה״כ</span>
+        <strong id="shabbat-receipt-total">€0.00</strong>
+      </div>
+      <footer class="order-receipt__actions">
+        <button type="button" class="cart-send-btn" id="shabbat-receipt-continue">הוסף פריטים להזמנה קיימת</button>
+        <button type="button" class="cart-clear-btn" id="shabbat-receipt-new" hidden>הזמנה חדשה</button>
+      </footer>
+    </div>
+  </div>
+
+  <div class="order-feedback" id="shabbat-feedback" role="status" aria-live="polite" hidden></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+  <script src="js/supabase-config.js" defer></script>
+  <script src="js/order-types.js" defer></script>
+  <script src="js/supabase-order-service.js" defer></script>
+  <script src="js/shabbat-menu-data.js" defer></script>
+  <script src="js/shabbat-app.js" defer></script>
+</body>
+</html>

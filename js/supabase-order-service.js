@@ -64,9 +64,16 @@
   }
 
   function normalizeOrderType(value) {
+    const types = global.LechaimOrderTypes;
+    if (types?.normalizeOrderType) {
+      return types.normalizeOrderType(value, { context: 'LechaimSupabaseOrders' });
+    }
+    /* Fallback if order-types.js failed to load */
     const raw = String(value || '').toLowerCase().trim();
     if (raw === 'dine_in' || raw === 'dine-in' || raw === 'dinein') return 'dine_in';
     if (raw === 'takeaway' || raw === 'take-away' || raw === 'take_away') return 'takeaway';
+    if (raw === 'shabbat' || raw === 'shabbos' || raw === 'shabat') return 'shabbat';
+    if (raw) console.warn(`[LechaimSupabaseOrders] Unknown order type: ${raw}`);
     return null;
   }
 
@@ -108,7 +115,7 @@
   }
 
   /**
-   * Create a new order session (dine_in or takeaway).
+   * Create a new order session (dine_in, takeaway, or shabbat).
    * @param {object} options
    * @param {string} options.orderType
    * @param {number|null} [options.tableNumber]
@@ -148,16 +155,32 @@
       pickup_time: options.pickupTime ?? options.pickup_time ?? null,
     };
 
-    if (orderType === 'takeaway') {
-      const pickupType = String(row.pickup_type || 'ASAP').toUpperCase() === 'TIME' ? 'TIME' : 'ASAP';
-      row.pickup_type = pickupType;
-      row.pickup_time = pickupType === 'TIME' && row.pickup_time
-        ? String(row.pickup_time)
-        : null;
-    } else {
-      row.pickup_type = null;
-      row.pickup_time = null;
-      row.public_order_no = null;
+    switch (orderType) {
+      case 'takeaway': {
+        const pickupType = String(row.pickup_type || 'ASAP').toUpperCase() === 'TIME' ? 'TIME' : 'ASAP';
+        row.pickup_type = pickupType;
+        row.pickup_time = pickupType === 'TIME' && row.pickup_time
+          ? String(row.pickup_time)
+          : null;
+        break;
+      }
+      case 'shabbat':
+        /* Fixed Friday pickup window — no ASAP / no public takeaway number */
+        row.pickup_type = 'TIME';
+        row.pickup_time = row.pickup_time ? String(row.pickup_time) : '13:00-14:00';
+        row.public_order_no = null;
+        break;
+      case 'dine_in':
+        row.pickup_type = null;
+        row.pickup_time = null;
+        row.public_order_no = null;
+        break;
+      default:
+        console.warn(`[LechaimSupabaseOrders.createSession] Unknown order type: ${orderType}`);
+        row.pickup_type = null;
+        row.pickup_time = null;
+        row.public_order_no = null;
+        break;
     }
 
     if (options.sessionId || options.session_id) {
@@ -535,6 +558,40 @@
   }
 
   /**
+   * Mark an order approved / preparing (before kitchen print).
+   * @param {string} orderId
+   */
+  async function markOrderApproved(orderId) {
+    const sb = getClient();
+    if (!orderId) {
+      throw new Error('[LechaimSupabaseOrders.markOrderApproved] orderId is required');
+    }
+
+    const { data, error } = await sb
+      .from(TABLE_ORDERS)
+      .update({ status: 'preparing' })
+      .eq('id', orderId)
+      .is('printed_at', null)
+      .select('id, status, printed_at');
+
+    throwIfError(error, 'markOrderApproved');
+    if (data?.length) return data[0];
+
+    const { data: existing, error: readErr } = await sb
+      .from(TABLE_ORDERS)
+      .select('id, status, printed_at')
+      .eq('id', orderId)
+      .maybeSingle();
+
+    throwIfError(readErr, 'markOrderApproved.read');
+    if (existing && (existing.status === 'preparing' || existing.printed_at)) {
+      return existing;
+    }
+
+    throw new Error('[LechaimSupabaseOrders.markOrderApproved] order not updated (check status column / RLS)');
+  }
+
+  /**
    * Mark an order printed (idempotent).
    * @param {string} orderId
    */
@@ -547,9 +604,9 @@
     const stamped = new Date().toISOString();
     const { data, error } = await sb
       .from(TABLE_ORDERS)
-      .update({ printed_at: stamped })
+      .update({ printed_at: stamped, status: 'ready' })
       .eq('id', orderId)
-      .select('id, printed_at');
+      .select('id, printed_at, status');
 
     throwIfError(error, 'markOrderPrinted');
     if (data?.length) return data[0];
@@ -557,7 +614,7 @@
     /* Already stamped or race — confirm row exists */
     const { data: existing, error: readErr } = await sb
       .from(TABLE_ORDERS)
-      .select('id, printed_at')
+      .select('id, printed_at, status')
       .eq('id', orderId)
       .maybeSingle();
 
@@ -764,7 +821,17 @@
 
     throwIfError(error, 'getCouponUsageReport');
 
-    const rows = (data || []).filter((row) => row?.coupon_code);
+    /* Exclude Shabbat — counted only in getShabbatSessionsReport / Admin Shabbat stats */
+    const rows = (data || []).filter((row) => {
+      if (!row?.coupon_code) return false;
+      const type = normalizeOrderType(row.order_type);
+      if (type === 'shabbat') return false;
+      if (row.order_type && !type) {
+        console.warn(`[LechaimSupabaseOrders.getCouponUsageReport] Unknown order type: ${row.order_type}`);
+        return false;
+      }
+      return true;
+    });
     const ordersByCode = {};
 
     rows.forEach((row) => {
@@ -815,6 +882,25 @@
     return { summaries, ordersByCode };
   }
 
+  /**
+   * Shabbat sessions report (separate from coupon catalog stats).
+   * @returns {Promise<object[]>}
+   */
+  async function getShabbatSessionsReport() {
+    const sb = getClient();
+    const { data, error } = await sb
+      .from(TABLE_SESSIONS)
+      .select(
+        'session_id, customer_name, customer_phone, coupon_code, discount_percent, discount_amount, subtotal, status, created_at, closed_at, order_type'
+      )
+      .eq('order_type', 'shabbat')
+      .order('created_at', { ascending: false })
+      .limit(500);
+
+    throwIfError(error, 'getShabbatSessionsReport');
+    return data || [];
+  }
+
   global.LechaimSupabaseOrders = {
     isConfigured,
     createSession,
@@ -826,11 +912,13 @@
     getSessionOrders,
     getOpenSessionsWithOrders,
     getUnprintedOrdersWithItems,
+    markOrderApproved,
     markOrderPrinted,
     updateSessionStatus,
     validateCoupon,
     incrementCouponUse,
     getCouponUsageReport,
+    getShabbatSessionsReport,
     subscribeToOrders,
   };
 })(window);

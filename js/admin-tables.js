@@ -72,6 +72,9 @@
   let pendingBillEntry = null;
   let pendingBillCoupon = null;
   let boardFilter = 'tables'; /* 'tables' | 'takeaway' */
+  let watchRunning = false;
+  /** Session ids with order_type=shabbat — excluded from dine-in/takeaway boards */
+  const shabbatSessionIds = new Set();
 
   function showToast(message) {
     showSuccessModal(message);
@@ -107,7 +110,7 @@
     if (typeof resolve === 'function') resolve(Boolean(result));
   }
 
-  function showConfirmModal(message) {
+  function showConfirmModal(message, options = {}) {
     if (!confirmModal) {
       return Promise.resolve(window.confirm(String(message || '')));
     }
@@ -116,6 +119,9 @@
       confirmResolver = null;
     }
     if (confirmText) confirmText.textContent = message;
+    if (confirmYes) {
+      confirmYes.textContent = options.yesLabel || 'כן';
+    }
     confirmModal.hidden = false;
     confirmModal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('admin-modal-open');
@@ -169,18 +175,41 @@
 
   function statusLabel(uiStatus) {
     if (uiStatus === 'pending_print') return 'ממתין לאישור';
+    if (uiStatus === 'preparing') return 'בהכנה';
     if (uiStatus === 'active') return 'פעיל';
     if (uiStatus === 'bill_requested') return 'ביקש חשבון';
     return 'פנוי';
+  }
+
+  function orderNeedsApprove(order) {
+    if (!order?.id || order.printed_at) return false;
+    const status = String(order.status || 'submitted').toLowerCase();
+    return status === 'submitted' || status === '';
+  }
+
+  function orderNeedsPrint(order) {
+    if (!order?.id || order.printed_at) return false;
+    return String(order.status || '').toLowerCase() === 'preparing';
   }
 
   function hasUnprintedRemoteOrders(orders) {
     return (orders || []).some((order) => order && order.id && !order.printed_at);
   }
 
+  function hasOrdersNeedingApprove(orders) {
+    return (orders || []).some(orderNeedsApprove);
+  }
+
+  function hasOrdersNeedingPrint(orders) {
+    return (orders || []).some(orderNeedsPrint);
+  }
+
   function resolveEntryUiStatus(synthetic) {
     if (!synthetic) return 'free';
-    if (hasUnprintedRemoteOrders(synthetic._remoteOrders)) return 'pending_print';
+    const remote = synthetic._remoteOrders || [];
+    if (hasOrdersNeedingApprove(remote)) return 'pending_print';
+    if (hasOrdersNeedingPrint(remote)) return 'preparing';
+    if (hasUnprintedRemoteOrders(remote)) return 'pending_print';
     if (synthetic.status === 'bill_requested') return 'bill_requested';
     return 'active';
   }
@@ -278,7 +307,18 @@
       }
     });
 
-    const uiOrderType = session.order_type === 'takeaway' ? 'takeaway' : 'dinein';
+    const classified = window.LechaimOrderTypes?.classifyOrderType?.(session.order_type, 'admin-tables.flatten')
+      ?? (() => {
+        const raw = String(session.order_type || '');
+        if (raw === 'takeaway') return 'takeaway';
+        if (raw === 'dine_in' || raw === 'dinein') return 'dine_in';
+        if (raw === 'shabbat') return 'shabbat';
+        if (raw) console.warn(`[admin-tables] Unknown order type: ${raw}`);
+        return null;
+      })();
+    const uiOrderType = classified === 'takeaway'
+      ? 'takeaway'
+      : (classified === 'dine_in' ? 'dinein' : null);
     let status = 'active';
     if (session.status === 'bill_requested' || session.bill_requested) {
       status = 'bill_requested';
@@ -323,9 +363,34 @@
 
     const dineInByTable = new Map();
     const takeaway = [];
+    const shabbatOrderIds = [];
+    shabbatSessionIds.clear();
 
     (rows || []).forEach(({ session, orders }) => {
+      const classified = window.LechaimOrderTypes?.classifyOrderType?.(session?.order_type, 'admin-tables.board')
+        ?? null;
+
+      switch (classified) {
+        case 'shabbat':
+          if (session?.session_id) shabbatSessionIds.add(String(session.session_id));
+          (orders || []).forEach((order) => {
+            if (order?.id) shabbatOrderIds.push(String(order.id));
+          });
+          return; /* Shabbat has its own Admin tab */
+        case 'dine_in':
+        case 'takeaway':
+          break;
+        case 'unknown':
+          return;
+        default:
+          if (session?.order_type) {
+            window.LechaimOrderTypes?.warnUnknownOrderType?.(session.order_type, 'admin-tables.board');
+          }
+          return;
+      }
+
       const synthetic = flattenSessionOrders(session, orders);
+      if (!synthetic?.orderType) return;
       const isTakeaway = synthetic.orderType === 'takeaway';
       /* Keep takeaway visible even if admin removed all line items */
       if (!isTakeaway && !synthetic.items.length && !(Number(synthetic._sessionTotal) > 0)) return;
@@ -373,7 +438,7 @@
       });
     }
 
-    return { board, takeaway };
+    return { board, takeaway, shabbatOrderIds };
   }
 
   function loadLocalBoards() {
@@ -381,6 +446,7 @@
     return {
       board: engine?.getTablesBoard?.() || [],
       takeaway: engine?.getTakeawayBoard?.() || [],
+      shabbatOrderIds: [],
       source: 'local',
     };
   }
@@ -401,6 +467,7 @@
           return {
             board: boardCache,
             takeaway: takeawayCache,
+            shabbatOrderIds: [],
             source: 'supabase',
             stale: true,
           };
@@ -466,7 +533,7 @@
       takeawayCache = data.takeaway;
       dataSource = data.source;
       if (!data.stale) {
-        syncKnownOrderIdsAfterBoardLoad(boardCache, takeawayCache);
+        syncKnownOrderIdsAfterBoardLoad(boardCache, takeawayCache, data.shabbatOrderIds);
       }
       paintBoard(boardCache, takeawayCache);
     })().finally(() => {
@@ -686,12 +753,20 @@
   }
 
   function updateApprovePrintButton(entry) {
-    const btn = document.getElementById('table-approve-print');
-    if (!btn) return;
-    const pending = entry?.uiStatus === 'pending_print'
-      || hasUnprintedRemoteOrders(entry?.order?._remoteOrders);
-    btn.hidden = !pending;
-    btn.disabled = approvePrintBusy;
+    const approveBtn = document.getElementById('table-approve-order');
+    const printBtn = document.getElementById('table-print-order');
+    const remote = entry?.order?._remoteOrders || [];
+    const needsApprove = hasOrdersNeedingApprove(remote);
+    const needsPrint = hasOrdersNeedingPrint(remote);
+
+    if (approveBtn) {
+      approveBtn.hidden = !needsApprove;
+      approveBtn.disabled = approvePrintBusy;
+    }
+    if (printBtn) {
+      printBtn.hidden = !needsPrint;
+      printBtn.disabled = approvePrintBusy;
+    }
   }
 
   function suppressCustomerNotify(ms = 4500) {
@@ -750,7 +825,9 @@
 
   function boardNeedsAdminAttention(board, takeaway) {
     return [...(board || []), ...(takeaway || [])].some((entry) => (
-      entry?.uiStatus === 'pending_print' || entry?.uiStatus === 'bill_requested'
+      entry?.uiStatus === 'pending_print'
+      || entry?.uiStatus === 'preparing'
+      || entry?.uiStatus === 'bill_requested'
     ));
   }
 
@@ -778,8 +855,11 @@
     }, 15000);
   }
 
-  function syncKnownOrderIdsAfterBoardLoad(board, takeaway) {
+  function syncKnownOrderIdsAfterBoardLoad(board, takeaway, shabbatOrderIds) {
     const current = collectBoardOrderIds(board, takeaway);
+    (shabbatOrderIds || []).forEach((id) => {
+      if (id) current.add(String(id));
+    });
     if (!orderIdsSeeded) {
       current.forEach((id) => knownOrderIds.add(id));
       orderIdsSeeded = true;
@@ -895,7 +975,9 @@
 
     const item = (entry.order.items || []).find((row) => String(row.itemId) === id);
     const label = item?.name || item?.productId || 'מנה';
-    const ok = await showConfirmModal(`להסיר את "${label}" מההזמנה?`);
+    const ok = await showConfirmModal(`האם אתה בטוח שברצונך להסיר את "${label}" מההזמנה?`, {
+      yesLabel: 'כן, הסר',
+    });
     if (!ok) return;
 
     const api = OrdersApi();
@@ -924,7 +1006,48 @@
     }
   }
 
-  async function handleApprovePrint(entry) {
+  async function handleApproveOrder(entry) {
+    if (approvePrintBusy || !entry?.order) return;
+
+    const api = OrdersApi();
+    if (!api?.markOrderApproved) {
+      showToast('אישור לא זמין');
+      return;
+    }
+
+    const remoteOrders = (entry.order._remoteOrders || [])
+      .filter(orderNeedsApprove)
+      .sort((a, b) => (Number(a.order_number) || 0) - (Number(b.order_number) || 0));
+
+    if (!remoteOrders.length) {
+      showToast('אין הזמנות ממתינות לאישור');
+      await refreshBoardData().catch(() => {});
+      return;
+    }
+
+    approvePrintBusy = true;
+    suppressCustomerNotify();
+    updateApprovePrintButton(entry);
+
+    try {
+      for (const order of remoteOrders) {
+        await api.markOrderApproved(order.id);
+      }
+      showToast('ההזמנה אושרה · בהכנה');
+      await refreshBoardData();
+      const next = getSelectedEntry();
+      if (next?.order) fillDrawer(next);
+    } catch (err) {
+      console.error('[admin-tables] approve-order failed', err);
+      showToast('האישור נכשל');
+    } finally {
+      approvePrintBusy = false;
+      const next = getSelectedEntry();
+      updateApprovePrintButton(next);
+    }
+  }
+
+  async function handlePrintOrder(entry) {
     if (approvePrintBusy || !entry?.order) return;
 
     const api = OrdersApi();
@@ -935,14 +1058,14 @@
     }
 
     const remoteOrders = (entry.order._remoteOrders || [])
-      .filter((order) => order && order.id && !order.printed_at)
+      .filter(orderNeedsPrint)
       .sort((a, b) => (Number(a.order_number) || 0) - (Number(b.order_number) || 0));
 
     if (!remoteOrders.length) {
       showToast('אין הזמנות ממתינות להדפסה');
       closeDrawer();
       await refreshBoardData().catch((err) => {
-        console.warn('[admin-tables] refresh after empty approve failed', err);
+        console.warn('[admin-tables] refresh after empty print failed', err);
       });
       return;
     }
@@ -992,7 +1115,7 @@
 
       printedOk = true;
     } catch (err) {
-      console.error('[admin-tables] approve-print failed', err);
+      console.error('[admin-tables] print-order failed', err);
       showToast('ההדפסה נכשלה');
       return;
     } finally {
@@ -1001,12 +1124,12 @@
 
     if (!printedOk) return;
 
-    showToast('ההזמנה אושרה והודפסה');
+    showToast('ההזמנה הודפסה');
     closeDrawer();
     try {
       await refreshBoardData();
     } catch (err) {
-      console.warn('[admin-tables] refresh after approve-print failed', err);
+      console.warn('[admin-tables] refresh after print-order failed', err);
     }
   }
 
@@ -1359,8 +1482,13 @@
     const entry = getSelectedEntry();
     if (!entry?.order) return;
 
-    if (action === 'approve-print') {
-      await handleApprovePrint(entry);
+    if (action === 'approve-order') {
+      await handleApproveOrder(entry);
+      return;
+    }
+
+    if (action === 'print-order') {
+      await handlePrintOrder(entry);
       return;
     }
 
@@ -1375,6 +1503,15 @@
     }
 
     if (action === 'close-table') {
+      const closeLabel = entry.orderType === 'takeaway' ? 'סגור הזמנה' : 'סגור שולחן';
+      const ok = await showConfirmModal(
+        entry.orderType === 'takeaway'
+          ? 'האם אתה בטוח שברצונך לסגור את הזמנת האיסוף העצמי?'
+          : `האם אתה בטוח שברצונך לסגור את שולחן ${entry.tableNumber}?`,
+        { yesLabel: `כן, ${closeLabel}` }
+      );
+      if (!ok) return;
+
       try {
         let closed = false;
         suppressCustomerNotify();
@@ -1422,6 +1559,23 @@
     if (entry) openDrawer(entry);
   }
 
+  async function isShabbatSessionId(sessionId) {
+    if (!sessionId) return false;
+    const key = String(sessionId);
+    if (shabbatSessionIds.has(key)) return true;
+    try {
+      const session = await OrdersApi()?.getSession?.(key);
+      if (window.LechaimOrderTypes?.isShabbatOrderType?.(session?.order_type)
+        || session?.order_type === 'shabbat') {
+        shabbatSessionIds.add(key);
+        return true;
+      }
+    } catch {
+      /* ignore lookup failures — fall through to normal board handling */
+    }
+    return false;
+  }
+
   function startRealtime() {
     stopRealtime();
     const api = OrdersApi();
@@ -1432,19 +1586,29 @@
         const eventType = String(payload?.eventType || payload?.event || '').toUpperCase();
         const row = payload?.new || payload?.payload?.new;
 
-        /* Customer sent a new order wave */
+        /* Customer sent a new order wave — chime on every Admin tab (incl. Shabbat) */
         if (table === 'orders' && eventType === 'INSERT') {
           const id = row?.id;
-          if (id && orderIdsSeeded && !knownOrderIds.has(String(id))) {
-            knownOrderIds.add(String(id));
-            playOrderNotifyChime();
-          } else if (id) {
-            knownOrderIds.add(String(id));
-          }
+          const sessionId = row?.session_id;
+          void (async () => {
+            const isShabbat = await isShabbatSessionId(sessionId);
+            if (id && orderIdsSeeded && !knownOrderIds.has(String(id))) {
+              knownOrderIds.add(String(id));
+              playOrderNotifyChime();
+            } else if (id) {
+              knownOrderIds.add(String(id));
+            }
+            /* Shabbat has its own board — still refresh tables/takeaway for other types */
+            if (!isShabbat) scheduleBoardRefresh();
+          })();
+          return;
         }
 
-        /* Customer requested the bill */
+        /* Customer requested the bill — Shabbat has no bill flow on this board */
         if (table === 'order_sessions' && eventType === 'UPDATE') {
+          if (String(row?.order_type || '') === 'shabbat' || shabbatSessionIds.has(String(row?.session_id || ''))) {
+            return;
+          }
           const becameBill = row?.status === 'bill_requested' || row?.bill_requested === true;
           if (becameBill) playOrderNotifyChime();
         }
@@ -1468,13 +1632,18 @@
   }
 
   function startPolling() {
-    stopPolling();
+    if (watchRunning) {
+      renderBoard();
+      return;
+    }
+    watchRunning = true;
     startRealtime();
     renderBoard();
     pollTimer = window.setInterval(renderBoard, 1000);
   }
 
   function stopPolling() {
+    watchRunning = false;
     if (pollTimer) {
       window.clearInterval(pollTimer);
       pollTimer = null;
@@ -1565,6 +1734,9 @@
     refresh: renderBoard,
     closeDrawer,
     setBoardFilter,
+    playNotifyChime: playOrderNotifyChime,
+    showConfirmModal,
+    showSuccessModal,
   };
 
   if (document.readyState === 'loading') {

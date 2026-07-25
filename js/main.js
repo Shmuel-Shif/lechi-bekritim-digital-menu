@@ -112,19 +112,20 @@
   }
 
   function isOrderingAllowed() {
+    if (window.LechaimOrderContext?.browseOnly) return false;
     if (!ORDERING_HOURS_ENABLED) return true;
     return isWithinOrderingHours();
   }
 
   function refreshOrderingHoursUi() {
     const browseOnly = Boolean(window.LechaimOrderContext?.browseOnly);
-    const allowed = isOrderingAllowed() && !browseOnly;
+    const allowed = isOrderingAllowed();
     document.body.classList.toggle('ordering-closed', !allowed);
     document.body.classList.toggle('browse-only', browseOnly);
     document.body.classList.toggle('takeaway-locked', isTakeawayOrderLocked());
 
     if (orderingHoursBanner) {
-      orderingHoursBanner.hidden = allowed;
+      orderingHoursBanner.hidden = allowed || browseOnly;
       if (orderingHoursBannerText) {
         orderingHoursBannerText.textContent = t('orderingClosedBanner');
       }
@@ -139,6 +140,8 @@
         cartToggle.removeAttribute('aria-hidden');
       }
     }
+
+    updateTableHeader();
 
     updateCartToggleMode();
 
@@ -909,8 +912,11 @@
     const ctx = window.LechaimOrderContext || {};
     if (ctx.browseOnly) {
       tableBtn.hidden = true;
-      if (backBtn) backBtn.hidden = true;
       numEl.textContent = '—';
+      if (backBtn) {
+        backBtn.hidden = false;
+        backBtn.setAttribute('aria-label', t('backToOrderTypeAria'));
+      }
       return;
     }
 
@@ -1191,6 +1197,9 @@
     const available = isProductAvailable(item.id);
     const price = getItemPrice(item);
 
+    /* Browse-only: name + price only — no cart actions / closed notes */
+    if (window.LechaimOrderContext?.browseOnly) return '';
+
     if (!isOrderingAllowed()) {
       if (price == null) return '';
       return `
@@ -1447,6 +1456,8 @@
   function renderModalActions(item) {
     const price = getItemPrice(item);
     if (price == null) return '';
+
+    if (window.LechaimOrderContext?.browseOnly) return '';
 
     if (!isOrderingAllowed()) {
       return `

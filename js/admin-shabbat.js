@@ -1,0 +1,770 @@
+/**
+ * LECHAIM — Admin Shabbat orders board
+ * Same actions as takeaway: Approve → Print → Add dishes → Close (with confirm).
+ */
+(function (global) {
+  'use strict';
+
+  const gridEl = document.getElementById('shabbat-orders-grid');
+  const emptyEl = document.getElementById('shabbat-orders-empty');
+  const badgeEl = document.getElementById('tab-badge-shabbat');
+  const drawer = document.getElementById('shabbat-drawer');
+  const drawerBackdrop = document.getElementById('shabbat-drawer-backdrop');
+  const drawerClose = document.getElementById('shabbat-drawer-close');
+  const drawerTitle = document.getElementById('shabbat-drawer-title');
+  const drawerType = document.getElementById('shabbat-drawer-type');
+  const drawerDetail = document.getElementById('shabbat-drawer-detail');
+  const drawerMenu = document.getElementById('shabbat-drawer-menu');
+  const drawerMeta = document.getElementById('shabbat-drawer-meta');
+  const drawerItems = document.getElementById('shabbat-drawer-items');
+  const drawerTotal = document.getElementById('shabbat-drawer-total');
+  const approveBtn = document.getElementById('shabbat-approve');
+  const printBtn = document.getElementById('shabbat-print');
+  const addItemsBtn = document.getElementById('shabbat-add-items');
+  const closeBtn = document.getElementById('shabbat-close-order');
+  const menuBack = document.getElementById('shabbat-menu-back');
+  const menuSearch = document.getElementById('shabbat-menu-search');
+  const menuCats = document.getElementById('shabbat-menu-cats');
+  const menuList = document.getElementById('shabbat-menu-list');
+  const toastEl = document.getElementById('admin-toast');
+
+  let cache = [];
+  let selectedId = null;
+  let busy = false;
+  let removeBusy = false;
+  let timer = null;
+  let unsub = null;
+  let running = false;
+  let menuMode = false;
+  let menuCategoryId = 'all';
+  let menuQuery = '';
+  let catalogCache = [];
+
+  function escapeHtml(str) {
+    return String(str == null ? '' : str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function escapeAttr(str) {
+    return String(str == null ? '' : str)
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+      .replace(/</g, '&lt;');
+  }
+
+  function formatMoney(amount) {
+    const n = Number(amount) || 0;
+    return `€${n % 1 === 0 ? n.toFixed(0) : n.toFixed(2)}`;
+  }
+
+  function formatClock(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '—';
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  }
+
+  function showToast(message) {
+    if (!toastEl) return;
+    toastEl.hidden = false;
+    toastEl.textContent = message;
+    window.clearTimeout(showToast._t);
+    showToast._t = window.setTimeout(() => {
+      toastEl.hidden = true;
+      toastEl.textContent = '';
+    }, 2800);
+  }
+
+  function showConfirm(message, yesLabel) {
+    if (typeof global.LechaimAdminTables?.showConfirmModal === 'function') {
+      return global.LechaimAdminTables.showConfirmModal(message, { yesLabel: yesLabel || 'כן' });
+    }
+    return Promise.resolve(window.confirm(String(message || '')));
+  }
+
+  function showSuccess(message) {
+    if (typeof global.LechaimAdminTables?.showSuccessModal === 'function') {
+      global.LechaimAdminTables.showSuccessModal(message);
+      return;
+    }
+    showToast(message);
+  }
+
+  function orderNeedsApprove(order) {
+    return Boolean(
+      order
+      && order.id
+      && !order.printed_at
+      && String(order.status || 'submitted').toLowerCase() === 'submitted'
+    );
+  }
+
+  function orderNeedsPrint(order) {
+    return Boolean(order?.id && !order.printed_at);
+  }
+
+  function needsApprove(orders) {
+    return (orders || []).some(orderNeedsApprove);
+  }
+
+  function needsPrint(orders) {
+    return (orders || []).some(orderNeedsPrint);
+  }
+
+  function entryStatus(row) {
+    if (needsApprove(row.orders)) return 'pending_print';
+    if ((row.orders || []).some((o) => o && !o.printed_at && String(o.status || '').toLowerCase() === 'preparing')) {
+      return 'preparing';
+    }
+    return 'active';
+  }
+
+  function statusLabel(status) {
+    if (status === 'pending_print') return 'ממתין לאישור';
+    if (status === 'preparing') return 'בהכנה';
+    return 'פעיל';
+  }
+
+  function flattenItems(orders) {
+    const items = [];
+    let total = 0;
+    (orders || []).forEach((order) => {
+      (order.order_items || []).forEach((row) => {
+        const qty = Number(row.quantity) || 0;
+        if (qty <= 0) return;
+        const price = Number(row.price) || 0;
+        items.push({
+          itemId: String(row.id),
+          productId: String(row.product_id || ''),
+          name: row.product_name || row.print_name || row.product_id || '',
+          printName: row.print_name || '',
+          qty,
+          price,
+          isNew: !order.printed_at
+            && String(order.status || 'submitted').toLowerCase() === 'submitted',
+        });
+        total += price * qty;
+      });
+    });
+    return { items, total };
+  }
+
+  function mapRow(session, orders) {
+    const { items, total } = flattenItems(orders);
+    return {
+      sessionId: String(session.session_id),
+      customerName: session.customer_name || '—',
+      customerPhone: session.customer_phone || '—',
+      customerNotes: session.notes || '',
+      pickupTime: session.pickup_time || '13:00-14:00',
+      openedAt: session.created_at,
+      orders: orders || [],
+      items,
+      total: session.subtotal != null && session.discount_amount != null
+        ? Math.max(0, Number(session.subtotal) - Number(session.discount_amount))
+        : total,
+      couponCode: session.coupon_code || null,
+      discountPercent: session.discount_percent,
+      uiStatus: entryStatus({ orders }),
+    };
+  }
+
+  function setBadge(count) {
+    if (!badgeEl) return;
+    const n = Math.max(0, Number(count) || 0);
+    badgeEl.textContent = String(n);
+    badgeEl.setAttribute('data-count', String(n));
+    badgeEl.hidden = n <= 0;
+  }
+
+  function setDrawerView(view) {
+    menuMode = view === 'menu';
+    if (drawerDetail) drawerDetail.hidden = menuMode;
+    if (drawerMenu) drawerMenu.hidden = !menuMode;
+    if (drawerType) {
+      drawerType.textContent = menuMode
+        ? 'הזמנות לשבת · הוספת מנות'
+        : 'הזמנות לשבת';
+    }
+  }
+
+  function loadCatalog() {
+    const cats = global.SHABBAT_MENU_DATA?.categories || [];
+    const pack = global.SHABBAT_TRANSLATIONS?.he || {};
+    catalogCache = [];
+    cats.forEach((cat) => {
+      const key = cat.titleKey && String(cat.titleKey).startsWith('categories.')
+        ? String(cat.titleKey).slice('categories.'.length)
+        : cat.id;
+      const title = pack.categories?.[key] || cat.title || cat.id;
+      (cat.items || []).forEach((item) => {
+        if (!item?.id) return;
+        catalogCache.push({
+          id: item.id,
+          name: item.name || item.id,
+          printName: item.printName || item.nameEn || item.name || item.id,
+          price: Number(item.price) || 0,
+          categoryId: cat.id,
+          categoryTitle: title,
+          available: true,
+        });
+      });
+    });
+    return catalogCache;
+  }
+
+  function getCategories(catalog) {
+    const seen = new Map();
+    (catalog || []).forEach((item) => {
+      if (!item.categoryId || seen.has(item.categoryId)) return;
+      seen.set(item.categoryId, { id: item.categoryId, title: item.categoryTitle || item.categoryId });
+    });
+    return Array.from(seen.values());
+  }
+
+  function renderGrid() {
+    if (!gridEl) return;
+    setBadge(cache.length);
+    if (!cache.length) {
+      gridEl.innerHTML = '';
+      if (emptyEl) emptyEl.hidden = false;
+      return;
+    }
+    if (emptyEl) emptyEl.hidden = true;
+    gridEl.innerHTML = cache.map((entry) => `
+      <button
+        type="button"
+        class="table-card table-card--pickup table-card--${escapeHtml(entry.uiStatus)}"
+        data-shabbat-id="${escapeHtml(entry.sessionId)}"
+      >
+        <span class="table-card__badge">שבת</span>
+        <span class="table-card__customer">${escapeHtml(entry.customerName)}</span>
+        <span class="table-card__phone" dir="ltr">${escapeHtml(entry.customerPhone)}</span>
+        <span class="table-card__status">${escapeHtml(statusLabel(entry.uiStatus))}</span>
+        <span class="table-card__total">${escapeHtml(formatMoney(entry.total))}</span>
+        <span class="table-card__items">${entry.items.reduce((s, i) => s + i.qty, 0)} פריטים</span>
+        <span class="table-card__time">${escapeHtml(formatClock(entry.openedAt))}</span>
+      </button>
+    `).join('');
+  }
+
+  function updateActionButtons(entry) {
+    const canApprove = needsApprove(entry?.orders);
+    const canPrint = needsPrint(entry?.orders);
+    if (approveBtn) {
+      approveBtn.hidden = !canApprove;
+      approveBtn.disabled = busy;
+    }
+    if (printBtn) {
+      printBtn.hidden = !canPrint;
+      printBtn.disabled = busy;
+    }
+    if (addItemsBtn) addItemsBtn.disabled = busy;
+    if (closeBtn) closeBtn.disabled = busy;
+  }
+
+  function fillDrawer(entry) {
+    if (!entry) return;
+    if (drawerTitle) drawerTitle.textContent = entry.customerName;
+    if (drawerMeta) {
+      drawerMeta.innerHTML = `
+        <div class="table-drawer__pickup">
+          <div class="table-drawer__pickup-badge">הזמנות לשבת</div>
+          <div class="table-drawer__pickup-grid">
+            <div class="table-drawer__pickup-row"><span>לקוח</span><strong>${escapeHtml(entry.customerName)}</strong></div>
+            <div class="table-drawer__pickup-row"><span>טלפון</span><strong dir="ltr">${escapeHtml(entry.customerPhone)}</strong></div>
+            <div class="table-drawer__pickup-row"><span>איסוף</span><strong>${escapeHtml(entry.pickupTime || '13:00-14:00')}</strong></div>
+            ${entry.customerNotes
+              ? `<div class="table-drawer__pickup-row"><span>הערות</span><strong dir="auto">${escapeHtml(entry.customerNotes)}</strong></div>`
+              : ''}
+            ${entry.couponCode
+              ? `<div class="table-drawer__pickup-row"><span>קופון</span><strong dir="ltr">${escapeHtml(entry.couponCode)}${entry.discountPercent != null ? ` (−${escapeHtml(String(entry.discountPercent))}%)` : ''}</strong></div>`
+              : ''}
+          </div>
+        </div>
+        <div class="table-drawer__meta-row">
+          <div class="table-drawer__meta-item"><span>שעה</span><strong>${escapeHtml(formatClock(entry.openedAt))}</strong></div>
+          <div class="table-drawer__meta-item"><span>סטטוס</span><strong>${escapeHtml(statusLabel(entry.uiStatus))}</strong></div>
+          <div class="table-drawer__meta-item"><span>פריטים</span><strong>${escapeHtml(String(entry.items.reduce((s, i) => s + i.qty, 0)))}</strong></div>
+        </div>
+      `;
+    }
+    if (drawerItems) {
+      if (!entry.items.length) {
+        drawerItems.innerHTML = '<p class="table-drawer__empty">אין פריטים</p>';
+      } else {
+        drawerItems.innerHTML = `
+          <ul class="table-drawer__list">
+            ${entry.items.map((item) => `
+              <li class="${item.isNew ? 'table-drawer__item--late' : ''}">
+                <div class="table-drawer__line">
+                  <span class="table-drawer__qty">${escapeHtml(String(item.qty))}×</span>
+                  <span class="table-drawer__name${item.isNew ? ' table-drawer__name--late' : ''}">${escapeHtml(item.name)}</span>
+                  <span class="table-drawer__price">${escapeHtml(formatMoney(item.price * item.qty))}</span>
+                  ${item.itemId
+                    ? `<button
+                        type="button"
+                        class="table-drawer__remove"
+                        data-shabbat-remove-id="${escapeAttr(String(item.itemId))}"
+                        aria-label="הסר מנה"
+                        title="הסר מנה"
+                      >×</button>`
+                    : ''}
+                </div>
+              </li>
+            `).join('')}
+          </ul>
+        `;
+      }
+    }
+    if (drawerTotal) {
+      drawerTotal.innerHTML = `<span>סה״כ</span><strong>${escapeHtml(formatMoney(entry.total))}</strong>`;
+    }
+    updateActionButtons(entry);
+  }
+
+  function openDrawer(entry) {
+    selectedId = entry.sessionId;
+    setDrawerView('detail');
+    fillDrawer(entry);
+    if (!drawer) return;
+    drawer.hidden = false;
+    drawer.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('table-drawer-open');
+  }
+
+  function closeDrawer() {
+    selectedId = null;
+    menuMode = false;
+    setDrawerView('detail');
+    if (!drawer) return;
+    drawer.hidden = true;
+    drawer.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('table-drawer-open');
+  }
+
+  function renderMenuPicker() {
+    const catalog = catalogCache.length ? catalogCache : loadCatalog();
+    const categories = getCategories(catalog);
+    const query = menuQuery.trim().toLowerCase();
+
+    if (menuCats) {
+      const chips = [{ id: 'all', title: 'הכל' }, ...categories];
+      menuCats.innerHTML = chips.map((cat) => `
+        <button
+          type="button"
+          class="table-menu__cat${menuCategoryId === cat.id ? ' is-active' : ''}"
+          data-shabbat-menu-cat="${escapeAttr(cat.id)}"
+          role="tab"
+          aria-selected="${menuCategoryId === cat.id ? 'true' : 'false'}"
+        >${escapeHtml(cat.title)}</button>
+      `).join('');
+    }
+
+    if (!menuList) return;
+    const visible = catalog.filter((item) => {
+      if (menuCategoryId !== 'all' && item.categoryId !== menuCategoryId) return false;
+      if (!query) return true;
+      const hay = `${item.name || ''} ${item.categoryTitle || ''}`.toLowerCase();
+      return hay.includes(query);
+    });
+
+    if (!visible.length) {
+      menuList.innerHTML = '<p class="table-drawer__empty">לא נמצאו מנות</p>';
+      return;
+    }
+
+    let lastCat = null;
+    const parts = [];
+    visible.forEach((item) => {
+      const catId = item.categoryId || 'other';
+      if (menuCategoryId === 'all' && catId !== lastCat) {
+        lastCat = catId;
+        parts.push(`<h3 class="table-menu__section">${escapeHtml(item.categoryTitle || catId)}</h3>`);
+      }
+      parts.push(`
+        <div class="table-menu__item">
+          <div class="table-menu__item-text">
+            <strong>${escapeHtml(item.name || item.id)}</strong>
+            <span>${escapeHtml(formatMoney(item.price))}</span>
+          </div>
+          <button
+            type="button"
+            class="admin-btn admin-btn--soft table-menu__add"
+            data-shabbat-add-product="${escapeAttr(item.id)}"
+          >הוסף</button>
+        </div>
+      `);
+    });
+    menuList.innerHTML = parts.join('');
+  }
+
+  function openMenuPicker() {
+    loadCatalog();
+    menuCategoryId = 'all';
+    menuQuery = '';
+    if (menuSearch) menuSearch.value = '';
+    setDrawerView('menu');
+    const entry = cache.find((row) => row.sessionId === selectedId);
+    if (entry) fillDrawer(entry);
+    renderMenuPicker();
+    menuSearch?.focus();
+  }
+
+  function closeMenuPicker() {
+    setDrawerView('detail');
+    const entry = cache.find((row) => row.sessionId === selectedId);
+    if (entry) fillDrawer(entry);
+  }
+
+  async function refresh() {
+    const api = global.LechaimSupabaseOrders;
+    if (!api?.isConfigured?.() || typeof api.getOpenSessionsWithOrders !== 'function') {
+      cache = [];
+      renderGrid();
+      return;
+    }
+    try {
+      const rows = await api.getOpenSessionsWithOrders();
+      cache = (rows || [])
+        .filter((row) => {
+          const classified = global.LechaimOrderTypes?.classifyOrderType?.(
+            row?.session?.order_type,
+            'admin-shabbat'
+          );
+          return classified === 'shabbat';
+        })
+        .map((row) => mapRow(row.session, row.orders))
+        .filter((entry) => entry.items.length > 0 || entry.total > 0);
+      renderGrid();
+      if (selectedId) {
+        const selected = cache.find((row) => row.sessionId === selectedId);
+        if (selected) {
+          fillDrawer(selected);
+          if (menuMode) renderMenuPicker();
+        } else {
+          closeDrawer();
+        }
+      }
+    } catch (err) {
+      console.error('[admin-shabbat] refresh failed', err);
+    }
+  }
+
+  async function handleApprove() {
+    const entry = cache.find((row) => row.sessionId === selectedId);
+    if (!entry || busy) return;
+    const api = global.LechaimSupabaseOrders;
+    if (!api?.markOrderApproved) {
+      showToast('אישור לא זמין');
+      return;
+    }
+    const pending = (entry.orders || []).filter(orderNeedsApprove);
+    if (!pending.length) {
+      showToast('אין מה לאשר');
+      return;
+    }
+    busy = true;
+    updateActionButtons(entry);
+    try {
+      for (const order of pending) {
+        await api.markOrderApproved(order.id);
+      }
+      showToast('ההזמנה אושרה · בהכנה');
+      await refresh();
+    } catch (err) {
+      console.error('[admin-shabbat] approve failed', err);
+      showToast('האישור נכשל');
+    } finally {
+      busy = false;
+      const next = cache.find((row) => row.sessionId === selectedId);
+      if (next) updateActionButtons(next);
+    }
+  }
+
+  function mapWaveToPrintOrder(entry, order) {
+    const items = (order.order_items || [])
+      .map((row) => {
+        const qty = Number(row.quantity) || 0;
+        if (qty <= 0) return null;
+        return {
+          itemId: String(row.id),
+          productId: String(row.product_id || ''),
+          name: row.print_name || row.product_name || row.product_id || '',
+          printName: row.print_name || '',
+          price: Number(row.price) || 0,
+          qty,
+          notes: row.notes == null ? '' : String(row.notes),
+          printed: false,
+        };
+      })
+      .filter(Boolean);
+
+    return {
+      orderId: String(order.id),
+      sessionId: entry.sessionId,
+      tableNumber: null,
+      orderType: 'shabbat',
+      status: 'active',
+      createdAt: order.created_at || null,
+      updatedAt: order.updated_at || null,
+      items,
+      ticketSeq: Number(order.order_number) || 1,
+      customerName: entry.customerName,
+      customerPhone: entry.customerPhone,
+      customerNotes: entry.customerNotes,
+      pickupType: 'TIME',
+      pickupTime: entry.pickupTime || '13:00-14:00',
+      publicOrderNo: null,
+      _skipLocalMarkPrinted: true,
+      _supabaseOrderId: String(order.id),
+    };
+  }
+
+  async function handlePrint() {
+    const entry = cache.find((row) => row.sessionId === selectedId);
+    if (!entry || busy) return;
+    const api = global.LechaimSupabaseOrders;
+    const print = global.LechaimPrintEngine;
+    if (!api?.markOrderPrinted || typeof print?.printOrder !== 'function') {
+      showToast('הדפסה לא זמינה');
+      return;
+    }
+    const pending = (entry.orders || [])
+      .filter(orderNeedsPrint)
+      .sort((a, b) => (Number(a.order_number) || 0) - (Number(b.order_number) || 0));
+    if (!pending.length) {
+      showToast('אין הזמנות ממתינות להדפסה');
+      return;
+    }
+
+    busy = true;
+    updateActionButtons(entry);
+    let printedOk = false;
+    try {
+      for (const order of pending) {
+        const synthetic = mapWaveToPrintOrder(entry, order);
+        if (!synthetic.items.length) {
+          await api.markOrderPrinted(order.id);
+          continue;
+        }
+        const ok = await print.printOrder(synthetic);
+        if (ok !== true) {
+          showToast('ההדפסה נכשלה — נסה שוב');
+          return;
+        }
+        await api.markOrderPrinted(order.id);
+      }
+      printedOk = true;
+    } catch (err) {
+      console.error('[admin-shabbat] print failed', err);
+      showToast('ההדפסה נכשלה');
+      return;
+    } finally {
+      busy = false;
+    }
+
+    if (!printedOk) return;
+    showToast('ההזמנה הודפסה');
+    closeDrawer();
+    await refresh();
+  }
+
+  async function handleAddProduct(productId) {
+    const entry = cache.find((row) => row.sessionId === selectedId);
+    if (!entry || !productId || busy) return;
+    const product = (catalogCache.length ? catalogCache : loadCatalog())
+      .find((item) => item.id === productId);
+    if (!product) {
+      showToast('המנה לא נמצאה');
+      return;
+    }
+    const api = global.LechaimSupabaseOrders;
+    if (!api?.createOrder || !api?.createOrderItems) {
+      showToast('הוספה לא זמינה');
+      return;
+    }
+
+    const price = Number(product.price) || 0;
+    const printName = global.LechaimPrintEngine?.resolvePrintName?.({
+      productId: product.id,
+      name: product.name,
+      printName: product.printName,
+    }) || product.printName || product.name || '';
+
+    busy = true;
+    try {
+      const remoteOrder = await api.createOrder({
+        sessionId: entry.sessionId,
+        total: price,
+        status: 'submitted',
+      });
+      if (!remoteOrder?.id) throw new Error('createOrder failed');
+      await api.createOrderItems(remoteOrder.id, [{
+        productId: product.id,
+        productName: product.name || '',
+        printName,
+        quantity: 1,
+        price,
+        category: 'shabbat',
+        notes: null,
+      }]);
+      showSuccess(`המוצר נוסף בהצלחה\n${product.name}`);
+      await refresh();
+      if (menuMode) renderMenuPicker();
+    } catch (err) {
+      console.error('[admin-shabbat] add product failed', err);
+      showToast('לא ניתן להוסיף');
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function handleRemoveItem(itemId) {
+    const id = String(itemId || '');
+    if (!id || removeBusy) return;
+    const entry = cache.find((row) => row.sessionId === selectedId);
+    if (!entry) return;
+    const item = (entry.items || []).find((row) => String(row.itemId) === id);
+    const label = item?.name || 'מנה';
+    const ok = await showConfirm(
+      `האם אתה בטוח שברצונך להסיר את "${label}" מההזמנה?`,
+      'כן, הסר'
+    );
+    if (!ok) return;
+
+    const api = global.LechaimSupabaseOrders;
+    if (!api?.deleteOrderItem) {
+      showToast('מחיקה לא זמינה');
+      return;
+    }
+
+    removeBusy = true;
+    try {
+      await api.deleteOrderItem(id);
+      showToast('המנה הוסרה');
+      await refresh();
+      if (!cache.find((row) => row.sessionId === selectedId)) closeDrawer();
+    } catch (err) {
+      console.error('[admin-shabbat] delete item failed', err);
+      showToast('לא ניתן להסיר את המנה');
+    } finally {
+      removeBusy = false;
+    }
+  }
+
+  async function handleClose() {
+    const entry = cache.find((row) => row.sessionId === selectedId);
+    if (!entry || busy) return;
+    const ok = await showConfirm(
+      'האם אתה בטוח שברצונך לסגור את הזמנת השבת?',
+      'כן, סגור הזמנה'
+    );
+    if (!ok) return;
+
+    const api = global.LechaimSupabaseOrders;
+    if (!api?.updateSessionStatus) {
+      showToast('סגירה לא זמינה');
+      return;
+    }
+    busy = true;
+    try {
+      await api.updateSessionStatus(entry.sessionId, { status: 'closed' });
+      showToast('הזמנת שבת נסגרה');
+      closeDrawer();
+      await refresh();
+    } catch (err) {
+      console.error('[admin-shabbat] close failed', err);
+      showToast('לא ניתן לסגור');
+    } finally {
+      busy = false;
+    }
+  }
+
+  function onGridClick(event) {
+    const btn = event.target.closest('[data-shabbat-id]');
+    if (!btn) return;
+    const entry = cache.find((row) => row.sessionId === btn.getAttribute('data-shabbat-id'));
+    if (entry) openDrawer(entry);
+  }
+
+  function start() {
+    if (running) {
+      refresh();
+      return;
+    }
+    running = true;
+    refresh();
+    timer = window.setInterval(refresh, 8000);
+    try {
+      if (global.LechaimSupabaseOrders?.subscribeToOrders) {
+        unsub = global.LechaimSupabaseOrders.subscribeToOrders(() => {
+          refresh();
+        });
+      }
+    } catch (err) {
+      console.warn('[admin-shabbat] subscribe failed', err);
+    }
+  }
+
+  function stop() {
+    running = false;
+    if (timer) {
+      window.clearInterval(timer);
+      timer = null;
+    }
+    if (typeof unsub === 'function') {
+      try { unsub(); } catch (_) { /* ignore */ }
+      unsub = null;
+    }
+    closeDrawer();
+  }
+
+  gridEl?.addEventListener('click', onGridClick);
+  drawerBackdrop?.addEventListener('click', closeDrawer);
+  drawerClose?.addEventListener('click', closeDrawer);
+  approveBtn?.addEventListener('click', handleApprove);
+  printBtn?.addEventListener('click', handlePrint);
+  addItemsBtn?.addEventListener('click', openMenuPicker);
+  closeBtn?.addEventListener('click', handleClose);
+  menuBack?.addEventListener('click', closeMenuPicker);
+
+  menuCats?.addEventListener('click', (event) => {
+    const btn = event.target.closest('[data-shabbat-menu-cat]');
+    if (!btn) return;
+    menuCategoryId = btn.getAttribute('data-shabbat-menu-cat') || 'all';
+    renderMenuPicker();
+  });
+
+  menuList?.addEventListener('click', (event) => {
+    const btn = event.target.closest('[data-shabbat-add-product]');
+    if (!btn || btn.disabled) return;
+    handleAddProduct(btn.getAttribute('data-shabbat-add-product'));
+  });
+
+  menuSearch?.addEventListener('input', () => {
+    menuQuery = menuSearch.value || '';
+    renderMenuPicker();
+  });
+
+  drawerItems?.addEventListener('click', (event) => {
+    const btn = event.target.closest('[data-shabbat-remove-id]');
+    if (!btn) return;
+    handleRemoveItem(btn.getAttribute('data-shabbat-remove-id'));
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !drawer || drawer.hidden) return;
+    if (menuMode) {
+      closeMenuPicker();
+      return;
+    }
+    closeDrawer();
+  });
+
+  global.LechaimAdminShabbat = { start, stop, refresh, closeDrawer };
+})(window);

@@ -147,6 +147,16 @@ body.entry-pending > *:not(#entry-gate) {
   line-height: 1.45;
 }
 
+.entry-gate__hint {
+  margin: 0;
+  font-family: var(--font-body, 'Heebo', sans-serif);
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-navy, #1e3354);
+  line-height: 1.5;
+  text-align: center;
+}
+
 .entry-gate__step {
   display: grid;
   gap: 1.15rem;
@@ -160,6 +170,20 @@ body.entry-pending > *:not(#entry-gate) {
 .entry-gate__actions {
   display: grid;
   gap: 0.75rem;
+}
+
+.entry-gate__actions .entry-gate__btn {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.entry-gate__actions a.entry-gate__btn {
+  text-decoration: none;
+  text-align: center;
+}
+
+.entry-gate__actions a.entry-gate__btn--primary {
+  color: #fff;
 }
 
 .entry-gate__btn {
@@ -417,74 +441,32 @@ body.entry-pending > *:not(#entry-gate) {
   display: none !important;
 }
 
-.entry-closed-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 20;
+.entry-pickup-closed {
   display: grid;
-  place-items: center;
-  padding: 1.25rem;
-  pointer-events: auto;
-}
-
-.entry-closed-overlay[hidden] {
-  display: none !important;
-}
-
-.entry-closed-overlay__backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(30, 51, 84, 0.28);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-}
-
-.entry-closed-overlay__panel {
-  position: relative;
-  z-index: 1;
-  width: min(100%, 360px);
-  display: grid;
-  gap: 0.85rem;
-  padding: 1.4rem 1.2rem 1.2rem;
-  border-radius: 18px;
-  background: rgba(255, 252, 246, 0.96);
-  border: 1px solid rgba(229, 221, 208, 0.95);
-  box-shadow: 0 18px 48px rgba(30, 51, 84, 0.22);
+  gap: 1rem;
   text-align: center;
-  animation: entry-closed-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  padding: 0.5rem 0.25rem 0.25rem;
 }
 
-.entry-closed-overlay__title {
+.entry-pickup-closed__title {
   margin: 0;
   font-family: var(--font-display, 'Frank Ruhl Libre', serif);
-  font-size: 1.4rem;
-  font-weight: 700;
+  font-size: clamp(1.35rem, 4.5vw, 1.75rem);
+  font-weight: 600;
   color: var(--color-navy, #1e3354);
   line-height: 1.3;
 }
 
-.entry-closed-overlay__text {
+.entry-pickup-closed__text {
   margin: 0;
   font-family: var(--font-body, 'Heebo', sans-serif);
-  font-size: 0.98rem;
-  font-weight: 500;
-  color: var(--color-text-muted, #5b6570);
-  line-height: 1.45;
+  font-size: 1rem;
+  color: var(--color-text-muted, #6b7a8d);
+  line-height: 1.5;
 }
 
-.entry-closed-overlay__panel .entry-gate__btn {
-  margin-top: 0.15rem;
-}
-
-@keyframes entry-closed-in {
-  from {
-    opacity: 0;
-    transform: translateY(10px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+.entry-pickup-closed .entry-gate__btn {
+  margin-top: 0.35rem;
 }
 
 .entry-pickup .entry-gate__btn {

@@ -16,10 +16,13 @@
       title: 'Lechaim Restaurant in Crete',
       kosher: 'Mehadrin Kosher',
       promptOrder: 'How would you like to order?',
-      promptTable: 'Choose your table',
+      promptTable: 'Choose the number of the table you are seated at.',
+      tableHint: 'Only one person at the table should place the order through the system.\nOther guests can choose "View the menu" to browse dishes, prices, and descriptions.',
       promptPickup: 'Takeaway details',
       dineIn: 'Dine In',
       takeAway: 'Takeaway',
+      shabbatOrders: 'Shabbat Orders',
+      browseMenu: 'View the menu',
       delivery: 'Delivery',
       back: 'Back',
       comingSoon: 'Coming Soon',
@@ -38,19 +41,22 @@
       pickupPhoneInvalid: 'Please enter a valid phone number',
       pickupTimeRequired: 'Please select a pickup time',
       pickupNoSlots: 'No pickup times left today — choose ASAP',
-      closedTitle: 'We are currently closed',
-      closedText: 'Our opening hours are 14:00 to 21:00',
-      closedBrowse: 'Click here to view the menu',
+      pickupClosedTitle: 'Not available right now.',
+      pickupClosedText: 'Takeaway orders can be placed starting Sunday.\nBetween 14:00 – 21:00',
+      pickupClosedBrowse: 'View the menu',
     },
     he: {
       welcome: 'ברוכים הבאים',
       title: 'מסעדת לחיים בכרתים',
       kosher: 'כשר למהדרין',
       promptOrder: 'איך תרצו להזמין?',
-      promptTable: 'בחרו מספר שולחן',
+      promptTable: 'בחרו את מספר השולחן שעליו אתם יושבים.',
+      tableHint: 'רק נציג אחד מהשולחן יבצע את ההזמנה דרך המערכת.\nשאר הסועדים יכולים לבחור באפשרות "צפייה בתפריט" כדי לעיין במנות, במחירים ובתיאורים.',
       promptPickup: 'פרטי איסוף עצמי',
       dineIn: 'ישיבה במקום',
       takeAway: 'איסוף עצמי',
+      shabbatOrders: 'הזמנות לשבת',
+      browseMenu: 'צפייה בתפריט',
       delivery: 'משלוח',
       back: 'חזרה',
       comingSoon: 'Coming Soon',
@@ -69,9 +75,9 @@
       pickupPhoneInvalid: 'נא להזין מספר טלפון תקין',
       pickupTimeRequired: 'נא לבחור שעת איסוף',
       pickupNoSlots: 'אין שעות פנויות היום — בחרו בהקדם האפשרי',
-      closedTitle: 'המקום סגור כרגע',
-      closedText: 'שעות הפעילות שלנו בין השעות 14:00 עד 21:00',
-      closedBrowse: 'לצפייה בתפריט לחץ כאן',
+      pickupClosedTitle: 'לא זמין כרגע.',
+      pickupClosedText: 'ניתן לבצע הזמנות לאיסוף עצמי החל מיום ראשון.\nבין השעות 14:00 - 21:00',
+      pickupClosedBrowse: 'לצפייה בתפריט',
     },
   };
 
@@ -81,6 +87,7 @@
   const stepOrder = document.getElementById('entry-step-order');
   const stepTable = document.getElementById('entry-step-table');
   const stepPickup = document.getElementById('entry-step-pickup');
+  const stepPickupClosed = document.getElementById('entry-step-pickup-closed');
   const tablesEl = document.getElementById('entry-tables');
   const noticeEl = document.getElementById('entry-notice');
   const promptEl = document.getElementById('entry-prompt');
@@ -97,11 +104,7 @@
   const pickupSelect = document.getElementById('entry-pickup-select');
   const pickupSlot = document.getElementById('entry-pickup-slot');
   const pickupError = document.getElementById('entry-pickup-error');
-  const closedModal = document.getElementById('entry-closed-modal');
-  const closedTitle = document.getElementById('entry-closed-title');
-  const closedText = document.getElementById('entry-closed-text');
-  const closedBrowseBtn = document.getElementById('entry-closed-browse');
-  const closedBrowseLabel = document.getElementById('entry-closed-browse-label');
+  const pickupClosedBrowse = document.getElementById('entry-pickup-closed-browse');
 
   const state = {
     orderType: null, // 'dine-in' | 'takeaway'
@@ -142,18 +145,25 @@
 
     gate.querySelectorAll('[data-entry-i18n]').forEach((el) => {
       const key = el.getAttribute('data-entry-i18n');
-      if (key && COPY.en[key] != null) el.textContent = t(key);
+      if (key && COPY.en[key] != null) {
+        const text = t(key);
+        el.innerHTML = String(text).includes('\n')
+          ? String(text).split('\n').map((line) => line.replace(/</g, '&lt;')).join('<br>')
+          : text;
+      }
     });
-
-    if (closedTitle) closedTitle.textContent = t('closedTitle');
-    if (closedText) closedText.textContent = t('closedText');
-    if (closedBrowseLabel) closedBrowseLabel.textContent = t('closedBrowse');
 
     if (promptEl) {
       promptEl.hidden = false;
-      if (stepPickup && !stepPickup.hidden) promptEl.textContent = t('promptPickup');
-      else if (stepTable && !stepTable.hidden) promptEl.textContent = t('promptTable');
-      else promptEl.textContent = t('promptOrder');
+      if (stepPickupClosed && !stepPickupClosed.hidden) {
+        promptEl.textContent = t('takeAway');
+      } else if (stepPickup && !stepPickup.hidden) {
+        promptEl.textContent = t('promptPickup');
+      } else if (stepTable && !stepTable.hidden) {
+        promptEl.textContent = t('promptTable');
+      } else {
+        promptEl.textContent = t('promptOrder');
+      }
     }
 
     if (tableBackBtn) tableBackBtn.textContent = t('back');
@@ -163,37 +173,7 @@
     applyDocumentDir();
   }
 
-  function isOrderingHoursOpen() {
-    if (typeof window.LechaimMenu?.isOrderingAllowed === 'function') {
-      return window.LechaimMenu.isOrderingAllowed();
-    }
-    /* Fallback if menu not ready yet — same window as main.js */
-    const hour = new Date().getHours();
-    return hour >= 14 && hour < 21;
-  }
-
-  function showClosedGate() {
-    /* Keep the normal home UI underneath; float overlay with blur */
-    goToOrderType();
-    if (closedModal) {
-      closedModal.hidden = false;
-      closedModal.setAttribute('aria-hidden', 'false');
-    }
-    document.body.classList.add('entry-closed-open');
-    applyEntryCopy();
-    closedBrowseBtn?.focus();
-  }
-
-  function hideClosedGate() {
-    if (closedModal) {
-      closedModal.hidden = true;
-      closedModal.setAttribute('aria-hidden', 'true');
-    }
-    document.body.classList.remove('entry-closed-open');
-  }
-
   function enterBrowseOnly() {
-    hideClosedGate();
     enterMenu(buildMenuContext({
       browseOnly: true,
       orderType: null,
@@ -203,11 +183,24 @@
   }
 
   function showStep(step) {
-    [stepOrder, stepTable, stepPickup].forEach((el) => {
+    [stepOrder, stepTable, stepPickup, stepPickupClosed].forEach((el) => {
       if (!el) return;
       el.hidden = el !== step;
     });
     applyEntryCopy();
+  }
+
+  /* Set true to enforce takeaway closed Fri–Sat */
+  const TAKEAWAY_DAY_HOURS_ENABLED = true;
+
+  /**
+   * Takeaway only: open Sun–Thu, closed Fri–Sat.
+   * Does not affect dine-in / hours / coupons / admin.
+   */
+  function isTakeawayDayOpen() {
+    if (!TAKEAWAY_DAY_HOURS_ENABLED) return true;
+    const day = new Date().getDay(); /* 0=Sun … 5=Fri 6=Sat */
+    return day !== 5 && day !== 6;
   }
 
   function showNotice(message) {
@@ -286,8 +279,11 @@
         const rows = await api.getOpenSessionsWithOrders();
         (rows || []).forEach(({ session, orders }) => {
           if (!session || session.table_number == null) return;
-          const type = String(session.order_type || '');
-          if (type !== 'dine_in' && type !== 'dinein') return;
+          const classified = window.LechaimOrderTypes?.classifyOrderType?.(
+            session.order_type,
+            'entry-gate.occupied'
+          );
+          if (classified !== 'dine_in') return;
           if (!remoteSessionHasLiveOrder(session, orders)) return;
           occupied.add(Number(session.table_number));
         });
@@ -391,9 +387,7 @@
   }
 
   function closeGate() {
-    hideClosedGate();
     document.body.classList.remove('entry-pending');
-    document.body.classList.remove('entry-closed-open');
     gate.hidden = true;
     gate.setAttribute('aria-hidden', 'true');
     changingTable = false;
@@ -675,6 +669,12 @@
   function goToPickup() {
     state.orderType = 'takeaway';
     state.tableNumber = null;
+    if (!isTakeawayDayOpen()) {
+      if (promptEl) promptEl.textContent = t('takeAway');
+      showStep(stepPickupClosed);
+      pickupClosedBrowse?.focus();
+      return;
+    }
     resetPickupForm();
     fillPickupSlots();
     syncPickupTimeUi();
@@ -751,6 +751,10 @@
 
   function submitPickupForm(event) {
     event?.preventDefault?.();
+    if (!isTakeawayDayOpen()) {
+      goToPickup();
+      return;
+    }
     const nameRaw = String(pickupName?.value || '').trim();
     const phone = String(pickupPhone?.value || '').trim();
     const notes = String(pickupNotes?.value || '').trim();
@@ -827,10 +831,6 @@
 
     setLang(state.lang);
     openGate();
-    if (!isOrderingHoursOpen()) {
-      showClosedGate();
-      return true;
-    }
     goToOrderType();
     return true;
   }
@@ -854,10 +854,6 @@
     });
     setLang(state.lang || 'he');
     openGate();
-    if (!isOrderingHoursOpen()) {
-      showClosedGate();
-      return;
-    }
     goToOrderType();
   }
 
@@ -959,6 +955,88 @@
     return true;
   }
 
+  /** Persisted main-menu cart qty (dine-in / takeaway). */
+  function readPersistedCartCount() {
+    try {
+      const raw = localStorage.getItem('lechaim-keri-cart');
+      const parsed = raw ? JSON.parse(raw) : null;
+      const lines = Array.isArray(parsed) ? parsed : (parsed?.lines || []);
+      return lines.reduce((sum, line) => sum + (Number(line?.qty) || 0), 0);
+    } catch {
+      return 0;
+    }
+  }
+
+  function hasTakeawayOrderLock() {
+    try {
+      const raw = localStorage.getItem('lechaim-takeaway-order-lock');
+      const lock = raw ? JSON.parse(raw) : null;
+      return Boolean(lock && lock.sessionId);
+    } catch {
+      return false;
+    }
+  }
+
+  function hasEngineOrderItemsForSession(session) {
+    if (!session) return false;
+    try {
+      const raw = localStorage.getItem('lechaim-open-orders');
+      const list = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(list)) return false;
+      const sid = session.sessionId != null ? String(session.sessionId) : '';
+      const table = session.tableNumber != null ? Number(session.tableNumber) : null;
+      const takeaway = session.orderType === 'takeaway'
+        || session.orderType === 'take-away'
+        || session.orderType === 'takeaway';
+      return list.some((order) => {
+        if (!order?.items?.some((item) => item && Number(item.qty) > 0)) return false;
+        if (sid && String(order.sessionId || '') === sid) return true;
+        if (table != null && Number(order.tableNumber) === table) return true;
+        if (takeaway) {
+          const ot = String(order.orderType || '');
+          if (ot === 'takeaway' || ot === 'take-away') return true;
+        }
+        return false;
+      });
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Resume only when the customer still has cart items, a sent/locked order,
+   * or engine items. Empty cart + no active order → back to first entry buttons.
+   */
+  function shouldKeepSessionOnRefresh(session) {
+    if (readPersistedCartCount() > 0) return true;
+    if (hasTakeawayOrderLock()) return true;
+    if (hasEngineOrderItemsForSession(session)) return true;
+    return false;
+  }
+
+  async function discardIdleSession(session) {
+    if (!session) return;
+    clearLocalSessionMapEntry(session.sessionId);
+    try {
+      Session?.clearSession?.();
+    } catch (err) {
+      console.warn('[entry-gate] clear idle session failed', err);
+    }
+    try {
+      if (session.orderType === 'takeaway' || session.orderType === 'take-away') {
+        clearTakeawayLockStorage();
+        window.LechaimOrderEngine?.closeTakeaway?.();
+      } else if (session.tableNumber != null) {
+        window.LechaimOrderEngine?.closeTable?.(session.tableNumber);
+      }
+    } catch (err) {
+      console.warn('[entry-gate] idle local order clear failed', err);
+    }
+    try {
+      localStorage.setItem('lechaim-keri-cart', JSON.stringify({ lines: [], order: [] }));
+    } catch (_) { /* ignore */ }
+  }
+
   /**
    * Resume an open dine-in or takeaway session into the menu (unless Supabase says closed).
    */
@@ -970,6 +1048,12 @@
       if (await isMappedRemoteSessionClosed(session.sessionId)) {
         console.log('[entry-gate] mapped Supabase session is closed — not resuming');
         await discardClosedLocalSession(session);
+        return false;
+      }
+
+      if (!shouldKeepSessionOnRefresh(session)) {
+        console.log('[entry-gate] empty cart — return to entry buttons');
+        await discardIdleSession(session);
         return false;
       }
 
@@ -989,7 +1073,13 @@
     }
 
     if (Session?.hasActiveTakeawaySession()) {
-      return resumeTakeawaySession(Session.getSession());
+      const session = Session.getSession();
+      if (!shouldKeepSessionOnRefresh(session)) {
+        console.log('[entry-gate] empty takeaway cart — return to entry buttons');
+        await discardIdleSession(session);
+        return false;
+      }
+      return resumeTakeawaySession(session);
     }
 
     return false;
@@ -1011,6 +1101,10 @@
       const type = orderBtn.dataset.orderType;
       if (type === 'delivery') {
         showNotice(t('comingSoon'));
+        return;
+      }
+      if (type === 'browse') {
+        enterBrowseOnly();
         return;
       }
       if (type === 'dine-in') {
@@ -1072,8 +1166,7 @@
   pickupForm?.addEventListener('submit', submitPickupForm);
   pickupAsap?.addEventListener('change', syncPickupTimeUi);
   pickupSelect?.addEventListener('change', syncPickupTimeUi);
-
-  closedBrowseBtn?.addEventListener('click', () => {
+  pickupClosedBrowse?.addEventListener('click', () => {
     enterBrowseOnly();
   });
 
@@ -1089,13 +1182,6 @@
 
   (async function bootEntryGate() {
     setLang('he');
-
-    /* Outside opening hours — closed modal; browse skips order/table/name */
-    if (!isOrderingHoursOpen()) {
-      showClosedGate();
-      return;
-    }
-
     if (await tryResumeSession()) return;
     goToOrderType();
   })();

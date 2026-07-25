@@ -35,11 +35,19 @@
   }
 
   function normalizeOrderType(value) {
+    /* Local customer session: dine-in + takeaway only (Shabbat has its own page) */
     if (value === ORDER_TYPE.DINE_IN || value === 'dine-in' || value === 'dine_in') {
       return ORDER_TYPE.DINE_IN;
     }
     if (value === ORDER_TYPE.TAKEAWAY || value === 'take-away' || value === 'take_away') {
       return ORDER_TYPE.TAKEAWAY;
+    }
+    if (value === 'shabbat' || value === 'shabbos' || value === 'shabat') {
+      console.warn('[order-session] Shabbat orders use shabbat.html — not the local session store');
+      return null;
+    }
+    if (value) {
+      console.warn(`[order-session] Unknown order type: ${value}`);
     }
     return null;
   }
