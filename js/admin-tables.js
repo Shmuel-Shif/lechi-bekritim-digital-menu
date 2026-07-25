@@ -75,6 +75,29 @@
   let watchRunning = false;
   /** Session ids with order_type=shabbat — excluded from dine-in/takeaway boards */
   const shabbatSessionIds = new Set();
+  const focusTrapReleases = {
+    drawer: null,
+    success: null,
+    confirm: null,
+    coupon: null,
+  };
+
+  function setFocusTrap(key, root) {
+    if (typeof focusTrapReleases[key] === 'function') {
+      focusTrapReleases[key]();
+      focusTrapReleases[key] = null;
+    }
+    if (!root) return;
+    const release = window.LechaimFocusTrap?.activate?.(root);
+    focusTrapReleases[key] = typeof release === 'function' ? release : null;
+  }
+
+  function clearFocusTrap(key) {
+    if (typeof focusTrapReleases[key] === 'function') {
+      focusTrapReleases[key]();
+    }
+    focusTrapReleases[key] = null;
+  }
 
   function showToast(message) {
     showSuccessModal(message);
@@ -86,11 +109,13 @@
     successModal.hidden = false;
     successModal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('admin-modal-open');
+    setFocusTrap('success', successModal);
     successOk?.focus();
   }
 
   function closeSuccessModal() {
     if (!successModal) return;
+    clearFocusTrap('success');
     successModal.hidden = true;
     successModal.setAttribute('aria-hidden', 'true');
     if (!confirmModal || confirmModal.hidden) {
@@ -100,6 +125,7 @@
 
   function closeConfirmModal(result) {
     if (!confirmModal) return;
+    clearFocusTrap('confirm');
     confirmModal.hidden = true;
     confirmModal.setAttribute('aria-hidden', 'true');
     if (!successModal || successModal.hidden) {
@@ -125,6 +151,7 @@
     confirmModal.hidden = false;
     confirmModal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('admin-modal-open');
+    setFocusTrap('confirm', confirmModal);
     confirmYes?.focus();
     return new Promise((resolve) => {
       confirmResolver = resolve;
@@ -1230,6 +1257,8 @@
     drawer.hidden = false;
     drawer.setAttribute('aria-hidden', 'false');
     document.body.classList.add('table-drawer-open');
+    setFocusTrap('drawer', drawer);
+    requestAnimationFrame(() => drawerClose?.focus());
   }
 
   function closeDrawer() {
@@ -1237,6 +1266,7 @@
     menuMode = false;
     setDrawerView('detail');
     if (!drawer) return;
+    clearFocusTrap('drawer');
     drawer.hidden = true;
     drawer.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('table-drawer-open');
@@ -1386,11 +1416,13 @@
     couponModal.hidden = false;
     couponModal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('admin-modal-open');
+    setFocusTrap('coupon', couponModal);
     couponInput?.focus();
   }
 
   function closeCouponModal() {
     if (!couponModal) return;
+    clearFocusTrap('coupon');
     couponModal.hidden = true;
     couponModal.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('admin-modal-open');

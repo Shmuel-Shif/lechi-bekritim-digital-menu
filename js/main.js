@@ -82,6 +82,30 @@
   let heroSlideTimer = null;
   let lastFocusedElement = null;
   let cartLastFocusedElement = null;
+  const focusTrapReleases = {
+    food: null,
+    sides: null,
+    cart: null,
+    confirm: null,
+    receipt: null,
+  };
+
+  function setFocusTrap(key, root) {
+    if (typeof focusTrapReleases[key] === 'function') {
+      focusTrapReleases[key]();
+      focusTrapReleases[key] = null;
+    }
+    if (!root) return;
+    const release = window.LechaimFocusTrap?.activate?.(root);
+    focusTrapReleases[key] = typeof release === 'function' ? release : null;
+  }
+
+  function clearFocusTrap(key) {
+    if (typeof focusTrapReleases[key] === 'function') {
+      focusTrapReleases[key]();
+    }
+    focusTrapReleases[key] = null;
+  }
   let cartToastTimer = null;
   let orderFeedbackTimer = null;
   let isSendingOrder = false;
@@ -99,16 +123,26 @@
   /*
    * ---------------------------------------------------------------------------
    * Ordering hours (restaurant local time)
-   * Open daily 14:00–21:00. Outside that window: browse catalog only.
+   * Dine-in: Sun–Thu 14:00–23:00; closed Fri–Sat.
+   * Takeaway (in menu): Sun–Thu 14:00–21:00; closed Fri–Sat.
+   * Outside that window: browse catalog only.
    * ---------------------------------------------------------------------------
    */
   const ORDERING_HOURS_ENABLED = true;
   const ORDERING_OPEN_HOUR = 14;
-  const ORDERING_CLOSE_HOUR = 21; /* exclusive */
+  const DINE_IN_CLOSE_HOUR = 23; /* exclusive */
+  const TAKEAWAY_CLOSE_HOUR = 21; /* exclusive */
+
+  function isWeekendClosed(date = new Date()) {
+    const day = date.getDay(); /* 0=Sun … 5=Fri 6=Sat */
+    return day === 5 || day === 6;
+  }
 
   function isWithinOrderingHours(date = new Date()) {
+    if (isWeekendClosed(date)) return false;
     const hour = date.getHours();
-    return hour >= ORDERING_OPEN_HOUR && hour < ORDERING_CLOSE_HOUR;
+    const closeHour = isTakeawayContext() ? TAKEAWAY_CLOSE_HOUR : DINE_IN_CLOSE_HOUR;
+    return hour >= ORDERING_OPEN_HOUR && hour < closeHour;
   }
 
   function isOrderingAllowed() {
@@ -1562,6 +1596,7 @@
     foodModal.hidden = false;
     foodModal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('modal-open');
+    setFocusTrap('food', foodModal);
 
     requestAnimationFrame(() => {
       foodModal.classList.add('is-open');
@@ -1613,6 +1648,7 @@
     if (foodModal.hidden) return;
 
     openModalItemId = null;
+    clearFocusTrap('food');
     foodModal.classList.remove('is-open');
     foodModal.setAttribute('aria-hidden', 'true');
     if (!openSidesMainLineId) {
@@ -1721,6 +1757,7 @@
     sidesModal.hidden = false;
     sidesModal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('modal-open');
+    setFocusTrap('sides', sidesModal);
 
     requestAnimationFrame(() => {
       sidesModal.classList.add('is-open');
@@ -1732,6 +1769,7 @@
     if (!sidesModal || sidesModal.hidden) return;
 
     openSidesMainLineId = null;
+    clearFocusTrap('sides');
     sidesModal.classList.remove('is-open');
     sidesModal.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('modal-open');
@@ -2309,11 +2347,20 @@
     appConfirm.hidden = false;
     appConfirm.setAttribute('aria-hidden', 'false');
     document.body.classList.add('app-confirm-open');
+    setFocusTrap('confirm', appConfirm);
+    requestAnimationFrame(() => {
+      if (kind === 'bill' && appConfirmCouponInput && appConfirmCoupon && !appConfirmCoupon.hidden) {
+        appConfirmCouponInput.focus();
+      } else {
+        appConfirmYes?.focus();
+      }
+    });
   }
 
   function closeAppConfirm() {
     if (!appConfirm) return;
     appConfirmKind = null;
+    clearFocusTrap('confirm');
     appConfirm.hidden = true;
     appConfirm.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('app-confirm-open');
@@ -2428,6 +2475,7 @@
 
   function closeOrderReceipt() {
     if (!orderReceipt) return;
+    clearFocusTrap('receipt');
     orderReceipt.hidden = true;
     orderReceipt.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('order-receipt-open');
@@ -2531,6 +2579,7 @@
     orderReceipt.hidden = false;
     orderReceipt.setAttribute('aria-hidden', 'false');
     document.body.classList.add('order-receipt-open');
+    setFocusTrap('receipt', orderReceipt);
     orderReceiptContinue?.focus();
   }
 
@@ -3810,6 +3859,7 @@
     cartPanel.setAttribute('aria-hidden', 'false');
     cartToggle.setAttribute('aria-expanded', 'true');
     document.body.classList.add('cart-open');
+    setFocusTrap('cart', cartPanel);
 
     requestAnimationFrame(() => {
       cartPanel.classList.add('is-open');
@@ -3820,6 +3870,7 @@
   function closeCartPanel() {
     if (!cartPanel || cartPanel.hidden) return;
 
+    clearFocusTrap('cart');
     cartPanel.classList.remove('is-open');
     cartPanel.setAttribute('aria-hidden', 'true');
     cartToggle.setAttribute('aria-expanded', 'false');

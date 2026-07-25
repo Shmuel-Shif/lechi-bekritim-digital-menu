@@ -14,6 +14,7 @@
 
   let reportCache = { summaries: [], ordersByCode: {} };
   let activeCodeKey = null;
+  let ordersFocusTrapRelease = null;
 
   function escapeHtml(str) {
     const div = document.createElement('div');
@@ -128,10 +129,16 @@
     modal.hidden = false;
     modal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('admin-modal-open');
+    if (typeof ordersFocusTrapRelease === 'function') ordersFocusTrapRelease();
+    const release = window.LechaimFocusTrap?.activate?.(modal);
+    ordersFocusTrapRelease = typeof release === 'function' ? release : null;
+    requestAnimationFrame(() => modalClose?.focus());
   }
 
   function closeOrdersModal() {
     if (!modal) return;
+    if (typeof ordersFocusTrapRelease === 'function') ordersFocusTrapRelease();
+    ordersFocusTrapRelease = null;
     modal.hidden = true;
     modal.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('admin-modal-open');
@@ -256,6 +263,11 @@
 
   modalClose?.addEventListener('click', closeOrdersModal);
   modalBackdrop?.addEventListener('click', closeOrdersModal);
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && modal && !modal.hidden) {
+      closeOrdersModal();
+    }
+  });
 
   global.LechaimAdminCoupons = {
     refresh,

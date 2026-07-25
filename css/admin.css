@@ -17,7 +17,8 @@
   --color-bg-elevated: var(--color-white);
   --color-bg-card: var(--color-white);
   --color-text: var(--color-navy);
-  --color-text-muted: #6b7a8d;
+  /* WCAG AA ≥4.5:1 on light admin surfaces */
+  --color-text-muted: #58677b;
   --color-border: var(--color-cream-dark);
   --color-border-strong: var(--color-cream-dark);
 
@@ -1627,6 +1628,7 @@ body.admin-modal-open {
 }
 
 .admin-coupon-modal__ask {
+  display: block;
   margin: 0;
   font-size: 0.95rem;
   font-weight: 600;
@@ -1825,4 +1827,14 @@ body.admin-modal-open {
 
 .coupon-card--table tbody tr[data-coupon-row]:hover {
   background: rgba(21, 38, 64, 0.04);
+}
+
+::placeholder {
+  color: var(--color-text-muted);
+  opacity: 1;
+}
+
+::-moz-placeholder {
+  color: var(--color-text-muted);
+  opacity: 1;
 }

@@ -49,8 +49,12 @@
     el.textContent = message;
   }
 
+  let successFocusTrapRelease = null;
+
   function closeAdminModal() {
     if (!successModal) return;
+    if (typeof successFocusTrapRelease === 'function') successFocusTrapRelease();
+    successFocusTrapRelease = null;
     successModal.hidden = true;
     successModal.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('admin-modal-open');
@@ -62,6 +66,9 @@
     successModal.hidden = false;
     successModal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('admin-modal-open');
+    if (typeof successFocusTrapRelease === 'function') successFocusTrapRelease();
+    const release = window.LechaimFocusTrap?.activate?.(successModal);
+    successFocusTrapRelease = typeof release === 'function' ? release : null;
     successOk?.focus();
   }
 

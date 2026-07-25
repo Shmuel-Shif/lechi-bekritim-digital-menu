@@ -62,6 +62,29 @@
   const receiptContinue = $('#shabbat-receipt-continue');
   const receiptNew = $('#shabbat-receipt-new');
 
+  const focusTrapReleases = {
+    cart: null,
+    receipt: null,
+    details: null,
+  };
+
+  function setFocusTrap(key, root) {
+    if (typeof focusTrapReleases[key] === 'function') {
+      focusTrapReleases[key]();
+      focusTrapReleases[key] = null;
+    }
+    if (!root) return;
+    const release = window.LechaimFocusTrap?.activate?.(root);
+    focusTrapReleases[key] = typeof release === 'function' ? release : null;
+  }
+
+  function clearFocusTrap(key) {
+    if (typeof focusTrapReleases[key] === 'function') {
+      focusTrapReleases[key]();
+    }
+    focusTrapReleases[key] = null;
+  }
+
   function t(key) {
     const pack = window.SHABBAT_TRANSLATIONS?.[lang] || window.SHABBAT_TRANSLATIONS?.he || {};
     if (key.startsWith('categories.')) {
@@ -309,6 +332,7 @@
 
   function closeOrderReceipt() {
     if (!orderReceipt) return;
+    clearFocusTrap('receipt');
     orderReceipt.hidden = true;
     orderReceipt.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('order-receipt-open');
@@ -372,6 +396,7 @@
     orderReceipt.hidden = false;
     orderReceipt.setAttribute('aria-hidden', 'false');
     document.body.classList.add('order-receipt-open');
+    setFocusTrap('receipt', orderReceipt);
     receiptContinue?.focus();
   }
 
@@ -613,8 +638,14 @@
                 hasImage ? '' : 'food-card--no-image',
                 qty > 0 ? 'food-card--in-cart' : '',
               ].filter(Boolean).join(' ');
+              const cardAttrs = browseOnly
+                ? ''
+                : ` tabindex="0" role="button" aria-label="${escapeAttr(`${t('addToCart')}: ${name}`)}"`;
               return `
-                <article class="${cardClass}" data-item-id="${escapeAttr(item.id)}">
+                <article
+                  class="${cardClass}"
+                  data-item-id="${escapeAttr(item.id)}"${cardAttrs}
+                >
                   <div class="food-content">
                     <div class="food-text">
                       <div class="food-text-body">
@@ -761,11 +792,16 @@
     cartPanel.setAttribute('aria-hidden', 'false');
     cartToggle?.setAttribute('aria-expanded', 'true');
     document.body.classList.add('cart-open');
-    requestAnimationFrame(() => cartPanel.classList.add('is-open'));
+    setFocusTrap('cart', cartPanel);
+    requestAnimationFrame(() => {
+      cartPanel.classList.add('is-open');
+      cartClose?.focus();
+    });
   }
 
   function closeCart() {
     if (!cartPanel) return;
+    clearFocusTrap('cart');
     cartPanel.classList.remove('is-open');
     cartToggle?.setAttribute('aria-expanded', 'false');
     document.body.classList.remove('cart-open');
@@ -798,11 +834,13 @@
     entryGate.hidden = false;
     entryGate.setAttribute('aria-hidden', 'false');
     document.body.classList.add('shabbat-details-pending');
+    setFocusTrap('details', entryGate);
     pickupName?.focus();
   }
 
   function hideDetailsPage() {
     if (!entryGate) return;
+    clearFocusTrap('details');
     entryGate.hidden = true;
     entryGate.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('shabbat-details-pending');
@@ -1149,11 +1187,26 @@
     menuSections?.addEventListener('click', (event) => {
       if (browseOnly) return;
       const btn = event.target.closest('[data-action][data-id]');
-      if (!btn) return;
-      const id = btn.dataset.id;
-      const action = btn.dataset.action;
-      if (action === 'add' || action === 'inc') changeQty(id, 1);
-      if (action === 'dec') changeQty(id, -1);
+      if (btn) {
+        const id = btn.dataset.id;
+        const action = btn.dataset.action;
+        if (action === 'add' || action === 'inc') changeQty(id, 1);
+        if (action === 'dec') changeQty(id, -1);
+        return;
+      }
+      const card = event.target.closest('.food-card[data-item-id]');
+      if (!card) return;
+      changeQty(card.dataset.itemId, 1);
+    });
+
+    menuSections?.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      if (browseOnly) return;
+      if (event.target.closest('[data-action]')) return;
+      const card = event.target.closest('.food-card[data-item-id]');
+      if (!card || event.target !== card) return;
+      event.preventDefault();
+      changeQty(card.dataset.itemId, 1);
     });
 
     cartBody?.addEventListener('click', (event) => {
@@ -1162,6 +1215,17 @@
       const id = btn.dataset.id;
       if (btn.dataset.action === 'inc') changeQty(id, 1);
       if (btn.dataset.action === 'dec') changeQty(id, -1);
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      if (orderReceipt && !orderReceipt.hidden) {
+        closeOrderReceipt();
+        return;
+      }
+      if (cartPanel && !cartPanel.hidden) {
+        closeCart();
+      }
     });
 
     pickupForm?.addEventListener('submit', handlePickupSubmit);

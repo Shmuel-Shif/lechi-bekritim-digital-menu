@@ -2074,6 +2074,7 @@ body.cart-open {
 }
 
 .app-confirm__coupon-label {
+  display: block;
   margin: 0;
   font-size: 0.92rem;
   font-weight: 600;

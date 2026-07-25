@@ -150,7 +150,7 @@
       <div class="entry-gate__step" id="entry-step-pickup-closed" hidden>
         <div class="entry-pickup-closed" role="status">
           <p class="entry-pickup-closed__title" data-entry-i18n="pickupClosedTitle">לא זמין כרגע.</p>
-          <p class="entry-pickup-closed__text" data-entry-i18n="pickupClosedText">ניתן לבצע הזמנות לאיסוף עצמי החל מיום ראשון.<br>בין השעות 14:00 - 21:00</p>
+          <p class="entry-pickup-closed__text" data-entry-i18n="pickupClosedText">ניתן לבצע הזמנות לאיסוף עצמי בימי א - ה<br>בין השעות 14:00 - 21:00.</p>
           <button type="button" class="entry-gate__btn entry-gate__btn--primary" id="entry-pickup-closed-browse" data-entry-i18n="pickupClosedBrowse">
             לצפייה בתפריט
           </button>
@@ -159,7 +159,7 @@
       </div>
 
       <div class="entry-gate__step" id="entry-step-table" hidden>
-        <p class="entry-gate__hint" id="entry-table-hint" data-entry-i18n="tableHint">רק נציג אחד מהשולחן יבצע את ההזמנה דרך המערכת.<br>שאר הסועדים יכולים לבחור באפשרות "צפייה בתפריט" כדי לעיין במנות, במחירים ובתיאורים.</p>
+        <p class="entry-gate__hint" id="entry-table-hint" data-entry-i18n="tableHint">רק נציג אחד מהשולחן יבצע את ההזמנה דרך המערכת.<br>שאר הסועדים יכולים לבחור באפשרות "צפייה בתפריט" שבעמוד הראשי כדי לעיין במנות, במחירים ובתיאורים.</p>
         <div class="entry-gate__tables" id="entry-tables" role="group" aria-label="Table number"></div>
         <button type="button" class="entry-gate__back" data-entry-back="order" data-entry-i18n="back">חזרה</button>
       </div>
@@ -300,7 +300,7 @@
         <div class="footer-card">
           <h3 class="footer-heading" data-i18n="hours">שעות פעילות</h3>
           <ul class="footer-hours">
-            <li><span data-i18n="hoursDays">א׳ – ה׳</span><span>14:00 – 21:00</span></li>
+            <li><span data-i18n="hoursDays">א׳ – ה׳</span><span>14:00 – 23:00</span></li>
           </ul>
         </div>
 
@@ -385,7 +385,7 @@
       <p class="app-confirm__text" id="app-confirm-text"></p>
 
       <div class="app-confirm__coupon" id="app-confirm-coupon" hidden>
-        <p class="app-confirm__coupon-label" id="app-confirm-coupon-label">יש לך קוד קופון?</p>
+        <label class="app-confirm__coupon-label" id="app-confirm-coupon-label" for="app-confirm-coupon-input">יש לך קוד קופון?</label>
         <div class="app-confirm__coupon-row">
           <input
             type="text"
@@ -448,6 +448,7 @@
   <script src="js/inventory.js" defer></script>
   <script src="js/order-session.js" defer></script>
   <script src="js/order-engine.js" defer></script>
+  <script src="js/a11y-focus-trap.js" defer></script>
   <script src="js/main.js" defer></script>
   <script src="js/entry-gate.js" defer></script>
 </body>

@@ -327,6 +327,8 @@
     updateActionButtons(entry);
   }
 
+  let drawerFocusTrapRelease = null;
+
   function openDrawer(entry) {
     selectedId = entry.sessionId;
     setDrawerView('detail');
@@ -335,6 +337,11 @@
     drawer.hidden = false;
     drawer.setAttribute('aria-hidden', 'false');
     document.body.classList.add('table-drawer-open');
+    if (typeof drawerFocusTrapRelease === 'function') drawerFocusTrapRelease();
+    const release = window.LechaimFocusTrap?.activate?.(drawer);
+    drawerFocusTrapRelease = typeof release === 'function' ? release : null;
+    const closeBtn = document.getElementById('shabbat-drawer-close');
+    requestAnimationFrame(() => closeBtn?.focus());
   }
 
   function closeDrawer() {
@@ -342,6 +349,8 @@
     menuMode = false;
     setDrawerView('detail');
     if (!drawer) return;
+    if (typeof drawerFocusTrapRelease === 'function') drawerFocusTrapRelease();
+    drawerFocusTrapRelease = null;
     drawer.hidden = true;
     drawer.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('table-drawer-open');

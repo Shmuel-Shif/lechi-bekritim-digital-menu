@@ -17,7 +17,7 @@
       kosher: 'Mehadrin Kosher',
       promptOrder: 'How would you like to order?',
       promptTable: 'Choose the number of the table you are seated at.',
-      tableHint: 'Only one person at the table should place the order through the system.\nOther guests can choose "View the menu" to browse dishes, prices, and descriptions.',
+      tableHint: 'Only one person at the table should place the order through the system.\nOther guests can choose "View the menu" on the main page to browse dishes, prices, and descriptions.',
       promptPickup: 'Takeaway details',
       dineIn: 'Dine In',
       takeAway: 'Takeaway',
@@ -42,8 +42,11 @@
       pickupTimeRequired: 'Please select a pickup time',
       pickupNoSlots: 'No pickup times left today — choose ASAP',
       pickupClosedTitle: 'Not available right now.',
-      pickupClosedText: 'Takeaway orders can be placed starting Sunday.\nBetween 14:00 – 21:00',
+      pickupClosedText: 'Takeaway orders can be placed Sunday–Thursday.\nBetween 14:00 – 21:00.',
       pickupClosedBrowse: 'View the menu',
+      dineInClosedTitle: 'Not available right now.',
+      dineInClosedText: 'Dine-in is available during restaurant opening hours.',
+      dineInClosedBrowse: 'View the menu',
     },
     he: {
       welcome: 'ברוכים הבאים',
@@ -51,7 +54,7 @@
       kosher: 'כשר למהדרין',
       promptOrder: 'איך תרצו להזמין?',
       promptTable: 'בחרו את מספר השולחן שעליו אתם יושבים.',
-      tableHint: 'רק נציג אחד מהשולחן יבצע את ההזמנה דרך המערכת.\nשאר הסועדים יכולים לבחור באפשרות "צפייה בתפריט" כדי לעיין במנות, במחירים ובתיאורים.',
+      tableHint: 'רק נציג אחד מהשולחן יבצע את ההזמנה דרך המערכת.\nשאר הסועדים יכולים לבחור באפשרות "צפייה בתפריט" שבעמוד הראשי כדי לעיין במנות, במחירים ובתיאורים.',
       promptPickup: 'פרטי איסוף עצמי',
       dineIn: 'ישיבה במקום',
       takeAway: 'איסוף עצמי',
@@ -76,13 +79,29 @@
       pickupTimeRequired: 'נא לבחור שעת איסוף',
       pickupNoSlots: 'אין שעות פנויות היום — בחרו בהקדם האפשרי',
       pickupClosedTitle: 'לא זמין כרגע.',
-      pickupClosedText: 'ניתן לבצע הזמנות לאיסוף עצמי החל מיום ראשון.\nבין השעות 14:00 - 21:00',
+      pickupClosedText: 'ניתן לבצע הזמנות לאיסוף עצמי בימי א - ה\nבין השעות 14:00 - 21:00.',
       pickupClosedBrowse: 'לצפייה בתפריט',
+      dineInClosedTitle: 'לא זמין כרגע.',
+      dineInClosedText: 'ניתן לבצע ישיבה במקום בשעות פעילות המסעדה.',
+      dineInClosedBrowse: 'לצפייה בתפריט',
     },
   };
 
   const gate = document.getElementById('entry-gate');
   if (!gate) return;
+
+  let gateFocusTrapRelease = null;
+
+  function activateGateFocusTrap() {
+    if (gateFocusTrapRelease) return;
+    const release = window.LechaimFocusTrap?.activate?.(gate);
+    gateFocusTrapRelease = typeof release === 'function' ? release : null;
+  }
+
+  function releaseGateFocusTrap() {
+    if (typeof gateFocusTrapRelease === 'function') gateFocusTrapRelease();
+    gateFocusTrapRelease = null;
+  }
 
   const stepOrder = document.getElementById('entry-step-order');
   const stepTable = document.getElementById('entry-step-table');
@@ -153,10 +172,28 @@
       }
     });
 
+    if (stepPickupClosed && !stepPickupClosed.hidden) {
+      const closedTitle = stepPickupClosed.querySelector('[data-entry-i18n="pickupClosedTitle"]');
+      const closedText = stepPickupClosed.querySelector('[data-entry-i18n="pickupClosedText"]');
+      const closedBrowse = stepPickupClosed.querySelector('[data-entry-i18n="pickupClosedBrowse"]');
+      const isDineInClosed = state.orderType === 'dine-in';
+      const titleKey = isDineInClosed ? 'dineInClosedTitle' : 'pickupClosedTitle';
+      const textKey = isDineInClosed ? 'dineInClosedText' : 'pickupClosedText';
+      const browseKey = isDineInClosed ? 'dineInClosedBrowse' : 'pickupClosedBrowse';
+      if (closedTitle) closedTitle.textContent = t(titleKey);
+      if (closedText) {
+        const text = t(textKey);
+        closedText.innerHTML = String(text).includes('\n')
+          ? String(text).split('\n').map((line) => line.replace(/</g, '&lt;')).join('<br>')
+          : text;
+      }
+      if (closedBrowse) closedBrowse.textContent = t(browseKey);
+    }
+
     if (promptEl) {
       promptEl.hidden = false;
       if (stepPickupClosed && !stepPickupClosed.hidden) {
-        promptEl.textContent = t('takeAway');
+        promptEl.textContent = state.orderType === 'dine-in' ? t('dineIn') : t('takeAway');
       } else if (stepPickup && !stepPickup.hidden) {
         promptEl.textContent = t('promptPickup');
       } else if (stepTable && !stepTable.hidden) {
@@ -190,17 +227,45 @@
     applyEntryCopy();
   }
 
-  /* Set true to enforce takeaway closed Fri–Sat */
+  /* Set true to enforce takeaway day + clock hours */
   const TAKEAWAY_DAY_HOURS_ENABLED = true;
+  const TAKEAWAY_OPEN_HOUR = 14;
+  const TAKEAWAY_CLOSE_HOUR = 21; /* exclusive */
 
   /**
-   * Takeaway only: open Sun–Thu, closed Fri–Sat.
-   * Does not affect dine-in / hours / coupons / admin.
+   * Takeaway only: Sun–Thu 14:00–21:00; closed Fri–Sat and outside hours.
    */
   function isTakeawayDayOpen() {
     if (!TAKEAWAY_DAY_HOURS_ENABLED) return true;
-    const day = new Date().getDay(); /* 0=Sun … 5=Fri 6=Sat */
-    return day !== 5 && day !== 6;
+    const now = new Date();
+    const day = now.getDay(); /* 0=Sun … 5=Fri 6=Sat */
+    if (day === 5 || day === 6) return false;
+    const hour = now.getHours();
+    return hour >= TAKEAWAY_OPEN_HOUR && hour < TAKEAWAY_CLOSE_HOUR;
+  }
+
+  /* Set true to enforce dine-in day + clock hours at entry */
+  const DINE_IN_DAY_HOURS_ENABLED = true;
+  const DINE_IN_OPEN_HOUR = 14;
+  const DINE_IN_CLOSE_HOUR = 23; /* exclusive */
+
+  /** Dine-in: Sun–Thu 14:00–23:00; closed Fri–Sat and outside hours. */
+  function isDineInOrderingOpen() {
+    if (!DINE_IN_DAY_HOURS_ENABLED) return true;
+    const now = new Date();
+    const day = now.getDay();
+    if (day === 5 || day === 6) return false;
+    const hour = now.getHours();
+    return hour >= DINE_IN_OPEN_HOUR && hour < DINE_IN_CLOSE_HOUR;
+  }
+
+  function showOrderingClosedStep(orderType) {
+    state.orderType = orderType;
+    if (promptEl) {
+      promptEl.textContent = orderType === 'dine-in' ? t('dineIn') : t('takeAway');
+    }
+    showStep(stepPickupClosed);
+    pickupClosedBrowse?.focus();
   }
 
   function showNotice(message) {
@@ -384,9 +449,11 @@
     document.body.classList.add('entry-pending');
     gate.hidden = false;
     gate.setAttribute('aria-hidden', 'false');
+    activateGateFocusTrap();
   }
 
   function closeGate() {
+    releaseGateFocusTrap();
     document.body.classList.remove('entry-pending');
     gate.hidden = true;
     gate.setAttribute('aria-hidden', 'true');
@@ -484,6 +551,11 @@
   }
 
   function goToTable() {
+    state.orderType = 'dine-in';
+    if (!isDineInOrderingOpen()) {
+      showOrderingClosedStep('dine-in');
+      return;
+    }
     buildTables();
     highlightSelectedTable(state.tableNumber);
     if (tableBackBtn) tableBackBtn.dataset.entryBack = 'order';
@@ -670,9 +742,7 @@
     state.orderType = 'takeaway';
     state.tableNumber = null;
     if (!isTakeawayDayOpen()) {
-      if (promptEl) promptEl.textContent = t('takeAway');
-      showStep(stepPickupClosed);
-      pickupClosedBrowse?.focus();
+      showOrderingClosedStep('takeaway');
       return;
     }
     resetPickupForm();
@@ -1179,6 +1249,7 @@
   document.body.classList.add('entry-pending');
   gate.hidden = false;
   gate.setAttribute('aria-hidden', 'false');
+  activateGateFocusTrap();
 
   (async function bootEntryGate() {
     setLang('he');
