@@ -302,7 +302,7 @@ const DISH_I18N = {
       desc: 'Warm chicken on lettuce with seasonal vegetables and vinaigrette.',
     },
     'israeli-salad': {
-      name: 'Israeli Chopped Salad',
+      name: 'Israeli Salad',
       desc: 'Fresh chopped vegetable salad with herbs.',
     },
     'green-salad': {
@@ -550,7 +550,7 @@ const MENU_DATA = {
         },
         {
           id: 'israeli-salad',
-          name: 'סלט קצוץ ישראלי',
+          name: 'סלט ישראלי',
           printName: 'Salat Israeli',
           description: 'סלט ירקות קצוץ טרי עם עשבי תיבול.',
           price: 10,

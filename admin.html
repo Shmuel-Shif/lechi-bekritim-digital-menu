@@ -63,6 +63,7 @@
           שולחנות
           <span class="admin-tab__badge" id="tab-badge-tables" data-count="0" hidden>0</span>
         </button>
+        <button type="button" class="admin-tab" data-tab="reservations">הזמנות להיום</button>
         <button type="button" class="admin-tab" data-tab="takeaway">
           איסוף עצמי
           <span class="admin-tab__badge" id="tab-badge-takeaway" data-count="0" hidden>0</span>
@@ -129,6 +130,28 @@
           </div>
           <div class="tables-takeaway__grid" id="shabbat-orders-grid"></div>
           <p class="tables-category__empty" id="shabbat-orders-empty">אין הזמנות שבת כרגע</p>
+        </section>
+      </div>
+
+      <!-- Reservations (seat holds) tab -->
+      <div class="admin-view" id="admin-view-reservations" hidden>
+        <section class="tables-category">
+          <header class="admin-header admin-header--row">
+            <div class="admin-header__text">
+              <p class="admin-header__eyebrow">ניהול</p>
+              <h1 class="admin-header__title">הזמנות להיום</h1>
+              <p class="admin-header__subtitle">שמירת מקום לפי תאריך ושעת הגעה</p>
+            </div>
+            <div class="reservations-header-actions">
+              <label class="reservations-date-filter">
+                <span>תאריך</span>
+                <input type="date" id="reservations-date-filter" dir="ltr">
+              </label>
+              <button type="button" class="admin-btn admin-btn--primary" id="reservations-new-btn">כרטיס חדש</button>
+            </div>
+          </header>
+          <div class="reservations-grid" id="reservations-grid"></div>
+          <p class="tables-category__empty" id="reservations-empty">אין הזמנות לתאריך זה</p>
         </section>
       </div>
 
@@ -289,6 +312,41 @@
       </div>
     </div>
 
+    <div class="admin-modal" id="reservation-modal" hidden aria-hidden="true">
+      <button type="button" class="admin-modal__backdrop" id="reservation-modal-backdrop" aria-label="סגור"></button>
+      <div class="admin-modal__panel reservation-modal__panel" role="dialog" aria-modal="true" aria-labelledby="reservation-modal-title">
+        <h2 class="reservation-modal__title" id="reservation-modal-title">כרטיס שמירת מקום</h2>
+        <form id="reservation-form" class="reservation-form" novalidate>
+          <input type="hidden" id="reservation-id" value="">
+          <label class="admin-field">
+            <span>שם לקוח *</span>
+            <input type="text" id="reservation-name" name="customer_name" required autocomplete="name" maxlength="80">
+          </label>
+          <label class="admin-field">
+            <span>טלפון *</span>
+            <input type="tel" id="reservation-phone" name="customer_phone" required autocomplete="tel" dir="ltr" maxlength="20" inputmode="tel">
+          </label>
+          <label class="admin-field">
+            <span>הערות</span>
+            <textarea id="reservation-notes" name="notes" rows="3" maxlength="400" placeholder="אופציונלי"></textarea>
+          </label>
+          <label class="admin-field">
+            <span>תאריך *</span>
+            <input type="date" id="reservation-date" name="reservation_date" required dir="ltr">
+          </label>
+          <label class="admin-field">
+            <span>שעת הגעה *</span>
+            <select id="reservation-arrival" name="arrival_time" required dir="ltr"></select>
+          </label>
+          <p class="admin-error" id="reservation-form-error" role="alert" hidden></p>
+          <div class="reservation-modal__actions">
+            <button type="submit" class="admin-btn admin-btn--primary" id="reservation-save-btn">שמור כרטיס</button>
+            <button type="button" class="admin-btn admin-btn--ghost" id="reservation-cancel-btn">ביטול</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <div class="admin-modal" id="admin-coupon-modal" hidden aria-hidden="true">
       <button type="button" class="admin-modal__backdrop" id="admin-coupon-backdrop" aria-label="סגור"></button>
       <div class="admin-modal__panel admin-coupon-modal__panel" role="dialog" aria-modal="true" aria-labelledby="admin-coupon-title">
@@ -345,6 +403,7 @@
   <script src="js/a11y-focus-trap.js" defer></script>
   <script src="js/admin-tables.js" defer></script>
   <script src="js/admin-shabbat.js" defer></script>
+  <script src="js/admin-reservations.js" defer></script>
   <script src="js/admin-coupons.js" defer></script>
   <script src="js/admin-shabbat-stats.js" defer></script>
   <script src="js/admin.js" defer></script>
