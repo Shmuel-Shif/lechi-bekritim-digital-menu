@@ -60,7 +60,7 @@
           <button type="button" class="entry-gate__btn entry-gate__btn--primary" data-order-type="browse" id="entry-browse-menu">
             <span class="entry-gate__btn-label" data-entry-i18n="browseMenu">צפייה בתפריט</span>
           </button>
-          <button type="button" class="entry-gate__btn entry-gate__btn--primary" data-order-type="dine-in">
+          <button type="button" class="entry-gate__btn entry-gate__btn--dine-in" data-order-type="dine-in">
             <span class="entry-gate__btn-label" data-entry-i18n="dineIn">ישיבה במקום</span>
           </button>
           <button type="button" class="entry-gate__btn entry-gate__btn--primary" data-order-type="takeaway">
@@ -159,9 +159,30 @@
       </div>
 
       <div class="entry-gate__step" id="entry-step-table" hidden>
-        <p class="entry-gate__hint" id="entry-table-hint" data-entry-i18n="tableHint">רק נציג אחד מהשולחן יבצע את ההזמנה דרך המערכת.<br>שאר הסועדים יכולים לבחור באפשרות "צפייה בתפריט" שבעמוד הראשי כדי לעיין במנות, במחירים ובתיאורים.</p>
         <div class="entry-gate__tables" id="entry-tables" role="group" aria-label="Table number"></div>
         <button type="button" class="entry-gate__back" data-entry-back="order" data-entry-i18n="back">חזרה</button>
+      </div>
+    </div>
+
+    <div class="entry-table-modal" id="entry-table-modal" hidden aria-hidden="true">
+      <button type="button" class="entry-table-modal__backdrop" id="entry-table-modal-backdrop" aria-label="סגור"></button>
+      <div
+        class="entry-table-modal__panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="entry-table-find"
+      >
+        <p class="entry-table-modal__find" id="entry-table-find" data-entry-i18n="tableFind">מספר השולחן נמצא על השולחן.</p>
+        <p class="entry-table-modal__hint" id="entry-table-hint-1" data-entry-i18n="tableHint1">רק נציג אחד מהשולחן יבצע את ההזמנה דרך המערכת.</p>
+        <p class="entry-table-modal__hint" id="entry-table-hint-2" data-entry-i18n="tableHint2">שאר הסועדים יכולים לבחור באפשרות "צפייה בתפריט" שבעמוד הראשי כדי לעיין במנות, במחירים ובתיאורים.</p>
+        <div class="entry-table-modal__actions">
+          <button type="button" class="entry-gate__btn entry-gate__btn--primary entry-table-modal__pick" id="entry-table-modal-pick" data-entry-i18n="tablePickTable">
+            לבחירת שולחן
+          </button>
+          <button type="button" class="entry-gate__btn entry-table-modal__browse" id="entry-table-modal-browse" data-entry-i18n="tableBrowseMenu">
+            לצפייה בתפריט
+          </button>
+        </div>
       </div>
     </div>
 

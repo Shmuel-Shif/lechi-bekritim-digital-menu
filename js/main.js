@@ -527,12 +527,18 @@
     return HOT_SIDE_ITEMS;
   }
 
+  function getShakeBaseItems() {
+    return window.SHAKE_BASE_ITEMS || [];
+  }
+
   function findItem(itemId) {
     for (const category of MENU_DATA.categories) {
       const item = getCategoryItems(category).find((i) => i.id === itemId);
       if (item) return item;
     }
-    return HOT_SIDE_ITEMS.find((item) => item.id === itemId) || null;
+    const hot = HOT_SIDE_ITEMS.find((item) => item.id === itemId);
+    if (hot) return hot;
+    return getShakeBaseItems().find((item) => item.id === itemId) || null;
   }
 
   function getSideQtyForMain(mainLineId, sideItemId) {
@@ -543,7 +549,8 @@
   }
 
   function addSideToMainLine(mainLineId, sideItemId) {
-    if (!isProductAvailable(sideItemId)) {
+    /* Shake bases are always available options (not inventory SKUs). */
+    if (!isShakeBase(sideItemId) && !isProductAvailable(sideItemId)) {
       showCartToast(t('outOfStock'));
       return false;
     }
@@ -609,6 +616,28 @@
 
   function isHotSide(itemId) {
     return HOT_SIDE_IDS.has(itemId);
+  }
+
+  function isFruitShake(itemId) {
+    return itemId === (window.FRUIT_SHAKE_ID || 'fruit-shake');
+  }
+
+  function isShakeBase(itemId) {
+    return Boolean(window.SHAKE_BASE_IDS?.has?.(itemId));
+  }
+
+  /** Linked option under a parent line (hot side or shake base). */
+  function isLinkedOption(itemId) {
+    return isHotSide(itemId) || isShakeBase(itemId);
+  }
+
+  function isParentWithOptions(itemId) {
+    return isMainCourse(itemId) || isFruitShake(itemId);
+  }
+
+  function getPickerOptionsForParent(parentItemId) {
+    if (isFruitShake(parentItemId)) return getShakeBaseItems();
+    return getHotSideItems();
   }
 
   function createCartLineId() {
@@ -708,7 +737,7 @@
     const line = findCartLine(lineId);
     if (!line) return;
 
-    if (isMainCourse(line.itemId)) {
+    if (isParentWithOptions(line.itemId)) {
       getSideLinesForMain(lineId).forEach((sideLine) => {
         cartLines = cartLines.filter((l) => l.lineId !== sideLine.lineId);
         cartLineOrder = cartLineOrder.filter((id) => id !== sideLine.lineId);
@@ -729,7 +758,7 @@
       const line = findCartLine(lineId);
       if (!line || used.has(lineId) || line.linkedToMainLineId) continue;
 
-      if (isMainCourse(line.itemId)) {
+      if (isParentWithOptions(line.itemId)) {
         const sides = cartLineOrder
           .map(findCartLine)
           .filter((l) => l && l.linkedToMainLineId === line.lineId);
@@ -1218,7 +1247,8 @@
     list.className = 'food-list';
     list.setAttribute('role', 'list');
 
-    items.forEach((item) => {
+    (items || []).forEach((item) => {
+      if (item?.adminOnly) return;
       list.appendChild(createFoodCard(item));
     });
 
@@ -1682,11 +1712,14 @@
       return;
     }
 
+    const shakeMode = isFruitShake(mainLine.itemId);
+    const titleKey = shakeMode ? 'chooseShakeBaseTitle' : 'chooseSidesTitle';
+    const subtitleKey = shakeMode ? 'chooseShakeBaseSubtitle' : 'chooseSidesSubtitle';
     const selectedCount = countSidesForMain(openSidesMainLineId);
-    const cellsHtml = getHotSideItems().map((side) => {
+    const cellsHtml = getPickerOptionsForParent(mainLine.itemId).map((side) => {
       const qty = getSideQtyForMain(openSidesMainLineId, side.id);
       const selected = qty > 0;
-      const available = isProductAvailable(side.id);
+      const available = isShakeBase(side.id) ? true : isProductAvailable(side.id);
       const hasImage = Boolean(getItemImage(side));
       const imageHtml = hasImage
         ? `<span class="sides-picker-thumb">
@@ -1720,18 +1753,24 @@
       `;
     }).join('');
 
+    const continueDisabled = shakeMode && selectedCount < 1;
     sidesModalBody.innerHTML = `
-      <div class="sides-modal-content">
+      <div class="sides-modal-content${shakeMode ? ' sides-modal-content--shake' : ''}">
         <header class="sides-modal-header">
-          <h2 id="sides-modal-title" class="sides-modal-title">${escapeHtml(t('chooseSidesTitle'))}</h2>
-          <p class="sides-modal-subtitle">${escapeHtml(tReplace('chooseSidesSubtitle', { name: getItemName(mainItem) }))}</p>
+          <h2 id="sides-modal-title" class="sides-modal-title">${escapeHtml(t(titleKey))}</h2>
+          <p class="sides-modal-subtitle">${escapeHtml(tReplace(subtitleKey, { name: getItemName(mainItem) }))}</p>
           <p class="sides-modal-count" aria-live="polite">${escapeHtml(tReplace('sidesSelected', { count: String(selectedCount) }))}</p>
         </header>
-        <div class="sides-picker-table" role="group" aria-label="${escapeAttr(t('chooseSidesTitle'))}">
+        <div class="sides-picker-table${shakeMode ? ' sides-picker-table--shake' : ''}" role="group" aria-label="${escapeAttr(t(titleKey))}">
           ${cellsHtml}
         </div>
         <footer class="sides-modal-footer">
-          <button type="button" class="btn btn-primary sides-modal-continue" data-action="sides-continue">
+          <button
+            type="button"
+            class="btn btn-primary sides-modal-continue"
+            data-action="sides-continue"
+            ${continueDisabled ? 'disabled' : ''}
+          >
             ${escapeHtml(t('sidesContinue'))}
           </button>
         </footer>
@@ -1768,11 +1807,25 @@
   function closeSidesModal() {
     if (!sidesModal || sidesModal.hidden) return;
 
+    const parentLineId = openSidesMainLineId;
+    const parentLine = parentLineId ? findCartLine(parentLineId) : null;
+    const mustPickBase = parentLine && isFruitShake(parentLine.itemId);
+    const hasPick = parentLineId ? countSidesForMain(parentLineId) > 0 : true;
+
     openSidesMainLineId = null;
     clearFocusTrap('sides');
     sidesModal.classList.remove('is-open');
     sidesModal.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('modal-open');
+
+    if (mustPickBase && !hasPick && parentLineId) {
+      const shakeItemId = parentLine.itemId;
+      removeCartLine(parentLineId);
+      saveCart();
+      renderCart();
+      refreshFoodCards(shakeItemId);
+      updateOpenFoodModal();
+    }
 
     window.setTimeout(() => {
       if (sidesModal.classList.contains('is-open')) return;
@@ -2524,7 +2577,7 @@
     }
 
     if (orderReceiptRemember) {
-      if (hasOrderNo) {
+      if (isTakeaway) {
         orderReceiptRemember.hidden = false;
         orderReceiptRemember.textContent = t('receiptRememberNo');
       } else {
@@ -3553,6 +3606,9 @@
       return;
     }
 
+    const catalogItem = findItem(itemId);
+    if (catalogItem?.adminOnly) return;
+
     if (!isProductAvailable(itemId)) {
       showCartToast(t('outOfStock'));
       return;
@@ -3560,7 +3616,7 @@
 
     let newMainLineId = null;
 
-    if (isMainCourse(itemId)) {
+    if (isMainCourse(itemId) || isFruitShake(itemId)) {
       const lineId = createCartLineId();
       cartLines.push({ lineId, itemId, qty: 1, linkedToMainLineId: null });
       moveCartLineToTop(lineId);
@@ -3591,9 +3647,12 @@
         });
         moveCartLineToTop(lineId);
       }
+    } else if (isShakeBase(itemId)) {
+      /* Shake bases are only added via the fruit-shake picker. */
+      return;
     } else {
       const existing = cartLines.find(
-        (l) => l.itemId === itemId && !l.linkedToMainLineId && !isMainCourse(l.itemId)
+        (l) => l.itemId === itemId && !l.linkedToMainLineId && !isMainCourse(l.itemId) && !isFruitShake(l.itemId)
       );
 
       if (existing) {
@@ -3608,7 +3667,7 @@
 
     saveCart();
     renderCart();
-    if (!isHotSide(itemId)) {
+    if (!isHotSide(itemId) && !isShakeBase(itemId)) {
       refreshFoodCards(itemId);
       updateOpenFoodModal();
     }
@@ -3642,25 +3701,25 @@
     const itemId = line.itemId;
     const newQty = line.qty + delta;
     if (newQty <= 0) {
-      const wasHotSide = isHotSide(itemId) && line.linkedToMainLineId;
-      const mainLineId = wasHotSide ? line.linkedToMainLineId : null;
+      const wasLinkedOption = isLinkedOption(itemId) && line.linkedToMainLineId;
+      const mainLineId = wasLinkedOption ? line.linkedToMainLineId : null;
 
       removeCartLine(lineId);
       saveCart();
       renderCart();
-      if (!wasHotSide) {
+      if (!wasLinkedOption) {
         refreshFoodCards(itemId);
         updateOpenFoodModal();
       }
 
-      if (wasHotSide && mainLineId && findCartLine(mainLineId)) {
+      if (wasLinkedOption && mainLineId && findCartLine(mainLineId)) {
         closeCartPanel();
         openSidesModal(mainLineId);
       }
       return;
     }
 
-    if (delta > 0 && isHotSide(itemId) && line.linkedToMainLineId) {
+    if (delta > 0 && isLinkedOption(itemId) && line.linkedToMainLineId) {
       if (!canAddSideToMain(line.linkedToMainLineId)) {
         showCartToast(t('maxSidesPerMain'));
         return;
@@ -3708,7 +3767,7 @@
 
   function getCartCount() {
     return cartLines
-      .filter((line) => !isHotSide(line.itemId))
+      .filter((line) => !isLinkedOption(line.itemId))
       .reduce((sum, line) => sum + line.qty, 0);
   }
 
@@ -3730,8 +3789,10 @@
 
     let metaHtml = '';
     if (line.linkedToMainLineId && mainItem && variant !== 'child') {
-      metaHtml = `<p class="cart-item-meta">${escapeHtml(tReplace('sideForMain', { name: getItemName(mainItem) }))}</p>`;
-    } else if (isMainCourse(line.itemId)) {
+      metaHtml = isFruitShake(mainItem.id)
+        ? `<p class="cart-item-meta">${escapeHtml(t('shakeBaseLabel'))}</p>`
+        : `<p class="cart-item-meta">${escapeHtml(tReplace('sideForMain', { name: getItemName(mainItem) }))}</p>`;
+    } else if (isParentWithOptions(line.itemId)) {
       const sideNames = getSideLinesForMain(line.lineId)
         .map((s) => {
           const sideItem = findItem(s.itemId);
@@ -3756,8 +3817,11 @@
          </div>`
       : '';
 
+    const childBadge = mainItem && isFruitShake(mainItem.id)
+      ? t('shakeBaseLabel')
+      : t('sideLabel');
     const unitHtml = variant === 'child'
-      ? `<p class="cart-item-badge">${escapeHtml(t('sideLabel'))}</p>`
+      ? `<p class="cart-item-badge">${escapeHtml(childBadge)}</p>`
       : `<p class="cart-item-unit">${escapeHtml(tReplace('perUnit', { price: formatPrice(price) }))}</p>`;
 
     const controlsHtml = variant === 'child'

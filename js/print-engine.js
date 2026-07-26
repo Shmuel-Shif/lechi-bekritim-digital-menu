@@ -273,7 +273,13 @@
 
     const hotSides = global.HOT_SIDE_ITEMS;
     if (Array.isArray(hotSides)) {
-      return hotSides.find((entry) => entry && String(entry.id) === id) || null;
+      const found = hotSides.find((entry) => entry && String(entry.id) === id);
+      if (found) return found;
+    }
+
+    const shakeBases = global.SHAKE_BASE_ITEMS;
+    if (Array.isArray(shakeBases)) {
+      return shakeBases.find((entry) => entry && String(entry.id) === id) || null;
     }
 
     return null;
@@ -321,6 +327,11 @@
       hotSides.forEach((item) => check(item, 'HOT_SIDE_ITEMS'));
     } else {
       console.warn('[LechaimPrintEngine] HOT_SIDE_ITEMS missing — cannot validate printName');
+    }
+
+    const shakeBases = global.SHAKE_BASE_ITEMS;
+    if (Array.isArray(shakeBases)) {
+      shakeBases.forEach((item) => check(item, 'SHAKE_BASE_ITEMS'));
     }
 
     if (missing.length) {
@@ -386,6 +397,10 @@
     const hotSideCatIdx = Array.isArray(categories) ? categories.length : 0;
     (Array.isArray(global.HOT_SIDE_ITEMS) ? global.HOT_SIDE_ITEMS : []).forEach((item) => {
       push(item?.id, hotSideCatIdx);
+    });
+    const shakeCatIdx = hotSideCatIdx + 1;
+    (Array.isArray(global.SHAKE_BASE_ITEMS) ? global.SHAKE_BASE_ITEMS : []).forEach((item) => {
+      push(item?.id, shakeCatIdx);
     });
 
     return order;
@@ -569,14 +584,11 @@
 
     const stamp = formatDateTime(order?.updatedAt || order?.createdAt || Date.now());
     const body = formatItemLines(items);
-    const seq = Number(ticketSeq) > 0 ? Number(ticketSeq) : 1;
     const tableLine = formatTableLine(order);
     const pickupBlock = buildSelfPickupBlock(order);
 
     return [
       `${POS.fontA}${POS.size2x}${POS.boldOn}${LINE}`,
-      '',
-      'LECHAIM RESTAURANT',
       '',
       title,
       '',
@@ -584,9 +596,7 @@
       tableLine,
       '',
       ...pickupBlock,
-      `Order ${seq}`,
-      '',
-      /* Time — emphasized */
+      /* Time — last detail line, immediately before products */
       stamp,
       `${POS.boldOff}`,
       '',

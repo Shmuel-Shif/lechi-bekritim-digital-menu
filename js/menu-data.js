@@ -43,7 +43,7 @@ const TRANSLATIONS = {
     receiptTable: 'שולחן {n}',
     receiptTakeaway: 'איסוף עצמי',
     receiptOrderNo: 'מספר הזמנה',
-    receiptRememberNo: 'שמרו את מספר ההזמנה — תצטרכו אותו באיסוף',
+    receiptRememberNo: 'שף המסעדה תיצור איתכם קשר — נא להיות זמינים :)',
     receiptPickupAsap: 'איסוף: בהקדם',
     receiptPickupAt: 'איסוף: {time}',
     receiptEmpty: 'אין פריטים',
@@ -92,6 +92,9 @@ const TRANSLATIONS = {
     sidesSelected: '{count} מתוך 1 נבחרו',
     sidesContinue: 'המשך',
     sideLabel: 'תוספת',
+    chooseShakeBaseTitle: 'מה אתם מעדיפים?',
+    chooseShakeBaseSubtitle: 'בחרו בסיס לשייק: {name}',
+    shakeBaseLabel: 'בסיס',
     contact: 'יצירת קשר',
     hours: 'שעות פעילות',
     hoursDays: 'א׳ – ה׳',
@@ -151,7 +154,7 @@ const TRANSLATIONS = {
     receiptTable: 'Table {n}',
     receiptTakeaway: 'Takeaway',
     receiptOrderNo: 'Order number',
-    receiptRememberNo: 'Remember this order number — you will need it at pickup',
+    receiptRememberNo: 'The restaurant chef will contact you — please stay available :)',
     receiptPickupAsap: 'Pickup: ASAP',
     receiptPickupAt: 'Pickup: {time}',
     receiptEmpty: 'No items',
@@ -200,6 +203,9 @@ const TRANSLATIONS = {
     sidesSelected: '{count} of 1 selected',
     sidesContinue: 'Continue',
     sideLabel: 'Side',
+    chooseShakeBaseTitle: 'What do you prefer?',
+    chooseShakeBaseSubtitle: 'Choose a base for: {name}',
+    shakeBaseLabel: 'Base',
     contact: 'Contact',
     hours: 'Opening Hours',
     hoursDays: 'Sun – Thu',
@@ -237,19 +243,23 @@ const DISH_I18N = {
   en: {
     'salad-plate': {
       name: 'Opening Salad Platter',
-      desc: 'Selection of refreshing house salads with warm pitas (recommended for the table center).',
+      desc: 'Selection of refreshing house salads with warm bread (recommended for the table center).',
     },
     hummus: {
       name: 'House Hummus',
-      desc: 'Creamy handmade hummus, served with olive oil, cumin and pitas.',
+      desc: 'Creamy handmade hummus, served with olive oil, cumin and bread.',
     },
     'hummus-egg': {
       name: 'Hummus with Egg',
-      desc: 'Creamy handmade hummus, served with olive oil, cumin and pitas, topped with egg.',
+      desc: 'Creamy handmade hummus, served with olive oil, cumin and bread, topped with egg.',
     },
     'hummus-meat': {
       name: 'Hummus with Meat',
-      desc: 'Creamy handmade hummus, served with olive oil, cumin and pitas, topped with meat.',
+      desc: 'Creamy handmade hummus, served with olive oil, cumin and bread, topped with meat.',
+    },
+    bread: {
+      name: 'Bread',
+      desc: '',
     },
     mushrooms: {
       name: 'Hot Mushrooms',
@@ -318,8 +328,15 @@ const DISH_I18N = {
     water: { name: 'Mineral Water', desc: '' },
     'fruit-shake': {
       name: 'Refreshing Fruit Shake',
-      desc: 'Water / orange / soda base (depending on available fruits).',
+      desc: 'Water / orange / soy base (depending on available fruits).',
     },
+    limonana: {
+      name: 'Large Limonana',
+      desc: '',
+    },
+    'shake-base-soy': { name: 'Soy', desc: '' },
+    'shake-base-water': { name: 'Water', desc: '' },
+    'shake-base-orange': { name: 'Orange', desc: '' },
     espresso: {
       name: 'Espresso',
       desc: '',
@@ -335,6 +352,11 @@ const DISH_I18N = {
     'oven-vegetables': { name: 'Oven Vegetables', desc: '' },
     'green-beans': { name: 'Green Beans', desc: '' },
     'fries-side': { name: 'Crispy Fries', desc: '' },
+    'starter-fries': { name: 'Crispy Fries', desc: '' },
+    'starter-rice': { name: 'White Rice', desc: '' },
+    'starter-green-beans': { name: 'Green Beans', desc: '' },
+    'starter-puree': { name: 'Mashed Potatoes', desc: '' },
+    'starter-oven-vegetables': { name: 'Oven Vegetables', desc: '' },
   },
 };
 
@@ -353,7 +375,7 @@ const MENU_DATA = {
           id: 'salad-plate',
           name: 'פלטת סלטים פתיחה',
           printName: 'Paletet Salatim',
-          description: 'מבחר סלטי הבית המרעננים לצד פיתות חמות (מומלץ למרכז שולחן).',
+          description: 'מבחר סלטי הבית המרעננים לצד לחם חם (מומלץ למרכז שולחן).',
           price: 15,
           image: dishImage('salad-plate'),
         },
@@ -361,7 +383,7 @@ const MENU_DATA = {
           id: 'hummus',
           name: 'חומוס הבית',
           printName: 'Hummus',
-          description: 'חומוס קרמי בעבודת יד, מוגש עם שמן זית, כמון ופיתות.',
+          description: 'חומוס קרמי בעבודת יד, מוגש עם שמן זית, כמון ולחם.',
           price: 15,
           image: dishImage('hummus'),
         },
@@ -369,7 +391,7 @@ const MENU_DATA = {
           id: 'hummus-egg',
           name: 'חומוס עם ביצה',
           printName: 'Hummus Im Beitza',
-          description: 'חומוס קרמי בעבודת יד, מוגש עם שמן זית, כמון ופיתות בתוספת ביצה.',
+          description: 'חומוס קרמי בעבודת יד, מוגש עם שמן זית, כמון ולחם בתוספת ביצה.',
           price: 17,
           image: dishImage('hummus-egg'),
         },
@@ -377,7 +399,7 @@ const MENU_DATA = {
           id: 'hummus-meat',
           name: 'חומוס בשר',
           printName: 'Hummus Basar',
-          description: 'חומוס קרמי בעבודת יד, מוגש עם שמן זית, כמון ופיתות בתוספת בשר.',
+          description: 'חומוס קרמי בעבודת יד, מוגש עם שמן זית, כמון ולחם בתוספת בשר.',
           price: 19,
           image: dishImage('hummus-meat'),
         },
@@ -396,6 +418,56 @@ const MENU_DATA = {
           description: 'מנת תפוחי אדמה פריכים.',
           price: 10,
           image: dishImage('fries'),
+        },
+        {
+          id: 'starter-fries',
+          name: "צ'יפס פריך",
+          printName: 'Chips',
+          description: '',
+          price: 9,
+          image: dishImage('fries'),
+        },
+        {
+          id: 'starter-rice',
+          name: 'אורז לבן',
+          printName: 'Orez Lavan',
+          description: '',
+          price: 9,
+          image: dishImage('white-rice'),
+        },
+        {
+          id: 'starter-green-beans',
+          name: 'שעועית ירוקה',
+          printName: 'Shayouit Yeruka',
+          description: '',
+          price: 9,
+          image: dishImage('green-beans'),
+        },
+        {
+          id: 'starter-puree',
+          name: 'פירה',
+          printName: 'Pire',
+          description: '',
+          price: 9,
+          image: dishImage('puree'),
+        },
+        {
+          id: 'starter-oven-vegetables',
+          name: 'ירקות בתנור',
+          printName: 'Yerakot Batnur',
+          description: '',
+          price: 9,
+          image: dishImage('oven-vegetables'),
+        },
+        {
+          id: 'bread',
+          name: 'לחם',
+          printName: 'Lechem',
+          description: '',
+          price: 2,
+          image: '',
+          /* Visible in Admin "add dishes" only — hidden from customer menu */
+          adminOnly: true,
         },
       ],
     },
@@ -533,9 +605,17 @@ const MENU_DATA = {
           id: 'fruit-shake',
           name: 'שייק פירות מרענן',
           printName: 'Shake Perot',
-          description: 'על בסיס מים / תפוזים / סודה (בהתאם לפירות הזמינים).',
+          description: 'על בסיס מים / תפוזים / סויה (בהתאם לפירות הזמינים).',
           price: 8,
           image: dishImage('fruit-shake'),
+        },
+        {
+          id: 'limonana',
+          name: 'לימונענע גרוס',
+          printName: 'Limonana Gros',
+          description: '',
+          price: 10,
+          image: dishImage('limonana'),
         },
       ],
     },
@@ -549,7 +629,7 @@ const MENU_DATA = {
           printName: 'Cafe Espresso',
           description: '',
           price: 5,
-          image: dishImage('black-coffee'),
+          image: dishImage('espreso'),
         },
         {
           id: 'hafukh',
@@ -574,8 +654,17 @@ const HOT_SIDE_ITEMS = [
   { id: 'oven-vegetables', name: 'ירקות בתנור', printName: 'Yerakot Batnur', description: '', price: 0, image: dishImage('oven-vegetables') },
 ];
 
+/** Fruit-shake base choices (same picker UX as hot sides). */
+const SHAKE_BASE_ITEMS = [
+  { id: 'shake-base-soy', name: 'סויה', printName: 'Soya', description: '', price: 0, image: '' },
+  { id: 'shake-base-water', name: 'מים', printName: 'Mayim', description: '', price: 0, image: '' },
+  { id: 'shake-base-orange', name: 'תפוזים', printName: 'Tapuzim', description: '', price: 0, image: '' },
+];
+
 const MAIN_COURSE_IDS = new Set(['schnitzel', 'chicken-steak', 'whole-fish', 'denis-fillet', 'salmon']);
 const HOT_SIDE_IDS = new Set(['fries-side', 'rice', 'green-beans', 'puree', 'oven-vegetables']);
+const SHAKE_BASE_IDS = new Set(['shake-base-soy', 'shake-base-water', 'shake-base-orange']);
+const FRUIT_SHAKE_ID = 'fruit-shake';
 const MAX_SIDES_PER_MAIN = 1;
 
 const SOCIAL_LINKS = {
@@ -585,10 +674,13 @@ const SOCIAL_LINKS = {
 
 window.MENU_DATA = MENU_DATA;
 window.HOT_SIDE_ITEMS = HOT_SIDE_ITEMS;
+window.SHAKE_BASE_ITEMS = SHAKE_BASE_ITEMS;
 window.TRANSLATIONS = TRANSLATIONS;
 window.DISH_I18N = DISH_I18N;
 window.MAIN_COURSE_IDS = MAIN_COURSE_IDS;
 window.HOT_SIDE_IDS = HOT_SIDE_IDS;
+window.SHAKE_BASE_IDS = SHAKE_BASE_IDS;
+window.FRUIT_SHAKE_ID = FRUIT_SHAKE_ID;
 window.MAX_SIDES_PER_MAIN = MAX_SIDES_PER_MAIN;
 window.SOCIAL_LINKS = SOCIAL_LINKS;
 

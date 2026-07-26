@@ -1531,6 +1531,11 @@ body.table-drawer-open {
   color: var(--color-off, #b42318);
 }
 
+.table-menu__item-text em.table-menu__admin-only {
+  color: var(--color-navy, #1e3354);
+  font-weight: 700;
+}
+
 .table-menu__add {
   flex-shrink: 0;
   padding: 0.45rem 0.8rem;

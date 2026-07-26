@@ -1486,6 +1486,44 @@ body.modal-open {
   width: 100%;
 }
 
+/* Fruit-shake base: 3 equal choices centered */
+.sides-picker-table--shake {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: stretch;
+  gap: 0.65rem;
+  max-width: 22rem;
+  margin-inline: auto;
+}
+
+.sides-picker-table--shake .sides-picker-cell {
+  flex: 1 1 5.5rem;
+  max-width: 6.75rem;
+  min-height: 4.75rem;
+  justify-content: center;
+  padding: 0.85rem 0.5rem;
+  border-radius: var(--radius-md);
+}
+
+.sides-picker-table--shake .sides-picker-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  -webkit-line-clamp: 1;
+}
+
+.sides-modal-content--shake {
+  gap: var(--space-lg);
+}
+
+.sides-modal-content--shake .sides-modal-title {
+  font-size: 1.25rem;
+}
+
+.sides-modal-content--shake .sides-modal-subtitle {
+  font-size: 0.875rem;
+}
+
 .sides-picker-cell {
   position: relative;
   display: flex;
@@ -1589,6 +1627,21 @@ body.modal-open {
 
   .sides-picker-table {
     gap: 0.3rem;
+  }
+
+  .sides-picker-table--shake {
+    gap: 0.5rem;
+    max-width: 100%;
+  }
+
+  .sides-picker-table--shake .sides-picker-cell {
+    flex: 1 1 4.75rem;
+    max-width: none;
+    min-height: 4.25rem;
+  }
+
+  .sides-picker-table--shake .sides-picker-name {
+    font-size: 0.875rem;
   }
 
   .sides-picker-cell {

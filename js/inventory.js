@@ -188,6 +188,7 @@
         categoryTitleKey,
         categoryTitle: getCategoryTitle(categoryTitleKey, categoryId),
         available: isAvailable(resolved.id),
+        adminOnly: Boolean(item.adminOnly),
         base: {
           name: item.name,
           description: item.description || '',

@@ -17,7 +17,11 @@
       kosher: 'Mehadrin Kosher',
       promptOrder: 'How would you like to order?',
       promptTable: 'Choose the number of the table you are seated at.',
-      tableHint: 'Only one person at the table should place the order through the system.\nOther guests can choose "View the menu" on the main page to browse dishes, prices, and descriptions.',
+      tableFind: 'The table number is on the table.',
+      tableHint1: 'Only one person at the table should place the order through the system.',
+      tableHint2: 'Other guests can choose "View the menu" on the main page to browse dishes, prices, and descriptions.',
+      tablePickTable: 'Choose a table',
+      tableBrowseMenu: 'View the menu',
       promptPickup: 'Takeaway details',
       dineIn: 'Dine In',
       takeAway: 'Takeaway',
@@ -54,7 +58,11 @@
       kosher: 'כשר למהדרין',
       promptOrder: 'איך תרצו להזמין?',
       promptTable: 'בחרו את מספר השולחן שעליו אתם יושבים.',
-      tableHint: 'רק נציג אחד מהשולחן יבצע את ההזמנה דרך המערכת.\nשאר הסועדים יכולים לבחור באפשרות "צפייה בתפריט" שבעמוד הראשי כדי לעיין במנות, במחירים ובתיאורים.',
+      tableFind: 'מספר השולחן נמצא על השולחן.',
+      tableHint1: 'רק נציג אחד מהשולחן יבצע את ההזמנה דרך המערכת.',
+      tableHint2: 'שאר הסועדים יכולים לבחור באפשרות "צפייה בתפריט" שבעמוד הראשי כדי לעיין במנות, במחירים ובתיאורים.',
+      tablePickTable: 'לבחירת שולחן',
+      tableBrowseMenu: 'לצפייה בתפריט',
       promptPickup: 'פרטי איסוף עצמי',
       dineIn: 'ישיבה במקום',
       takeAway: 'איסוף עצמי',
@@ -124,6 +132,11 @@
   const pickupSlot = document.getElementById('entry-pickup-slot');
   const pickupError = document.getElementById('entry-pickup-error');
   const pickupClosedBrowse = document.getElementById('entry-pickup-closed-browse');
+  const tableModal = document.getElementById('entry-table-modal');
+  const tableModalBackdrop = document.getElementById('entry-table-modal-backdrop');
+  const tableModalPick = document.getElementById('entry-table-modal-pick');
+  const tableModalBrowse = document.getElementById('entry-table-modal-browse');
+  let tableModalTrapRelease = null;
 
   const state = {
     orderType: null, // 'dine-in' | 'takeaway'
@@ -192,6 +205,7 @@
 
     if (promptEl) {
       promptEl.hidden = false;
+      promptEl.classList.toggle('is-table-prompt', Boolean(stepTable && !stepTable.hidden));
       if (stepPickupClosed && !stepPickupClosed.hidden) {
         promptEl.textContent = state.orderType === 'dine-in' ? t('dineIn') : t('takeAway');
       } else if (stepPickup && !stepPickup.hidden) {
@@ -535,6 +549,7 @@
   }
 
   function goToOrderType() {
+    closeTableInfoModal();
     state.orderType = null;
     state.tableNumber = null;
     state.customerName = '';
@@ -550,6 +565,24 @@
     showStep(stepOrder);
   }
 
+  function openTableInfoModal() {
+    if (!tableModal) return;
+    tableModal.hidden = false;
+    tableModal.setAttribute('aria-hidden', 'false');
+    if (typeof tableModalTrapRelease === 'function') tableModalTrapRelease();
+    const release = window.LechaimFocusTrap?.activate?.(tableModal);
+    tableModalTrapRelease = typeof release === 'function' ? release : null;
+    requestAnimationFrame(() => tableModalPick?.focus());
+  }
+
+  function closeTableInfoModal() {
+    if (!tableModal || tableModal.hidden) return;
+    if (typeof tableModalTrapRelease === 'function') tableModalTrapRelease();
+    tableModalTrapRelease = null;
+    tableModal.hidden = true;
+    tableModal.setAttribute('aria-hidden', 'true');
+  }
+
   function goToTable() {
     state.orderType = 'dine-in';
     if (!isDineInOrderingOpen()) {
@@ -561,6 +594,7 @@
     if (tableBackBtn) tableBackBtn.dataset.entryBack = 'order';
     showStep(stepTable);
     refreshOccupiedTables();
+    openTableInfoModal();
   }
 
   function pad2(n) {
@@ -1239,6 +1273,12 @@
   pickupClosedBrowse?.addEventListener('click', () => {
     enterBrowseOnly();
   });
+  tableModalPick?.addEventListener('click', closeTableInfoModal);
+  tableModalBrowse?.addEventListener('click', () => {
+    closeTableInfoModal();
+    enterBrowseOnly();
+  });
+  tableModalBackdrop?.addEventListener('click', closeTableInfoModal);
 
   window.LechaimEntryGate = {
     reopenTablePicker,

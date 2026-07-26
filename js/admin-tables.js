@@ -1210,10 +1210,11 @@
         : formatMoney(item.price);
 
       parts.push(`
-        <div class="table-menu__item${!available ? ' is-unavailable' : ''}">
+        <div class="table-menu__item${!available ? ' is-unavailable' : ''}${item.adminOnly ? ' is-admin-only' : ''}">
           <div class="table-menu__item-text">
             <strong>${escapeHtml(item.name || item.id)}</strong>
             <span>${escapeHtml(priceLabel)}</span>
+            ${item.adminOnly ? '<em class="table-menu__admin-only">אדמין בלבד</em>' : ''}
             ${!available ? '<em>אין במלאי</em>' : ''}
           </div>
           <button
