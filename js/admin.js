@@ -30,6 +30,7 @@
   const viewTables = document.getElementById('admin-view-tables');
   const viewShabbat = document.getElementById('admin-view-shabbat');
   const viewReservations = document.getElementById('admin-view-reservations');
+  const viewHistory = document.getElementById('admin-view-history');
   const viewInventory = document.getElementById('admin-view-inventory');
   const viewStats = document.getElementById('admin-view-stats');
 
@@ -92,6 +93,7 @@
     else if (tab === 'takeaway') currentTab = 'takeaway';
     else if (tab === 'shabbat') currentTab = 'shabbat';
     else if (tab === 'reservations') currentTab = 'reservations';
+    else if (tab === 'history') currentTab = 'history';
     else currentTab = 'tables';
 
     tabsEl?.querySelectorAll('.admin-tab').forEach((btn) => {
@@ -103,6 +105,7 @@
     if (viewTables) viewTables.hidden = !onBoard;
     if (viewShabbat) viewShabbat.hidden = currentTab !== 'shabbat';
     if (viewReservations) viewReservations.hidden = currentTab !== 'reservations';
+    if (viewHistory) viewHistory.hidden = currentTab !== 'history';
     if (viewInventory) viewInventory.hidden = currentTab !== 'inventory';
     if (viewStats) viewStats.hidden = currentTab !== 'stats';
 
@@ -127,9 +130,12 @@
       window.LechaimAdminReservations?.stop?.();
     }
 
+    if (currentTab === 'history') {
+      window.LechaimAdminHistory?.start?.();
+    }
+
     if (currentTab === 'stats') {
       window.LechaimAdminCoupons?.start?.();
-      window.LechaimAdminShabbatStats?.start?.();
     }
   }
 
@@ -457,6 +463,7 @@
       && tab !== 'takeaway'
       && tab !== 'shabbat'
       && tab !== 'reservations'
+      && tab !== 'history'
       && tab !== 'inventory'
       && tab !== 'stats'
     ) return;

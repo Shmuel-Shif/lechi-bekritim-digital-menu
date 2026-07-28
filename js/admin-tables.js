@@ -854,7 +854,6 @@
     return [...(board || []), ...(takeaway || [])].some((entry) => (
       entry?.uiStatus === 'pending_print'
       || entry?.uiStatus === 'preparing'
-      || entry?.uiStatus === 'bill_requested'
     ));
   }
 
@@ -865,7 +864,7 @@
     }
   }
 
-  /** Re-beep every 15s while cards still need Approve / bill action. */
+  /** Re-beep every 15s while cards still need Approve / print action (not bill). */
   function updatePendingReminder(board, takeaway) {
     const needsAttention = boardNeedsAdminAttention(board, takeaway);
     if (!needsAttention) {
@@ -928,9 +927,7 @@
       if (status === 'pending_print' && prev !== 'pending_print') {
         customerEvent = true;
       }
-      if (status === 'bill_requested' && prev !== 'bill_requested') {
-        customerEvent = true;
-      }
+      /* bill_requested: visual only — no chime */
     });
 
     knownEntryStatuses.clear();
@@ -1637,13 +1634,11 @@
           return;
         }
 
-        /* Customer requested the bill — Shabbat has no bill flow on this board */
+        /* Customer requested the bill — visual only, no chime */
         if (table === 'order_sessions' && eventType === 'UPDATE') {
           if (String(row?.order_type || '') === 'shabbat' || shabbatSessionIds.has(String(row?.session_id || ''))) {
             return;
           }
-          const becameBill = row?.status === 'bill_requested' || row?.bill_requested === true;
-          if (becameBill) playOrderNotifyChime();
         }
 
         scheduleBoardRefresh();

@@ -230,6 +230,14 @@
   font-weight: 700;
 }
 
+.header-action--my-order {
+  gap: 0.35rem;
+}
+
+.header-action--my-order[hidden] {
+  display: none !important;
+}
+
 .header-actions__lang {
   padding: 6px 12px;
   font-size: 0.8rem;

@@ -148,8 +148,15 @@
   function renderSingleCard(summary) {
     return `
       <article class="coupon-card" data-coupon-code="${escapeHtml(summary.code)}">
+        <button
+          type="button"
+          class="coupon-card__delete"
+          data-coupon-delete="${escapeHtml(summary.code)}"
+          aria-label="מחק שימושי קופון"
+          title="מחק"
+        >×</button>
         <header class="coupon-card__header">
-          <h2 class="coupon-card__title">סטטיסטיקות קופונים</h2>
+          <h2 class="coupon-card__title">קופונים</h2>
           <p class="coupon-card__code">קופון: <strong dir="ltr">${escapeHtml(summary.code)}</strong></p>
         </header>
         <hr class="coupon-card__rule" />
@@ -157,7 +164,6 @@
           <div><dt>סה״כ הזמנות</dt><dd>${escapeHtml(String(summary.orders))}</dd></div>
           <div><dt>הכנסות</dt><dd>${escapeHtml(formatMoney(summary.revenue))}</dd></div>
           <div><dt>הנחה שניתנה</dt><dd>${escapeHtml(formatMoney(summary.discountGiven))}</dd></div>
-          <div><dt>ממוצע הזמנה</dt><dd>${escapeHtml(formatMoney(summary.averageOrder))}</dd></div>
           <div><dt>שימוש אחרון</dt><dd>${escapeHtml(formatDateTime(summary.lastUsed))}</dd></div>
         </dl>
         <footer class="coupon-card__actions">
@@ -172,7 +178,7 @@
     return `
       <article class="coupon-card coupon-card--table">
         <header class="coupon-card__header">
-          <h2 class="coupon-card__title">סטטיסטיקות קופונים</h2>
+          <h2 class="coupon-card__title">קופונים</h2>
         </header>
         <div class="coupon-orders-table-wrap">
           <table class="coupon-orders-table">
@@ -195,6 +201,7 @@
                   <td>
                     <button type="button" class="admin-btn admin-btn--ghost" data-coupon-view="${escapeHtml(row.code)}">הזמנות</button>
                     <button type="button" class="admin-btn admin-btn--ghost" data-coupon-export="${escapeHtml(row.code)}">CSV</button>
+                    <button type="button" class="admin-btn admin-btn--danger" data-coupon-delete="${escapeHtml(row.code)}" title="מחק">×</button>
                   </td>
                 </tr>
               `).join('')}
@@ -212,7 +219,7 @@
       root.innerHTML = `
         <article class="coupon-card">
           <header class="coupon-card__header">
-            <h2 class="coupon-card__title">סטטיסטיקות קופונים</h2>
+            <h2 class="coupon-card__title">קופונים</h2>
           </header>
           <p class="coupon-orders-empty">עדיין לא נעשה שימוש בקופונים</p>
         </article>
@@ -237,11 +244,56 @@
       render();
     } catch (err) {
       console.error('[admin-coupons] refresh failed', err);
-      root.innerHTML = `<p class="coupon-orders-empty">שגיאה בטעינת סטטיסטיקות קופונים</p>`;
+      root.innerHTML = `<p class="coupon-orders-empty">שגיאה בטעינת קופונים</p>`;
+    }
+  }
+
+  function showConfirm(message, yesLabel) {
+    if (typeof global.LechaimAdminTables?.showConfirmModal === 'function') {
+      return global.LechaimAdminTables.showConfirmModal(message, { yesLabel: yesLabel || 'כן' });
+    }
+    return Promise.resolve(window.confirm(String(message || '')));
+  }
+
+  function showNotice(message) {
+    if (typeof global.LechaimAdminTables?.showSuccessModal === 'function') {
+      global.LechaimAdminTables.showSuccessModal(message);
+      return;
+    }
+    window.alert(String(message || ''));
+  }
+
+  async function deleteCouponUsage(code) {
+    const ok = await showConfirm(
+      `האם אתה בטוח שברצונך למחוק את שימושי הקופון "${code}"?\nהסטטיסטיקה תתאפס.`,
+      'מחק'
+    );
+    if (!ok) return;
+
+    const api = global.LechaimSupabaseOrders;
+    if (!api?.clearCouponUsage) {
+      showNotice('מחיקה לא זמינה');
+      return;
+    }
+
+    try {
+      closeOrdersModal();
+      await api.clearCouponUsage(code);
+      await refresh();
+      showNotice('שימושי הקופון נמחקו');
+    } catch (err) {
+      showNotice(err?.message || 'המחיקה נכשלה');
     }
   }
 
   root?.addEventListener('click', (event) => {
+    const deleteBtn = event.target.closest('[data-coupon-delete]');
+    if (deleteBtn) {
+      event.preventDefault();
+      event.stopPropagation();
+      deleteCouponUsage(deleteBtn.getAttribute('data-coupon-delete'));
+      return;
+    }
     const viewBtn = event.target.closest('[data-coupon-view]');
     if (viewBtn) {
       openOrdersModal(viewBtn.getAttribute('data-coupon-view'));
@@ -256,7 +308,7 @@
       return;
     }
     const row = event.target.closest('[data-coupon-row]');
-    if (row) {
+    if (row && !event.target.closest('button')) {
       openOrdersModal(row.getAttribute('data-coupon-row'));
     }
   });

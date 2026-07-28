@@ -64,6 +64,7 @@
           <span class="admin-tab__badge" id="tab-badge-tables" data-count="0" hidden>0</span>
         </button>
         <button type="button" class="admin-tab" data-tab="reservations">הזמנות להיום</button>
+        <button type="button" class="admin-tab" data-tab="history">היסטוריה</button>
         <button type="button" class="admin-tab" data-tab="takeaway">
           איסוף עצמי
           <span class="admin-tab__badge" id="tab-badge-takeaway" data-count="0" hidden>0</span>
@@ -73,7 +74,7 @@
           <span class="admin-tab__badge" id="tab-badge-shabbat" data-count="0" hidden>0</span>
         </button>
         <button type="button" class="admin-tab" data-tab="inventory">מלאי</button>
-        <button type="button" class="admin-tab" data-tab="stats">סטטיסטיקות</button>
+        <button type="button" class="admin-tab" data-tab="stats">קופונים</button>
         <button type="button" class="admin-tab" data-tab="settings" disabled title="בקרוב">הגדרות</button>
       </nav>
 
@@ -155,6 +156,40 @@
         </section>
       </div>
 
+      <!-- History tab -->
+      <div class="admin-view" id="admin-view-history" hidden>
+        <section class="tables-category">
+          <header class="admin-header admin-header--row">
+            <div class="admin-header__text">
+              <p class="admin-header__eyebrow">ניהול</p>
+              <h1 class="admin-header__title">היסטוריה</h1>
+              <p class="admin-header__subtitle">בחרו שולחן או איסוף עצמי לצפייה בהזמנות שנסגרו</p>
+            </div>
+            <button type="button" class="admin-btn admin-btn--danger" id="history-reset-all-btn">אפס היסטוריה</button>
+          </header>
+          <div class="history-picker" id="history-picker"></div>
+          <div class="history-detail" id="history-detail" hidden>
+            <header class="history-detail__header">
+              <button type="button" class="admin-btn admin-btn--ghost" id="history-back-btn">← חזרה</button>
+              <h2 class="history-detail__title" id="history-detail-title">שולחן</h2>
+            </header>
+            <div class="history-detail__list" id="history-detail-list"></div>
+            <p class="tables-category__empty" id="history-detail-empty" hidden>אין היסטוריה</p>
+          </div>
+        </section>
+      </div>
+
+      <div class="admin-modal" id="history-session-modal" hidden aria-hidden="true">
+        <button type="button" class="admin-modal__backdrop" id="history-session-backdrop" aria-label="סגור"></button>
+        <div class="admin-modal__panel history-session-modal__panel" role="dialog" aria-modal="true" aria-labelledby="history-session-modal-title">
+          <header class="history-session-modal__header">
+            <h2 class="history-session-modal__title" id="history-session-modal-title">פרטי הזמנה</h2>
+            <button type="button" class="admin-btn admin-btn--ghost" id="history-session-close">סגור</button>
+          </header>
+          <div class="history-session-modal__body" id="history-session-modal-body"></div>
+        </div>
+      </div>
+
       <!-- Inventory tab -->
       <div class="admin-view" id="admin-view-inventory" hidden>
         <header class="admin-header">
@@ -196,18 +231,17 @@
         <div class="admin-list" id="admin-list"></div>
       </div>
 
-      <!-- Stats / Coupons tab -->
+      <!-- Coupons tab -->
       <div class="admin-view" id="admin-view-stats" hidden>
         <header class="admin-header">
           <div class="admin-header__text">
             <p class="admin-header__eyebrow">ניהול</p>
-            <h1 class="admin-header__title">סטטיסטיקות</h1>
-            <p class="admin-header__subtitle">קופונים והנחות</p>
+            <h1 class="admin-header__title">קופונים</h1>
+            <p class="admin-header__subtitle">שימוש בקופונים והנחות</p>
           </div>
         </header>
 
         <div id="coupon-stats-root" class="coupon-stats"></div>
-        <div id="shabbat-stats-root" class="coupon-stats" style="margin-top:1.5rem"></div>
       </div>
     </section>
 
@@ -404,8 +438,8 @@
   <script src="js/admin-tables.js" defer></script>
   <script src="js/admin-shabbat.js" defer></script>
   <script src="js/admin-reservations.js" defer></script>
+  <script src="js/admin-history.js" defer></script>
   <script src="js/admin-coupons.js" defer></script>
-  <script src="js/admin-shabbat-stats.js" defer></script>
   <script src="js/admin.js" defer></script>
   <script src="js/admin-pwa.js" defer></script>
 </body>

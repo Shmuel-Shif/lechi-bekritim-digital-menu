@@ -27,6 +27,7 @@
   const sidesModalClose = $('#sides-modal-close');
   const sidesModalBackdrop = $('#sides-modal-backdrop');
   const cartToggle = $('#cart-toggle');
+  const myOrderToggle = $('#my-order-toggle');
   const cartPanel = $('#cart-panel');
   const cartBody = $('#cart-body');
   const cartFooter = $('#cart-footer');
@@ -173,6 +174,9 @@
       } else {
         cartToggle.removeAttribute('aria-hidden');
       }
+    }
+    if (browseOnly && myOrderToggle) {
+      myOrderToggle.hidden = true;
     }
 
     updateTableHeader();
@@ -341,6 +345,27 @@
     cartToggle.setAttribute('aria-label', showOrderIcon ? t('openMyOrder') : t('openCart'));
     cartToggle.setAttribute('aria-controls', showOrderIcon ? 'order-receipt' : 'cart-panel');
     if (showOrderIcon && cartBadge) cartBadge.hidden = true;
+    updateMyOrderToggle();
+  }
+
+  /** Dine-in: dedicated "ההזמנה שלי" next to cart — never replaces the cart. */
+  function updateMyOrderToggle() {
+    if (!myOrderToggle) return;
+    const browseOnly = Boolean(window.LechaimOrderContext?.browseOnly);
+    const show = !browseOnly
+      && !isTakeawayContext()
+      && hasActiveOrderItems();
+    myOrderToggle.hidden = !show;
+    if (show) {
+      myOrderToggle.setAttribute('aria-label', t('openMyOrder'));
+      const label = $('#my-order-toggle-label');
+      if (label) label.textContent = t('myOrderView');
+    }
+  }
+
+  function getActiveOrderReceiptItems() {
+    const order = window.LechaimOrderEngine?.getOrder?.();
+    return (order?.items || []).filter((item) => item && Number(item.qty) > 0);
   }
 
   /* Hero keeps brand atmosphere without dish photos (new menu has no images yet). */
@@ -2203,6 +2228,11 @@
     if (!cartToggle || !cartPanel) return;
 
     cartToggle.addEventListener('click', openCartPanel);
+    myOrderToggle?.addEventListener('click', () => {
+      const items = getActiveOrderReceiptItems();
+      if (!items.length) return;
+      showOrderReceipt(items, { viewing: true });
+    });
     cartClose.addEventListener('click', closeCartPanel);
     cartBackdrop.addEventListener('click', closeCartPanel);
     cartClear?.addEventListener('click', handleClearCart);
@@ -2526,15 +2556,18 @@
     return `€${n.toFixed(2)}`;
   }
 
+  let receiptViewingMode = false;
+
   function closeOrderReceipt() {
     if (!orderReceipt) return;
     clearFocusTrap('receipt');
     orderReceipt.hidden = true;
     orderReceipt.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('order-receipt-open');
+    receiptViewingMode = false;
   }
 
-  function showOrderReceipt(waveItems) {
+  function showOrderReceipt(waveItems, options = {}) {
     if (!orderReceipt) {
       showOrderFeedback('ok', t('orderSentSuccess'));
       return;
@@ -2542,6 +2575,8 @@
 
     const ctx = window.LechaimOrderContext || {};
     const isTakeaway = ctx.orderType === 'takeaway' || ctx.orderType === 'take-away';
+    receiptViewingMode = Boolean(options.viewing);
+    const viewing = receiptViewingMode;
     const items = Array.isArray(waveItems) ? waveItems.filter((row) => row && Number(row.qty) > 0) : [];
     const total = items.reduce((sum, row) => (
       sum + (Number(row.price) || 0) * (Number(row.qty) || 0)
@@ -2550,7 +2585,9 @@
     const hasOrderNo = isTakeaway && Number.isFinite(publicOrderNo) && publicOrderNo > 0;
 
     if (orderReceiptEyebrow) orderReceiptEyebrow.textContent = t('receiptEyebrow');
-    if (orderReceiptTitle) orderReceiptTitle.textContent = t('receiptTitle');
+    if (orderReceiptTitle) {
+      orderReceiptTitle.textContent = viewing ? t('myOrderView') : t('receiptTitle');
+    }
     if (orderReceiptTotalLabel) orderReceiptTotalLabel.textContent = t('receiptTotal');
     if (orderReceiptContinue) {
       orderReceiptContinue.textContent = t('receiptContinue');
@@ -3498,7 +3535,7 @@
     renderCart();
 
     if (orderReceipt && !orderReceipt.hidden) {
-      showOrderReceipt(remoteItems);
+      showOrderReceipt(remoteItems, { viewing: receiptViewingMode });
     }
   }
 

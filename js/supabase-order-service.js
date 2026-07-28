@@ -901,6 +901,187 @@
     return data || [];
   }
 
+  /**
+   * Closed dine-in sessions for one table (newest first), with nested orders + items.
+   * @param {number} tableNumber
+   * @param {{ limit?: number }} [options]
+   */
+  async function getClosedSessionsForTable(tableNumber, options = {}) {
+    const sb = getClient();
+    const num = Number(tableNumber);
+    if (!Number.isFinite(num)) {
+      throw new Error('[LechaimSupabaseOrders.getClosedSessionsForTable] tableNumber is required');
+    }
+    const limit = Math.min(Math.max(Number(options.limit) || 40, 1), 100);
+
+    const { data: sessions, error } = await sb
+      .from(TABLE_SESSIONS)
+      .select('*')
+      .eq('order_type', 'dine_in')
+      .eq('table_number', num)
+      .eq('status', 'closed')
+      .order('closed_at', { ascending: false })
+      .limit(limit);
+
+    throwIfError(error, 'getClosedSessionsForTable');
+    const list = sessions || [];
+    if (!list.length) return [];
+
+    const ids = list.map((row) => row.session_id).filter(Boolean);
+    const { data: orders, error: ordersError } = await sb
+      .from(TABLE_ORDERS)
+      .select('*, order_items(*)')
+      .in('session_id', ids)
+      .order('order_number', { ascending: true });
+
+    throwIfError(ordersError, 'getClosedSessionsForTable.orders');
+
+    const bySession = new Map();
+    ids.forEach((id) => bySession.set(id, []));
+    (orders || []).forEach((order) => {
+      const bucket = bySession.get(order.session_id);
+      if (bucket) bucket.push(order);
+    });
+
+    return list.map((session) => ({
+      session,
+      orders: bySession.get(session.session_id) || [],
+    }));
+  }
+
+  /**
+   * Closed takeaway sessions (newest first), with nested orders + items.
+   * @param {{ limit?: number }} [options]
+   */
+  async function getClosedTakeawaySessions(options = {}) {
+    const sb = getClient();
+    const limit = Math.min(Math.max(Number(options.limit) || 40, 1), 100);
+
+    const { data: sessions, error } = await sb
+      .from(TABLE_SESSIONS)
+      .select('*')
+      .eq('order_type', 'takeaway')
+      .eq('status', 'closed')
+      .order('closed_at', { ascending: false })
+      .limit(limit);
+
+    throwIfError(error, 'getClosedTakeawaySessions');
+    const list = sessions || [];
+    if (!list.length) return [];
+
+    const ids = list.map((row) => row.session_id).filter(Boolean);
+    const { data: orders, error: ordersError } = await sb
+      .from(TABLE_ORDERS)
+      .select('*, order_items(*)')
+      .in('session_id', ids)
+      .order('order_number', { ascending: true });
+
+    throwIfError(ordersError, 'getClosedTakeawaySessions.orders');
+
+    const bySession = new Map();
+    ids.forEach((id) => bySession.set(id, []));
+    (orders || []).forEach((order) => {
+      const bucket = bySession.get(order.session_id);
+      if (bucket) bucket.push(order);
+    });
+
+    return list.map((session) => ({
+      session,
+      orders: bySession.get(session.session_id) || [],
+    }));
+  }
+
+  /**
+   * Permanently delete a closed session (orders + items cascade).
+   * @param {string} sessionId
+   */
+  async function deleteClosedSession(sessionId) {
+    const sb = getClient();
+    if (!sessionId) {
+      throw new Error('[LechaimSupabaseOrders.deleteClosedSession] sessionId is required');
+    }
+    const { data, error } = await sb
+      .from(TABLE_SESSIONS)
+      .delete()
+      .eq('session_id', sessionId)
+      .eq('status', 'closed')
+      .select('session_id')
+      .maybeSingle();
+
+    throwIfError(error, 'deleteClosedSession');
+    if (!data) {
+      throw new Error('לא נמצאה הזמנה סגורה למחיקה');
+    }
+    return data;
+  }
+
+  /**
+   * Wipe all closed dine-in + takeaway history (orders cascade).
+   * Does not touch open sessions or Shabbat.
+   */
+  async function deleteAllClosedHistory() {
+    const sb = getClient();
+    const { data, error } = await sb
+      .from(TABLE_SESSIONS)
+      .delete()
+      .eq('status', 'closed')
+      .in('order_type', ['dine_in', 'takeaway'])
+      .select('session_id');
+
+    throwIfError(error, 'deleteAllClosedHistory');
+    return { deleted: (data || []).length };
+  }
+
+  /**
+   * Remove a coupon from usage stats: clear coupon fields on matching sessions
+   * and reset used_count on the coupons catalog row.
+   * @param {string} code
+   */
+  async function clearCouponUsage(code) {
+    const sb = getClient();
+    const trimmed = String(code || '').trim();
+    if (!trimmed) {
+      throw new Error('[LechaimSupabaseOrders.clearCouponUsage] code is required');
+    }
+
+    const { data: sessions, error: listErr } = await sb
+      .from(TABLE_SESSIONS)
+      .select('session_id, coupon_code')
+      .not('coupon_code', 'is', null);
+
+    throwIfError(listErr, 'clearCouponUsage.list');
+
+    const ids = (sessions || [])
+      .filter((row) => String(row.coupon_code || '').trim().toLowerCase() === trimmed.toLowerCase())
+      .map((row) => row.session_id)
+      .filter(Boolean);
+
+    if (ids.length) {
+      const { error: updErr } = await sb
+        .from(TABLE_SESSIONS)
+        .update({
+          coupon_code: null,
+          discount_percent: null,
+          discount_amount: null,
+          subtotal: null,
+        })
+        .in('session_id', ids);
+      throwIfError(updErr, 'clearCouponUsage.update');
+    }
+
+    const { error: couponErr } = await sb
+      .from('coupons')
+      .update({ used_count: 0, updated_at: new Date().toISOString() })
+      .ilike('code', trimmed);
+
+    /* Catalog reset is best-effort if RLS/table missing */
+    if (couponErr) {
+      console.warn('[LechaimSupabaseOrders.clearCouponUsage] coupons used_count reset failed', couponErr);
+    }
+
+    return { clearedSessions: ids.length };
+  }
+
   global.LechaimSupabaseOrders = {
     isConfigured,
     createSession,
@@ -911,6 +1092,11 @@
     getOpenSessions,
     getSessionOrders,
     getOpenSessionsWithOrders,
+    getClosedSessionsForTable,
+    getClosedTakeawaySessions,
+    deleteClosedSession,
+    deleteAllClosedHistory,
+    clearCouponUsage,
     getUnprintedOrdersWithItems,
     markOrderApproved,
     markOrderPrinted,

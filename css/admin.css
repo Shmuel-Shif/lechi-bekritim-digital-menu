@@ -1710,11 +1710,38 @@ body.admin-modal-open {
   box-shadow: 0 8px 24px rgba(21, 38, 64, 0.06);
   display: grid;
   gap: 0.85rem;
+  position: relative;
+}
+
+.coupon-card__delete {
+  appearance: none;
+  position: absolute;
+  top: 0.65rem;
+  inset-inline-start: 0.65rem;
+  width: 1.7rem;
+  height: 1.7rem;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(21, 38, 64, 0.08);
+  color: var(--color-navy, #1e3354);
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.coupon-card__delete:hover {
+  background: rgba(180, 40, 40, 0.14);
+  color: #9b1c1c;
 }
 
 .coupon-card__header {
   display: grid;
   gap: 0.35rem;
+  padding-inline-start: 1.5rem;
 }
 
 .coupon-card__title {
@@ -1990,4 +2017,237 @@ body.admin-modal-open {
   flex-wrap: wrap;
   gap: 0.55rem;
   margin-top: 0.25rem;
+}
+
+/* ---- History ---- */
+
+.history-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.history-pick-card {
+  appearance: none;
+  border: 1px solid rgba(21, 38, 64, 0.14);
+  border-radius: var(--radius-md, 12px);
+  background:
+    linear-gradient(165deg, rgba(255, 252, 247, 0.98), rgba(244, 238, 228, 0.92));
+  padding: 1rem 0.6rem;
+  display: grid;
+  gap: 0.25rem;
+  justify-items: center;
+  cursor: pointer;
+  font: inherit;
+  color: var(--color-navy, #1e3354);
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.history-pick-card:hover {
+  border-color: rgba(196, 160, 106, 0.7);
+  transform: translateY(-1px);
+}
+
+.history-pick-card__num {
+  font-family: "Frank Ruhl Libre", "Playfair Display", serif;
+  font-size: 1.55rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.history-pick-card__label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-muted, #5b6570);
+}
+
+.history-pick-card--takeaway .history-pick-card__num {
+  font-size: 1.2rem;
+}
+
+.history-detail__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.history-detail__title {
+  margin: 0;
+  font-family: "Frank Ruhl Libre", "Playfair Display", serif;
+  font-size: 1.35rem;
+  color: var(--color-navy, #1e3354);
+}
+
+.history-detail__list {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.history-session-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0.75rem;
+}
+
+.history-card {
+  position: relative;
+  border: 1px solid rgba(21, 38, 64, 0.12);
+  border-radius: var(--radius-md, 12px);
+  background:
+    linear-gradient(165deg, rgba(255, 252, 247, 0.98), rgba(244, 238, 228, 0.92));
+  overflow: hidden;
+}
+
+.history-card__main {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  width: 100%;
+  padding: 1rem 0.85rem 0.9rem;
+  padding-inline-start: 2.2rem;
+  display: grid;
+  gap: 0.25rem;
+  text-align: start;
+  cursor: pointer;
+  font: inherit;
+  color: var(--color-navy, #1e3354);
+}
+
+.history-card__main:hover {
+  background: rgba(21, 38, 64, 0.03);
+}
+
+.history-card__time {
+  font-family: "Frank Ruhl Libre", "Playfair Display", serif;
+  font-size: 1.55rem;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.history-card__date {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text-muted, #5b6570);
+  font-variant-numeric: tabular-nums;
+}
+
+.history-card__total {
+  margin-top: 0.35rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.history-card__delete {
+  appearance: none;
+  position: absolute;
+  top: 0.35rem;
+  inset-inline-start: 0.35rem;
+  width: 1.7rem;
+  height: 1.7rem;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(21, 38, 64, 0.08);
+  color: var(--color-navy, #1e3354);
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.history-card__delete:hover {
+  background: rgba(180, 40, 40, 0.14);
+  color: #9b1c1c;
+}
+
+.history-session-modal__panel {
+  max-width: 28rem;
+  width: min(100%, 28rem);
+}
+
+.history-session-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.history-session-modal__title {
+  margin: 0;
+  font-family: "Frank Ruhl Libre", "Playfair Display", serif;
+  font-size: 1.25rem;
+  color: var(--color-navy, #1e3354);
+}
+
+.history-session-modal__summary {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 0.85rem;
+  font-size: 0.92rem;
+}
+
+.history-session-modal__summary p,
+.history-session-modal__meta {
+  margin: 0;
+}
+
+.history-session-modal__items {
+  list-style: none;
+  margin: 0;
+  padding: 0.65rem 0;
+  border-top: 1px solid rgba(21, 38, 64, 0.1);
+  border-bottom: 1px solid rgba(21, 38, 64, 0.1);
+  display: grid;
+  gap: 0.45rem;
+}
+
+.history-session-modal__items li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.92rem;
+}
+
+.history-session-modal__item-note {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
+  color: var(--color-text-muted, #5b6570);
+}
+
+.history-session-modal__totals {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.85rem;
+  font-size: 0.95rem;
+}
+
+.history-session-modal__totals p {
+  margin: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.history-session-modal__grand {
+  font-size: 1.1rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid rgba(21, 38, 64, 0.1);
+}
+
+.history-session__empty-items,
+.history-loading {
+  margin: 0;
+  color: var(--color-text-muted, #5b6570);
+  font-size: 0.9rem;
 }
