@@ -92,6 +92,8 @@
     focusTrapReleases[key] = typeof release === 'function' ? release : null;
   }
 
+  let successAutoCloseTimer = null;
+
   function clearFocusTrap(key) {
     if (typeof focusTrapReleases[key] === 'function') {
       focusTrapReleases[key]();
@@ -99,25 +101,57 @@
     focusTrapReleases[key] = null;
   }
 
-  function showToast(message) {
-    showSuccessModal(message);
+  function showToast(message, options) {
+    showSuccessModal(message, options);
   }
 
-  function showSuccessModal(message) {
+  /**
+   * Success feedback: animated checkmark, auto-closes (no OK click).
+   * @param {string} message
+   * @param {{ checkOnly?: boolean, autoCloseMs?: number }} [options]
+   */
+  function showSuccessModal(message, options = {}) {
     if (!successModal) return;
-    if (successText) successText.textContent = message;
+    window.clearTimeout(successAutoCloseTimer);
+    successAutoCloseTimer = null;
+
+    const checkOnly = Boolean(options.checkOnly);
+    const autoCloseMs = Number.isFinite(options.autoCloseMs)
+      ? Math.max(400, Number(options.autoCloseMs))
+      : 1000;
+
+    const panel = successModal.querySelector('.admin-modal__panel');
+    panel?.classList.toggle('is-check-only', checkOnly);
+
+    if (successText) successText.textContent = message || '';
+    if (successOk) successOk.hidden = true;
+
+    /* Restart SVG draw animation */
+    const svg = successModal.querySelector('.admin-success-check__svg');
+    if (svg) {
+      const clone = svg.cloneNode(true);
+      svg.replaceWith(clone);
+    }
+
     successModal.hidden = false;
     successModal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('admin-modal-open');
     setFocusTrap('success', successModal);
-    successOk?.focus();
+
+    successAutoCloseTimer = window.setTimeout(() => {
+      successAutoCloseTimer = null;
+      closeSuccessModal();
+    }, autoCloseMs);
   }
 
   function closeSuccessModal() {
     if (!successModal) return;
+    window.clearTimeout(successAutoCloseTimer);
+    successAutoCloseTimer = null;
     clearFocusTrap('success');
     successModal.hidden = true;
     successModal.setAttribute('aria-hidden', 'true');
+    successModal.querySelector('.admin-modal__panel')?.classList.remove('is-check-only');
     if (!confirmModal || confirmModal.hidden) {
       document.body.classList.remove('admin-modal-open');
     }
@@ -1148,7 +1182,7 @@
 
     if (!printedOk) return;
 
-    showToast('ההזמנה הודפסה');
+    showToast('ההזמנה הודפסה', { checkOnly: true });
     closeDrawer();
     try {
       await refreshBoardData();

@@ -29,6 +29,12 @@
   }
 
   function getClient() {
+    /* Prefer Inventory client on admin so auth session is shared (RLS writes). */
+    try {
+      const shared = global.LechaimInventory?.getClient?.();
+      if (shared) return shared;
+    } catch (_) { /* ignore */ }
+
     if (client) return client;
     if (!isConfigured()) {
       throw new Error(
@@ -1082,6 +1088,128 @@
     return { clearedSessions: ids.length };
   }
 
+  /**
+   * Dine-in close countdown deadline (ISO string) or null if open.
+   * @returns {Promise<string|null>}
+   */
+  async function getDineInCloseAt() {
+    const sb = getClient();
+    const { data, error } = await sb
+      .from('restaurant_flags')
+      .select('flag_value, flag_text')
+      .eq('flag_key', 'dine_in_close_at')
+      .maybeSingle();
+    throwIfError(error, 'getDineInCloseAt');
+    if (!data?.flag_value) return null;
+    const iso = String(data.flag_text || '').trim();
+    if (!iso) return null;
+    const t = Date.parse(iso);
+    return Number.isFinite(t) ? new Date(t).toISOString() : null;
+  }
+
+  /**
+   * Start (or refresh) dine-in close countdown from now.
+   * @param {number} [minutes=30]
+   * @returns {Promise<string>} ISO deadline
+   */
+  async function startDineInCloseCountdown(minutes = 30) {
+    const sb = getClient();
+    const { data: authData } = await sb.auth.getSession();
+    if (!authData?.session) {
+      throw new Error(
+        'startDineInCloseCountdown: must be signed in as admin (RLS blocks anon write)'
+      );
+    }
+    const mins = Math.max(1, Number(minutes) || 30);
+    const deadline = new Date(Date.now() + mins * 60 * 1000).toISOString();
+    const { data, error } = await sb
+      .from('restaurant_flags')
+      .upsert({
+        flag_key: 'dine_in_close_at',
+        flag_value: true,
+        flag_text: deadline,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'flag_key' })
+      .select('flag_text')
+      .single();
+    throwIfError(error, 'startDineInCloseCountdown');
+    return String(data?.flag_text || deadline);
+  }
+
+  /**
+   * Clear dine-in close countdown / reopen ordering.
+   * @returns {Promise<void>}
+   */
+  async function clearDineInCloseCountdown() {
+    const sb = getClient();
+    const { error } = await sb
+      .from('restaurant_flags')
+      .upsert({
+        flag_key: 'dine_in_close_at',
+        flag_value: false,
+        flag_text: null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'flag_key' });
+    throwIfError(error, 'clearDineInCloseCountdown');
+  }
+
+  /** @deprecated use getDineInCloseAt / startDineInCloseCountdown */
+  async function getDineInOrdersClosed() {
+    const at = await getDineInCloseAt();
+    if (!at) return false;
+    return Date.now() >= Date.parse(at);
+  }
+
+  /** @deprecated use startDineInCloseCountdown / clearDineInCloseCountdown */
+  async function setDineInOrdersClosed(closed) {
+    if (closed) {
+      await startDineInCloseCountdown(30);
+      return true;
+    }
+    await clearDineInCloseCountdown();
+    return false;
+  }
+
+  let flagsChannel = null;
+
+  /**
+   * Realtime for restaurant_flags.
+   * @param {(payload: object) => void} onEvent
+   * @returns {() => void}
+   */
+  function subscribeRestaurantFlags(onEvent) {
+    if (typeof onEvent !== 'function') {
+      throw new Error('[LechaimSupabaseOrders.subscribeRestaurantFlags] callback required');
+    }
+    const sb = getClient();
+    if (flagsChannel) {
+      try { sb.removeChannel(flagsChannel); } catch (_) { /* ignore */ }
+      flagsChannel = null;
+    }
+    flagsChannel = sb
+      .channel('lechaim-restaurant-flags')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'restaurant_flags' },
+        (payload) => {
+          const row = payload?.new || payload?.old || {};
+          onEvent({
+            flagKey: String(row.flag_key || ''),
+            flagValue: Boolean(row.flag_value),
+            flagText: row.flag_text == null ? null : String(row.flag_text),
+            eventType: payload?.eventType || payload?.event || '',
+          });
+        }
+      )
+      .subscribe();
+    return () => {
+      if (flagsChannel) {
+        try { sb.removeChannel(flagsChannel); } catch (_) { /* ignore */ }
+        flagsChannel = null;
+      }
+    };
+  }
+
   global.LechaimSupabaseOrders = {
     isConfigured,
     createSession,
@@ -1105,6 +1233,12 @@
     incrementCouponUse,
     getCouponUsageReport,
     getShabbatSessionsReport,
+    getDineInCloseAt,
+    startDineInCloseCountdown,
+    clearDineInCloseCountdown,
+    getDineInOrdersClosed,
+    setDineInOrdersClosed,
+    subscribeRestaurantFlags,
     subscribeToOrders,
   };
 })(window);

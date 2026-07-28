@@ -644,6 +644,7 @@
     signIn,
     signOut,
     onAuthStateChange,
+    getClient,
     isLoaded: () => loaded,
     getRealtimeStatus: () => ({ ...realtimeStatus }),
     diagnoseMenuGlobals,

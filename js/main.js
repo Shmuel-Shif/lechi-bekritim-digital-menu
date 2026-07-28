@@ -134,6 +134,21 @@
   const DINE_IN_CLOSE_HOUR = 23; /* exclusive */
   const TAKEAWAY_CLOSE_HOUR = 21; /* exclusive */
 
+  /** Admin dine-in close countdown — global deadline; each guest sees remaining time. */
+  let dineInCloseAtMs = null;
+  let kitchenClosedModalShown = false;
+  let kitchenCloseFocusTrapRelease = null;
+  let kitchenCloseTickTimer = null;
+  let kitchenClosePollTimer = null;
+  let kitchenCloseModalMode = 'closed'; /* 'countdown' | 'closed' */
+  /** Deadline for which we already showed the entry/realtime countdown modal (avoid poll spam). */
+  let kitchenCountdownPromptedForMs = null;
+
+  const kitchenCloseModal = $('#kitchen-close-modal');
+  const kitchenCloseBackdrop = $('#kitchen-close-backdrop');
+  const kitchenCloseOk = $('#kitchen-close-ok');
+  const kitchenCloseText = $('#kitchen-close-text');
+
   function isWeekendClosed(date = new Date()) {
     const day = date.getDay(); /* 0=Sun … 5=Fri 6=Sat */
     return day === 5 || day === 6;
@@ -146,8 +161,35 @@
     return hour >= ORDERING_OPEN_HOUR && hour < closeHour;
   }
 
+  function isDineInContext() {
+    if (isTakeawayContext()) return false;
+    const type = String(window.LechaimOrderContext?.orderType || '').toLowerCase();
+    return type === 'dinein' || type === 'dine_in' || type === 'dine-in';
+  }
+
+  /** True only after the 30-minute countdown has ended. */
+  function isManualDineInClosed() {
+    if (!isDineInContext()) return false;
+    if (!dineInCloseAtMs) return false;
+    return Date.now() >= dineInCloseAtMs;
+  }
+
+  function isDineInCountdownActive() {
+    if (!isDineInContext()) return false;
+    if (!dineInCloseAtMs) return false;
+    return Date.now() < dineInCloseAtMs;
+  }
+
+  function formatCountdownRemain(ms) {
+    const totalSec = Math.max(0, Math.ceil(ms / 1000));
+    const mm = String(Math.floor(totalSec / 60)).padStart(2, '0');
+    const ss = String(totalSec % 60).padStart(2, '0');
+    return `${mm}:${ss}`;
+  }
+
   function isOrderingAllowed() {
     if (window.LechaimOrderContext?.browseOnly) return false;
+    if (isManualDineInClosed()) return false;
     if (!ORDERING_HOURS_ENABLED) return true;
     return isWithinOrderingHours();
   }
@@ -160,10 +202,32 @@
     document.body.classList.toggle('takeaway-locked', isTakeawayOrderLocked());
 
     if (orderingHoursBanner) {
-      orderingHoursBanner.hidden = allowed || browseOnly;
+      const showKitchenClosed = isManualDineInClosed();
+      const showCountdown = isDineInCountdownActive();
+      orderingHoursBanner.hidden = browseOnly || (allowed && !showCountdown);
       if (orderingHoursBannerText) {
-        orderingHoursBannerText.textContent = t('orderingClosedBanner');
+        if (showKitchenClosed) {
+          orderingHoursBannerText.textContent = t('kitchenClosedBanner');
+        } else if (showCountdown) {
+          const remain = formatCountdownRemain(dineInCloseAtMs - Date.now());
+          orderingHoursBannerText.textContent = tReplace('kitchenClosingCountdown', { time: remain });
+        } else if (!allowed) {
+          orderingHoursBannerText.textContent = t('orderingClosedBanner');
+        }
       }
+    }
+
+    /* Keep open countdown modal text in sync with remaining time */
+    if (
+      kitchenCloseModal
+      && !kitchenCloseModal.hidden
+      && kitchenCloseModalMode === 'countdown'
+      && isDineInCountdownActive()
+      && kitchenCloseText
+    ) {
+      kitchenCloseText.textContent = tReplace('kitchenCountdownModal', {
+        time: formatCountdownRemain(dineInCloseAtMs - Date.now()),
+      });
     }
 
     if (cartToggle) {
@@ -186,6 +250,212 @@
     if (!allowed) {
       setSendButtonState({ empty: true });
       if (cartClear) cartClear.disabled = true;
+    }
+  }
+
+  function closeKitchenCloseModal() {
+    if (!kitchenCloseModal) return;
+    if (typeof kitchenCloseFocusTrapRelease === 'function') kitchenCloseFocusTrapRelease();
+    kitchenCloseFocusTrapRelease = null;
+    kitchenCloseModal.hidden = true;
+    kitchenCloseModal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('app-confirm-open');
+  }
+
+  function openKitchenModal(mode) {
+    if (!kitchenCloseModal) return;
+    if (!isDineInContext() || window.LechaimOrderContext?.browseOnly) return;
+
+    kitchenCloseModalMode = mode === 'countdown' ? 'countdown' : 'closed';
+    if (kitchenCloseModalMode === 'countdown') {
+      if (!isDineInCountdownActive()) return;
+      kitchenCloseText.textContent = tReplace('kitchenCountdownModal', {
+        time: formatCountdownRemain(dineInCloseAtMs - Date.now()),
+      });
+    } else {
+      if (kitchenCloseText) kitchenCloseText.textContent = t('kitchenClosedModal');
+    }
+    if (kitchenCloseOk) kitchenCloseOk.textContent = t('kitchenClosingOk');
+    kitchenCloseModal.hidden = false;
+    kitchenCloseModal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('app-confirm-open');
+    if (typeof kitchenCloseFocusTrapRelease === 'function') kitchenCloseFocusTrapRelease();
+    const release = window.LechaimFocusTrap?.activate?.(kitchenCloseModal);
+    kitchenCloseFocusTrapRelease = typeof release === 'function' ? release : null;
+    kitchenCloseOk?.focus();
+  }
+
+  function showKitchenClosedModal() {
+    openKitchenModal('closed');
+  }
+
+  function showKitchenCountdownModal() {
+    openKitchenModal('countdown');
+  }
+
+  /**
+   * Show kitchen modal for current state.
+   * @param {{ force?: boolean, reason?: string }} [options]
+   * force: show even if we already prompted for this deadline (menu entry / admin just started)
+   */
+  function maybeShowKitchenModalForDineInEntry(options = {}) {
+    if (!isDineInContext() || window.LechaimOrderContext?.browseOnly) return;
+    if (!dineInCloseAtMs) return;
+
+    if (Date.now() >= dineInCloseAtMs) {
+      if (!kitchenClosedModalShown || options.force) {
+        kitchenClosedModalShown = true;
+        kitchenCountdownPromptedForMs = dineInCloseAtMs;
+        showKitchenClosedModal();
+      }
+      return;
+    }
+
+    if (!options.force && kitchenCountdownPromptedForMs === dineInCloseAtMs) return;
+    kitchenCountdownPromptedForMs = dineInCloseAtMs;
+    showKitchenCountdownModal();
+  }
+
+  function stopKitchenCloseTicker() {
+    if (kitchenCloseTickTimer) {
+      window.clearInterval(kitchenCloseTickTimer);
+      kitchenCloseTickTimer = null;
+    }
+  }
+
+  function startKitchenCloseTicker() {
+    stopKitchenCloseTicker();
+    if (!dineInCloseAtMs) return;
+    kitchenCloseTickTimer = window.setInterval(() => {
+      if (!dineInCloseAtMs) {
+        stopKitchenCloseTicker();
+        return;
+      }
+      const expired = Date.now() >= dineInCloseAtMs;
+      refreshOrderingHoursUi();
+      if (typeof renderCart === 'function') renderCart();
+      if (expired) {
+        stopKitchenCloseTicker();
+        if (isDineInContext() && !kitchenClosedModalShown) {
+          kitchenClosedModalShown = true;
+          showKitchenClosedModal();
+        }
+      }
+    }, 1000);
+  }
+
+  function stopKitchenClosePolling() {
+    if (kitchenClosePollTimer) {
+      window.clearInterval(kitchenClosePollTimer);
+      kitchenClosePollTimer = null;
+    }
+  }
+
+  function applyDineInCloseAt(isoOrNull, options = {}) {
+    if (!isoOrNull) {
+      dineInCloseAtMs = null;
+      kitchenClosedModalShown = false;
+      kitchenCountdownPromptedForMs = null;
+      stopKitchenCloseTicker();
+      closeKitchenCloseModal();
+      refreshOrderingHoursUi();
+      if (typeof renderCart === 'function') renderCart();
+      return;
+    }
+    const ms = Date.parse(String(isoOrNull));
+    const prevMs = dineInCloseAtMs;
+    dineInCloseAtMs = Number.isFinite(ms) ? ms : null;
+    if (!dineInCloseAtMs) {
+      applyDineInCloseAt(null);
+      return;
+    }
+    const expired = Date.now() >= dineInCloseAtMs;
+    const justStarted = !prevMs || prevMs !== dineInCloseAtMs;
+    if (!expired) kitchenClosedModalShown = false;
+    if (justStarted) kitchenCountdownPromptedForMs = null;
+    refreshOrderingHoursUi();
+    if (typeof renderCart === 'function') renderCart();
+    if (expired) {
+      stopKitchenCloseTicker();
+      if (options.showModal !== false) maybeShowKitchenModalForDineInEntry({ force: true });
+    } else {
+      startKitchenCloseTicker();
+      /* Admin just pressed / deadline changed while guest is already in the menu */
+      if (options.showModal !== false && (justStarted || options.force)) {
+        maybeShowKitchenModalForDineInEntry({ force: true });
+      }
+    }
+  }
+
+  async function syncDineInCloseFromServer(options = {}) {
+    const api = window.LechaimSupabaseOrders;
+    if (!api?.getDineInCloseAt) return;
+    try {
+      const at = await api.getDineInCloseAt();
+      const nextMs = at ? Date.parse(at) : null;
+      const same =
+        (!dineInCloseAtMs && !nextMs)
+        || (Number.isFinite(dineInCloseAtMs)
+          && Number.isFinite(nextMs)
+          && Math.abs(dineInCloseAtMs - nextMs) < 1500);
+      if (same && !options.force) {
+        if (nextMs && Date.now() < nextMs) startKitchenCloseTicker();
+        return;
+      }
+      applyDineInCloseAt(at, {
+        showModal: options.showModal !== false,
+        force: Boolean(options.force),
+      });
+    } catch (err) {
+      console.warn('[kitchen-close] sync failed', err);
+    }
+  }
+
+  function startKitchenClosePolling() {
+    stopKitchenClosePolling();
+    const api = window.LechaimSupabaseOrders;
+    if (!api?.getDineInCloseAt) return;
+    /* Realtime often misses; poll so admin click still reaches open dine-in tabs */
+    kitchenClosePollTimer = window.setInterval(() => {
+      syncDineInCloseFromServer({ showModal: true, force: false });
+    }, 2000);
+  }
+
+  async function initDineInOrdersClosedWatch() {
+    const api = window.LechaimSupabaseOrders;
+    if (!api?.isConfigured?.()) {
+      console.warn('[kitchen-close] Supabase not configured — countdown modal disabled');
+      return;
+    }
+
+    kitchenCloseOk?.addEventListener('click', closeKitchenCloseModal);
+    kitchenCloseBackdrop?.addEventListener('click', closeKitchenCloseModal);
+
+    try {
+      await syncDineInCloseFromServer({ showModal: false, force: false });
+      if (isDineInContext()) maybeShowKitchenModalForDineInEntry({ force: true });
+    } catch (err) {
+      console.warn('[kitchen-close] load deadline failed', err);
+    }
+
+    startKitchenClosePolling();
+
+    try {
+      api.subscribeRestaurantFlags?.((evt) => {
+        if (evt?.flagKey !== 'dine_in_close_at') return;
+        if (!evt.flagValue) {
+          applyDineInCloseAt(null);
+          return;
+        }
+        /* Prefer payload; if flag_text missing from realtime, re-fetch */
+        if (evt.flagText) {
+          applyDineInCloseAt(evt.flagText, { showModal: true, force: true });
+        } else {
+          syncDineInCloseFromServer({ showModal: true, force: true });
+        }
+      });
+    } catch (err) {
+      console.warn('[kitchen-close] subscribe failed', err);
     }
   }
 
@@ -833,6 +1103,7 @@
     updateTableHeader();
     hideOrderFeedback();
     refreshOrderingHoursUi();
+    initDineInOrdersClosedWatch();
   }
 
   /**
@@ -905,6 +1176,9 @@
     scrollToHeroWelcome();
     restoreTakeawayLockIfNeeded();
     refreshOrderingHoursUi();
+    /* Every dine-in menu entry while countdown/closed is active → customer modal */
+    maybeShowKitchenModalForDineInEntry({ force: true });
+    if (isDineInCountdownActive()) startKitchenCloseTicker();
 
     if (browseOnly) return;
 
@@ -989,6 +1263,11 @@
     refreshOrderingHoursUi();
     if (appStarted) renderCart();
     scrollToHeroWelcome();
+    /* Re-entering dine-in menu → show remaining-time modal again */
+    if (isDineInContext()) {
+      maybeShowKitchenModalForDineInEntry({ force: true });
+      if (isDineInCountdownActive()) startKitchenCloseTicker();
+    }
   }
 
   function updateTableHeader() {

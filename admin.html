@@ -192,12 +192,15 @@
 
       <!-- Inventory tab -->
       <div class="admin-view" id="admin-view-inventory" hidden>
-        <header class="admin-header">
+        <header class="admin-header admin-header--row">
           <div class="admin-header__text">
             <p class="admin-header__eyebrow">ניהול</p>
             <h1 class="admin-header__title">ניהול מלאי</h1>
             <p class="admin-header__subtitle">לחצו על הכפתור כדי לסמן יש במלאי / אין במלאי</p>
           </div>
+          <button type="button" class="admin-btn admin-btn--danger" id="admin-kitchen-close-btn">
+            סגירת מטבח (ישיבה במקום)
+          </button>
         </header>
 
         <div class="admin-stats" id="admin-stats" aria-live="polite">
@@ -329,9 +332,15 @@
 
     <div class="admin-modal" id="admin-success-modal" hidden aria-hidden="true">
       <button type="button" class="admin-modal__backdrop" id="admin-success-backdrop" aria-label="סגור"></button>
-      <div class="admin-modal__panel" role="dialog" aria-modal="true" aria-labelledby="admin-success-text">
+      <div class="admin-modal__panel admin-modal__panel--success" role="dialog" aria-modal="true" aria-labelledby="admin-success-text">
+        <div class="admin-success-check" id="admin-success-check" aria-hidden="true">
+          <svg class="admin-success-check__svg" viewBox="0 0 52 52" width="64" height="64" focusable="false">
+            <circle class="admin-success-check__circle" cx="26" cy="26" r="24" fill="none" />
+            <path class="admin-success-check__mark" fill="none" d="M14.5 27.5l7.5 7.5 15.5-16" />
+          </svg>
+        </div>
         <p class="admin-modal__text" id="admin-success-text">המוצר נוסף בהצלחה</p>
-        <button type="button" class="admin-btn admin-btn--soft" id="admin-success-ok">אישור</button>
+        <button type="button" class="admin-btn admin-btn--soft" id="admin-success-ok" hidden>אישור</button>
       </div>
     </div>
 

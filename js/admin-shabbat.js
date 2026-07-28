@@ -578,7 +578,7 @@
     }
 
     if (!printedOk) return;
-    showToast('ההזמנה הודפסה');
+    showToast('ההזמנה הודפסה', { checkOnly: true });
     closeDrawer();
     await refresh();
   }

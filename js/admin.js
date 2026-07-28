@@ -33,12 +33,15 @@
   const viewHistory = document.getElementById('admin-view-history');
   const viewInventory = document.getElementById('admin-view-inventory');
   const viewStats = document.getElementById('admin-view-stats');
+  const kitchenCloseBtn = document.getElementById('admin-kitchen-close-btn');
 
   let inventorySubscribed = false;
   let currentFilter = 'all';
   let currentQuery = '';
   let catalogCache = [];
   let currentTab = 'tables';
+  let dineInCloseAtMs = null;
+  let kitchenCloseAdminTick = null;
 
   function showError(el, message) {
     if (!el) return;
@@ -52,26 +55,53 @@
   }
 
   let successFocusTrapRelease = null;
+  let successAutoCloseTimer = null;
 
   function closeAdminModal() {
     if (!successModal) return;
+    window.clearTimeout(successAutoCloseTimer);
+    successAutoCloseTimer = null;
     if (typeof successFocusTrapRelease === 'function') successFocusTrapRelease();
     successFocusTrapRelease = null;
     successModal.hidden = true;
     successModal.setAttribute('aria-hidden', 'true');
+    successModal.querySelector('.admin-modal__panel')?.classList.remove('is-check-only');
     document.body.classList.remove('admin-modal-open');
   }
 
-  function showToast(message) {
+  function showToast(message, options = {}) {
     if (!successModal) return;
-    if (successText) successText.textContent = message;
+    window.clearTimeout(successAutoCloseTimer);
+    successAutoCloseTimer = null;
+
+    const checkOnly = Boolean(options.checkOnly);
+    const autoCloseMs = Number.isFinite(options.autoCloseMs)
+      ? Math.max(400, Number(options.autoCloseMs))
+      : 1000;
+
+    const panel = successModal.querySelector('.admin-modal__panel');
+    panel?.classList.toggle('is-check-only', checkOnly);
+
+    if (successText) successText.textContent = message || '';
+    if (successOk) successOk.hidden = true;
+
+    const svg = successModal.querySelector('.admin-success-check__svg');
+    if (svg) {
+      const clone = svg.cloneNode(true);
+      svg.replaceWith(clone);
+    }
+
     successModal.hidden = false;
     successModal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('admin-modal-open');
     if (typeof successFocusTrapRelease === 'function') successFocusTrapRelease();
     const release = window.LechaimFocusTrap?.activate?.(successModal);
     successFocusTrapRelease = typeof release === 'function' ? release : null;
-    successOk?.focus();
+
+    successAutoCloseTimer = window.setTimeout(() => {
+      successAutoCloseTimer = null;
+      closeAdminModal();
+    }, autoCloseMs);
   }
 
   function setView(view) {
@@ -336,6 +366,105 @@
     }
   }
 
+  function formatAdminRemain(ms) {
+    const totalSec = Math.max(0, Math.ceil(ms / 1000));
+    const mm = String(Math.floor(totalSec / 60)).padStart(2, '0');
+    const ss = String(totalSec % 60).padStart(2, '0');
+    return `${mm}:${ss}`;
+  }
+
+  function stopAdminKitchenTick() {
+    if (kitchenCloseAdminTick) {
+      window.clearInterval(kitchenCloseAdminTick);
+      kitchenCloseAdminTick = null;
+    }
+  }
+
+  function updateKitchenCloseButton() {
+    if (!kitchenCloseBtn) return;
+    if (!dineInCloseAtMs) {
+      stopAdminKitchenTick();
+      kitchenCloseBtn.textContent = 'סגירת מטבח (ישיבה במקום)';
+      kitchenCloseBtn.classList.add('admin-btn--danger');
+      kitchenCloseBtn.classList.remove('admin-btn--primary');
+      return;
+    }
+    const remain = dineInCloseAtMs - Date.now();
+    if (remain > 0) {
+      kitchenCloseBtn.textContent = `בטל סגירה (${formatAdminRemain(remain)})`;
+      kitchenCloseBtn.classList.add('admin-btn--danger');
+      kitchenCloseBtn.classList.remove('admin-btn--primary');
+      if (!kitchenCloseAdminTick) {
+        kitchenCloseAdminTick = window.setInterval(updateKitchenCloseButton, 1000);
+      }
+    } else {
+      stopAdminKitchenTick();
+      kitchenCloseBtn.textContent = 'פתח הזמנות ישיבה במקום';
+      kitchenCloseBtn.classList.remove('admin-btn--danger');
+      kitchenCloseBtn.classList.add('admin-btn--primary');
+    }
+  }
+
+  async function refreshKitchenCloseFlag() {
+    const api = window.LechaimSupabaseOrders;
+    if (!api?.isConfigured?.() || typeof api.getDineInCloseAt !== 'function') return;
+    try {
+      const at = await api.getDineInCloseAt();
+      dineInCloseAtMs = at ? Date.parse(at) : null;
+      if (!Number.isFinite(dineInCloseAtMs)) dineInCloseAtMs = null;
+      updateKitchenCloseButton();
+    } catch (err) {
+      console.warn('[admin] kitchen close deadline load failed', err);
+    }
+  }
+
+  async function handleKitchenCloseClick() {
+    const api = window.LechaimSupabaseOrders;
+    if (!api?.startDineInCloseCountdown || !api?.clearDineInCloseCountdown) {
+      showError(panelError, 'סגירת מטבח לא זמינה — הריצו supabase-restaurant-flags.sql');
+      return;
+    }
+
+    if (dineInCloseAtMs) {
+      const remain = dineInCloseAtMs - Date.now();
+      const msg = remain > 0
+        ? `לבטל את ספירת הסגירה? (נותרו ${formatAdminRemain(remain)})`
+        : 'לפתוח מחדש הזמנות ישיבה במקום?';
+      const ok = typeof window.LechaimAdminTables?.showConfirmModal === 'function'
+        ? await window.LechaimAdminTables.showConfirmModal(msg, {
+          yesLabel: remain > 0 ? 'בטל סגירה' : 'פתח הזמנות',
+        })
+        : window.confirm(msg);
+      if (!ok) return;
+      try {
+        await api.clearDineInCloseCountdown();
+        dineInCloseAtMs = null;
+        updateKitchenCloseButton();
+        showToast('הזמנות ישיבה במקום פתוחות');
+      } catch (err) {
+        showError(panelError, err?.message || 'הפתיחה נכשלה');
+      }
+      return;
+    }
+
+    const ok = typeof window.LechaimAdminTables?.showConfirmModal === 'function'
+      ? await window.LechaimAdminTables.showConfirmModal(
+        'להתחיל ספירה של 30 דקות לסגירת הזמנות ישיבה במקום?\nכל לקוח יראה את הזמן שנותר. אחרי 30 דקות יופיע מודל שהמטבח סגור ולא ניתן להוסיף מנות.',
+        { yesLabel: 'התחל 30 דקות' }
+      )
+      : window.confirm('להתחיל ספירה של 30 דקות?');
+    if (!ok) return;
+
+    try {
+      const iso = await api.startDineInCloseCountdown(30);
+      dineInCloseAtMs = Date.parse(iso);
+      updateKitchenCloseButton();
+      showToast('התחילה ספירה — 30 דקות לסגירה');
+    } catch (err) {
+      showError(panelError, err?.message || 'הסגירה נכשלה');
+    }
+  }
+
   async function showPanel() {
     setView('panel');
     showError(panelError, '');
@@ -345,6 +474,7 @@
       await LechaimInventory.load();
       refreshCatalogCache();
       updateStats();
+      await refreshKitchenCloseFlag();
 
       if (currentTab === 'inventory') {
         renderList();
@@ -471,6 +601,7 @@
     if (tab === 'inventory') {
       if (statusEl) statusEl.textContent = 'טוען מלאי…';
       renderList();
+      refreshKitchenCloseFlag();
     }
   });
 
@@ -479,6 +610,10 @@
     if (stockBtn) {
       handleToggle(stockBtn);
     }
+  });
+
+  kitchenCloseBtn?.addEventListener('click', () => {
+    handleKitchenCloseClick();
   });
 
   successOk?.addEventListener('click', closeAdminModal);

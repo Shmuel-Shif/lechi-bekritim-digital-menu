@@ -474,6 +474,16 @@
     <p id="ordering-hours-banner-text"></p>
   </div>
 
+  <div class="app-confirm" id="kitchen-close-modal" hidden aria-hidden="true">
+    <button type="button" class="app-confirm__backdrop" id="kitchen-close-backdrop" aria-label="סגור"></button>
+    <div class="app-confirm__panel" role="dialog" aria-modal="true" aria-labelledby="kitchen-close-text">
+      <p class="app-confirm__text" id="kitchen-close-text"></p>
+      <div class="app-confirm__actions">
+        <button type="button" class="cart-send-btn" id="kitchen-close-ok">הבנתי</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
   <script src="js/order-types.js" defer></script>
