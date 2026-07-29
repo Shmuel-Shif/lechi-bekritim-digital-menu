@@ -314,15 +314,6 @@
             price: 30,
             image: dishImage('green-beans'),
           },
-          {
-            id: 'shabbat-oven-veg',
-            name: 'ירקות בתנור',
-            nameEn: 'Oven vegetables',
-            printName: 'Oven Vegetables',
-            desc: '',
-            price: 40,
-            image: dishImage('oven-vegetables'),
-          },
         ],
       },
       {

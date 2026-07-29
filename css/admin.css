@@ -1262,10 +1262,49 @@ body {
   padding: 0.7rem 0.75rem;
 }
 
+.table-drawer__group {
+  display: grid;
+  gap: 0.4rem;
+}
+
 .table-drawer__line {
   display: flex;
   align-items: baseline;
   gap: 0.45rem;
+}
+
+.table-drawer__line.table-drawer__item--side {
+  margin-inline-start: 0.85rem;
+  padding: 0.35rem 0.45rem;
+  border-radius: 8px;
+  background: rgba(30, 51, 84, 0.05);
+  border: 1px dashed var(--color-cream-dark, #e6dfd0);
+  align-items: center;
+}
+
+.table-drawer__side-badge {
+  flex: 0 0 auto;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--color-navy);
+  background: rgba(30, 51, 84, 0.1);
+  border-radius: 999px;
+  padding: 0.15rem 0.45rem;
+}
+
+.table-drawer__served {
+  margin: 0;
+  padding-inline-start: 2.2rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  line-height: 1.35;
+}
+
+.table-drawer__sides {
+  display: grid;
+  gap: 0.35rem;
 }
 
 .table-drawer__qty {

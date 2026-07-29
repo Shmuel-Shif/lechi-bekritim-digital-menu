@@ -67,6 +67,7 @@
   let pendingReminderTimer = null;
   let suppressNotifyUntil = 0;
   let approvePrintBusy = false;
+  let addProductBusy = false;
   let removeItemBusy = false;
   let confirmResolver = null;
   let pendingBillEntry = null;
@@ -117,8 +118,8 @@
 
     const checkOnly = Boolean(options.checkOnly);
     const autoCloseMs = Number.isFinite(options.autoCloseMs)
-      ? Math.max(400, Number(options.autoCloseMs))
-      : 1000;
+      ? Math.max(200, Number(options.autoCloseMs))
+      : 500;
 
     const panel = successModal.querySelector('.admin-modal__panel');
     panel?.classList.toggle('is-check-only', checkOnly);
@@ -684,6 +685,106 @@
     if (drawerMenu) drawerMenu.hidden = !menuMode;
   }
 
+  function buildDrawerItemGroups(items) {
+    const list = (Array.isArray(items) ? items : []).filter((item) => item && Number(item.qty) > 0);
+    const sidesByParent = new Map();
+    list.forEach((item) => {
+      const parentId = item.linkedToMainItemId ? String(item.linkedToMainItemId) : '';
+      if (!parentId) return;
+      if (!sidesByParent.has(parentId)) sidesByParent.set(parentId, []);
+      sidesByParent.get(parentId).push(item);
+    });
+
+    const usedSideIds = new Set();
+    const groups = [];
+
+    list.forEach((item) => {
+      if (item.linkedToMainItemId) return;
+      const id = String(item.itemId || '');
+      const sides = (sidesByParent.get(id) || []).slice();
+      sides.forEach((side) => usedSideIds.add(String(side.itemId)));
+      groups.push({
+        kind: sides.length ? 'main-group' : 'single',
+        main: item,
+        sides,
+      });
+    });
+
+    list.forEach((item) => {
+      if (!item.linkedToMainItemId) return;
+      if (usedSideIds.has(String(item.itemId))) return;
+      groups.push({ kind: 'single', main: item, sides: [] });
+    });
+
+    return groups;
+  }
+
+  function renderDrawerItemLine(item, options = {}) {
+    const isSide = Boolean(options.isSide);
+    const lateClass = item.isLateAdd ? ' table-drawer__item--late' : '';
+    const sideClass = isSide ? ' table-drawer__item--side' : '';
+    const nameLate = item.isLateAdd ? ' table-drawer__name--late' : '';
+    return `
+      <div class="table-drawer__line${sideClass}${lateClass}">
+        ${isSide ? `<span class="table-drawer__side-badge">תוספת</span>` : ''}
+        <span class="table-drawer__qty">${escapeHtml(String(item.qty))}×</span>
+        <span class="table-drawer__name${nameLate}">${escapeHtml(item.name || item.productId || '')}</span>
+        <span class="table-drawer__price">${
+          isSide && !(Number(item.price) > 0)
+            ? ''
+            : escapeHtml(formatMoney((Number(item.price) || 0) * (Number(item.qty) || 0)))
+        }</span>
+        ${item.itemId
+          ? `<button
+              type="button"
+              class="table-drawer__remove"
+              data-remove-item-id="${escapeHtml(String(item.itemId))}"
+              aria-label="הסר מנה"
+              title="הסר מנה"
+            >×</button>`
+          : ''}
+      </div>
+      ${item.notes ? `<p class="table-drawer__notes" dir="auto">${escapeHtml(item.notes)}</p>` : ''}
+    `;
+  }
+
+  function renderDrawerItemsHtml(items) {
+    const groups = buildDrawerItemGroups(items);
+    if (!groups.length) {
+      return `<p class="table-drawer__empty">אין פריטים בהזמנה</p>`;
+    }
+
+    return `
+      <ul class="table-drawer__list">
+        ${groups.map((group) => {
+          const lateClass = group.main.isLateAdd ? ' table-drawer__item--late' : '';
+          if (group.kind === 'main-group') {
+            const sideNames = group.sides
+              .map((side) => side.name || side.productId || '')
+              .filter(Boolean)
+              .join(', ');
+            return `
+              <li class="table-drawer__group${lateClass}">
+                ${renderDrawerItemLine(group.main)}
+                ${sideNames
+                  ? `<p class="table-drawer__served">מוגש עם: ${escapeHtml(sideNames)}</p>`
+                  : ''}
+                <div class="table-drawer__sides">
+                  ${group.sides.map((side) => renderDrawerItemLine(side, { isSide: true })).join('')}
+                </div>
+              </li>
+            `;
+          }
+          return `
+            <li class="${lateClass}">
+              ${renderDrawerItemLine(group.main)}
+            </li>
+          `;
+        }).join('')}
+      </ul>
+    `;
+  }
+
   function fillDrawer(entry) {
     const order = entry.order;
     if (!order || !drawer) return;
@@ -761,33 +862,7 @@
     }
 
     if (drawerItems) {
-      if (!order.items?.length) {
-        drawerItems.innerHTML = `<p class="table-drawer__empty">אין פריטים בהזמנה</p>`;
-      } else {
-        drawerItems.innerHTML = `
-          <ul class="table-drawer__list">
-            ${order.items.map((item) => `
-              <li class="${item.isLateAdd ? 'table-drawer__item--late' : ''}">
-                <div class="table-drawer__line">
-                  <span class="table-drawer__qty">${escapeHtml(String(item.qty))}×</span>
-                  <span class="table-drawer__name${item.isLateAdd ? ' table-drawer__name--late' : ''}">${escapeHtml(item.name || item.productId)}</span>
-                  <span class="table-drawer__price">${escapeHtml(formatMoney((Number(item.price) || 0) * (Number(item.qty) || 0)))}</span>
-                  ${item.itemId
-                    ? `<button
-                        type="button"
-                        class="table-drawer__remove"
-                        data-remove-item-id="${escapeHtml(String(item.itemId))}"
-                        aria-label="הסר מנה"
-                        title="הסר מנה"
-                      >×</button>`
-                    : ''}
-                </div>
-                ${item.notes ? `<p class="table-drawer__notes" dir="auto">${escapeHtml(item.notes)}</p>` : ''}
-              </li>
-            `).join('')}
-          </ul>
-        `;
-      }
+      drawerItems.innerHTML = renderDrawerItemsHtml(order.items);
     }
 
     if (drawerTotal) {
@@ -1304,9 +1379,24 @@
     document.body.classList.remove('table-drawer-open');
   }
 
+  /**
+   * Late-add stacking: after the first wave, keep appending into the latest
+   * unprinted order (order_number > 1) so "2× cola" / several mains share one bon.
+   */
+  function findStackableLateAddOrder(remoteOrders) {
+    const list = Array.isArray(remoteOrders) ? remoteOrders : [];
+    const unprinted = list
+      .filter((order) => order && order.id && !order.printed_at)
+      .sort((a, b) => (Number(b.order_number) || 0) - (Number(a.order_number) || 0));
+    const candidate = unprinted[0] || null;
+    if (!candidate) return null;
+    if ((Number(candidate.order_number) || 0) <= 1) return null;
+    return candidate;
+  }
+
   async function handleAddProduct(productId) {
     const entry = getSelectedEntry();
-    if (!entry?.order || !productId) return;
+    if (!entry?.order || !productId || addProductBusy) return;
 
     const product = (catalogCache.length ? catalogCache : loadCatalog())
       .find((item) => item.id === productId);
@@ -1326,26 +1416,59 @@
       printName: product.printName,
     }) || product.printName || product.name || '';
 
+    addProductBusy = true;
     try {
       if (dataSource === 'supabase' && entry.order._supabaseSessionId && OrdersApi()?.isConfigured?.()) {
         suppressCustomerNotify();
         const api = OrdersApi();
         const sessionId = entry.order._supabaseSessionId;
-        const remoteOrder = await api.createOrder({
-          sessionId,
-          total: price,
-          status: 'submitted',
-        });
-        if (!remoteOrder?.id) throw new Error('createOrder failed');
-        await api.createOrderItems(remoteOrder.id, [{
-          productId: product.id,
-          productName: product.name || '',
-          printName,
-          quantity: 1,
-          price,
-          category: product.categoryId || null,
-          notes: null,
-        }]);
+        /* Re-fetch so rapid adds see the latest stackable wave */
+        let remoteOrders = entry.order._remoteOrders || [];
+        try {
+          const fresh = await api.getSessionOrders?.(sessionId);
+          if (Array.isArray(fresh)) remoteOrders = fresh;
+        } catch (_) { /* use cached */ }
+        const stackInto = findStackableLateAddOrder(remoteOrders);
+
+        if (stackInto?.id) {
+          const lines = Array.isArray(stackInto.order_items) ? stackInto.order_items : [];
+          const same = lines.find((row) => (
+            String(row.product_id || '') === String(product.id)
+            && !row.parent_item_id
+          ));
+          if (same?.id && typeof api.bumpOrderItemQuantity === 'function') {
+            await api.bumpOrderItemQuantity(same.id, 1);
+          } else {
+            await api.createOrderItems(stackInto.id, [{
+              productId: product.id,
+              productName: product.name || '',
+              printName,
+              quantity: 1,
+              price,
+              category: product.categoryId || null,
+              notes: null,
+            }]);
+            if (typeof api.refreshOrderTotal === 'function') {
+              await api.refreshOrderTotal(stackInto.id);
+            }
+          }
+        } else {
+          const remoteOrder = await api.createOrder({
+            sessionId,
+            total: price,
+            status: 'submitted',
+          });
+          if (!remoteOrder?.id) throw new Error('createOrder failed');
+          await api.createOrderItems(remoteOrder.id, [{
+            productId: product.id,
+            productName: product.name || '',
+            printName,
+            quantity: 1,
+            price,
+            category: product.categoryId || null,
+            notes: null,
+          }]);
+        }
       } else {
         const engine = Engine();
         const updated = engine?.addProductToOrder?.(entry.order.orderId, product, 1);
@@ -1361,6 +1484,8 @@
     } catch (err) {
       console.error('[admin-tables] add product failed', err);
       showToast('לא ניתן להוסיף');
+    } finally {
+      addProductBusy = false;
     }
   }
 
@@ -1799,6 +1924,7 @@
     playNotifyChime: playOrderNotifyChime,
     showConfirmModal,
     showSuccessModal,
+    renderDrawerItemsHtml,
   };
 
   if (document.readyState === 'loading') {

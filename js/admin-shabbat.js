@@ -144,7 +144,10 @@
           printName: row.print_name || '',
           qty,
           price,
+          linkedToMainItemId: row.parent_item_id ? String(row.parent_item_id) : null,
           isNew: !order.printed_at
+            && String(order.status || 'submitted').toLowerCase() === 'submitted',
+          isLateAdd: !order.printed_at
             && String(order.status || 'submitted').toLowerCase() === 'submitted',
         });
         total += price * qty;
@@ -296,29 +299,54 @@
     if (drawerItems) {
       if (!entry.items.length) {
         drawerItems.innerHTML = '<p class="table-drawer__empty">אין פריטים</p>';
+      } else if (typeof global.LechaimAdminTables?.renderDrawerItemsHtml === 'function') {
+        drawerItems.innerHTML = global.LechaimAdminTables.renderDrawerItemsHtml(entry.items);
       } else {
-        drawerItems.innerHTML = `
-          <ul class="table-drawer__list">
-            ${entry.items.map((item) => `
-              <li class="${item.isNew ? 'table-drawer__item--late' : ''}">
-                <div class="table-drawer__line">
-                  <span class="table-drawer__qty">${escapeHtml(String(item.qty))}×</span>
-                  <span class="table-drawer__name${item.isNew ? ' table-drawer__name--late' : ''}">${escapeHtml(item.name)}</span>
-                  <span class="table-drawer__price">${escapeHtml(formatMoney(item.price * item.qty))}</span>
-                  ${item.itemId
-                    ? `<button
-                        type="button"
-                        class="table-drawer__remove"
-                        data-shabbat-remove-id="${escapeAttr(String(item.itemId))}"
-                        aria-label="הסר מנה"
-                        title="הסר מנה"
-                      >×</button>`
-                    : ''}
+        const sidesByParent = new Map();
+        entry.items.forEach((item) => {
+          const parentId = item.linkedToMainItemId ? String(item.linkedToMainItemId) : '';
+          if (!parentId) return;
+          if (!sidesByParent.has(parentId)) sidesByParent.set(parentId, []);
+          sidesByParent.get(parentId).push(item);
+        });
+        const used = new Set();
+        const blocks = [];
+        entry.items.forEach((item) => {
+          if (item.linkedToMainItemId) return;
+          const sides = sidesByParent.get(String(item.itemId)) || [];
+          sides.forEach((s) => used.add(String(s.itemId)));
+          const sideNames = sides.map((s) => s.name).filter(Boolean).join(', ');
+          blocks.push(`
+            <li class="${item.isNew ? 'table-drawer__item--late' : ''} table-drawer__group">
+              <div class="table-drawer__line">
+                <span class="table-drawer__qty">${escapeHtml(String(item.qty))}×</span>
+                <span class="table-drawer__name${item.isNew ? ' table-drawer__name--late' : ''}">${escapeHtml(item.name)}</span>
+                <span class="table-drawer__price">${escapeHtml(formatMoney(item.price * item.qty))}</span>
+              </div>
+              ${sideNames ? `<p class="table-drawer__served">מוגש עם: ${escapeHtml(sideNames)}</p>` : ''}
+              ${sides.map((side) => `
+                <div class="table-drawer__line table-drawer__item--side">
+                  <span class="table-drawer__side-badge">תוספת</span>
+                  <span class="table-drawer__qty">${escapeHtml(String(side.qty))}×</span>
+                  <span class="table-drawer__name">${escapeHtml(side.name)}</span>
                 </div>
-              </li>
-            `).join('')}
-          </ul>
-        `;
+              `).join('')}
+            </li>
+          `);
+        });
+        entry.items.forEach((item) => {
+          if (!item.linkedToMainItemId || used.has(String(item.itemId))) return;
+          blocks.push(`
+            <li class="${item.isNew ? 'table-drawer__item--late' : ''}">
+              <div class="table-drawer__line">
+                <span class="table-drawer__qty">${escapeHtml(String(item.qty))}×</span>
+                <span class="table-drawer__name">${escapeHtml(item.name)}</span>
+                <span class="table-drawer__price">${escapeHtml(formatMoney(item.price * item.qty))}</span>
+              </div>
+            </li>
+          `);
+        });
+        drawerItems.innerHTML = `<ul class="table-drawer__list">${blocks.join('')}</ul>`;
       }
     }
     if (drawerTotal) {
@@ -607,21 +635,58 @@
 
     busy = true;
     try {
-      const remoteOrder = await api.createOrder({
-        sessionId: entry.sessionId,
-        total: price,
-        status: 'submitted',
-      });
-      if (!remoteOrder?.id) throw new Error('createOrder failed');
-      await api.createOrderItems(remoteOrder.id, [{
-        productId: product.id,
-        productName: product.name || '',
-        printName,
-        quantity: 1,
-        price,
-        category: 'shabbat',
-        notes: null,
-      }]);
+      let remoteOrders = entry.orders || [];
+      try {
+        const fresh = await api.getSessionOrders?.(entry.sessionId);
+        if (Array.isArray(fresh)) remoteOrders = fresh;
+      } catch (_) { /* use cached */ }
+
+      const unprinted = remoteOrders
+        .filter((order) => order && order.id && !order.printed_at)
+        .sort((a, b) => (Number(b.order_number) || 0) - (Number(a.order_number) || 0));
+      const stackInto = unprinted[0] && (Number(unprinted[0].order_number) || 0) > 1
+        ? unprinted[0]
+        : null;
+
+      if (stackInto?.id) {
+        const lines = Array.isArray(stackInto.order_items) ? stackInto.order_items : [];
+        const same = lines.find((row) => (
+          String(row.product_id || '') === String(product.id)
+          && !row.parent_item_id
+        ));
+        if (same?.id && typeof api.bumpOrderItemQuantity === 'function') {
+          await api.bumpOrderItemQuantity(same.id, 1);
+        } else {
+          await api.createOrderItems(stackInto.id, [{
+            productId: product.id,
+            productName: product.name || '',
+            printName,
+            quantity: 1,
+            price,
+            category: 'shabbat',
+            notes: null,
+          }]);
+          if (typeof api.refreshOrderTotal === 'function') {
+            await api.refreshOrderTotal(stackInto.id);
+          }
+        }
+      } else {
+        const remoteOrder = await api.createOrder({
+          sessionId: entry.sessionId,
+          total: price,
+          status: 'submitted',
+        });
+        if (!remoteOrder?.id) throw new Error('createOrder failed');
+        await api.createOrderItems(remoteOrder.id, [{
+          productId: product.id,
+          productName: product.name || '',
+          printName,
+          quantity: 1,
+          price,
+          category: 'shabbat',
+          notes: null,
+        }]);
+      }
       showSuccess(`המוצר נוסף בהצלחה\n${product.name}`);
       await refresh();
       if (menuMode) renderMenuPicker();

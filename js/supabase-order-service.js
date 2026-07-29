@@ -330,6 +330,103 @@
   }
 
   /**
+   * Increase quantity on an existing order item and refresh order + session totals.
+   * @param {string} itemId
+   * @param {number} [delta=1]
+   */
+  async function bumpOrderItemQuantity(itemId, delta = 1) {
+    const sb = getClient();
+    if (!itemId) {
+      throw new Error('[LechaimSupabaseOrders.bumpOrderItemQuantity] itemId is required');
+    }
+    const amount = Number(delta);
+    if (!Number.isFinite(amount) || amount === 0) {
+      throw new Error('[LechaimSupabaseOrders.bumpOrderItemQuantity] invalid delta');
+    }
+
+    const id = String(itemId);
+    const { data: row, error: readErr } = await sb
+      .from(TABLE_ITEMS)
+      .select('id, order_id, quantity, price')
+      .eq('id', id)
+      .maybeSingle();
+    throwIfError(readErr, 'bumpOrderItemQuantity.read');
+    if (!row?.id) {
+      throw new Error('[LechaimSupabaseOrders.bumpOrderItemQuantity] item not found');
+    }
+
+    const nextQty = Math.floor((Number(row.quantity) || 0) + amount);
+    if (nextQty <= 0) {
+      throw new Error('[LechaimSupabaseOrders.bumpOrderItemQuantity] quantity would be <= 0');
+    }
+
+    const { data: updated, error: updErr } = await sb
+      .from(TABLE_ITEMS)
+      .update({ quantity: nextQty })
+      .eq('id', id)
+      .select('id, order_id, quantity, price')
+      .single();
+    throwIfError(updErr, 'bumpOrderItemQuantity.update');
+
+    if (updated?.order_id) {
+      const { data: remaining, error: sumErr } = await sb
+        .from(TABLE_ITEMS)
+        .select('quantity, price')
+        .eq('order_id', updated.order_id);
+      throwIfError(sumErr, 'bumpOrderItemQuantity.sum');
+      const total = (remaining || []).reduce((sum, r) => (
+        sum + (Number(r.price) || 0) * (Number(r.quantity) || 0)
+      ), 0);
+      const rounded = Math.round(total * 100) / 100;
+      const { error: totErr } = await sb
+        .from(TABLE_ORDERS)
+        .update({ total: rounded })
+        .eq('id', updated.order_id);
+      throwIfError(totErr, 'bumpOrderItemQuantity.orderTotal');
+
+      const { data: orderRow } = await sb
+        .from(TABLE_ORDERS)
+        .select('session_id')
+        .eq('id', updated.order_id)
+        .maybeSingle();
+      if (orderRow?.session_id) {
+        await refreshSessionBillTotals(sb, orderRow.session_id);
+      }
+    }
+
+    return updated;
+  }
+
+  /**
+   * Recalculate and store order.total from its items.
+   * @param {string} orderId
+   */
+  async function refreshOrderTotal(orderId) {
+    const sb = getClient();
+    if (!orderId) return null;
+    const { data: remaining, error: sumErr } = await sb
+      .from(TABLE_ITEMS)
+      .select('quantity, price')
+      .eq('order_id', orderId);
+    throwIfError(sumErr, 'refreshOrderTotal.sum');
+    const total = (remaining || []).reduce((sum, r) => (
+      sum + (Number(r.price) || 0) * (Number(r.quantity) || 0)
+    ), 0);
+    const rounded = Math.round(total * 100) / 100;
+    const { data, error } = await sb
+      .from(TABLE_ORDERS)
+      .update({ total: rounded })
+      .eq('id', orderId)
+      .select('id, total, session_id')
+      .single();
+    throwIfError(error, 'refreshOrderTotal.update');
+    if (data?.session_id) {
+      await refreshSessionBillTotals(sb, data.session_id);
+    }
+    return data;
+  }
+
+  /**
    * Delete one order item (and its linked side children). Authenticated Admin.
    * @param {string} itemId
    */
@@ -1215,6 +1312,8 @@
     createSession,
     createOrder,
     createOrderItems,
+    bumpOrderItemQuantity,
+    refreshOrderTotal,
     deleteOrderItem,
     getSession,
     getOpenSessions,

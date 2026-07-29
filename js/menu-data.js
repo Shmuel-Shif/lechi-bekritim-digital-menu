@@ -85,7 +85,7 @@ const TRANSLATIONS = {
     langToggleAria: 'החלפת שפה – עברית / English',
     mainsNote: 'כל המנות העיקריות מוגשות עם תוספת אחת חמה (למעט שיפודי קבב ומוקפץ עוף).',
     mainsSidesTitle: 'תוספות לבחירה',
-    mainsSidesList: "צ'יפס פריך | אורז לבן | שעועית ירוקה | פירה | ירקות בתנור",
+    mainsSidesList: "צ'יפס פריך | אורז לבן | שעועית ירוקה | פירה",
     sidesIncluded: 'כלול',
     sidesIncludedNote: 'כלול במנה העיקרית',
     sideForMain: 'תוספת ל־{name}',
@@ -201,7 +201,7 @@ const TRANSLATIONS = {
     langToggleAria: 'Switch language – Hebrew / English',
     mainsNote: 'All main courses are served with one hot side (except kebab skewers and stir-fried chicken).',
     mainsSidesTitle: 'Sides to choose from',
-    mainsSidesList: 'Crispy fries | White rice | Green beans | Mashed potatoes | Oven vegetables',
+    mainsSidesList: 'Crispy fries | White rice | Green beans | Mashed potatoes',
     sidesIncluded: 'Included',
     sidesIncludedNote: 'Included with the main course',
     sideForMain: 'Side for {name}',
@@ -359,14 +359,11 @@ const DISH_I18N = {
     'mint-tea': { name: 'Hot Mint Tea', desc: '' },
     puree: { name: 'Mashed Potatoes', desc: '' },
     rice: { name: 'White Rice', desc: '' },
-    'oven-vegetables': { name: 'Oven Vegetables', desc: '' },
     'green-beans': { name: 'Green Beans', desc: '' },
     'fries-side': { name: 'Crispy Fries', desc: '' },
-    'starter-fries': { name: 'Crispy Fries', desc: '' },
     'starter-rice': { name: 'White Rice', desc: '' },
     'starter-green-beans': { name: 'Green Beans', desc: '' },
     'starter-puree': { name: 'Mashed Potatoes', desc: '' },
-    'starter-oven-vegetables': { name: 'Oven Vegetables', desc: '' },
   },
 };
 
@@ -430,14 +427,6 @@ const MENU_DATA = {
           image: dishImage('fries'),
         },
         {
-          id: 'starter-fries',
-          name: "צ'יפס פריך",
-          printName: 'Chips',
-          description: '',
-          price: 9,
-          image: dishImage('fries'),
-        },
-        {
           id: 'starter-rice',
           name: 'אורז לבן',
           printName: 'Orez Lavan',
@@ -462,20 +451,12 @@ const MENU_DATA = {
           image: dishImage('puree'),
         },
         {
-          id: 'starter-oven-vegetables',
-          name: 'ירקות בתנור',
-          printName: 'Yerakot Batnur',
-          description: '',
-          price: 9,
-          image: dishImage('oven-vegetables'),
-        },
-        {
           id: 'bread',
           name: 'לחם',
           printName: 'Lechem',
           description: '',
           price: 2,
-          image: '',
+          image: dishImage('pita'),
           /* Visible in Admin "add dishes" only — hidden from customer menu */
           adminOnly: true,
         },
@@ -661,7 +642,6 @@ const HOT_SIDE_ITEMS = [
   { id: 'rice', name: 'אורז לבן', printName: 'Orez Lavan', description: '', price: 0, image: dishImage('white-rice') },
   { id: 'green-beans', name: 'שעועית ירוקה', printName: 'Shayouit Yeruka', description: '', price: 0, image: dishImage('green-beans') },
   { id: 'puree', name: 'פירה', printName: 'Pire', description: '', price: 0, image: dishImage('puree') },
-  { id: 'oven-vegetables', name: 'ירקות בתנור', printName: 'Yerakot Batnur', description: '', price: 0, image: dishImage('oven-vegetables') },
 ];
 
 /** Fruit-shake base choices (same picker UX as hot sides). */
@@ -672,7 +652,7 @@ const SHAKE_BASE_ITEMS = [
 ];
 
 const MAIN_COURSE_IDS = new Set(['schnitzel', 'chicken-steak', 'whole-fish', 'denis-fillet', 'salmon']);
-const HOT_SIDE_IDS = new Set(['fries-side', 'rice', 'green-beans', 'puree', 'oven-vegetables']);
+const HOT_SIDE_IDS = new Set(['fries-side', 'rice', 'green-beans', 'puree']);
 const SHAKE_BASE_IDS = new Set(['shake-base-soy', 'shake-base-water', 'shake-base-orange']);
 const FRUIT_SHAKE_ID = 'fruit-shake';
 const MAX_SIDES_PER_MAIN = 1;

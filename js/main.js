@@ -3211,7 +3211,10 @@
             Number(line.qty) || 1,
             product.notes || '',
             {
-              allowMerge: false,
+              /* Merge drinks/starters qty; keep mains separate (sides linked). */
+              allowMerge: !linkedToMainItemId
+                && !isMainCourse(line.itemId)
+                && !isFruitShake(line.itemId),
               linkedToMainItemId,
             }
           );

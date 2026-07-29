@@ -76,8 +76,8 @@
 
     const checkOnly = Boolean(options.checkOnly);
     const autoCloseMs = Number.isFinite(options.autoCloseMs)
-      ? Math.max(400, Number(options.autoCloseMs))
-      : 1000;
+      ? Math.max(200, Number(options.autoCloseMs))
+      : 500;
 
     const panel = successModal.querySelector('.admin-modal__panel');
     panel?.classList.toggle('is-check-only', checkOnly);
