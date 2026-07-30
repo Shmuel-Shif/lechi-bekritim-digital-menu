@@ -279,7 +279,16 @@
 
     const shakeBases = global.SHAKE_BASE_ITEMS;
     if (Array.isArray(shakeBases)) {
-      return shakeBases.find((entry) => entry && String(entry.id) === id) || null;
+      const found = shakeBases.find((entry) => entry && String(entry.id) === id);
+      if (found) return found;
+    }
+
+    const shabbatCats = global.SHABBAT_MENU_DATA?.categories;
+    if (Array.isArray(shabbatCats)) {
+      for (let c = 0; c < shabbatCats.length; c += 1) {
+        const found = (shabbatCats[c].items || []).find((entry) => entry && String(entry.id) === id);
+        if (found) return found;
+      }
     }
 
     return null;

@@ -1,6 +1,6 @@
 /**
- * LECHAIM — Admin closed-session history by table / takeaway.
- * Compact cards → modal details; delete with confirm.
+ * LECHAIM — Admin closed-session history by table / takeaway / Shabbat.
+ * Compact cards → modal details; restore or delete with confirm.
  */
 (function (global) {
   'use strict';
@@ -128,6 +128,12 @@
         <span class="history-pick-card__label">איסוף עצמי</span>
       </button>
     `);
+    tables.push(`
+      <button type="button" class="history-pick-card history-pick-card--shabbat" data-history-key="shabbat">
+        <span class="history-pick-card__num">שבת</span>
+        <span class="history-pick-card__label">הזמנות לשבת</span>
+      </button>
+    `);
     pickerEl.innerHTML = `<div class="history-picker__grid">${tables.join('')}</div>`;
     pickerEl.hidden = false;
     if (detailEl) detailEl.hidden = true;
@@ -160,13 +166,26 @@
           const items = flattenItems(row.orders);
           const started = session.created_at;
           const finalTotal = sessionFinalTotal(session, items);
+          const isShabbat = global.LechaimOrderTypes?.classifyOrderType?.(
+            session.order_type,
+            'admin-history.list'
+          ) === 'shabbat';
+          const nameLine = isShabbat && session.customer_name
+            ? `<span class="history-card__name">${escapeHtml(session.customer_name)}</span>`
+            : '';
           return `
             <article class="history-card" data-session-id="${escapeHtml(id)}">
               <button type="button" class="history-card__main" data-history-open="${escapeHtml(id)}">
+                ${nameLine}
                 <span class="history-card__time">${escapeHtml(formatClock(started))}</span>
                 <span class="history-card__date">${escapeHtml(formatDate(started))}</span>
                 <span class="history-card__total">${formatMoney(finalTotal)}</span>
               </button>
+              <button
+                type="button"
+                class="history-card__restore"
+                data-history-restore="${escapeHtml(id)}"
+              >שחזר</button>
               <button
                 type="button"
                 class="history-card__delete"
@@ -202,9 +221,18 @@
     const sub = sessionSubtotal(session, items);
 
     if (modalTitle) {
-      modalTitle.textContent = session.table_number != null
-        ? `שולחן ${session.table_number} · ${formatClock(started)}`
-        : `איסוף עצמי · ${formatClock(started)}`;
+      const orderType = global.LechaimOrderTypes?.classifyOrderType?.(
+        session.order_type,
+        'admin-history.modal'
+      );
+      if (orderType === 'shabbat') {
+        const name = session.customer_name ? String(session.customer_name) : 'הזמנת שבת';
+        modalTitle.textContent = `${name} · ${formatClock(started)}`;
+      } else if (session.table_number != null) {
+        modalTitle.textContent = `שולחן ${session.table_number} · ${formatClock(started)}`;
+      } else {
+        modalTitle.textContent = `איסוף עצמי · ${formatClock(started)}`;
+      }
     }
 
     const customerHtml = session.customer_name
@@ -259,6 +287,76 @@
     const release = global.LechaimFocusTrap?.activate?.(modal);
     focusTrapRelease = typeof release === 'function' ? release : null;
     modalClose?.focus();
+  }
+
+  function restoreTargetTab(session) {
+    const orderType = global.LechaimOrderTypes?.classifyOrderType?.(
+      session?.order_type,
+      'admin-history.restore'
+    );
+    if (orderType === 'shabbat') return 'shabbat';
+    if (orderType === 'takeaway') return 'takeaway';
+    return 'tables';
+  }
+
+  function goToTab(tab) {
+    const btn = document.querySelector(`#admin-tabs [data-tab="${tab}"]`);
+    if (btn && !btn.disabled) {
+      btn.click();
+      return;
+    }
+    /* Fallback: boards refresh while History stays open */
+    if (tab === 'shabbat') global.LechaimAdminShabbat?.refresh?.();
+    else global.LechaimAdminTables?.start?.();
+  }
+
+  function restoreConfirmMessage(session) {
+    const orderType = global.LechaimOrderTypes?.classifyOrderType?.(
+      session?.order_type,
+      'admin-history.restoreConfirm'
+    );
+    if (orderType === 'shabbat') {
+      const name = session.customer_name ? String(session.customer_name) : 'הזמנת שבת';
+      return `לשחזר את "${name}" להזמנות לשבת?`;
+    }
+    if (orderType === 'takeaway') {
+      const name = session.customer_name ? String(session.customer_name) : 'איסוף עצמי';
+      return `לשחזר את "${name}" לאיסוף עצמי?`;
+    }
+    if (session?.table_number != null) {
+      return `לשחזר את ההזמנה לשולחן ${session.table_number}?`;
+    }
+    return 'לשחזר את ההזמנה ללוח הפעיל?';
+  }
+
+  async function restoreSessionCard(sessionId) {
+    const row = findCachedRow(sessionId);
+    const session = row?.session || null;
+    if (!session) {
+      showNotice('הכרטיס לא נמצא');
+      return;
+    }
+
+    const ok = await showConfirm(restoreConfirmMessage(session), 'שחזר');
+    if (!ok) return;
+
+    const ordersApi = api();
+    if (!ordersApi?.restoreClosedSession) {
+      showNotice('שחזור לא זמין');
+      return;
+    }
+
+    try {
+      await ordersApi.restoreClosedSession(sessionId);
+      closeModal();
+      cacheRows = cacheRows.filter((rowItem) => String(rowItem?.session?.session_id) !== String(sessionId));
+      const title = detailTitle?.textContent || 'היסטוריה';
+      renderSessions(cacheRows, title);
+      showNotice('ההזמנה שוחזרה');
+      goToTab(restoreTargetTab(session));
+    } catch (err) {
+      showNotice(err?.message || 'השחזור נכשל');
+    }
   }
 
   async function deleteSessionCard(sessionId) {
@@ -336,6 +434,14 @@
         renderSessions(rows, 'איסוף עצמי — היסטוריה');
         return;
       }
+      if (key === 'shabbat') {
+        if (typeof ordersApi.getClosedShabbatSessions !== 'function') {
+          throw new Error('היסטוריית שבת לא זמינה');
+        }
+        const rows = await ordersApi.getClosedShabbatSessions({ limit: 40 });
+        renderSessions(rows, 'הזמנות לשבת — היסטוריה');
+        return;
+      }
       const m = String(key || '').match(/^table:(\d+)$/);
       const tableNumber = m ? Number(m[1]) : NaN;
       if (!Number.isFinite(tableNumber)) return;
@@ -365,6 +471,13 @@
       resetAllHistory();
     });
     detailList?.addEventListener('click', (event) => {
+      const restoreBtn = event.target.closest('[data-history-restore]');
+      if (restoreBtn) {
+        event.preventDefault();
+        event.stopPropagation();
+        restoreSessionCard(restoreBtn.dataset.historyRestore);
+        return;
+      }
       const delBtn = event.target.closest('[data-history-delete]');
       if (delBtn) {
         event.preventDefault();

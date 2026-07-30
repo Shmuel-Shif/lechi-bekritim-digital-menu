@@ -1095,6 +1095,88 @@
   }
 
   /**
+   * Closed Shabbat sessions (newest first), with nested orders + items.
+   * @param {{ limit?: number }} [options]
+   */
+  async function getClosedShabbatSessions(options = {}) {
+    const sb = getClient();
+    const limit = Math.min(Math.max(Number(options.limit) || 40, 1), 100);
+
+    const { data: sessions, error } = await sb
+      .from(TABLE_SESSIONS)
+      .select('*')
+      .eq('order_type', 'shabbat')
+      .eq('status', 'closed')
+      .order('closed_at', { ascending: false })
+      .limit(limit);
+
+    throwIfError(error, 'getClosedShabbatSessions');
+    const list = sessions || [];
+    if (!list.length) return [];
+
+    const ids = list.map((row) => row.session_id).filter(Boolean);
+    const { data: orders, error: ordersError } = await sb
+      .from(TABLE_ORDERS)
+      .select('*, order_items(*)')
+      .in('session_id', ids)
+      .order('order_number', { ascending: true });
+
+    throwIfError(ordersError, 'getClosedShabbatSessions.orders');
+
+    const bySession = new Map();
+    ids.forEach((id) => bySession.set(id, []));
+    (orders || []).forEach((order) => {
+      const bucket = bySession.get(order.session_id);
+      if (bucket) bucket.push(order);
+    });
+
+    return list.map((session) => ({
+      session,
+      orders: bySession.get(session.session_id) || [],
+    }));
+  }
+
+  /**
+   * Re-open a closed session (back to active) with the same table / type / items.
+   * Dine-in: fails if that table already has an open session.
+   * @param {string} sessionId
+   */
+  async function restoreClosedSession(sessionId) {
+    if (!sessionId) {
+      throw new Error('[LechaimSupabaseOrders.restoreClosedSession] sessionId is required');
+    }
+
+    const session = await getSession(sessionId);
+    if (!session) {
+      throw new Error('ההזמנה לא נמצאה');
+    }
+    if (String(session.status || '').toLowerCase() !== 'closed') {
+      throw new Error('ההזמנה כבר פתוחה');
+    }
+
+    const orderType = normalizeOrderType(session.order_type) || String(session.order_type || '');
+    if (orderType === 'dine_in' && session.table_number != null) {
+      const sb = getClient();
+      const { data: openRow, error: openErr } = await sb
+        .from(TABLE_SESSIONS)
+        .select('session_id')
+        .eq('order_type', 'dine_in')
+        .eq('table_number', Number(session.table_number))
+        .in('status', OPEN_SESSION_STATUSES)
+        .neq('session_id', sessionId)
+        .limit(1)
+        .maybeSingle();
+
+      throwIfError(openErr, 'restoreClosedSession.openCheck');
+      if (openRow) {
+        throw new Error(`שולחן ${session.table_number} כבר פתוח — סגרו אותו לפני השחזור`);
+      }
+    }
+
+    return updateSessionStatus(sessionId, { status: 'active' });
+  }
+
+  /**
    * Permanently delete a closed session (orders + items cascade).
    * @param {string} sessionId
    */
@@ -1321,6 +1403,8 @@
     getOpenSessionsWithOrders,
     getClosedSessionsForTable,
     getClosedTakeawaySessions,
+    getClosedShabbatSessions,
+    restoreClosedSession,
     deleteClosedSession,
     deleteAllClosedHistory,
     clearCouponUsage,

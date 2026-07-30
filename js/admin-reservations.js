@@ -1,11 +1,17 @@
 /**
- * LECHAIM — Admin "הזמנות להיום" seat-hold cards (not food orders).
+ * LECHAIM — Admin "הזמנות להיום"
+ * 1) Manual seat-hold cards (`reservations`)
+ * 2) Website place-reservation requests (`place_reservation_requests`)
  */
 (function (global) {
   'use strict';
 
   const gridEl = document.getElementById('reservations-grid');
   const emptyEl = document.getElementById('reservations-empty');
+  const requestsGridEl = document.getElementById('place-res-requests-grid');
+  const requestsEmptyEl = document.getElementById('place-res-requests-empty');
+  const occupancyValueEl = document.getElementById('place-res-occupancy-value');
+  const tabBadgeEl = document.getElementById('tab-badge-reservations');
   const newBtn = document.getElementById('reservations-new-btn');
   const dateFilter = document.getElementById('reservations-date-filter');
   const modal = document.getElementById('reservation-modal');
@@ -23,8 +29,19 @@
 
   let client = null;
   let cache = [];
+  let requestsCache = [];
   let viewDate = '';
   let focusTrapRelease = null;
+  let pollTimer = null;
+  let realtimeChannel = null;
+  let active = false;
+
+  const STATUS_LABEL = {
+    pending: 'ממתין',
+    confirmed: 'אושר',
+    arrived: 'הגיע',
+    cancelled: 'בוטל',
+  };
 
   function getConfig() {
     return global.LECHAIM_SUPABASE_CONFIG || {};
@@ -94,11 +111,90 @@
     return `${pad2(Number(m[1]))}:${m[2]}`;
   }
 
+  /**
+   * Convert local / Israeli phone to WhatsApp international digits.
+   * 0587701009 → 972587701009
+   */
+  function toWhatsAppPhone(raw) {
+    let digits = String(raw || '').replace(/\D/g, '');
+    if (!digits) return '';
+    if (digits.startsWith('972')) return digits;
+    if (digits.startsWith('0')) return `972${digits.slice(1)}`;
+    if (digits.length === 9 && digits.startsWith('5')) return `972${digits}`;
+    return digits;
+  }
+
+  function buildConfirmedWhatsAppText(record) {
+    const name = String(record?.customer_name || '').trim() || 'אורחים';
+    const date = formatDateDisplay(record?.reservation_date);
+    const time = formatTime(record?.arrival_time);
+    const party = String(record?.party_size ?? '').trim() || '—';
+    return [
+      `שלום ${name},`,
+      '',
+      'הזמנת המקום שלכם אושרה.',
+      '',
+      `📅 תאריך: ${date}`,
+      '',
+      `🕒 שעה: ${time}`,
+      '',
+      `👥 מספר סועדים: ${party}`,
+      '',
+      'נשמח לראותכם במסעדת לחיים בכרתים.',
+    ].join('\n');
+  }
+
+  function buildGenericWhatsAppText(record) {
+    const name = String(record?.customer_name || '').trim() || 'אורחים';
+    const date = formatDateDisplay(record?.reservation_date);
+    const time = formatTime(record?.arrival_time);
+    const party = String(record?.party_size ?? '').trim() || '—';
+    return [
+      `שלום ${name},`,
+      '',
+      'פרטי הזמנת המקום שלכם:',
+      '',
+      `📅 תאריך: ${date}`,
+      '',
+      `🕒 שעה: ${time}`,
+      '',
+      `👥 מספר סועדים: ${party}`,
+      '',
+      'מסעדת לחיים בכרתים.',
+    ].join('\n');
+  }
+
+  function openWhatsAppWeb(record) {
+    const phone = toWhatsAppPhone(record?.customer_phone);
+    if (!phone) {
+      showNotice('אין מספר טלפון תקין להודעת WhatsApp');
+      return;
+    }
+    const text = record?.status === 'confirmed'
+      ? buildConfirmedWhatsAppText(record)
+      : buildGenericWhatsAppText(record);
+    const url = `https://web.whatsapp.com/send?phone=${encodeURIComponent(phone)}&text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  }
+
+  const WA_ICON = `<svg class="admin-wa-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>`;
+
+  function whatsAppButtonHtml() {
+    return `<button type="button" class="admin-btn admin-btn--whatsapp" data-place-res-action="whatsapp">${WA_ICON}<span>WhatsApp</span></button>`;
+  }
+
   function timeSortKey(value) {
     const t = formatTime(value);
     const m = t.match(/^(\d{2}):(\d{2})$/);
     if (!m) return 0;
     return Number(m[1]) * 60 + Number(m[2]);
+  }
+
+  function formatCreatedAt(value) {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    return `${pad2(d.getHours())}:${pad2(d.getMinutes())} · ${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}`;
   }
 
   function buildArrivalSlots() {
@@ -169,6 +265,12 @@
     return Array.isArray(data) ? data : [];
   }
 
+  async function listRequestsForDate(dateStr) {
+    const api = global.LechaimPlaceReservations;
+    if (!api?.listForDate) return [];
+    return api.listForDate(dateStr);
+  }
+
   async function createReservation(payload) {
     const sb = getClient();
     if (!sb) throw new Error('Supabase לא זמין');
@@ -214,6 +316,46 @@
     if (error) throw error;
   }
 
+  function statusRank(status) {
+    if (status === 'pending') return 0;
+    if (status === 'confirmed') return 1;
+    if (status === 'arrived') return 2;
+    return 3;
+  }
+
+  function updateOccupancyMeter(occupied, capacity) {
+    if (!occupancyValueEl) return;
+    const cap = capacity || global.LechaimPlaceReservations?.CAPACITY_SEATS || 60;
+    const val = Number.isFinite(occupied) ? occupied : 0;
+    occupancyValueEl.textContent = `${val} / ${cap}`;
+  }
+
+  function setTabBadge(count) {
+    if (!tabBadgeEl) return;
+    const n = Math.max(0, Number(count) || 0);
+    tabBadgeEl.textContent = String(n);
+    tabBadgeEl.setAttribute('data-count', String(n));
+    tabBadgeEl.hidden = n <= 0;
+  }
+
+  /**
+   * Tab badge = today's open seat-hold cards + today's place requests
+   * that still appear on the board (not cancelled).
+   */
+  async function refreshTodayBadge() {
+    const day = todayDateStr();
+    try {
+      const [holds, requests] = await Promise.all([
+        listOpenForDate(day),
+        listRequestsForDate(day).catch(() => []),
+      ]);
+      const activeRequests = (requests || []).filter((r) => r.status !== 'cancelled');
+      setTabBadge((holds || []).length + activeRequests.length);
+    } catch (_) {
+      /* keep previous badge */
+    }
+  }
+
   function render() {
     if (!gridEl) return;
     const rows = [...cache].sort((a, b) => timeSortKey(a.arrival_time) - timeSortKey(b.arrival_time));
@@ -227,15 +369,15 @@
     }
     if (!rows.length) {
       gridEl.innerHTML = '';
-      return;
-    }
-    gridEl.innerHTML = rows.map((r) => {
-      const notes = truncateNotes(r.notes, 80);
-      const notesHtml = notes
-        ? `<p class="reservation-card__notes">${escapeHtml(notes)}</p>`
-        : '';
-      return `
+    } else {
+      gridEl.innerHTML = rows.map((r) => {
+        const notes = truncateNotes(r.notes, 80);
+        const notesHtml = notes
+          ? `<p class="reservation-card__notes">${escapeHtml(notes)}</p>`
+          : '';
+        return `
         <article class="reservation-card" data-id="${escapeHtml(r.id)}">
+          <button type="button" class="reservation-card__dismiss" data-res-action="close" aria-label="הסר מהרשימה" title="הסר">×</button>
           <p class="reservation-card__time">${escapeHtml(formatTime(r.arrival_time))}</p>
           <p class="reservation-card__date">${escapeHtml(formatDateDisplay(r.reservation_date))}</p>
           <p class="reservation-card__name">${escapeHtml(r.customer_name)}</p>
@@ -246,6 +388,79 @@
             <button type="button" class="admin-btn admin-btn--ghost" data-res-action="close">סגור</button>
           </div>
         </article>`;
+      }).join('');
+    }
+
+    renderRequests();
+  }
+
+  function renderRequests() {
+    if (!requestsGridEl) return;
+    const rows = [...requestsCache].sort((a, b) => {
+      const byStatus = statusRank(a.status) - statusRank(b.status);
+      if (byStatus !== 0) return byStatus;
+      return timeSortKey(a.arrival_time) - timeSortKey(b.arrival_time);
+    });
+
+    if (requestsEmptyEl) {
+      requestsEmptyEl.hidden = rows.length > 0;
+      if (!rows.length) {
+        requestsEmptyEl.textContent = getViewDate() === todayDateStr()
+          ? 'אין בקשות מהאתר להיום'
+          : `אין בקשות ל־${formatDateDisplay(getViewDate())}`;
+      }
+    }
+
+    if (!rows.length) {
+      requestsGridEl.innerHTML = '';
+      return;
+    }
+
+    requestsGridEl.innerHTML = rows.map((r) => {
+      const status = String(r.status || 'pending');
+      const statusLabel = STATUS_LABEL[status] || status;
+      const notes = truncateNotes(r.notes, 80);
+      const notesHtml = notes
+        ? `<p class="reservation-card__notes">${escapeHtml(notes)}</p>`
+        : '';
+      const created = formatCreatedAt(r.created_at);
+      const arrivedClass = status === 'arrived' ? ' reservation-card--arrived' : '';
+      let actionsHtml = '';
+      if (status === 'pending') {
+        actionsHtml = `<div class="reservation-card__actions">
+            <button type="button" class="admin-btn admin-btn--primary" data-place-res-action="confirm">אשר</button>
+            <button type="button" class="admin-btn admin-btn--ghost" data-place-res-action="cancel">בטל</button>
+            ${whatsAppButtonHtml()}
+          </div>`;
+      } else if (status === 'confirmed') {
+        actionsHtml = `<div class="reservation-card__actions">
+            <button type="button" class="admin-btn admin-btn--primary" data-place-res-action="arrive">הלקוח הגיע</button>
+            <button type="button" class="admin-btn admin-btn--ghost" data-place-res-action="cancel">בטל</button>
+            ${whatsAppButtonHtml()}
+          </div>`;
+      } else if (status === 'arrived') {
+        actionsHtml = `<div class="reservation-card__actions">
+            <button type="button" class="admin-btn admin-btn--ghost" data-place-res-action="cancel">בטל</button>
+            ${whatsAppButtonHtml()}
+          </div>`;
+      } else if (status === 'cancelled') {
+        actionsHtml = `<div class="reservation-card__actions">
+            ${whatsAppButtonHtml()}
+          </div>`;
+      }
+      return `
+        <article class="reservation-card reservation-card--request${arrivedClass}" data-id="${escapeHtml(r.id)}">
+          <button type="button" class="reservation-card__dismiss" data-place-res-action="delete" aria-label="מחק מהרשימה" title="מחק">×</button>
+          <p class="reservation-card__time">${escapeHtml(formatTime(r.arrival_time))}</p>
+          <p class="reservation-card__date">${escapeHtml(formatDateDisplay(r.reservation_date))}</p>
+          <span class="reservation-card__status reservation-card__status--${escapeHtml(status)}">${escapeHtml(statusLabel)}</span>
+          <p class="reservation-card__name">${escapeHtml(r.customer_name)}</p>
+          <p class="reservation-card__phone">${escapeHtml(r.customer_phone)}</p>
+          <p class="reservation-card__meta">${escapeHtml(String(r.party_size || '—'))} סועדים</p>
+          ${notesHtml}
+          ${created ? `<p class="reservation-card__created">נוצר: ${escapeHtml(created)}</p>` : ''}
+          ${actionsHtml}
+        </article>`;
     }).join('');
   }
 
@@ -254,8 +469,24 @@
     if (dateFilter && dateFilter.value !== viewDate) {
       dateFilter.value = viewDate;
     }
-    cache = await listOpenForDate(viewDate);
+    const [holds, requests, daily] = await Promise.all([
+      listOpenForDate(viewDate),
+      listRequestsForDate(viewDate).catch((err) => {
+        console.warn('[admin-reservations] place requests failed', err);
+        return [];
+      }),
+      (typeof global.LechaimPlaceReservations?.getDailyOccupancy === 'function'
+        ? global.LechaimPlaceReservations.getDailyOccupancy(viewDate).catch((err) => {
+          console.warn('[admin-reservations] occupancy failed', err);
+          return { occupied: 0, capacity: 60 };
+        })
+        : Promise.resolve({ occupied: 0, capacity: 60 })),
+    ]);
+    cache = holds;
+    requestsCache = requests;
+    updateOccupancyMeter(daily?.occupied, daily?.capacity);
     render();
+    await refreshTodayBadge();
   }
 
   function closeModal() {
@@ -369,6 +600,129 @@
     }
   }
 
+  async function onRequestsGridClick(event) {
+    const btn = event.target.closest('[data-place-res-action]');
+    if (!btn) return;
+    const card = btn.closest('.reservation-card');
+    const id = card?.dataset?.id;
+    if (!id) return;
+    const action = btn.dataset.placeResAction;
+
+    if (action === 'delete') {
+      const ok = await showConfirm('למחוק את הכרטיס מהרשימה?', 'מחק');
+      if (!ok) return;
+      try {
+        await global.LechaimPlaceReservations.deleteRequest(id);
+        await refresh();
+      } catch (err) {
+        showNotice(err?.message || 'המחיקה נכשלה');
+      }
+      return;
+    }
+
+    if (action === 'whatsapp') {
+      const record = requestsCache.find((r) => r.id === id);
+      if (!record) return;
+      openWhatsAppWeb(record);
+      return;
+    }
+
+    const nextStatus = action === 'confirm'
+      ? 'confirmed'
+      : action === 'arrive'
+        ? 'arrived'
+        : action === 'cancel'
+          ? 'cancelled'
+          : '';
+    if (!nextStatus) return;
+
+    const messages = {
+      confirmed: { ask: 'לאשר את בקשת ההזמנה?', yes: 'אשר', done: 'הבקשה אושרה' },
+      arrived: { ask: 'לסמן שהלקוח הגיע?', yes: 'הלקוח הגיע', done: 'סומן שהלקוח הגיע' },
+      cancelled: { ask: 'לבטל את בקשת ההזמנה?', yes: 'בטל', done: 'הבקשה בוטלה' },
+    };
+    const copy = messages[nextStatus];
+    const ok = await showConfirm(copy.ask, copy.yes);
+    if (!ok) return;
+
+    try {
+      await global.LechaimPlaceReservations.setStatus(id, nextStatus);
+      await refresh();
+      showNotice(copy.done);
+    } catch (err) {
+      if (err?.code === 'CAPACITY_EXCEEDED' || String(err?.message || '').includes('CAPACITY_EXCEEDED')) {
+        showNotice('אין מספיק מקומות פנויים לאישור ההזמנה בשעה זו');
+      } else {
+        showNotice(err?.message || 'עדכון הבקשה נכשל');
+      }
+    }
+  }
+
+  function stopPolling() {
+    if (pollTimer) {
+      window.clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  }
+
+  function startPolling() {
+    stopPolling();
+    pollTimer = window.setInterval(() => {
+      if (!active) return;
+      const view = document.getElementById('admin-view-reservations');
+      if (view && !view.hidden) {
+        refresh().catch(() => { /* silent poll */ });
+      } else {
+        refreshTodayBadge().catch(() => { /* silent poll */ });
+      }
+    }, 4000);
+  }
+
+  function stopRealtime() {
+    const sb = getClient();
+    if (realtimeChannel && sb) {
+      try {
+        sb.removeChannel(realtimeChannel);
+      } catch (_) { /* ignore */ }
+    }
+    realtimeChannel = null;
+  }
+
+  function startRealtime() {
+    stopRealtime();
+    const sb = getClient();
+    if (!sb?.channel) return;
+    realtimeChannel = sb
+      .channel('admin-place-reservations')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'place_reservation_requests' },
+        () => {
+          if (!active) return;
+          const view = document.getElementById('admin-view-reservations');
+          if (view && !view.hidden) {
+            refresh().catch(() => { /* ignore */ });
+          } else {
+            refreshTodayBadge().catch(() => { /* ignore */ });
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'reservations' },
+        () => {
+          if (!active) return;
+          const view = document.getElementById('admin-view-reservations');
+          if (view && !view.hidden) {
+            refresh().catch(() => { /* ignore */ });
+          } else {
+            refreshTodayBadge().catch(() => { /* ignore */ });
+          }
+        }
+      )
+      .subscribe();
+  }
+
   function bindOnce() {
     if (bindOnce.done) return;
     bindOnce.done = true;
@@ -377,6 +731,7 @@
     backdrop?.addEventListener('click', closeModal);
     form?.addEventListener('submit', onSubmit);
     gridEl?.addEventListener('click', onGridClick);
+    requestsGridEl?.addEventListener('click', onRequestsGridClick);
     dateFilter?.addEventListener('change', () => {
       viewDate = getViewDate();
       refresh().catch((err) => {
@@ -390,21 +745,44 @@
 
   async function start() {
     bindOnce();
+    const alreadyActive = active;
+    active = true;
     if (!viewDate) viewDate = todayDateStr();
     if (dateFilter && !dateFilter.value) dateFilter.value = viewDate;
     try {
-      await refresh();
-    } catch (err) {
-      if (emptyEl) {
-        emptyEl.hidden = false;
-        emptyEl.textContent = err?.message || 'טעינת ההזמנות נכשלה';
+      if (alreadyActive) {
+        await refreshTodayBadge();
+        /* Full list refresh only when the reservations tab is visible */
+        const view = document.getElementById('admin-view-reservations');
+        if (view && !view.hidden) await refresh();
+      } else {
+        await refresh();
       }
-      if (gridEl) gridEl.innerHTML = '';
-      showNotice(err?.message || 'טעינת ההזמנות נכשלה');
+    } catch (err) {
+      await refreshTodayBadge().catch(() => {});
+      const view = document.getElementById('admin-view-reservations');
+      if (view && !view.hidden) {
+        if (emptyEl) {
+          emptyEl.hidden = false;
+          emptyEl.textContent = err?.message || 'טעינת ההזמנות נכשלה';
+        }
+        if (gridEl) gridEl.innerHTML = '';
+        if (requestsEmptyEl) {
+          requestsEmptyEl.hidden = false;
+          requestsEmptyEl.textContent = err?.message || 'טעינת הבקשות נכשלה';
+        }
+        if (requestsGridEl) requestsGridEl.innerHTML = '';
+        showNotice(err?.message || 'טעינת ההזמנות נכשלה');
+      }
     }
+    startPolling();
+    startRealtime();
   }
 
   function stop() {
+    active = false;
+    stopPolling();
+    stopRealtime();
     closeModal();
   }
 
@@ -412,6 +790,7 @@
     start,
     stop,
     refresh,
+    refreshTodayBadge,
     listTodayOpen: () => listOpenForDate(todayDateStr()),
     create: createReservation,
     update: updateReservation,

@@ -63,7 +63,10 @@
           שולחנות
           <span class="admin-tab__badge" id="tab-badge-tables" data-count="0" hidden>0</span>
         </button>
-        <button type="button" class="admin-tab" data-tab="reservations">הזמנות להיום</button>
+        <button type="button" class="admin-tab" data-tab="reservations">
+          הזמנות להיום
+          <span class="admin-tab__badge" id="tab-badge-reservations" data-count="0" hidden>0</span>
+        </button>
         <button type="button" class="admin-tab" data-tab="history">היסטוריה</button>
         <button type="button" class="admin-tab" data-tab="takeaway">
           איסוף עצמי
@@ -117,11 +120,14 @@
       <!-- Shabbat tab -->
       <div class="admin-view" id="admin-view-shabbat" hidden>
         <section class="tables-category">
-          <header class="admin-header">
+          <header class="admin-header admin-header--row">
             <div class="admin-header__text">
               <p class="admin-header__eyebrow">ניהול</p>
               <h1 class="admin-header__title">הזמנות לשבת</h1>
-              <p class="admin-header__subtitle">הזמנות שבת פעילות · אישור בלבד (ללא הדפסה)</p>
+              <p class="admin-header__subtitle">הזמנות שבת פעילות · אישור והדפסה</p>
+            </div>
+            <div class="reservations-header-actions">
+              <button type="button" class="admin-btn admin-btn--primary" id="shabbat-new-btn">כרטיס חדש</button>
             </div>
           </header>
           <div class="admin-legend" aria-hidden="true">
@@ -151,8 +157,16 @@
               <button type="button" class="admin-btn admin-btn--primary" id="reservations-new-btn">כרטיס חדש</button>
             </div>
           </header>
+          <h2 class="reservations-section-title">כרטיסי שמירת מקום</h2>
           <div class="reservations-grid" id="reservations-grid"></div>
           <p class="tables-category__empty" id="reservations-empty">אין הזמנות לתאריך זה</p>
+
+          <h2 class="reservations-section-title reservations-section-title--spaced">בקשות הזמנת מקום מהאתר</h2>
+          <p class="place-res-occupancy" id="place-res-occupancy" aria-live="polite">
+            תפוסה מאושרת: <strong id="place-res-occupancy-value">0 / 60</strong> מקומות
+          </p>
+          <div class="reservations-grid" id="place-res-requests-grid"></div>
+          <p class="tables-category__empty" id="place-res-requests-empty">אין בקשות לתאריך זה</p>
         </section>
       </div>
 
@@ -163,7 +177,7 @@
             <div class="admin-header__text">
               <p class="admin-header__eyebrow">ניהול</p>
               <h1 class="admin-header__title">היסטוריה</h1>
-              <p class="admin-header__subtitle">בחרו שולחן או איסוף עצמי לצפייה בהזמנות שנסגרו</p>
+              <p class="admin-header__subtitle">בחרו שולחן, איסוף עצמי או הזמנות לשבת לצפייה בהזמנות שנסגרו</p>
             </div>
             <button type="button" class="admin-btn admin-btn--danger" id="history-reset-all-btn">אפס היסטוריה</button>
           </header>
@@ -266,7 +280,7 @@
           <div class="table-drawer__total" id="shabbat-drawer-total"></div>
           <footer class="table-drawer__actions">
             <button type="button" class="admin-btn admin-btn--approve" id="shabbat-approve" hidden>אשר</button>
-            <button type="button" class="admin-btn admin-btn--print" id="shabbat-print" hidden>הדפס</button>
+            <button type="button" class="admin-btn admin-btn--print" id="shabbat-print">הדפס</button>
             <button type="button" class="admin-btn admin-btn--soft" id="shabbat-add-items">הוסף מנות</button>
             <button type="button" class="admin-btn admin-btn--primary" id="shabbat-close-order">סגור הזמנה</button>
           </footer>
@@ -307,7 +321,7 @@
             <button type="button" class="admin-btn admin-btn--approve" data-table-action="approve-order" id="table-approve-order" hidden>
               אשר
             </button>
-            <button type="button" class="admin-btn admin-btn--print" data-table-action="print-order" id="table-print-order" hidden>
+            <button type="button" class="admin-btn admin-btn--print" data-table-action="print-order" id="table-print-order">
               הדפס
             </button>
             <button type="button" class="admin-btn admin-btn--soft" data-table-action="add-items">הוסף מנות</button>
@@ -390,6 +404,32 @@
       </div>
     </div>
 
+    <div class="admin-modal" id="shabbat-new-modal" hidden aria-hidden="true">
+      <button type="button" class="admin-modal__backdrop" id="shabbat-new-modal-backdrop" aria-label="סגור"></button>
+      <div class="admin-modal__panel reservation-modal__panel" role="dialog" aria-modal="true" aria-labelledby="shabbat-new-modal-title">
+        <h2 class="reservation-modal__title" id="shabbat-new-modal-title">כרטיס הזמנת שבת</h2>
+        <form id="shabbat-new-form" class="reservation-form" novalidate>
+          <label class="admin-field">
+            <span>שם לקוח *</span>
+            <input type="text" id="shabbat-new-name" name="customer_name" required autocomplete="name" maxlength="80">
+          </label>
+          <label class="admin-field">
+            <span>טלפון</span>
+            <input type="tel" id="shabbat-new-phone" name="customer_phone" autocomplete="tel" dir="ltr" maxlength="20" inputmode="tel" placeholder="אופציונלי">
+          </label>
+          <label class="admin-field">
+            <span>הערות</span>
+            <textarea id="shabbat-new-notes" name="notes" rows="3" maxlength="400" placeholder="אופציונלי"></textarea>
+          </label>
+          <p class="admin-error" id="shabbat-new-form-error" role="alert" hidden></p>
+          <div class="reservation-modal__actions">
+            <button type="submit" class="admin-btn admin-btn--primary" id="shabbat-new-save-btn">צור כרטיס</button>
+            <button type="button" class="admin-btn admin-btn--ghost" id="shabbat-new-cancel-btn">ביטול</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <div class="admin-modal" id="admin-coupon-modal" hidden aria-hidden="true">
       <button type="button" class="admin-modal__backdrop" id="admin-coupon-backdrop" aria-label="סגור"></button>
       <div class="admin-modal__panel admin-coupon-modal__panel" role="dialog" aria-modal="true" aria-labelledby="admin-coupon-title">
@@ -446,6 +486,7 @@
   <script src="js/a11y-focus-trap.js" defer></script>
   <script src="js/admin-tables.js" defer></script>
   <script src="js/admin-shabbat.js" defer></script>
+  <script src="js/place-reservations.js" defer></script>
   <script src="js/admin-reservations.js" defer></script>
   <script src="js/admin-history.js" defer></script>
   <script src="js/admin-coupons.js" defer></script>

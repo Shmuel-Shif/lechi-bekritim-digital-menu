@@ -1366,26 +1366,127 @@
     return LechaimInventory.isAvailable(itemId);
   }
 
-  function syncStockBadge(article, item) {
-    if (!article || !item) return;
+  /** Customer menu: hide out-of-stock dishes entirely (admin toggle brings them back in place). */
+  function isMenuItemVisible(item) {
+    if (!item || item.adminOnly) return false;
+    return isProductAvailable(item.id);
+  }
 
-    const available = isProductAvailable(item.id);
-    article.classList.toggle('food-card--unavailable', !available);
-
-    const wrap = article.querySelector('.food-image-wrap');
-    if (!wrap) return;
-
-    let badge = wrap.querySelector('.food-stock-badge');
-    if (!available) {
-      if (!badge) {
-        badge = document.createElement('span');
-        badge.className = 'food-stock-badge food-stock-badge--image';
-        wrap.appendChild(badge);
+  function findCatalogListForItem(itemId) {
+    const id = String(itemId || '');
+    if (!id) return null;
+    for (const cat of MENU_DATA.categories) {
+      if ((cat.items || []).some((item) => String(item.id) === id)) {
+        return {
+          categoryId: cat.id,
+          items: cat.items || [],
+          isSubsection: false,
+          subIndex: -1,
+        };
       }
-      badge.textContent = t('outOfStock');
-    } else if (badge) {
-      badge.remove();
+      const subs = cat.subsections || [];
+      for (let i = 0; i < subs.length; i += 1) {
+        if ((subs[i].items || []).some((item) => String(item.id) === id)) {
+          return {
+            categoryId: cat.id,
+            items: subs[i].items || [],
+            isSubsection: true,
+            subIndex: i,
+          };
+        }
+      }
     }
+    return null;
+  }
+
+  function findFoodListElement(ctx) {
+    if (!ctx?.categoryId) return null;
+    const section = document.getElementById(ctx.categoryId);
+    if (!section) return null;
+    if (!ctx.isSubsection) {
+      return section.querySelector(':scope > ul.food-list');
+    }
+    const subs = section.querySelectorAll(':scope > .menu-subsection');
+    const sub = subs[ctx.subIndex];
+    return sub ? sub.querySelector(':scope > ul.food-list') : null;
+  }
+
+  function rebuildFoodListContaining(itemId) {
+    const ctx = findCatalogListForItem(itemId);
+    if (!ctx) return;
+
+    let listEl = findFoodListElement(ctx);
+    const section = document.getElementById(ctx.categoryId);
+    if (!listEl) {
+      /* List was empty (all hidden) — recreate it in the right place */
+      if (!section) {
+        rebuildMenu(true);
+        return;
+      }
+      listEl = document.createElement('ul');
+      listEl.className = 'food-list';
+      listEl.setAttribute('role', 'list');
+      if (!ctx.isSubsection) {
+        const header = section.querySelector(':scope > .category-header');
+        if (header?.nextSibling) section.insertBefore(listEl, header.nextSibling);
+        else section.appendChild(listEl);
+      } else {
+        const sub = section.querySelectorAll(':scope > .menu-subsection')[ctx.subIndex];
+        if (!sub) {
+          rebuildMenu(true);
+          return;
+        }
+        sub.appendChild(listEl);
+      }
+    }
+
+    const frag = document.createDocumentFragment();
+    ctx.items.forEach((item) => {
+      if (!isMenuItemVisible(item)) return;
+      frag.appendChild(createFoodCard(item));
+    });
+    listEl.replaceChildren(frag);
+
+    const sectionVisible = section?.classList.contains('is-visible');
+    listEl.querySelectorAll('.food-card').forEach((card) => {
+      if (sectionVisible) card.classList.add('is-visible');
+      else if (revealObserver) revealObserver.observe(card);
+    });
+  }
+
+  function syncMenuItemVisibility(itemId) {
+    if (!itemId) return;
+    const item = findItem(itemId);
+    if (!item || item.adminOnly) return;
+
+    if (!isProductAvailable(itemId)) {
+      document.querySelectorAll(`.food-card[data-item-id="${CSS.escape(itemId)}"]`).forEach((article) => {
+        article.closest('.food-item')?.remove();
+      });
+      if (openModalItemId === itemId) closeFoodModal();
+      if (isHotSide(itemId)) refreshSidesModal();
+      return;
+    }
+
+    rebuildFoodListContaining(itemId);
+    if (isHotSide(itemId)) refreshSidesModal();
+  }
+
+  function syncAllMenuItemVisibility() {
+    MENU_DATA.categories.forEach((cat) => {
+      (cat.items || []).forEach((item) => {
+        if (item?.adminOnly) return;
+        /* Rebuild once per list via first item id — handled below by category lists */
+      });
+      if ((cat.items || []).length) {
+        const first = (cat.items || []).find((item) => item && !item.adminOnly);
+        if (first) rebuildFoodListContaining(first.id);
+      }
+      (cat.subsections || []).forEach((sub) => {
+        const first = (sub.items || []).find((item) => item && !item.adminOnly);
+        if (first) rebuildFoodListContaining(first.id);
+      });
+    });
   }
 
   function initInventory() {
@@ -1396,23 +1497,27 @@
       const change = typeof payload === 'object' && payload?.change ? payload.change : 'availability';
 
       if (productId) {
-        refreshFoodCardById(productId, { full: change === 'content' });
-        if (openModalItemId === productId) {
-          if (change === 'content') openFoodModalById(productId);
-          else updateOpenFoodModal();
+        if (change === 'availability') {
+          syncMenuItemVisibility(productId);
+          if (openModalItemId === productId && isProductAvailable(productId)) {
+            updateOpenFoodModal();
+          }
+          return;
         }
+        refreshFoodCardById(productId, { full: true });
+        if (openModalItemId === productId) openFoodModalById(productId);
         if (isHotSide(productId)) refreshSidesModal();
         return;
       }
 
-      refreshAllFoodCardsFull();
+      syncAllMenuItemVisibility();
       updateOpenFoodModal();
       refreshSidesModal();
     };
 
     LechaimInventory.load()
       .then(() => {
-        refreshAllFoodCardsFull();
+        syncAllMenuItemVisibility();
         updateOpenFoodModal();
         refreshSidesModal();
       })
@@ -1552,7 +1657,7 @@
     list.setAttribute('role', 'list');
 
     (items || []).forEach((item) => {
-      if (item?.adminOnly) return;
+      if (!isMenuItemVisible(item)) return;
       list.appendChild(createFoodCard(item));
     });
 
@@ -1562,7 +1667,6 @@
   function renderCardActions(item) {
     const qty = getCartQtyForItem(item.id);
     const name = getItemName(item);
-    const available = isProductAvailable(item.id);
     const price = getItemPrice(item);
 
     /* Browse-only: name + price only — no cart actions / closed notes */
@@ -1573,20 +1677,6 @@
       return `
         <span class="food-order-closed-note" role="status">${escapeHtml(t('orderingClosedAction'))}</span>
       `;
-    }
-
-    if (!available) {
-      if (qty > 0) {
-        return `
-          <div class="food-qty-control" data-stop-modal="true">
-            <button type="button" class="food-qty-btn" data-action="dec-qty" data-item-id="${escapeAttr(item.id)}" aria-label="${escapeAttr(t('decrease'))}">−</button>
-            <span class="food-qty-value" aria-live="polite">${qty}</span>
-            <button type="button" class="food-qty-btn" disabled aria-disabled="true" aria-label="${escapeAttr(t('increase'))}">+</button>
-          </div>
-        `;
-      }
-
-      return `<span class="food-stock-badge">${escapeHtml(t('outOfStock'))}</span>`;
     }
 
     if (qty > 0) {
@@ -1633,7 +1723,6 @@
              height="160"
              onerror="this.closest('.food-card')?.classList.add('food-card--no-image');this.closest('.food-image-wrap')?.remove();"
            >
-           ${isProductAvailable(item.id) ? '' : `<span class="food-stock-badge food-stock-badge--image">${escapeHtml(t('outOfStock'))}</span>`}
          </div>`
       : '';
 
@@ -1647,7 +1736,6 @@
       'food-card',
       hasImage ? '' : 'food-card--no-image',
       qty > 0 ? 'food-card--in-cart' : '',
-      isProductAvailable(item.id) ? '' : 'food-card--unavailable'
     ].filter(Boolean).join(' ');
 
     return {
@@ -1721,7 +1809,6 @@
 
     const qty = getCartQtyForItem(item.id);
     article.classList.toggle('food-card--in-cart', qty > 0);
-    syncStockBadge(article, item);
 
     const actions = article.querySelector('.food-card-actions');
     if (actions) {
@@ -1836,27 +1923,6 @@
     }
 
     const qty = getCartQtyForItem(item.id);
-    const available = isProductAvailable(item.id);
-
-    if (!available) {
-      if (qty > 0) {
-        return `
-          <div class="food-modal-actions" data-stop-modal="true">
-            <div class="food-qty-control food-qty-control--modal">
-              <button type="button" class="food-qty-btn" data-action="dec-qty" data-item-id="${escapeAttr(item.id)}" aria-label="${escapeAttr(t('decrease'))}">−</button>
-              <span class="food-qty-value" aria-live="polite">${qty}</span>
-              <button type="button" class="food-qty-btn" disabled aria-disabled="true" aria-label="${escapeAttr(t('increase'))}">+</button>
-            </div>
-          </div>
-        `;
-      }
-
-      return `
-        <div class="food-modal-actions" data-stop-modal="true">
-          <span class="food-stock-badge food-stock-badge--modal">${escapeHtml(t('outOfStock'))}</span>
-        </div>
-      `;
-    }
 
     if (qty > 0) {
       return `
@@ -1886,15 +1952,18 @@
   function openFoodModalById(itemId) {
     const item = findItem(itemId);
     if (!item) return;
+    if (!isProductAvailable(item.id)) {
+      closeFoodModal();
+      return;
+    }
 
     openModalItemId = itemId;
 
     const desc = getItemDesc(item);
-    const unavailable = !isProductAvailable(item.id);
     const imageSrc = getItemImage(item);
     const price = getItemPrice(item);
     const imageHtml = imageSrc
-      ? `<div class="food-modal-hero${unavailable ? ' food-modal-hero--unavailable' : ''}">
+      ? `<div class="food-modal-hero">
            <img
              class="food-modal-image"
              src="${escapeAttr(imageSrc)}"
@@ -1904,7 +1973,6 @@
              decoding="async"
              onerror="this.closest('.food-modal-hero')?.remove();"
            >
-           ${unavailable ? `<span class="food-stock-badge food-stock-badge--image">${escapeHtml(t('outOfStock'))}</span>` : ''}
          </div>`
       : '';
 
@@ -1914,7 +1982,7 @@
 
     foodModalBody.innerHTML = `
       <div class="food-modal-content" data-item-id="${escapeAttr(itemId)}">
-        <article class="food-modal-card${unavailable ? ' food-modal-card--unavailable' : ''}">
+        <article class="food-modal-card">
           ${imageHtml}
           <div class="food-modal-info">
             <h2 id="food-modal-title" class="food-modal-title">${escapeHtml(getItemName(item))}</h2>
@@ -1943,30 +2011,15 @@
 
     const item = findItem(openModalItemId);
     if (!item) return;
+    if (!isProductAvailable(item.id)) {
+      closeFoodModal();
+      return;
+    }
 
     const card = foodModalBody?.querySelector('.food-modal-card');
     if (!card) {
       openFoodModalById(openModalItemId);
       return;
-    }
-
-    const unavailable = !isProductAvailable(item.id);
-    card.classList.toggle('food-modal-card--unavailable', unavailable);
-
-    const hero = card.querySelector('.food-modal-hero');
-    if (hero) {
-      hero.classList.toggle('food-modal-hero--unavailable', unavailable);
-      let badge = hero.querySelector('.food-stock-badge');
-      if (unavailable) {
-        if (!badge) {
-          badge = document.createElement('span');
-          badge.className = 'food-stock-badge food-stock-badge--image';
-          hero.appendChild(badge);
-        }
-        badge.textContent = t('outOfStock');
-      } else if (badge) {
-        badge.remove();
-      }
     }
 
     const nextActions = renderModalActions(item);
@@ -2024,6 +2077,7 @@
       const qty = getSideQtyForMain(openSidesMainLineId, side.id);
       const selected = qty > 0;
       const available = isShakeBase(side.id) ? true : isProductAvailable(side.id);
+      if (!available && !selected) return '';
       const hasImage = Boolean(getItemImage(side));
       const imageHtml = hasImage
         ? `<span class="sides-picker-thumb">
@@ -2043,16 +2097,14 @@
       return `
         <button
           type="button"
-          class="sides-picker-cell${selected ? ' is-selected' : ''}${hasImage ? '' : ' sides-picker-cell--no-image'}${available ? '' : ' is-unavailable'}"
+          class="sides-picker-cell${selected ? ' is-selected' : ''}${hasImage ? '' : ' sides-picker-cell--no-image'}"
           data-action="toggle-side"
           data-item-id="${escapeAttr(side.id)}"
           aria-pressed="${selected ? 'true' : 'false'}"
-          ${!available && !selected ? 'disabled' : ''}
         >
           ${imageHtml}
           <span class="sides-picker-name">${escapeHtml(getItemName(side))}</span>
           <span class="sides-picker-check" aria-hidden="true"></span>
-          ${available ? '' : `<span class="food-stock-badge food-stock-badge--side">${escapeHtml(t('outOfStock'))}</span>`}
         </button>
       `;
     }).join('');

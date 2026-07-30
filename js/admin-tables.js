@@ -893,14 +893,13 @@
     const printBtn = document.getElementById('table-print-order');
     const remote = entry?.order?._remoteOrders || [];
     const needsApprove = hasOrdersNeedingApprove(remote);
-    const needsPrint = hasOrdersNeedingPrint(remote);
 
     if (approveBtn) {
       approveBtn.hidden = !needsApprove;
       approveBtn.disabled = approvePrintBusy;
     }
     if (printBtn) {
-      printBtn.hidden = !needsPrint;
+      printBtn.hidden = false;
       printBtn.disabled = approvePrintBusy;
     }
   }
@@ -1180,26 +1179,71 @@
     }
   }
 
+  /** One ticket with every item currently shown on the order card. */
+  function mapEntryToFullPrintOrder(entry) {
+    const order = entry?.order;
+    if (!order) return null;
+
+    const items = (order.items || [])
+      .map((row) => {
+        const qty = Number(row.qty) || 0;
+        if (qty <= 0) return null;
+        return {
+          itemId: String(row.itemId),
+          productId: String(row.productId || ''),
+          name: row.printName || row.name || row.productId || '',
+          printName: row.printName || '',
+          price: Number(row.price) || 0,
+          qty,
+          notes: row.notes == null ? '' : String(row.notes),
+          printed: false,
+          linkedToMainItemId: row.linkedToMainItemId || null,
+        };
+      })
+      .filter(Boolean);
+
+    const remoteOrders = order._remoteOrders || [];
+    const maxWave = remoteOrders.reduce(
+      (max, row) => Math.max(max, Number(row.order_number) || 0),
+      0
+    );
+    const isTakeaway = entry.orderType === 'takeaway';
+
+    return {
+      orderId: `full-${order._supabaseSessionId || order.sessionId || entry.tableNumber || 'order'}`,
+      sessionId: String(order._supabaseSessionId || order.sessionId || ''),
+      tableNumber: isTakeaway
+        ? null
+        : (entry.tableNumber != null ? Number(entry.tableNumber) : null),
+      orderType: isTakeaway ? 'takeaway' : 'dinein',
+      status: 'active',
+      createdAt: order.createdAt || null,
+      updatedAt: order.updatedAt || null,
+      items,
+      ticketSeq: maxWave || 1,
+      customerName: order.customerName || null,
+      customerPhone: order.customerPhone || null,
+      customerNotes: order.customerNotes || null,
+      pickupType: order.pickupType || null,
+      pickupTime: order.pickupTime || null,
+      publicOrderNo: order.publicOrderNo != null ? Number(order.publicOrderNo) : null,
+      _skipLocalMarkPrinted: true,
+    };
+  }
+
   async function handlePrintOrder(entry) {
     if (approvePrintBusy || !entry?.order) return;
 
     const api = OrdersApi();
     const print = window.LechaimPrintEngine;
-    if (!api?.markOrderPrinted || typeof print?.printOrder !== 'function') {
+    if (typeof print?.printOrder !== 'function') {
       showToast('הדפסה לא זמינה');
       return;
     }
 
-    const remoteOrders = (entry.order._remoteOrders || [])
-      .filter(orderNeedsPrint)
-      .sort((a, b) => (Number(a.order_number) || 0) - (Number(b.order_number) || 0));
-
-    if (!remoteOrders.length) {
-      showToast('אין הזמנות ממתינות להדפסה');
-      closeDrawer();
-      await refreshBoardData().catch((err) => {
-        console.warn('[admin-tables] refresh after empty print failed', err);
-      });
+    const synthetic = mapEntryToFullPrintOrder(entry);
+    if (!synthetic?.items?.length) {
+      showToast('אין פריטים להדפסה');
       return;
     }
 
@@ -1209,40 +1253,24 @@
 
     let printedOk = false;
     try {
-      const sessionMeta = {
-        sessionId: entry.order._supabaseSessionId || entry.order.sessionId,
-        tableNumber: entry.tableNumber,
-        orderType: entry.orderType,
-        customerName: entry.order.customerName,
-        customerPhone: entry.order.customerPhone,
-        customerNotes: entry.order.customerNotes,
-        pickupType: entry.order.pickupType,
-        pickupTime: entry.order.pickupTime,
-        publicOrderNo: entry.order.publicOrderNo,
-      };
+      const ok = await print.printOrder(synthetic);
+      if (ok !== true) {
+        console.error('[admin-tables] printOrder returned', ok);
+        showToast('ההדפסה נכשלה — נסה שוב');
+        return;
+      }
 
-      for (const order of remoteOrders) {
-        const items = Array.isArray(order.order_items) ? order.order_items : [];
-        const synthetic = mapRemoteWaveToPrintOrder(sessionMeta, order, items);
-
-        if (!synthetic.items.length) {
-          await api.markOrderPrinted(order.id);
-          continue;
-        }
-
-        const ok = await print.printOrder(synthetic);
-        if (ok !== true) {
-          console.error('[admin-tables] printOrder returned', ok, { orderId: order.id });
-          showToast('ההדפסה נכשלה — נסה שוב');
-          return;
-        }
-
-        try {
-          await api.markOrderPrinted(order.id);
-        } catch (markErr) {
-          console.error('[admin-tables] markOrderPrinted failed after successful print', markErr);
-          showToast('הודפס בהצלחה, אך עדכון הסטטוס נכשל\n(בדוק עמודת printed_at ב־Supabase)');
-          return;
+      /* Sync printed_at on waves that were still pending (reprint stays available). */
+      if (api?.markOrderPrinted) {
+        const unprinted = (entry.order._remoteOrders || []).filter(orderNeedsPrint);
+        for (const order of unprinted) {
+          try {
+            await api.markOrderPrinted(order.id);
+          } catch (markErr) {
+            console.error('[admin-tables] markOrderPrinted failed after successful print', markErr);
+            showToast('הודפס בהצלחה, אך עדכון הסטטוס נכשל\n(בדוק עמודת printed_at ב־Supabase)');
+            return;
+          }
         }
       }
 

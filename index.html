@@ -60,6 +60,9 @@
           <button type="button" class="entry-gate__btn entry-gate__btn--primary" data-order-type="browse" id="entry-browse-menu">
             <span class="entry-gate__btn-label" data-entry-i18n="browseMenu">צפייה בתפריט</span>
           </button>
+          <button type="button" class="entry-gate__btn entry-gate__btn--primary" id="entry-place-res-btn" data-entry-action="place-reservation">
+            <span class="entry-gate__btn-label" data-entry-i18n="placeReservation">הזמנת מקום</span>
+          </button>
           <button type="button" class="entry-gate__btn entry-gate__btn--dine-in" data-order-type="dine-in">
             <span class="entry-gate__btn-label" data-entry-i18n="dineIn">ישיבה במקום</span>
           </button>
@@ -75,6 +78,96 @@
           </button>
           -->
         </div>
+      </div>
+
+      <div class="entry-gate__step" id="entry-step-place-res" hidden>
+        <form class="entry-pickup entry-place-res" id="entry-place-res-form" novalidate>
+          <label class="entry-pickup__field">
+            <span class="entry-pickup__label" data-entry-i18n="placeResName">שם מלא *</span>
+            <input
+              type="text"
+              id="entry-place-res-name"
+              class="entry-pickup__input"
+              name="customerName"
+              autocomplete="name"
+              required
+              maxlength="80"
+            >
+          </label>
+
+          <label class="entry-pickup__field">
+            <span class="entry-pickup__label" data-entry-i18n="placeResPhone">טלפון *</span>
+            <input
+              type="tel"
+              id="entry-place-res-phone"
+              class="entry-pickup__input"
+              name="customerPhone"
+              autocomplete="tel"
+              inputmode="tel"
+              required
+              maxlength="32"
+              dir="ltr"
+            >
+          </label>
+
+          <label class="entry-pickup__field">
+            <span class="entry-pickup__label" data-entry-i18n="placeResParty">מספר סועדים *</span>
+            <input
+              type="number"
+              id="entry-place-res-party"
+              class="entry-pickup__input"
+              name="partySize"
+              inputmode="numeric"
+              required
+              min="1"
+              max="60"
+              step="1"
+              dir="ltr"
+            >
+          </label>
+
+          <label class="entry-pickup__field">
+            <span class="entry-pickup__label" data-entry-i18n="placeResDate">תאריך *</span>
+            <input
+              type="date"
+              id="entry-place-res-date"
+              class="entry-pickup__input"
+              name="reservationDate"
+              required
+              dir="ltr"
+            >
+          </label>
+
+          <label class="entry-pickup__field">
+            <span class="entry-pickup__label" data-entry-i18n="placeResTime">שעה *</span>
+            <select
+              id="entry-place-res-time"
+              class="entry-pickup__input entry-pickup__select"
+              name="arrivalTime"
+              required
+              dir="ltr"
+            ></select>
+          </label>
+
+          <label class="entry-pickup__field">
+            <span class="entry-pickup__label" data-entry-i18n="placeResNotes">הערות (אופציונלי)</span>
+            <textarea
+              id="entry-place-res-notes"
+              class="entry-pickup__input entry-pickup__textarea"
+              name="notes"
+              rows="2"
+              maxlength="240"
+              dir="auto"
+            ></textarea>
+          </label>
+
+          <p class="entry-pickup__error" id="entry-place-res-error" role="alert" hidden></p>
+
+          <button type="submit" class="entry-gate__btn entry-gate__btn--primary" id="entry-place-res-submit">
+            <span class="entry-gate__btn-label" data-entry-i18n="placeResSubmit">שליחת בקשה</span>
+          </button>
+        </form>
+        <button type="button" class="entry-gate__back" data-entry-back="order" data-entry-i18n="back">חזרה</button>
       </div>
 
       <div class="entry-gate__step" id="entry-step-pickup" hidden>
@@ -161,6 +254,38 @@
       <div class="entry-gate__step" id="entry-step-table" hidden>
         <div class="entry-gate__tables" id="entry-tables" role="group" aria-label="Table number"></div>
         <button type="button" class="entry-gate__back" data-entry-back="order" data-entry-i18n="back">חזרה</button>
+      </div>
+    </div>
+
+    <div class="entry-place-res-thanks" id="entry-place-res-thanks" hidden aria-hidden="true">
+      <div class="entry-place-res-thanks__backdrop" id="entry-place-res-thanks-backdrop"></div>
+      <div
+        class="entry-place-res-thanks__panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="entry-place-res-thanks-title"
+      >
+        <p class="entry-place-res-thanks__title" id="entry-place-res-thanks-title" data-entry-i18n="placeResThanksTitle">תודה!</p>
+        <p class="entry-place-res-thanks__text" data-entry-i18n="placeResThanksText">קיבלנו את בקשת הזמנת המקום. ניצור איתכם קשר לאישור.</p>
+        <button type="button" class="entry-gate__btn entry-gate__btn--primary" id="entry-place-res-thanks-close" data-entry-i18n="placeResThanksClose">
+          סגור
+        </button>
+      </div>
+    </div>
+
+    <div class="entry-place-res-thanks entry-place-res-capacity" id="entry-place-res-capacity" hidden aria-hidden="true">
+      <div class="entry-place-res-thanks__backdrop" id="entry-place-res-capacity-backdrop"></div>
+      <div
+        class="entry-place-res-thanks__panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="entry-place-res-capacity-title"
+      >
+        <p class="entry-place-res-thanks__title" id="entry-place-res-capacity-title" data-entry-i18n="placeResCapacityTitle">אין מקום פנוי</p>
+        <p class="entry-place-res-thanks__text" data-entry-i18n="placeResCapacityText">אין מספיק מקומות פנויים בשעה שבחרתם.<br>אנא בחרו שעה אחרת.</p>
+        <button type="button" class="entry-gate__btn entry-gate__btn--primary" id="entry-place-res-capacity-close" data-entry-i18n="placeResCapacityClose">
+          סגור
+        </button>
       </div>
     </div>
 
@@ -334,7 +459,7 @@
         <div class="footer-card">
           <h3 class="footer-heading" data-i18n="hours">שעות פעילות</h3>
           <ul class="footer-hours">
-            <li><span data-i18n="hoursDays">א׳ – ה׳</span><span>14:00 – 23:00</span></li>
+            <li><span data-i18n="hoursDays">א׳ – ה׳</span><span>14:00 – 21:00</span></li>
           </ul>
         </div>
 
@@ -494,6 +619,7 @@
   <script src="js/order-engine.js" defer></script>
   <script src="js/a11y-focus-trap.js" defer></script>
   <script src="js/main.js" defer></script>
+  <script src="js/place-reservations.js" defer></script>
   <script src="js/entry-gate.js" defer></script>
 </body>
 </html>

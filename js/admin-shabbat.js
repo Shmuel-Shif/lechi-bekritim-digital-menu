@@ -27,6 +27,16 @@
   const menuCats = document.getElementById('shabbat-menu-cats');
   const menuList = document.getElementById('shabbat-menu-list');
   const toastEl = document.getElementById('admin-toast');
+  const newBtn = document.getElementById('shabbat-new-btn');
+  const newModal = document.getElementById('shabbat-new-modal');
+  const newModalBackdrop = document.getElementById('shabbat-new-modal-backdrop');
+  const newForm = document.getElementById('shabbat-new-form');
+  const newName = document.getElementById('shabbat-new-name');
+  const newPhone = document.getElementById('shabbat-new-phone');
+  const newNotes = document.getElementById('shabbat-new-notes');
+  const newFormError = document.getElementById('shabbat-new-form-error');
+  const newSaveBtn = document.getElementById('shabbat-new-save-btn');
+  const newCancelBtn = document.getElementById('shabbat-new-cancel-btn');
 
   let cache = [];
   let selectedId = null;
@@ -39,6 +49,7 @@
   let menuCategoryId = 'all';
   let menuQuery = '';
   let catalogCache = [];
+  let newModalTrapRelease = null;
 
   function escapeHtml(str) {
     return String(str == null ? '' : str)
@@ -86,9 +97,9 @@
     return Promise.resolve(window.confirm(String(message || '')));
   }
 
-  function showSuccess(message) {
+  function showSuccess(message, options) {
     if (typeof global.LechaimAdminTables?.showSuccessModal === 'function') {
-      global.LechaimAdminTables.showSuccessModal(message);
+      global.LechaimAdminTables.showSuccessModal(message, options);
       return;
     }
     showToast(message);
@@ -257,13 +268,12 @@
 
   function updateActionButtons(entry) {
     const canApprove = needsApprove(entry?.orders);
-    const canPrint = needsPrint(entry?.orders);
     if (approveBtn) {
       approveBtn.hidden = !canApprove;
       approveBtn.disabled = busy;
     }
     if (printBtn) {
-      printBtn.hidden = !canPrint;
+      printBtn.hidden = false;
       printBtn.disabled = busy;
     }
     if (addItemsBtn) addItemsBtn.disabled = busy;
@@ -475,8 +485,8 @@
           );
           return classified === 'shabbat';
         })
-        .map((row) => mapRow(row.session, row.orders))
-        .filter((entry) => entry.items.length > 0 || entry.total > 0);
+        .map((row) => mapRow(row.session, row.orders));
+      /* Keep empty admin-created cards (name only, no items yet) */
       renderGrid();
       if (selectedId) {
         const selected = cache.find((row) => row.sessionId === selectedId);
@@ -523,34 +533,41 @@
     }
   }
 
-  function mapWaveToPrintOrder(entry, order) {
-    const items = (order.order_items || [])
+  /** Build one print ticket from everything currently shown on the card. */
+  function mapEntryToFullPrintOrder(entry) {
+    const items = (entry.items || [])
       .map((row) => {
-        const qty = Number(row.quantity) || 0;
+        const qty = Number(row.qty) || 0;
         if (qty <= 0) return null;
         return {
-          itemId: String(row.id),
-          productId: String(row.product_id || ''),
-          name: row.print_name || row.product_name || row.product_id || '',
-          printName: row.print_name || '',
+          itemId: String(row.itemId),
+          productId: String(row.productId || ''),
+          name: row.printName || row.name || row.productId || '',
+          printName: row.printName || '',
           price: Number(row.price) || 0,
           qty,
-          notes: row.notes == null ? '' : String(row.notes),
+          notes: '',
           printed: false,
+          linkedToMainItemId: row.linkedToMainItemId || null,
         };
       })
       .filter(Boolean);
 
+    const maxWave = (entry.orders || []).reduce(
+      (max, order) => Math.max(max, Number(order.order_number) || 0),
+      0
+    );
+
     return {
-      orderId: String(order.id),
+      orderId: `shabbat-full-${entry.sessionId}`,
       sessionId: entry.sessionId,
       tableNumber: null,
       orderType: 'shabbat',
       status: 'active',
-      createdAt: order.created_at || null,
-      updatedAt: order.updated_at || null,
+      createdAt: entry.openedAt || null,
+      updatedAt: null,
       items,
-      ticketSeq: Number(order.order_number) || 1,
+      ticketSeq: maxWave || 1,
       customerName: entry.customerName,
       customerPhone: entry.customerPhone,
       customerNotes: entry.customerNotes,
@@ -558,7 +575,6 @@
       pickupTime: entry.pickupTime || '13:00-14:00',
       publicOrderNo: null,
       _skipLocalMarkPrinted: true,
-      _supabaseOrderId: String(order.id),
     };
   }
 
@@ -567,15 +583,14 @@
     if (!entry || busy) return;
     const api = global.LechaimSupabaseOrders;
     const print = global.LechaimPrintEngine;
-    if (!api?.markOrderPrinted || typeof print?.printOrder !== 'function') {
+    if (typeof print?.printOrder !== 'function') {
       showToast('הדפסה לא זמינה');
       return;
     }
-    const pending = (entry.orders || [])
-      .filter(orderNeedsPrint)
-      .sort((a, b) => (Number(a.order_number) || 0) - (Number(b.order_number) || 0));
-    if (!pending.length) {
-      showToast('אין הזמנות ממתינות להדפסה');
+
+    const synthetic = mapEntryToFullPrintOrder(entry);
+    if (!synthetic.items.length) {
+      showToast('אין פריטים להדפסה');
       return;
     }
 
@@ -583,18 +598,22 @@
     updateActionButtons(entry);
     let printedOk = false;
     try {
-      for (const order of pending) {
-        const synthetic = mapWaveToPrintOrder(entry, order);
-        if (!synthetic.items.length) {
-          await api.markOrderPrinted(order.id);
-          continue;
+      const ok = await print.printOrder(synthetic);
+      if (ok !== true) {
+        showToast('ההדפסה נכשלה — נסה שוב');
+        return;
+      }
+
+      /* Mark unprinted waves so status stays in sync (reprint still allowed anytime). */
+      if (api?.markOrderPrinted) {
+        const unprinted = (entry.orders || []).filter(orderNeedsPrint);
+        for (const order of unprinted) {
+          try {
+            await api.markOrderPrinted(order.id);
+          } catch (markErr) {
+            console.error('[admin-shabbat] markOrderPrinted failed after print', markErr);
+          }
         }
-        const ok = await print.printOrder(synthetic);
-        if (ok !== true) {
-          showToast('ההדפסה נכשלה — נסה שוב');
-          return;
-        }
-        await api.markOrderPrinted(order.id);
       }
       printedOk = true;
     } catch (err) {
@@ -606,7 +625,7 @@
     }
 
     if (!printedOk) return;
-    showToast('ההזמנה הודפסה', { checkOnly: true });
+    showSuccess('ההזמנה הודפסה', { checkOnly: true });
     closeDrawer();
     await refresh();
   }
@@ -759,6 +778,82 @@
     }
   }
 
+  function showNewFormError(message) {
+    if (!newFormError) return;
+    if (!message) {
+      newFormError.hidden = true;
+      newFormError.textContent = '';
+      return;
+    }
+    newFormError.hidden = false;
+    newFormError.textContent = message;
+  }
+
+  function closeNewModal() {
+    if (!newModal) return;
+    if (typeof newModalTrapRelease === 'function') newModalTrapRelease();
+    newModalTrapRelease = null;
+    newModal.hidden = true;
+    newModal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('admin-modal-open');
+    showNewFormError('');
+  }
+
+  function openNewModal() {
+    if (!newModal || !newForm) return;
+    showNewFormError('');
+    newForm.reset();
+    newModal.hidden = false;
+    newModal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('admin-modal-open');
+    if (typeof newModalTrapRelease === 'function') newModalTrapRelease();
+    const release = global.LechaimFocusTrap?.activate?.(newModal);
+    newModalTrapRelease = typeof release === 'function' ? release : null;
+    newName?.focus();
+  }
+
+  async function handleCreateCard(event) {
+    event.preventDefault();
+    const customerName = String(newName?.value || '').trim();
+    const customerPhone = String(newPhone?.value || '').trim();
+    const notes = String(newNotes?.value || '').trim();
+    if (!customerName) {
+      showNewFormError('נא להזין שם לקוח');
+      newName?.focus();
+      return;
+    }
+    const api = global.LechaimSupabaseOrders;
+    if (!api?.createSession) {
+      showNewFormError('יצירת כרטיס לא זמינה');
+      return;
+    }
+    if (newSaveBtn) newSaveBtn.disabled = true;
+    try {
+      const session = await api.createSession({
+        orderType: 'shabbat',
+        customerName,
+        customerPhone: customerPhone || null,
+        notes: notes || null,
+        pickupType: 'TIME',
+        pickupTime: '13:00-14:00',
+        language: 'he',
+      });
+      closeNewModal();
+      showSuccess('כרטיס שבת נוצר');
+      await refresh();
+      const entry = cache.find((row) => row.sessionId === String(session?.session_id || ''));
+      if (entry) {
+        openDrawer(entry);
+        openMenuPicker();
+      }
+    } catch (err) {
+      console.error('[admin-shabbat] create card failed', err);
+      showNewFormError(err?.message || 'יצירת הכרטיס נכשלה');
+    } finally {
+      if (newSaveBtn) newSaveBtn.disabled = false;
+    }
+  }
+
   function onGridClick(event) {
     const btn = event.target.closest('[data-shabbat-id]');
     if (!btn) return;
@@ -795,6 +890,7 @@
       try { unsub(); } catch (_) { /* ignore */ }
       unsub = null;
     }
+    closeNewModal();
     closeDrawer();
   }
 
@@ -806,6 +902,10 @@
   addItemsBtn?.addEventListener('click', openMenuPicker);
   closeBtn?.addEventListener('click', handleClose);
   menuBack?.addEventListener('click', closeMenuPicker);
+  newBtn?.addEventListener('click', openNewModal);
+  newCancelBtn?.addEventListener('click', closeNewModal);
+  newModalBackdrop?.addEventListener('click', closeNewModal);
+  newForm?.addEventListener('submit', handleCreateCard);
 
   menuCats?.addEventListener('click', (event) => {
     const btn = event.target.closest('[data-shabbat-menu-cat]');
@@ -832,7 +932,12 @@
   });
 
   document.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape' || !drawer || drawer.hidden) return;
+    if (event.key !== 'Escape') return;
+    if (newModal && !newModal.hidden) {
+      closeNewModal();
+      return;
+    }
+    if (!drawer || drawer.hidden) return;
     if (menuMode) {
       closeMenuPicker();
       return;

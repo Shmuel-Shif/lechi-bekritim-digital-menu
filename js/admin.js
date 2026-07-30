@@ -145,6 +145,7 @@
      */
     window.LechaimAdminTables?.start?.();
     window.LechaimAdminShabbat?.start?.();
+    window.LechaimAdminReservations?.start?.();
     if (onBoard) {
       window.LechaimAdminTables?.setBoardFilter?.(currentTab === 'takeaway' ? 'takeaway' : 'tables');
     } else {
@@ -152,12 +153,6 @@
     }
     if (currentTab !== 'shabbat') {
       window.LechaimAdminShabbat?.closeDrawer?.();
-    }
-
-    if (currentTab === 'reservations') {
-      window.LechaimAdminReservations?.start?.();
-    } else {
-      window.LechaimAdminReservations?.stop?.();
     }
 
     if (currentTab === 'history') {

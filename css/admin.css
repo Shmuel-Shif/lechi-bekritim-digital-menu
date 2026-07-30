@@ -2034,7 +2034,22 @@ body.admin-modal-open {
   margin-top: 1rem;
 }
 
+.reservations-section-title {
+  margin: 0.35rem 0 0;
+  font-family: "Frank Ruhl Libre", "Playfair Display", serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--color-navy, #1e3354);
+}
+
+.reservations-section-title--spaced {
+  margin-top: 2rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid rgba(21, 38, 64, 0.1);
+}
+
 .reservation-card {
+  position: relative;
   display: grid;
   gap: 0.35rem;
   padding: 1rem 0.9rem;
@@ -2045,6 +2060,94 @@ body.admin-modal-open {
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.65) inset;
   text-align: start;
   min-height: 9.5rem;
+}
+
+.reservation-card__dismiss {
+  position: absolute;
+  top: 0.35rem;
+  inset-inline-end: 0.35rem;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-muted, #5b6570);
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+.reservation-card__dismiss:hover {
+  background: rgba(183, 28, 28, 0.12);
+  color: #b71c1c;
+}
+
+.reservation-card--request {
+  min-height: 11rem;
+}
+
+.reservation-card__meta {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text-muted, #5b6570);
+}
+
+.reservation-card__status {
+  display: inline-flex;
+  align-self: start;
+  margin: 0.15rem 0 0;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.reservation-card__status--pending {
+  background: rgba(196, 160, 106, 0.22);
+  color: #7a5a28;
+}
+
+.reservation-card__status--confirmed {
+  background: rgba(46, 125, 50, 0.16);
+  color: #1b5e20;
+}
+
+.reservation-card__status--cancelled {
+  background: rgba(158, 158, 158, 0.22);
+  color: #424242;
+}
+
+.reservation-card__created {
+  font-size: 0.75rem;
+  color: var(--color-text-muted, #5b6570);
+}
+
+.place-res-occupancy {
+  margin: 0.65rem 0 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-navy, #1e3354);
+}
+
+.place-res-occupancy strong {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-navy, #1e3354);
+}
+
+.reservation-card--arrived {
+  border-color: rgba(183, 28, 28, 0.45);
+  background:
+    linear-gradient(165deg, rgba(255, 235, 238, 0.98), rgba(255, 205, 210, 0.88));
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.45) inset;
+}
+
+.reservation-card__status--arrived {
+  background: rgba(198, 40, 40, 0.18);
+  color: #b71c1c;
 }
 
 .reservation-card__time {
@@ -2097,6 +2200,26 @@ body.admin-modal-open {
 .reservation-card__actions .admin-btn {
   padding: 0.45rem 0.7rem;
   font-size: 0.8rem;
+}
+
+.admin-btn--whatsapp {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: #25d366;
+  color: #fff;
+  border: 1px solid #1ebe57;
+}
+
+.admin-btn--whatsapp:hover {
+  background: #1ebe57;
+  color: #fff;
+}
+
+.admin-wa-icon {
+  width: 0.95rem;
+  height: 0.95rem;
+  flex-shrink: 0;
 }
 
 .reservation-modal__panel {
@@ -2171,6 +2294,10 @@ body.admin-modal-open {
   font-size: 1.2rem;
 }
 
+.history-pick-card--shabbat .history-pick-card__num {
+  font-size: 1.15rem;
+}
+
 .history-detail__header {
   display: flex;
   flex-wrap: wrap;
@@ -2226,6 +2353,12 @@ body.admin-modal-open {
   background: rgba(21, 38, 64, 0.03);
 }
 
+.history-card__name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-navy, #1e3354);
+}
+
 .history-card__time {
   font-family: "Frank Ruhl Libre", "Playfair Display", serif;
   font-size: 1.55rem;
@@ -2246,6 +2379,25 @@ body.admin-modal-open {
   font-size: 1.05rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+.history-card__restore {
+  appearance: none;
+  display: block;
+  width: 100%;
+  border: 0;
+  border-top: 1px solid rgba(21, 38, 64, 0.1);
+  background: rgba(21, 38, 64, 0.04);
+  color: var(--color-navy, #1e3354);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  padding: 0.55rem 0.75rem;
+  cursor: pointer;
+}
+
+.history-card__restore:hover {
+  background: rgba(196, 160, 106, 0.22);
 }
 
 .history-card__delete {

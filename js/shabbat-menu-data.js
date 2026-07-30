@@ -169,9 +169,9 @@
         items: [
           {
             id: 'shabbat-salad-plate',
-            name: '6 סלטי הבית + סלט חי טרי',
-            nameEn: '6 house salads + fresh chopped salad',
-            printName: '6 Salatim + Salat Chai',
+            name: '4 סוגי סלטים + סלט חי טרי',
+            nameEn: '4 salad types + fresh chopped salad',
+            printName: '4 Salatim + Salat Chai',
             desc: '',
             price: 20,
             image: dishImage('salad-plate'),

@@ -51,6 +51,29 @@
       dineInClosedTitle: 'Not available right now.',
       dineInClosedText: 'Dine-in is available during restaurant opening hours.',
       dineInClosedBrowse: 'View the menu',
+      placeReservation: 'Reserve a table',
+      promptPlaceRes: 'Table reservation request',
+      placeResName: 'Full name *',
+      placeResPhone: 'Phone *',
+      placeResParty: 'Number of guests *',
+      placeResDate: 'Date *',
+      placeResTime: 'Time *',
+      placeResNotes: 'Notes (optional)',
+      placeResSubmit: 'Send request',
+      placeResThanksTitle: 'Thank you!',
+      placeResThanksText: 'We received your reservation request. We will contact you to confirm.',
+      placeResThanksClose: 'Close',
+      placeResNameRequired: 'Please enter your full name',
+      placeResPhoneRequired: 'Please enter a valid phone number',
+      placeResPartyRequired: 'Please enter number of guests (1–60)',
+      placeResDateRequired: 'Please choose a date',
+      placeResTimeRequired: 'Please choose a time between 14:00 and 20:30',
+      placeResSubmitFailed: 'Could not send the request. Please try again.',
+      placeResCapacityTitle: 'No availability',
+      placeResCapacityText: 'There are not enough seats available at the time you selected.\nPlease choose another time.',
+      placeResCapacityClose: 'Close',
+      placeResSlotFull: 'Full',
+      placeResNoSlots: 'No available times for this party size — try another date',
     },
     he: {
       welcome: 'ברוכים הבאים',
@@ -92,6 +115,29 @@
       dineInClosedTitle: 'לא זמין כרגע.',
       dineInClosedText: 'ניתן לבצע ישיבה במקום בשעות פעילות המסעדה.',
       dineInClosedBrowse: 'לצפייה בתפריט',
+      placeReservation: 'הזמנת מקום',
+      promptPlaceRes: 'בקשת הזמנת מקום',
+      placeResName: 'שם מלא *',
+      placeResPhone: 'טלפון *',
+      placeResParty: 'מספר סועדים *',
+      placeResDate: 'תאריך *',
+      placeResTime: 'שעה *',
+      placeResNotes: 'הערות (אופציונלי)',
+      placeResSubmit: 'שליחת בקשה',
+      placeResThanksTitle: 'תודה!',
+      placeResThanksText: 'קיבלנו את בקשת הזמנת המקום. ניצור איתכם קשר לאישור.',
+      placeResThanksClose: 'סגור',
+      placeResNameRequired: 'נא להזין שם מלא',
+      placeResPhoneRequired: 'נא להזין מספר טלפון תקין',
+      placeResPartyRequired: 'נא להזין מספר סועדים (1–60)',
+      placeResDateRequired: 'נא לבחור תאריך',
+      placeResTimeRequired: 'נא לבחור שעה בין 14:00 ל־20:30',
+      placeResSubmitFailed: 'שליחת הבקשה נכשלה. נסו שוב.',
+      placeResCapacityTitle: 'אין מקום פנוי',
+      placeResCapacityText: 'אין מספיק מקומות פנויים בשעה שבחרתם.\nאנא בחרו שעה אחרת.',
+      placeResCapacityClose: 'סגור',
+      placeResSlotFull: 'מלא',
+      placeResNoSlots: 'אין שעות פנויות למספר הסועדים — נסו תאריך אחר',
     },
   };
 
@@ -115,6 +161,7 @@
   const stepTable = document.getElementById('entry-step-table');
   const stepPickup = document.getElementById('entry-step-pickup');
   const stepPickupClosed = document.getElementById('entry-step-pickup-closed');
+  const stepPlaceRes = document.getElementById('entry-step-place-res');
   const tablesEl = document.getElementById('entry-tables');
   const noticeEl = document.getElementById('entry-notice');
   const promptEl = document.getElementById('entry-prompt');
@@ -132,11 +179,29 @@
   const pickupSlot = document.getElementById('entry-pickup-slot');
   const pickupError = document.getElementById('entry-pickup-error');
   const pickupClosedBrowse = document.getElementById('entry-pickup-closed-browse');
+  const placeResForm = document.getElementById('entry-place-res-form');
+  const placeResName = document.getElementById('entry-place-res-name');
+  const placeResPhone = document.getElementById('entry-place-res-phone');
+  const placeResParty = document.getElementById('entry-place-res-party');
+  const placeResDate = document.getElementById('entry-place-res-date');
+  const placeResTime = document.getElementById('entry-place-res-time');
+  const placeResNotes = document.getElementById('entry-place-res-notes');
+  const placeResError = document.getElementById('entry-place-res-error');
+  const placeResSubmit = document.getElementById('entry-place-res-submit');
+  const placeResThanks = document.getElementById('entry-place-res-thanks');
+  const placeResThanksBackdrop = document.getElementById('entry-place-res-thanks-backdrop');
+  const placeResThanksClose = document.getElementById('entry-place-res-thanks-close');
+  const placeResCapacity = document.getElementById('entry-place-res-capacity');
+  const placeResCapacityBackdrop = document.getElementById('entry-place-res-capacity-backdrop');
+  const placeResCapacityClose = document.getElementById('entry-place-res-capacity-close');
   const tableModal = document.getElementById('entry-table-modal');
   const tableModalBackdrop = document.getElementById('entry-table-modal-backdrop');
   const tableModalPick = document.getElementById('entry-table-modal-pick');
   const tableModalBrowse = document.getElementById('entry-table-modal-browse');
   let tableModalTrapRelease = null;
+  let placeResThanksTrapRelease = null;
+  let placeResCapacityTrapRelease = null;
+  let placeResSlotsToken = 0;
 
   const state = {
     orderType: null, // 'dine-in' | 'takeaway'
@@ -208,6 +273,8 @@
       promptEl.classList.toggle('is-table-prompt', Boolean(stepTable && !stepTable.hidden));
       if (stepPickupClosed && !stepPickupClosed.hidden) {
         promptEl.textContent = state.orderType === 'dine-in' ? t('dineIn') : t('takeAway');
+      } else if (stepPlaceRes && !stepPlaceRes.hidden) {
+        promptEl.textContent = t('promptPlaceRes');
       } else if (stepPickup && !stepPickup.hidden) {
         promptEl.textContent = t('promptPickup');
       } else if (stepTable && !stepTable.hidden) {
@@ -234,11 +301,253 @@
   }
 
   function showStep(step) {
-    [stepOrder, stepTable, stepPickup, stepPickupClosed].forEach((el) => {
+    [stepOrder, stepTable, stepPickup, stepPickupClosed, stepPlaceRes].forEach((el) => {
       if (!el) return;
       el.hidden = el !== step;
     });
     applyEntryCopy();
+  }
+
+  function pad2(n) {
+    return String(n).padStart(2, '0');
+  }
+
+  function todayDateStr() {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  }
+
+  function showPlaceResError(message) {
+    if (!placeResError) return;
+    if (!message) {
+      placeResError.hidden = true;
+      placeResError.textContent = '';
+      return;
+    }
+    placeResError.hidden = false;
+    placeResError.textContent = message;
+  }
+
+  function fillPlaceResTimeSlots(unavailable = []) {
+    if (!placeResTime) return;
+    const slots = window.LechaimPlaceReservations?.buildArrivalSlots?.()
+      || (() => {
+        const list = [];
+        for (let m = 14 * 60; m <= 20 * 60 + 30; m += 30) {
+          list.push(`${pad2(Math.floor(m / 60))}:${pad2(m % 60)}`);
+        }
+        return list;
+      })();
+    const blocked = new Set(unavailable || []);
+    const prev = placeResTime.value;
+    const fullLabel = t('placeResSlotFull');
+    placeResTime.innerHTML = [
+      `<option value="">${t('placeResTime')}</option>`,
+      ...slots.map((slot) => {
+        const isFull = blocked.has(slot);
+        const label = isFull ? `${slot} (${fullLabel})` : slot;
+        return `<option value="${slot}"${isFull ? ' disabled' : ''}>${label}</option>`;
+      }),
+    ].join('');
+    if (prev && slots.includes(prev) && !blocked.has(prev)) {
+      placeResTime.value = prev;
+    } else {
+      placeResTime.value = '';
+    }
+  }
+
+  async function refreshPlaceResAvailableSlots() {
+    if (!placeResTime) return;
+    const token = ++placeResSlotsToken;
+    const dateStr = String(placeResDate?.value || '').trim();
+    const partySize = Math.floor(Number(placeResParty?.value));
+    const api = window.LechaimPlaceReservations;
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr) || !api?.getUnavailableSlots) {
+      fillPlaceResTimeSlots([]);
+      return;
+    }
+
+    try {
+      /* Missing party size → still lock slots that are already at capacity (need ≥1) */
+      const unavailable = await api.getUnavailableSlots(
+        dateStr,
+        Number.isFinite(partySize) && partySize >= 1 ? partySize : 1
+      );
+      if (token !== placeResSlotsToken) return;
+      fillPlaceResTimeSlots(unavailable);
+      const slots = api.buildArrivalSlots?.() || [];
+      const openCount = slots.filter((s) => !unavailable.includes(s)).length;
+      if (!openCount && Number.isFinite(partySize) && partySize >= 1) {
+        showPlaceResError(t('placeResNoSlots'));
+      } else {
+        showPlaceResError('');
+      }
+    } catch (err) {
+      console.warn('[entry-gate] place-res occupancy failed', err);
+      if (token !== placeResSlotsToken) return;
+      fillPlaceResTimeSlots([]);
+    }
+  }
+
+  function resetPlaceResForm() {
+    placeResForm?.reset();
+    showPlaceResError('');
+    if (placeResDate) {
+      placeResDate.min = todayDateStr();
+      placeResDate.value = todayDateStr();
+    }
+    fillPlaceResTimeSlots([]);
+    refreshPlaceResAvailableSlots();
+  }
+
+  function goToPlaceReservation() {
+    resetPlaceResForm();
+    showStep(stepPlaceRes);
+    placeResName?.focus();
+  }
+
+  function setPlaceResModalOpen(isOpen) {
+    gate.classList.toggle('is-place-res-modal-open', Boolean(isOpen));
+    if (isOpen) {
+      gate.scrollTop = 0;
+    }
+  }
+
+  function mountPlaceResOverlay(el) {
+    if (!el) return;
+    /* Escape entry-gate overflow/transform so overlay always covers the viewport */
+    if (el.parentElement !== document.body) {
+      document.body.appendChild(el);
+    }
+  }
+
+  function closePlaceResModal(el, releaseRefSetter) {
+    if (!el) return;
+    releaseRefSetter();
+    el.hidden = true;
+    el.setAttribute('aria-hidden', 'true');
+    const otherOpen = (placeResThanks && !placeResThanks.hidden)
+      || (placeResCapacity && !placeResCapacity.hidden);
+    if (!otherOpen) setPlaceResModalOpen(false);
+  }
+
+  function closePlaceResThanks() {
+    closePlaceResModal(placeResThanks, () => {
+      if (typeof placeResThanksTrapRelease === 'function') placeResThanksTrapRelease();
+      placeResThanksTrapRelease = null;
+    });
+    goToOrderType();
+  }
+
+  function closePlaceResCapacity() {
+    closePlaceResModal(placeResCapacity, () => {
+      if (typeof placeResCapacityTrapRelease === 'function') placeResCapacityTrapRelease();
+      placeResCapacityTrapRelease = null;
+    });
+    placeResTime?.focus();
+  }
+
+  function openPlaceResThanks() {
+    if (!placeResThanks) {
+      goToOrderType();
+      return;
+    }
+    mountPlaceResOverlay(placeResThanks);
+    setPlaceResModalOpen(true);
+    placeResThanks.hidden = false;
+    placeResThanks.setAttribute('aria-hidden', 'false');
+    if (typeof placeResThanksTrapRelease === 'function') placeResThanksTrapRelease();
+    const release = window.LechaimFocusTrap?.activate?.(placeResThanks);
+    placeResThanksTrapRelease = typeof release === 'function' ? release : null;
+    placeResThanksClose?.focus();
+  }
+
+  function openPlaceResCapacity() {
+    if (!placeResCapacity) {
+      showPlaceResError(t('placeResCapacityText').replace(/\n/g, ' '));
+      return;
+    }
+    applyEntryCopy();
+    mountPlaceResOverlay(placeResCapacity);
+    setPlaceResModalOpen(true);
+    placeResCapacity.hidden = false;
+    placeResCapacity.setAttribute('aria-hidden', 'false');
+    if (typeof placeResCapacityTrapRelease === 'function') placeResCapacityTrapRelease();
+    const release = window.LechaimFocusTrap?.activate?.(placeResCapacity);
+    placeResCapacityTrapRelease = typeof release === 'function' ? release : null;
+    placeResCapacityClose?.focus();
+  }
+
+  async function submitPlaceResForm(event) {
+    event.preventDefault();
+    showPlaceResError('');
+
+    const customerName = String(placeResName?.value || '').trim();
+    const customerPhone = String(placeResPhone?.value || '').trim();
+    const partySize = Math.floor(Number(placeResParty?.value));
+    const reservationDate = String(placeResDate?.value || '').trim();
+    const arrivalTime = String(placeResTime?.value || '').trim();
+    const notes = String(placeResNotes?.value || '').trim();
+
+    if (!customerName) {
+      showPlaceResError(t('placeResNameRequired'));
+      placeResName?.focus();
+      return;
+    }
+    if (!customerPhone || customerPhone.replace(/\D/g, '').length < 8) {
+      showPlaceResError(t('placeResPhoneRequired'));
+      placeResPhone?.focus();
+      return;
+    }
+    if (!Number.isFinite(partySize) || partySize < 1 || partySize > 60) {
+      showPlaceResError(t('placeResPartyRequired'));
+      placeResParty?.focus();
+      return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(reservationDate)) {
+      showPlaceResError(t('placeResDateRequired'));
+      placeResDate?.focus();
+      return;
+    }
+    const timeOk = window.LechaimPlaceReservations?.isValidArrivalTime?.(arrivalTime);
+    if (!arrivalTime || !timeOk) {
+      showPlaceResError(t('placeResTimeRequired'));
+      placeResTime?.focus();
+      return;
+    }
+    if (placeResTime?.selectedOptions?.[0]?.disabled) {
+      openPlaceResCapacity();
+      return;
+    }
+
+    if (!window.LechaimPlaceReservations?.createRequest) {
+      showPlaceResError(t('placeResSubmitFailed'));
+      return;
+    }
+
+    if (placeResSubmit) placeResSubmit.disabled = true;
+    try {
+      await window.LechaimPlaceReservations.createRequest({
+        customerName,
+        customerPhone,
+        partySize,
+        reservationDate,
+        arrivalTime,
+        notes,
+      });
+      resetPlaceResForm();
+      openPlaceResThanks();
+    } catch (err) {
+      if (err?.code === 'CAPACITY_EXCEEDED' || String(err?.message || '').includes('CAPACITY_EXCEEDED')) {
+        await refreshPlaceResAvailableSlots();
+        openPlaceResCapacity();
+      } else {
+        showPlaceResError(err?.message || t('placeResSubmitFailed'));
+      }
+    } finally {
+      if (placeResSubmit) placeResSubmit.disabled = false;
+    }
   }
 
   /* Set true to enforce takeaway day + clock hours */
@@ -550,6 +859,19 @@
 
   function goToOrderType() {
     closeTableInfoModal();
+    if (placeResThanks && !placeResThanks.hidden) {
+      if (typeof placeResThanksTrapRelease === 'function') placeResThanksTrapRelease();
+      placeResThanksTrapRelease = null;
+      placeResThanks.hidden = true;
+      placeResThanks.setAttribute('aria-hidden', 'true');
+    }
+    if (placeResCapacity && !placeResCapacity.hidden) {
+      if (typeof placeResCapacityTrapRelease === 'function') placeResCapacityTrapRelease();
+      placeResCapacityTrapRelease = null;
+      placeResCapacity.hidden = true;
+      placeResCapacity.setAttribute('aria-hidden', 'true');
+    }
+    setPlaceResModalOpen(false);
     state.orderType = null;
     state.tableNumber = null;
     state.customerName = '';
@@ -562,6 +884,7 @@
     });
     if (tableBackBtn) tableBackBtn.dataset.entryBack = 'order';
     resetPickupForm();
+    resetPlaceResForm();
     showStep(stepOrder);
   }
 
@@ -1200,6 +1523,12 @@
   gate.addEventListener('click', (event) => {
     if (event.target.closest('#entry-lang-toggle')) return;
 
+    const placeResBtn = event.target.closest('[data-entry-action="place-reservation"]');
+    if (placeResBtn) {
+      goToPlaceReservation();
+      return;
+    }
+
     const orderBtn = event.target.closest('[data-order-type]');
     if (orderBtn) {
       const type = orderBtn.dataset.orderType;
@@ -1272,6 +1601,36 @@
   pickupSelect?.addEventListener('change', syncPickupTimeUi);
   pickupClosedBrowse?.addEventListener('click', () => {
     enterBrowseOnly();
+  });
+  placeResForm?.addEventListener('submit', submitPlaceResForm);
+  placeResDate?.addEventListener('change', () => {
+    refreshPlaceResAvailableSlots();
+  });
+  placeResParty?.addEventListener('input', () => {
+    refreshPlaceResAvailableSlots();
+  });
+  placeResParty?.addEventListener('change', () => {
+    refreshPlaceResAvailableSlots();
+  });
+  placeResTime?.addEventListener('focus', () => {
+    refreshPlaceResAvailableSlots();
+  });
+  placeResTime?.addEventListener('mousedown', () => {
+    refreshPlaceResAvailableSlots();
+  });
+  placeResThanksClose?.addEventListener('click', closePlaceResThanks);
+  placeResThanksBackdrop?.addEventListener('click', closePlaceResThanks);
+  placeResCapacityClose?.addEventListener('click', closePlaceResCapacity);
+  placeResCapacityBackdrop?.addEventListener('click', closePlaceResCapacity);
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    if (placeResCapacity && !placeResCapacity.hidden) {
+      closePlaceResCapacity();
+      return;
+    }
+    if (placeResThanks && !placeResThanks.hidden) {
+      closePlaceResThanks();
+    }
   });
   tableModalPick?.addEventListener('click', closeTableInfoModal);
   tableModalBrowse?.addEventListener('click', () => {
