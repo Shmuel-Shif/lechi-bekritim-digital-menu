@@ -221,8 +221,11 @@
   }
 
   function matchesFilter(item) {
-    if (currentFilter === 'available') return item.available;
-    if (currentFilter === 'unavailable') return !item.available;
+    const available = item?.id != null
+      ? LechaimInventory.isAvailable(item.id)
+      : Boolean(item?.available);
+    if (currentFilter === 'available') return available;
+    if (currentFilter === 'unavailable') return !available;
     return true;
   }
 
@@ -318,14 +321,21 @@
     updateStats();
 
     const item = catalogCache.find((entry) => entry.id === productId);
-    const existing = listEl?.querySelector(`[data-product-id="${CSS.escape(productId)}"]`);
+    /* Prefer article — buttons also carry data-product-id */
+    const existing = listEl?.querySelector(`article.admin-card[data-product-id="${CSS.escape(productId)}"]`);
+    const query = currentQuery.trim().toLowerCase();
+    const stillVisible = Boolean(
+      item && matchesFilter(item) && matchesQuery(item, query)
+    );
 
-    if (!item || !matchesFilter(item) || !matchesQuery(item, currentQuery.trim().toLowerCase())) {
+    if (!stillVisible) {
       if (existing) existing.remove();
-      const grids = listEl?.querySelectorAll('.admin-category');
-      grids?.forEach((section) => {
-        if (!section.querySelector('.admin-card')) section.remove();
+      listEl?.querySelectorAll('.admin-category').forEach((section) => {
+        if (!section.querySelector('article.admin-card')) section.remove();
       });
+      if (listEl && !listEl.querySelector('article.admin-card')) {
+        listEl.innerHTML = `<p class="admin-empty">לא נמצאו מנות לפי הסינון הנוכחי</p>`;
+      }
       if (statusEl) {
         const visible = getVisibleCatalog();
         statusEl.textContent = `${catalogCache.length} מנות במערכת · מוצגות ${visible.length}`;
@@ -338,6 +348,11 @@
       existing.outerHTML = html;
     } else {
       renderList();
+    }
+
+    if (statusEl) {
+      const visible = getVisibleCatalog();
+      statusEl.textContent = `${catalogCache.length} מנות במערכת · מוצגות ${visible.length}`;
     }
   }
 
@@ -352,7 +367,12 @@
 
     try {
       await LechaimInventory.setAvailable(productId, next);
-      updateCard(productId);
+      /* Full re-render so filter chips drop cards that no longer match */
+      if (currentFilter === 'available' || currentFilter === 'unavailable') {
+        renderList();
+      } else {
+        updateCard(productId);
+      }
       showToast(next ? 'עודכן: יש במלאי' : 'עודכן: אין במלאי');
     } catch (err) {
       console.error('[admin] toggle failed', err);
