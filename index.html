@@ -15,7 +15,22 @@
 </head>
 <body class="entry-pending">
   <!-- Entry gate: order type → table (dine-in) — language toggle always available -->
-  <div class="entry-gate" id="entry-gate" role="dialog" aria-modal="true" aria-labelledby="entry-hero-title">
+  <div class="entry-gate is-home" id="entry-gate" role="dialog" aria-modal="true" aria-labelledby="entry-hero-title">
+    <!-- Home-only full-bleed restaurant photo + soft bottom fade -->
+    <div class="entry-gate__home-stage" aria-hidden="true">
+      <img
+        src="assets/images/entry/4.webp"
+        alt=""
+        class="entry-gate__home-photo"
+        width="1600"
+        height="2000"
+        loading="eager"
+        decoding="async"
+      >
+      <div class="entry-gate__home-scrim"></div>
+      <div class="entry-gate__home-fade"></div>
+    </div>
+
     <div class="entry-gate__chrome">
       <img
         src="assets/logo/kosher-badge.png"
@@ -39,38 +54,74 @@
     </div>
 
     <div class="entry-gate__shell" id="entry-shell">
-      <p class="entry-gate__bh">ב״ה</p>
-
-      <div class="entry-gate__brand">
-        <img src="assets/logo/logo-image.png" alt="" class="entry-gate__logo" width="96" height="96">
-        <img src="assets/logo/logo-text.png" alt="LECHAIM" class="entry-gate__wordmark" width="220" height="56">
+      <div class="entry-gate__classic">
+        <p class="entry-gate__bh">ב״ה</p>
+        <div class="entry-gate__brand">
+          <img src="assets/logo/logo-image.png" alt="" class="entry-gate__logo" width="96" height="96">
+          <img src="assets/logo/logo-text.png" alt="LECHAIM" class="entry-gate__wordmark" width="220" height="56">
+        </div>
       </div>
 
       <div class="entry-gate__hero">
-        <p class="entry-gate__welcome" id="entry-hero-welcome">ברוכים הבאים</p>
+        <p class="entry-gate__welcome" id="entry-hero-welcome">✦ ברוכים הבאים ✦</p>
         <h1 class="entry-gate__title" id="entry-hero-title">מסעדת לחיים בכרתים</h1>
         <p class="entry-gate__kosher" id="entry-hero-kosher">כשר למהדרין</p>
       </div>
 
-      <p class="entry-gate__prompt" id="entry-prompt">איך תרצו להזמין?</p>
+      <p class="entry-gate__prompt" id="entry-prompt" hidden>איך תרצו להזמין?</p>
       <p class="entry-gate__notice" id="entry-notice" role="status" aria-live="polite" hidden></p>
 
       <div class="entry-gate__step" id="entry-step-order">
         <div class="entry-gate__actions">
           <button type="button" class="entry-gate__btn entry-gate__btn--primary" data-order-type="browse" id="entry-browse-menu">
-            <span class="entry-gate__btn-label" data-entry-i18n="browseMenu">צפייה בתפריט</span>
+            <span class="entry-gate__btn-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+            </span>
+            <span class="entry-gate__btn-text">
+              <span class="entry-gate__btn-label" data-entry-i18n="browseMenu">צפייה בתפריט</span>
+              <span class="entry-gate__btn-hint" data-entry-i18n="browseMenuHint">גלו את כל המנות שלנו</span>
+            </span>
+            <span class="entry-gate__btn-chevron" aria-hidden="true"></span>
           </button>
           <button type="button" class="entry-gate__btn entry-gate__btn--primary" id="entry-place-res-btn" data-entry-action="place-reservation">
-            <span class="entry-gate__btn-label" data-entry-i18n="placeReservation">הזמנת מקום</span>
+            <span class="entry-gate__btn-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+            </span>
+            <span class="entry-gate__btn-text">
+              <span class="entry-gate__btn-label" data-entry-i18n="placeReservation">הזמנת מקום</span>
+              <span class="entry-gate__btn-hint" data-entry-i18n="placeReservationHint">הבטיחו את מקומכם במסעדה</span>
+            </span>
+            <span class="entry-gate__btn-chevron" aria-hidden="true"></span>
           </button>
           <button type="button" class="entry-gate__btn entry-gate__btn--dine-in" data-order-type="dine-in">
-            <span class="entry-gate__btn-label" data-entry-i18n="dineIn">ישיבה במקום</span>
+            <span class="entry-gate__btn-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 10h16M6 10v8M18 10v8M8 14h8M12 6v4"/></svg>
+            </span>
+            <span class="entry-gate__btn-text">
+              <span class="entry-gate__btn-label" data-entry-i18n="dineIn">ישיבה במקום</span>
+              <span class="entry-gate__btn-hint" data-entry-i18n="dineInHint">הצטרפו אלינו לארוחה במקום</span>
+            </span>
+            <span class="entry-gate__btn-chevron" aria-hidden="true"></span>
           </button>
           <button type="button" class="entry-gate__btn entry-gate__btn--primary" data-order-type="takeaway">
-            <span class="entry-gate__btn-label" data-entry-i18n="takeAway">איסוף עצמי</span>
+            <span class="entry-gate__btn-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 8h12l-1 11H7L6 8z"/><path d="M9 8a3 3 0 0 1 6 0"/></svg>
+            </span>
+            <span class="entry-gate__btn-text">
+              <span class="entry-gate__btn-label" data-entry-i18n="takeAway">איסוף עצמי</span>
+              <span class="entry-gate__btn-hint" data-entry-i18n="takeAwayHint">הזמינו ואספו מהמסעדה</span>
+            </span>
+            <span class="entry-gate__btn-chevron" aria-hidden="true"></span>
           </button>
           <a href="shabbat.html" class="entry-gate__btn entry-gate__btn--primary" id="entry-shabbat-link">
-            <span class="entry-gate__btn-label" data-entry-i18n="shabbatOrders">הזמנות לשבת</span>
+            <span class="entry-gate__btn-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 14c0-2 1.5-3 2.5-4S12 7 12 5c0 2 .5 3.5 1.5 5S16 12 16 14"/><path d="M7 18h10M9 18v2M15 18v2"/></svg>
+            </span>
+            <span class="entry-gate__btn-text">
+              <span class="entry-gate__btn-label" data-entry-i18n="shabbatOrders">הזמנות לשבת</span>
+              <span class="entry-gate__btn-hint" data-entry-i18n="shabbatOrdersHint">תפריט מיוחד לשבת קודש</span>
+            </span>
+            <span class="entry-gate__btn-chevron" aria-hidden="true"></span>
           </a>
           <!-- Delivery — יופעל בהמשך
           <button type="button" class="entry-gate__btn entry-gate__btn--soon" data-order-type="delivery" aria-describedby="entry-notice">
@@ -79,6 +130,11 @@
           -->
         </div>
       </div>
+
+      <footer class="entry-gate__foot">
+        <p class="entry-gate__foot-brand" data-entry-i18n="entryFooterBrand">LECHAIM IN CRETE</p>
+        <p class="entry-gate__foot-tag" data-entry-i18n="entryFooterTagline">מסעדה כשרה למהדרין • כרתים</p>
+      </footer>
 
       <div class="entry-gate__step" id="entry-step-place-res" hidden>
         <form class="entry-pickup entry-place-res" id="entry-place-res-form" novalidate>

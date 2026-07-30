@@ -12,7 +12,7 @@
 
   const COPY = {
     en: {
-      welcome: 'Welcome',
+      welcome: '✦ Welcome ✦',
       title: 'Lechaim Restaurant in Crete',
       kosher: 'Mehadrin Kosher',
       promptOrder: 'How would you like to order?',
@@ -24,9 +24,16 @@
       tableBrowseMenu: 'View the menu',
       promptPickup: 'Takeaway details',
       dineIn: 'Dine In',
+      dineInHint: 'Join us for a meal at the restaurant',
       takeAway: 'Takeaway',
+      takeAwayHint: 'Order and pick up from the restaurant',
       shabbatOrders: 'Shabbat Orders',
+      shabbatOrdersHint: 'Special menu for Shabbat',
       browseMenu: 'View the menu',
+      browseMenuHint: 'Discover all our dishes',
+      placeReservationHint: 'Reserve your table at the restaurant',
+      entryFooterBrand: 'LECHAIM IN CRETE',
+      entryFooterTagline: 'Mehadrin Kosher Restaurant • Crete',
       delivery: 'Delivery',
       back: 'Back',
       comingSoon: 'Coming Soon',
@@ -76,7 +83,7 @@
       placeResNoSlots: 'No available times for this party size — try another date',
     },
     he: {
-      welcome: 'ברוכים הבאים',
+      welcome: '✦ ברוכים הבאים ✦',
       title: 'מסעדת לחיים בכרתים',
       kosher: 'כשר למהדרין',
       promptOrder: 'איך תרצו להזמין?',
@@ -88,9 +95,16 @@
       tableBrowseMenu: 'לצפייה בתפריט',
       promptPickup: 'פרטי איסוף עצמי',
       dineIn: 'ישיבה במקום',
+      dineInHint: 'הצטרפו אלינו לארוחה במקום',
       takeAway: 'איסוף עצמי',
+      takeAwayHint: 'הזמינו ואספו מהמסעדה',
       shabbatOrders: 'הזמנות לשבת',
+      shabbatOrdersHint: 'תפריט מיוחד לשבת קודש',
       browseMenu: 'צפייה בתפריט',
+      browseMenuHint: 'גלו את כל המנות שלנו',
+      placeReservationHint: 'הבטיחו את מקומכם במסעדה',
+      entryFooterBrand: 'LECHAIM IN CRETE',
+      entryFooterTagline: 'מסעדה כשרה למהדרין • כרתים',
       delivery: 'משלוח',
       back: 'חזרה',
       comingSoon: 'Coming Soon',
@@ -269,18 +283,21 @@
     }
 
     if (promptEl) {
-      promptEl.hidden = false;
-      promptEl.classList.toggle('is-table-prompt', Boolean(stepTable && !stepTable.hidden));
-      if (stepPickupClosed && !stepPickupClosed.hidden) {
-        promptEl.textContent = state.orderType === 'dine-in' ? t('dineIn') : t('takeAway');
-      } else if (stepPlaceRes && !stepPlaceRes.hidden) {
-        promptEl.textContent = t('promptPlaceRes');
-      } else if (stepPickup && !stepPickup.hidden) {
-        promptEl.textContent = t('promptPickup');
-      } else if (stepTable && !stepTable.hidden) {
-        promptEl.textContent = t('promptTable');
-      } else {
-        promptEl.textContent = t('promptOrder');
+      const onHome = Boolean(stepOrder && !stepOrder.hidden);
+      promptEl.hidden = onHome;
+      if (!onHome) {
+        promptEl.classList.toggle('is-table-prompt', Boolean(stepTable && !stepTable.hidden));
+        if (stepPickupClosed && !stepPickupClosed.hidden) {
+          promptEl.textContent = state.orderType === 'dine-in' ? t('dineIn') : t('takeAway');
+        } else if (stepPlaceRes && !stepPlaceRes.hidden) {
+          promptEl.textContent = t('promptPlaceRes');
+        } else if (stepPickup && !stepPickup.hidden) {
+          promptEl.textContent = t('promptPickup');
+        } else if (stepTable && !stepTable.hidden) {
+          promptEl.textContent = t('promptTable');
+        } else {
+          promptEl.textContent = t('promptOrder');
+        }
       }
     }
 
@@ -305,6 +322,8 @@
       if (!el) return;
       el.hidden = el !== step;
     });
+    /* Premium home layout only on the main order-cards screen */
+    gate.classList.toggle('is-home', step === stepOrder);
     applyEntryCopy();
   }
 

@@ -673,3 +673,475 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks) {
 .entry-gate.is-place-res-modal-open {
   overflow: hidden !important;
 }
+
+/* ---- Home-only chrome (hidden on classic secondary steps / shabbat) ---- */
+
+.entry-gate__home-stage,
+.entry-gate__foot {
+  display: none;
+}
+
+.entry-gate__btn-hint,
+.entry-gate__btn-chevron {
+  display: none;
+}
+
+.entry-gate__btn-icon {
+  display: none;
+}
+
+.entry-gate__btn-icon svg {
+  display: block;
+}
+
+/* ========== HOME: full-bleed photo + soft fade + compact actions ========== */
+
+.entry-gate.is-home {
+  --entry-cream: #f3ebe0;
+  --entry-navy: #17345d;
+  --entry-gold: #c4a06a;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: stretch;
+  place-items: unset;
+  padding: 0;
+  height: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+  background: var(--entry-cream);
+  background-image: none;
+}
+
+.entry-gate.is-home .entry-gate__home-stage {
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.entry-gate.is-home .entry-gate__home-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 40%;
+}
+
+.entry-gate.is-home .entry-gate__home-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(10, 22, 40, 0.28) 0%,
+    rgba(10, 22, 40, 0.08) 35%,
+    rgba(10, 22, 40, 0.2) 55%,
+    rgba(10, 22, 40, 0) 70%
+  );
+}
+
+.entry-gate.is-home .entry-gate__home-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: min(58%, 34rem);
+  background: linear-gradient(
+    to bottom,
+    rgba(243, 235, 224, 0) 0%,
+    rgba(243, 235, 224, 0.35) 28%,
+    rgba(243, 235, 224, 0.78) 58%,
+    rgba(243, 235, 224, 0.96) 78%,
+    var(--entry-cream) 100%
+  );
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 38%, #000 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 38%, #000 100%);
+}
+
+.entry-gate.is-home .entry-gate__chrome {
+  z-index: 40;
+}
+
+.entry-gate.is-home .entry-gate__kosher-badge {
+  display: none;
+}
+
+.entry-gate.is-home .entry-gate__lang {
+  padding: 0.14rem;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(8px);
+  gap: 0;
+}
+
+.entry-gate.is-home .entry-gate__lang .lang-toggle__option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.4rem;
+  padding: 0.32rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  opacity: 0.5;
+}
+
+.entry-gate.is-home .entry-gate__lang .lang-toggle__option--active {
+  background: var(--entry-navy);
+  color: #fff;
+  opacity: 1;
+}
+
+.entry-gate.is-home .entry-gate__lang .lang-toggle__sep {
+  display: none;
+}
+
+.entry-gate.is-home .entry-gate__classic {
+  display: none;
+}
+
+/* Secondary steps: keep classic brand; hide home hero copy */
+.entry-gate:not(.is-home) .entry-gate__hero {
+  display: none;
+}
+
+.entry-gate.is-home .entry-gate__shell {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 440px;
+  margin: 0 auto;
+  height: 100%;
+  max-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: clamp(0.5rem, 1.35vh, 1rem);
+  padding:
+    max(0.3rem, env(safe-area-inset-top, 0px))
+    clamp(0.75rem, 3vw, 1.15rem)
+    clamp(2rem, 6vh, 3.2rem);
+  padding-bottom: max(clamp(2rem, 6vh, 3.2rem), env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+  animation: none;
+  overflow: hidden;
+}
+
+.entry-gate.is-home .entry-gate__hero {
+  margin: 0;
+  margin-bottom: auto;
+  padding-top: clamp(3.2rem, 9vh, 6rem);
+  gap: 0.15rem;
+  color: var(--entry-navy);
+  background: none;
+  border: 0;
+  box-shadow: none;
+  flex-shrink: 0;
+}
+
+.entry-gate.is-home .entry-gate__welcome,
+.entry-gate.is-home .entry-gate__title,
+.entry-gate.is-home .entry-gate__kosher {
+  color: var(--entry-navy);
+  /* Soft halo follows the letters — no box behind the block */
+  -webkit-text-stroke: 0.35px rgba(255, 255, 255, 0.55);
+  paint-order: stroke fill;
+  text-shadow:
+    0 0 2px rgba(255, 255, 255, 0.95),
+    0 0 8px rgba(243, 235, 224, 1),
+    0 0 18px rgba(243, 235, 224, 0.95),
+    0 0 32px rgba(243, 235, 224, 0.85),
+    0 1px 0 rgba(255, 255, 255, 0.9);
+  filter: drop-shadow(0 0 6px rgba(243, 235, 224, 0.75));
+}
+
+.entry-gate.is-home .entry-gate__welcome {
+  margin: 0;
+  font-size: clamp(0.72rem, 1.8vh, 1.05rem);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: none;
+}
+
+.entry-gate.is-home .entry-gate__title {
+  margin: 0;
+  font-family: var(--font-body, 'Heebo', sans-serif);
+  font-size: clamp(1.2rem, 3.4vh, 2.15rem);
+  font-weight: 800;
+  line-height: 1.12;
+}
+
+.entry-gate.is-home .entry-gate__kosher {
+  margin: 0.3rem auto 0;
+  padding-top: 0.35rem;
+  width: fit-content;
+  border-top: 1.5px solid rgba(196, 160, 106, 0.95);
+  font-size: clamp(0.75rem, 1.7vh, 1.05rem);
+  font-weight: 700;
+  filter: drop-shadow(0 0 8px rgba(243, 235, 224, 0.9));
+}
+
+.entry-gate.is-home .entry-gate__step {
+  gap: 0;
+  animation: none;
+  flex-shrink: 0;
+  min-height: 0;
+}
+
+.entry-gate.is-home .entry-gate__actions {
+  gap: clamp(0.42rem, 1.25vh, 0.75rem);
+  margin-bottom: clamp(0.25rem, 1.2vh, 0.7rem);
+}
+
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn {
+  min-height: clamp(44px, 6.6vh, 58px);
+  padding: 0.38rem 0.75rem;
+  border-radius: 12px;
+  border: 0;
+  background: var(--entry-navy);
+  color: #fff;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.55rem;
+  justify-items: stretch;
+  text-align: start;
+  box-shadow: 0 5px 14px rgba(23, 52, 93, 0.16);
+}
+
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn:hover {
+  transform: translateY(-1px);
+  border-color: transparent;
+  background: #1f4273;
+  box-shadow: 0 8px 22px rgba(23, 52, 93, 0.22);
+}
+
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn--primary {
+  background: var(--entry-navy);
+  color: #fff;
+  border-color: transparent;
+}
+
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn--primary:hover {
+  background: #1f4273;
+  color: #fff;
+}
+
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn--dine-in {
+  background: #f7efe4;
+  color: var(--entry-navy);
+  border: 1.5px solid rgba(196, 160, 106, 0.75);
+}
+
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn--dine-in:hover {
+  background: #fff;
+  border-color: var(--entry-gold);
+  color: var(--entry-navy);
+}
+
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn-icon {
+  display: grid;
+  place-items: center;
+  width: 1.35rem;
+  color: var(--entry-gold);
+  flex-shrink: 0;
+}
+
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn--dine-in .entry-gate__btn-icon {
+  color: #a8864f;
+}
+
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn-text {
+  display: grid;
+  gap: 0.05rem;
+  min-width: 0;
+}
+
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn-label {
+  font-size: clamp(0.84rem, 1.9vh, 1.05rem);
+  font-weight: 700;
+  line-height: 1.12;
+}
+
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn-hint {
+  display: block;
+  margin: 0;
+  font-size: clamp(0.62rem, 1.35vh, 0.78rem);
+  font-weight: 400;
+  line-height: 1.2;
+  opacity: 0.82;
+}
+
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn-chevron {
+  display: block;
+  width: 0.48rem;
+  height: 0.48rem;
+  border-inline-end: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  opacity: 0.75;
+  margin-inline-end: 0.15rem;
+}
+
+[dir="rtl"] .entry-gate.is-home .entry-gate__actions .entry-gate__btn-chevron,
+.entry-gate.is-home .entry-gate__shell[dir="rtl"] .entry-gate__actions .entry-gate__btn-chevron {
+  transform: rotate(-135deg);
+}
+
+.entry-gate.is-home .entry-gate__actions a.entry-gate__btn {
+  text-align: start;
+}
+
+.entry-gate.is-home .entry-gate__foot {
+  display: grid;
+  gap: 0.08rem;
+  padding: 0.08rem 0 0;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.entry-gate.is-home .entry-gate__foot-brand {
+  margin: 0;
+  font-family: var(--font-display, 'Frank Ruhl Libre', 'Playfair Display', serif);
+  font-size: clamp(0.7rem, 1.5vh, 0.95rem);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #9a7a45;
+}
+
+.entry-gate.is-home .entry-gate__foot-tag {
+  margin: 0;
+  font-family: var(--font-body, 'Heebo', sans-serif);
+  font-size: clamp(0.65rem, 1.35vh, 0.86rem);
+  font-weight: 500;
+  color: var(--entry-navy);
+}
+
+/* Desktop: photo fills the viewport; content sits over the soft fade */
+@media (min-width: 768px) {
+  .entry-gate.is-home .entry-gate__home-photo {
+    object-position: center 35%;
+  }
+
+  .entry-gate.is-home .entry-gate__home-fade {
+    height: min(52%, 36rem);
+  }
+
+  .entry-gate.is-home .entry-gate__shell {
+    max-width: 460px;
+    justify-content: center;
+    padding-top: 5.5rem;
+    padding-bottom: 1.5rem;
+    gap: 0.85rem;
+  }
+
+  .entry-gate.is-home .entry-gate__hero {
+    margin-bottom: 0.5rem;
+    padding-top: clamp(4.5rem, 12vh, 7rem);
+  }
+
+  .entry-gate.is-home .entry-gate__title {
+    font-size: clamp(1.85rem, 3vw, 2.35rem);
+  }
+
+  .entry-gate.is-home .entry-gate__actions {
+    gap: 0.55rem;
+  }
+
+  .entry-gate.is-home .entry-gate__actions .entry-gate__btn {
+    min-height: 64px;
+    border-radius: 16px;
+    padding: 0.7rem 1.1rem;
+  }
+
+  .entry-gate.is-home .entry-gate__actions .entry-gate__btn-icon {
+    width: 1.7rem;
+  }
+
+  .entry-gate.is-home .entry-gate__actions .entry-gate__btn-icon svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .entry-gate.is-home .entry-gate__actions .entry-gate__btn-hint {
+    font-size: 0.78rem;
+  }
+}
+
+/* Short phones: keep hints, squeeze layout to avoid scroll */
+@media (max-width: 767px) {
+  .entry-gate.is-home .entry-gate__actions .entry-gate__btn-hint {
+    display: block;
+  }
+}
+
+@media (max-height: 740px) {
+  .entry-gate.is-home .entry-gate__hero {
+    padding-top: clamp(2.4rem, 7vh, 3.8rem);
+  }
+
+  .entry-gate.is-home .entry-gate__shell {
+    padding-bottom: max(1.6rem, env(safe-area-inset-bottom, 0px));
+  }
+
+  .entry-gate.is-home .entry-gate__actions {
+    gap: 0.4rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .entry-gate.is-home .entry-gate__actions .entry-gate__btn {
+    min-height: 0;
+    padding: 0.32rem 0.65rem;
+  }
+
+  .entry-gate.is-home .entry-gate__actions .entry-gate__btn-label {
+    font-size: 0.86rem;
+  }
+
+  .entry-gate.is-home .entry-gate__actions .entry-gate__btn-hint {
+    font-size: 0.62rem;
+  }
+}
+
+@media (max-height: 640px) {
+  .entry-gate.is-home .entry-gate__hero {
+    padding-top: clamp(1.8rem, 5.5vh, 2.8rem);
+  }
+
+  .entry-gate.is-home .entry-gate__welcome {
+    font-size: 0.7rem;
+  }
+
+  .entry-gate.is-home .entry-gate__title {
+    font-size: 1.1rem;
+  }
+
+  .entry-gate.is-home .entry-gate__kosher {
+    margin-top: 0.2rem;
+    padding-top: 0.25rem;
+    font-size: 0.72rem;
+  }
+
+  .entry-gate.is-home .entry-gate__actions .entry-gate__btn {
+    padding: 0.22rem 0.55rem;
+    border-radius: 10px;
+  }
+
+  .entry-gate.is-home .entry-gate__foot-tag {
+    display: none;
+  }
+}
