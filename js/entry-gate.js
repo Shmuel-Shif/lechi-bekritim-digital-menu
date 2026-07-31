@@ -34,6 +34,22 @@
       placeReservationHint: 'Reserve your table at the restaurant',
       entryFooterBrand: 'LECHAIM IN CRETE',
       entryFooterTagline: 'Mehadrin Kosher Restaurant • Crete',
+      entryFollowUs: 'Follow us',
+      ariaPhone: 'Call +30 694 650 2236',
+      ariaMaps: 'Open location in Google Maps',
+      scrollHintAria: 'Scroll down',
+      aboutTitle: 'About us',
+      aboutP1: 'Lechaim is a Mehadrin kosher restaurant in Crete.',
+      aboutP2: 'We serve quality Israeli food, meats, fish, and beloved dishes in a warm, family atmosphere.',
+      aboutP3: 'Located in the heart of Crete, we offer dine-in, takeaway, and special Shabbat orders.',
+      aboutImageAlt: 'Lechaim restaurant in Crete',
+      kosherTitle: 'Kashrut',
+      kosherP1: 'The restaurant operates under Mehadrin EK kashrut, under the supervision of Rabbi Shneor Tornheim, Chabad Rabbi of Crete.',
+      kosherP2: 'We insist on quality ingredients, a Mehadrin kosher kitchen, and high kashrut standards year-round.',
+      kosherBadgeAlt: 'Mehadrin kosher badge',
+      kosherCheck1: 'Mehadrin kosher',
+      kosherCheck2: 'EK',
+      kosherCheck3: 'Quality ingredients',
       delivery: 'Delivery',
       back: 'Back',
       comingSoon: 'Coming Soon',
@@ -105,6 +121,22 @@
       placeReservationHint: 'הבטיחו את מקומכם במסעדה',
       entryFooterBrand: 'LECHAIM IN CRETE',
       entryFooterTagline: 'מסעדה כשרה למהדרין • כרתים',
+      entryFollowUs: 'עקבו אחרינו',
+      ariaPhone: 'התקשרו +30 694 650 2236',
+      ariaMaps: 'פתחו מיקום ב-Google Maps',
+      scrollHintAria: 'גלול למטה',
+      aboutTitle: 'מי אנחנו',
+      aboutP1: 'מסעדת לחיים היא מסעדה כשרה למהדרין בכרתים.',
+      aboutP2: 'אנו מגישים אוכל ישראלי איכותי, בשרים, דגים ומנות אהובות באווירה חמה ומשפחתית.',
+      aboutP3: 'המסעדה ממוקמת בלב כרתים ומציעה ישיבה במקום, איסוף עצמי והזמנות מיוחדות לשבת.',
+      aboutImageAlt: 'מסעדת לחיים בכרתים',
+      kosherTitle: 'כשרות',
+      kosherP1: 'המסעדה פועלת תחת כשרות מהדרין EK, בפיקוחו של הרב שניאור טורנהיים רב חב״ד כרתים.',
+      kosherP2: 'אנו מקפידים על חומרי גלם איכותיים, מטבח כשר למהדרין וסטנדרטים גבוהים של כשרות לאורך כל השנה.',
+      kosherBadgeAlt: 'סמל כשרות למהדרין',
+      kosherCheck1: 'כשר למהדרין',
+      kosherCheck2: 'EK',
+      kosherCheck3: 'חומרי גלם איכותיים',
       delivery: 'משלוח',
       back: 'חזרה',
       comingSoon: 'Coming Soon',
@@ -183,7 +215,14 @@
   const titleEl = document.getElementById('entry-hero-title');
   const kosherEl = document.getElementById('entry-hero-kosher');
   const langToggle = document.getElementById('entry-lang-toggle');
+  const scrollHintBtn = document.getElementById('entry-scroll-hint');
+  const aboutSection = document.getElementById('entry-about');
+  const aboutImg = aboutSection?.querySelector('[data-entry-i18n-alt="aboutImageAlt"]');
+  const aboutSlides = document.getElementById('entry-about-slides');
   const tableBackBtn = stepTable?.querySelector('[data-entry-back]');
+  let homeRevealObserver = null;
+  let aboutSlideTimer = null;
+  let aboutSlideIndex = 0;
   const pickupForm = document.getElementById('entry-pickup-form');
   const pickupName = document.getElementById('entry-pickup-name');
   const pickupPhone = document.getElementById('entry-pickup-phone');
@@ -264,6 +303,21 @@
       }
     });
 
+    gate.querySelectorAll('[data-entry-i18n-aria]').forEach((el) => {
+      const key = el.getAttribute('data-entry-i18n-aria');
+      if (key && COPY.en[key] != null) el.setAttribute('aria-label', t(key));
+    });
+
+    if (aboutImg) {
+      const altKey = aboutImg.getAttribute('data-entry-i18n-alt');
+      if (altKey && COPY.en[altKey] != null) aboutImg.setAttribute('alt', t(altKey));
+    }
+
+    gate.querySelectorAll('[data-entry-i18n-alt]').forEach((el) => {
+      const altKey = el.getAttribute('data-entry-i18n-alt');
+      if (altKey && COPY.en[altKey] != null) el.setAttribute('alt', t(altKey));
+    });
+
     if (stepPickupClosed && !stepPickupClosed.hidden) {
       const closedTitle = stepPickupClosed.querySelector('[data-entry-i18n="pickupClosedTitle"]');
       const closedText = stepPickupClosed.querySelector('[data-entry-i18n="pickupClosedText"]');
@@ -317,15 +371,119 @@
     }));
   }
 
+  function stopAboutSlideshow() {
+    if (aboutSlideTimer) {
+      clearInterval(aboutSlideTimer);
+      aboutSlideTimer = null;
+    }
+  }
+
+  function startAboutSlideshow() {
+    /* About section uses side-floating organic photos + scroll reveal — no slideshow */
+    stopAboutSlideshow();
+  }
+
+  function teardownHomeReveal() {
+    if (homeRevealObserver) {
+      homeRevealObserver.disconnect();
+      homeRevealObserver = null;
+    }
+    stopAboutSlideshow();
+  }
+
+  function setupHomeReveal() {
+    teardownHomeReveal();
+    if (!gate.classList.contains('is-home')) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      gate.querySelectorAll('.entry-gate__reveal').forEach((el) => el.classList.add('is-inview'));
+      return;
+    }
+
+    const nodes = gate.querySelectorAll('.entry-gate__reveal');
+    if (!nodes.length) return;
+
+    const revealEl = (el) => {
+      if (!el || el.classList.contains('is-inview')) return;
+      el.classList.add('is-inview');
+      homeRevealObserver?.unobserve(el);
+    };
+
+    /* Side floats sit off-canvas — observe their sections, not the floats */
+    const aboutSectionEl = document.getElementById('entry-about');
+    const kosherSectionEl = document.getElementById('entry-kosher');
+    const revealSectionFloats = (section) => {
+      if (!section) return;
+      section.querySelectorAll('.entry-gate__about-float.entry-gate__reveal, .entry-gate__kashrut-badge.entry-gate__reveal').forEach(revealEl);
+      section.querySelectorAll('.entry-gate__reveal').forEach(revealEl);
+    };
+
+    homeRevealObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          if (entry.target.id === 'entry-about' || entry.target.id === 'entry-kosher') {
+            revealSectionFloats(entry.target);
+            homeRevealObserver?.unobserve(entry.target);
+            return;
+          }
+          revealEl(entry.target);
+        });
+      },
+      {
+        root: gate,
+        threshold: 0.12,
+        rootMargin: '0px 0px -8% 0px',
+      }
+    );
+
+    nodes.forEach((el) => {
+      el.classList.remove('is-inview');
+      /* Floats/badge revealed via section observers */
+      if (el.classList.contains('entry-gate__about-float')) return;
+      if (el.classList.contains('entry-gate__kashrut-badge')) return;
+      homeRevealObserver.observe(el);
+    });
+
+    if (aboutSectionEl) homeRevealObserver.observe(aboutSectionEl);
+    if (kosherSectionEl) homeRevealObserver.observe(kosherSectionEl);
+
+    /* Reveal above-the-fold cards immediately — skip About / Kosher */
+    requestAnimationFrame(() => {
+      const rootRect = gate.getBoundingClientRect();
+      nodes.forEach((el) => {
+        if (el.classList.contains('is-inview')) return;
+        if (el.classList.contains('entry-gate__about-float')) return;
+        if (el.classList.contains('entry-gate__kashrut-badge')) return;
+        if (el.closest('#entry-about') || el.closest('#entry-kosher')) return;
+        const rect = el.getBoundingClientRect();
+        const visible = rect.top < rootRect.bottom && rect.bottom > rootRect.top + 8;
+        if (!visible) return;
+        revealEl(el);
+      });
+    });
+  }
+
   function showStep(step) {
     [stepOrder, stepTable, stepPickup, stepPickupClosed, stepPlaceRes].forEach((el) => {
       if (!el) return;
       el.hidden = el !== step;
     });
     /* Premium home layout only on the main order-cards screen */
-    gate.classList.toggle('is-home', step === stepOrder);
+    const onHome = step === stepOrder;
+    gate.classList.toggle('is-home', onHome);
+    if (onHome) {
+      gate.scrollTop = 0;
+      setupHomeReveal();
+      startAboutSlideshow();
+    } else {
+      teardownHomeReveal();
+    }
     applyEntryCopy();
   }
+
+  scrollHintBtn?.addEventListener('click', () => {
+    aboutSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
 
   function pad2(n) {
     return String(n).padStart(2, '0');
@@ -1673,5 +1831,9 @@
     setLang('he');
     if (await tryResumeSession()) return;
     goToOrderType();
+    if (gate.classList.contains('is-home')) {
+      setupHomeReveal();
+      startAboutSlideshow();
+    }
   })();
 })();
