@@ -308,8 +308,8 @@ const DISH_I18N = {
       desc: 'Chicken pieces stir-fried with vegetables in soy and ginger sauce.',
     },
     'chicken-salad': {
-      name: 'Rich Chicken Salad',
-      desc: 'Warm chicken on lettuce with seasonal vegetables and vinaigrette.',
+      name: 'Chicken Salad',
+      desc: 'Chicken pieces on a fresh vegetable salad.',
     },
     'israeli-salad': {
       name: 'Israeli Salad',
@@ -533,9 +533,9 @@ const MENU_DATA = {
       items: [
         {
           id: 'chicken-salad',
-          name: 'סלט פרגית עשיר',
+          name: 'סלט פרגית',
           printName: 'Salat Pargit',
-          description: 'נתחי פרגית חמים על מצע חסות, ירקות העונה ורוטב ויניגרט.',
+          description: 'נתחי פרגית על סלט ירקות טרי.',
           price: 18,
           image: dishImage('chicken-salad'),
         },
@@ -543,7 +543,7 @@ const MENU_DATA = {
           id: 'israeli-salad',
           name: 'סלט ישראלי',
           printName: 'Salat Israeli',
-          description: 'סלט ירקות קצוץ טרי עם עשבי תיבול.',
+          description: 'סלט ירקות טרי.',
           price: 10,
           image: dishImage('israeli-salad'),
         },
