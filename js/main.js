@@ -125,14 +125,14 @@
    * ---------------------------------------------------------------------------
    * Ordering hours (restaurant local time)
    * Dine-in: Sun–Thu 14:00–23:00; closed Fri–Sat.
-   * Takeaway (in menu): Sun–Thu 14:00–21:00; closed Fri–Sat.
+   * Takeaway (in menu): Sun–Thu 14:00–23:00; closed Fri–Sat.
    * Outside that window: browse catalog only.
    * ---------------------------------------------------------------------------
    */
   const ORDERING_HOURS_ENABLED = true;
   const ORDERING_OPEN_HOUR = 14;
   const DINE_IN_CLOSE_HOUR = 23; /* exclusive */
-  const TAKEAWAY_CLOSE_HOUR = 21; /* exclusive */
+  const TAKEAWAY_CLOSE_HOUR = 23; /* exclusive */
 
   /** Admin dine-in close countdown — global deadline; each guest sees remaining time. */
   let dineInCloseAtMs = null;
@@ -765,6 +765,8 @@
 
   let butcherNoticeFocusTrapRelease = null;
   let butcherNoticeShownThisVisit = false;
+  let deliveryFeeFocusTrapRelease = null;
+  let deliveryFeeShownThisVisit = false;
 
   function closeButcherNoticeModal() {
     const modal = document.getElementById('butcher-notice-modal');
@@ -802,6 +804,61 @@
     if (okBtn) okBtn.dataset.bound = '1';
     okBtn?.addEventListener('click', closeButcherNoticeModal);
     backdrop?.addEventListener('click', closeButcherNoticeModal);
+  }
+
+  function isDeliveryContext() {
+    const ctx = window.LechaimOrderContext || {};
+    return ctx.orderType === 'takeaway'
+      && String(ctx.fulfillmentType || '') === 'delivery';
+  }
+
+  function closeDeliveryFeeModal() {
+    const modal = document.getElementById('delivery-fee-modal');
+    if (!modal) return;
+    if (typeof deliveryFeeFocusTrapRelease === 'function') deliveryFeeFocusTrapRelease();
+    deliveryFeeFocusTrapRelease = null;
+    modal.hidden = true;
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('app-confirm-open');
+  }
+
+  function showDeliveryFeeModal() {
+    const modal = document.getElementById('delivery-fee-modal');
+    const textEl = document.getElementById('delivery-fee-text');
+    const okBtn = document.getElementById('delivery-fee-ok');
+    if (!modal || !isDeliveryContext()) return;
+
+    if (textEl) textEl.textContent = t('deliveryFeeNotice');
+    if (okBtn) okBtn.textContent = t('gotIt');
+
+    modal.hidden = false;
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('app-confirm-open');
+
+    if (typeof deliveryFeeFocusTrapRelease === 'function') deliveryFeeFocusTrapRelease();
+    const release = window.LechaimFocusTrap?.activate?.(modal);
+    deliveryFeeFocusTrapRelease = typeof release === 'function' ? release : null;
+    okBtn?.focus();
+  }
+
+  function initDeliveryFeeModal() {
+    const okBtn = document.getElementById('delivery-fee-ok');
+    const backdrop = document.getElementById('delivery-fee-backdrop');
+    if (okBtn?.dataset.bound === '1') return;
+    if (okBtn) okBtn.dataset.bound = '1';
+    okBtn?.addEventListener('click', closeDeliveryFeeModal);
+    backdrop?.addEventListener('click', closeDeliveryFeeModal);
+  }
+
+  function maybeShowDeliveryFeeNotice() {
+    if (!isDeliveryContext()) {
+      closeDeliveryFeeModal();
+      deliveryFeeShownThisVisit = false;
+      return;
+    }
+    if (deliveryFeeShownThisVisit) return;
+    deliveryFeeShownThisVisit = true;
+    showDeliveryFeeModal();
   }
 
   function syncButcherModeUi() {
@@ -944,6 +1001,7 @@
     refreshSidesModal();
     refreshOrderingHoursUi();
     syncButcherModeUi();
+    maybeShowDeliveryFeeNotice();
   }
 
   /* ---------- Menu lookup ---------- */
@@ -1240,7 +1298,9 @@
     refreshOrderingHoursUi();
     initDineInOrdersClosedWatch();
     initButcherNoticeModal();
+    initDeliveryFeeModal();
     syncButcherModeUi();
+    maybeShowDeliveryFeeNotice();
   }
 
   /**
@@ -1414,6 +1474,7 @@
     restoreTakeawayLockIfNeeded();
     refreshOrderingHoursUi();
     syncButcherModeUi();
+    maybeShowDeliveryFeeNotice();
     if (appStarted) {
       if (typeChanged) {
         rebuildNavigation();

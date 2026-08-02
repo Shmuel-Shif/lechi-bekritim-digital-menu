@@ -82,7 +82,7 @@
       pickupTimeRequired: 'Please select a pickup time',
       pickupNoSlots: 'No pickup times left today — choose ASAP',
       pickupClosedTitle: 'Not available right now.',
-      pickupClosedText: 'Takeaway orders can be placed Sunday–Thursday.\nBetween 14:00 – 21:00.',
+      pickupClosedText: 'Takeaway orders can be placed Sunday–Thursday.\nBetween 14:00 – 23:00.',
       pickupClosedBrowse: 'View the menu',
       dineInClosedTitle: 'Not available right now.',
       dineInClosedText: 'Dine-in is available during restaurant opening hours.',
@@ -182,7 +182,7 @@
       pickupTimeRequired: 'נא לבחור שעת איסוף',
       pickupNoSlots: 'אין שעות פנויות היום — בחרו בהקדם האפשרי',
       pickupClosedTitle: 'לא זמין כרגע.',
-      pickupClosedText: 'ניתן לבצע הזמנות לאיסוף עצמי בימי א - ה\nבין השעות 14:00 - 21:00.',
+      pickupClosedText: 'ניתן לבצע הזמנות לאיסוף עצמי בימי א - ה\nבין השעות 14:00 - 23:00.',
       pickupClosedBrowse: 'לצפייה בתפריט',
       dineInClosedTitle: 'לא זמין כרגע.',
       dineInClosedText: 'ניתן לבצע ישיבה במקום בשעות פעילות המסעדה.',
@@ -784,10 +784,10 @@
   /* Set true to enforce takeaway day + clock hours */
   const TAKEAWAY_DAY_HOURS_ENABLED = true;
   const TAKEAWAY_OPEN_HOUR = 14;
-  const TAKEAWAY_CLOSE_HOUR = 21; /* exclusive */
+  const TAKEAWAY_CLOSE_HOUR = 23; /* exclusive */
 
   /**
-   * Takeaway only: Sun–Thu 14:00–21:00; closed Fri–Sat and outside hours.
+   * Takeaway only: Sun–Thu 14:00–23:00; closed Fri–Sat and outside hours.
    */
   function isTakeawayDayOpen() {
     if (!TAKEAWAY_DAY_HOURS_ENABLED) return true;
@@ -1272,7 +1272,7 @@
   function buildPickupSlots() {
     const slots = [];
     const openMinutes = 15 * 60;
-    const closeMinutes = 21 * 60;
+    const closeMinutes = 23 * 60;
     const now = new Date();
     let startMinutes = now.getHours() * 60 + now.getMinutes();
     startMinutes = Math.ceil((startMinutes + 1) / 15) * 15;

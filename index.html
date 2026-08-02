@@ -493,7 +493,7 @@
       <div class="entry-gate__step" id="entry-step-pickup-closed" hidden>
         <div class="entry-pickup-closed" role="status">
           <p class="entry-pickup-closed__title" data-entry-i18n="pickupClosedTitle">לא זמין כרגע.</p>
-          <p class="entry-pickup-closed__text" data-entry-i18n="pickupClosedText">ניתן לבצע הזמנות לאיסוף עצמי בימי א - ה<br>בין השעות 14:00 - 21:00.</p>
+          <p class="entry-pickup-closed__text" data-entry-i18n="pickupClosedText">ניתן לבצע הזמנות לאיסוף עצמי בימי א - ה<br>בין השעות 14:00 - 23:00.</p>
           <button type="button" class="entry-gate__btn entry-gate__btn--primary" id="entry-pickup-closed-browse" data-entry-i18n="pickupClosedBrowse">
             לצפייה בתפריט
           </button>
@@ -670,6 +670,16 @@
     </div>
   </div>
 
+  <div class="app-confirm" id="delivery-fee-modal" hidden aria-hidden="true">
+    <button type="button" class="app-confirm__backdrop" id="delivery-fee-backdrop" aria-label="סגור"></button>
+    <div class="app-confirm__panel" role="dialog" aria-modal="true" aria-labelledby="delivery-fee-text">
+      <p class="app-confirm__text" id="delivery-fee-text"></p>
+      <div class="app-confirm__actions">
+        <button type="button" class="cart-send-btn" id="delivery-fee-ok" data-i18n="gotIt">הבנתי</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Menu -->
   <main class="menu-main" id="menu">
     <div class="container">
@@ -720,7 +730,7 @@
         <div class="footer-card">
           <h3 class="footer-heading" data-i18n="hours">שעות פעילות</h3>
           <ul class="footer-hours">
-            <li><span data-i18n="hoursDays">א׳ – ה׳</span><span>14:00 – 21:00</span></li>
+            <li><span data-i18n="hoursDays">א׳ – ה׳</span><span>14:00 – 23:00</span></li>
           </ul>
         </div>
 
