@@ -643,6 +643,10 @@
     return `assets/images/header%20foto/${filename}`;
   }
 
+  function bifHeroFoto(filename) {
+    return `assets/images/bif/${encodeURIComponent(filename)}`;
+  }
+
   function shuffleArray(items) {
     const list = items.slice();
     for (let i = list.length - 1; i > 0; i -= 1) {
@@ -654,7 +658,7 @@
     return list;
   }
 
-  const HERO_SLIDES = shuffleArray([
+  const HERO_SLIDES_MENU = [
     headerFoto('1.webp'),
     headerFoto('chicken-salad.webp'),
     headerFoto('fries.webp'),
@@ -673,7 +677,21 @@
     headerFoto('puree.webp'),
     headerFoto('fanta.webp'),
     headerFoto('sprite.webp'),
-  ]);
+  ];
+
+  const HERO_SLIDES_BUTCHER = [
+    bifHeroFoto('asado.webp'),
+    bifHeroFoto('antrikut.webp'),
+    bifHeroFoto('golsh.webp'),
+    bifHeroFoto('baked-potatoes.webp'),
+    bifHeroFoto("kar'i'im.webp"),
+    bifHeroFoto('pirgit.webp'),
+    bifHeroFoto("knafi'im.webp"),
+  ];
+
+  function getHeroSlides() {
+    return shuffleArray(isButcherContext() ? HERO_SLIDES_BUTCHER : HERO_SLIDES_MENU);
+  }
 
   /* ---------- i18n ---------- */
   function t(key) {
@@ -719,6 +737,122 @@
 
   function getItemPrice(item) {
     return getResolvedItem(item).price;
+  }
+
+  function isButcherContext() {
+    const type = String(window.LechaimOrderContext?.orderType || '').toLowerCase();
+    return type === 'butcher' || type === 'butcher_shop' || type === 'butcher-shop';
+  }
+
+  function isSoldByWeight(item) {
+    const resolved = getResolvedItem(item);
+    return Boolean(resolved?.soldByWeight || resolved?.unitType === 'kg');
+  }
+
+  function getItemPricePerKg(item) {
+    const resolved = getResolvedItem(item);
+    const perKg = Number(resolved?.pricePerKg ?? resolved?.price);
+    return Number.isFinite(perKg) ? perKg : 0;
+  }
+
+  function getVisibleCategories() {
+    const cats = Array.isArray(MENU_DATA?.categories) ? MENU_DATA.categories : [];
+    if (isButcherContext()) {
+      return cats.filter((cat) => cat.id === 'butcher' || cat.id === 'poultry');
+    }
+    return cats.filter((cat) => cat.id !== 'butcher' && cat.id !== 'poultry');
+  }
+
+  let butcherNoticeFocusTrapRelease = null;
+  let butcherNoticeShownThisVisit = false;
+
+  function closeButcherNoticeModal() {
+    const modal = document.getElementById('butcher-notice-modal');
+    if (!modal) return;
+    if (typeof butcherNoticeFocusTrapRelease === 'function') butcherNoticeFocusTrapRelease();
+    butcherNoticeFocusTrapRelease = null;
+    modal.hidden = true;
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('app-confirm-open');
+  }
+
+  function showButcherNoticeModal() {
+    const modal = document.getElementById('butcher-notice-modal');
+    const textEl = document.getElementById('butcher-notice-text');
+    const okBtn = document.getElementById('butcher-notice-ok');
+    if (!modal || !isButcherContext()) return;
+
+    if (textEl) textEl.textContent = t('butcherWeightNotice');
+    if (okBtn) okBtn.textContent = t('gotIt');
+
+    modal.hidden = false;
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('app-confirm-open');
+
+    if (typeof butcherNoticeFocusTrapRelease === 'function') butcherNoticeFocusTrapRelease();
+    const release = window.LechaimFocusTrap?.activate?.(modal);
+    butcherNoticeFocusTrapRelease = typeof release === 'function' ? release : null;
+    okBtn?.focus();
+  }
+
+  function initButcherNoticeModal() {
+    const okBtn = document.getElementById('butcher-notice-ok');
+    const backdrop = document.getElementById('butcher-notice-backdrop');
+    if (okBtn?.dataset.bound === '1') return;
+    if (okBtn) okBtn.dataset.bound = '1';
+    okBtn?.addEventListener('click', closeButcherNoticeModal);
+    backdrop?.addEventListener('click', closeButcherNoticeModal);
+  }
+
+  function syncButcherModeUi() {
+    const butcher = isButcherContext();
+    document.body.classList.toggle('butcher-mode', butcher);
+
+    const titleEl = document.querySelector('[data-i18n="heroTitle"]');
+    const welcomeEl = document.querySelector('[data-i18n="heroWelcome"]');
+    const kosherEl = document.querySelector('[data-i18n="heroKosher"]');
+    const desc = document.getElementById('butcher-hero-desc');
+
+    if (butcher) {
+      /* Order: shop title → kashrut line → description */
+      if (titleEl) titleEl.textContent = t('butcherHeroTitle');
+      if (welcomeEl) {
+        welcomeEl.textContent = '';
+        welcomeEl.hidden = true;
+      }
+      if (kosherEl) {
+        kosherEl.hidden = false;
+        kosherEl.textContent = t('butcherHeroSubtitle');
+      }
+      if (desc) {
+        desc.hidden = false;
+        desc.innerHTML = String(t('butcherHeroDesc') || '')
+          .split('\n')
+          .filter(Boolean)
+          .map((line) => `<p>${escapeHtml(line)}</p>`)
+          .join('');
+      }
+      if (!butcherNoticeShownThisVisit) {
+        butcherNoticeShownThisVisit = true;
+        showButcherNoticeModal();
+      }
+    } else {
+      if (titleEl) titleEl.textContent = t('heroTitle');
+      if (welcomeEl) {
+        welcomeEl.hidden = false;
+        welcomeEl.textContent = t('heroWelcome');
+      }
+      if (kosherEl) {
+        kosherEl.hidden = false;
+        kosherEl.textContent = t('heroKosher');
+      }
+      if (desc) {
+        desc.hidden = true;
+        desc.innerHTML = '';
+      }
+      closeButcherNoticeModal();
+      butcherNoticeShownThisVisit = false;
+    }
   }
 
   function getItemImage(item) {
@@ -809,6 +943,7 @@
     updateOpenFoodModal();
     refreshSidesModal();
     refreshOrderingHoursUi();
+    syncButcherModeUi();
   }
 
   /* ---------- Menu lookup ---------- */
@@ -1104,6 +1239,8 @@
     hideOrderFeedback();
     refreshOrderingHoursUi();
     initDineInOrdersClosedWatch();
+    initButcherNoticeModal();
+    syncButcherModeUi();
   }
 
   /**
@@ -1148,24 +1285,25 @@
 
     const browseOnly = Boolean(options.browseOnly);
 
+    const startType = browseOnly ? null : (options.orderType || null);
+    const startHasCustomer = startType === 'takeaway' || startType === 'butcher';
+
     window.LechaimOrderContext = {
       browseOnly,
-      orderType: browseOnly ? null : (options.orderType || null),
-      tableNumber: browseOnly
+      orderType: startType,
+      tableNumber: browseOnly || startType === 'takeaway' || startType === 'butcher'
         ? null
-        : (options.orderType === 'takeaway'
-          ? null
-          : (options.tableNumber != null ? Number(options.tableNumber) : null)),
+        : (options.tableNumber != null ? Number(options.tableNumber) : null),
       lang: currentLang,
       sessionId: browseOnly ? null : (options.sessionId || null),
       openedAt: browseOnly ? null : (options.openedAt || null),
       status: browseOnly ? null : (options.status || null),
-      customerName: !browseOnly && options.orderType === 'takeaway' ? (options.customerName || '') : null,
-      customerPhone: !browseOnly && options.orderType === 'takeaway' ? (options.customerPhone || '') : null,
-      customerNotes: !browseOnly && options.orderType === 'takeaway' ? (options.customerNotes || '') : null,
-      pickupType: !browseOnly && options.orderType === 'takeaway' ? (options.pickupType || 'ASAP') : null,
-      pickupTime: !browseOnly && options.orderType === 'takeaway' ? (options.pickupTime || null) : null,
-      publicOrderNo: !browseOnly && options.orderType === 'takeaway'
+      customerName: !browseOnly && startHasCustomer ? (options.customerName || '') : null,
+      customerPhone: !browseOnly && startHasCustomer ? (options.customerPhone || '') : null,
+      customerNotes: !browseOnly && startHasCustomer ? (options.customerNotes || '') : null,
+      pickupType: !browseOnly && startType === 'takeaway' ? (options.pickupType || 'ASAP') : null,
+      pickupTime: !browseOnly && startType === 'takeaway' ? (options.pickupTime || null) : null,
+      publicOrderNo: !browseOnly && startType === 'takeaway'
         ? (options.publicOrderNo != null ? Number(options.publicOrderNo) : null)
         : null,
     };
@@ -1196,13 +1334,15 @@
     const prev = window.LechaimOrderContext || {};
     const orderType = options.orderType != null ? options.orderType : prev.orderType;
     const isTakeaway = orderType === 'takeaway';
-    const nextTable = isTakeaway
+    const isButcher = orderType === 'butcher';
+    const hasCustomer = isTakeaway || isButcher;
+    const nextTable = isTakeaway || isButcher
       ? null
       : (options.tableNumber !== undefined
         ? (options.tableNumber != null ? Number(options.tableNumber) : null)
         : prev.tableNumber);
 
-    const tableChanged = !isTakeaway &&
+    const tableChanged = !isTakeaway && !isButcher &&
       options.tableNumber !== undefined &&
       Number(nextTable) !== Number(prev.tableNumber);
     const typeChanged = options.orderType != null && options.orderType !== prev.orderType;
@@ -1218,13 +1358,13 @@
       sessionId: nextSessionId,
       openedAt: options.openedAt !== undefined ? options.openedAt : prev.openedAt,
       status: options.status !== undefined ? options.status : prev.status,
-      customerName: isTakeaway
+      customerName: hasCustomer
         ? (options.customerName !== undefined ? options.customerName : prev.customerName)
         : null,
-      customerPhone: isTakeaway
+      customerPhone: hasCustomer
         ? (options.customerPhone !== undefined ? options.customerPhone : prev.customerPhone)
         : null,
-      customerNotes: isTakeaway
+      customerNotes: hasCustomer
         ? (options.customerNotes !== undefined ? options.customerNotes : prev.customerNotes)
         : null,
       pickupType: isTakeaway
@@ -1261,7 +1401,14 @@
     updateTableHeader();
     restoreTakeawayLockIfNeeded();
     refreshOrderingHoursUi();
-    if (appStarted) renderCart();
+    syncButcherModeUi();
+    if (appStarted) {
+      if (typeChanged) {
+        rebuildNavigation();
+        rebuildMenu(true);
+      }
+      renderCart();
+    }
     scrollToHeroWelcome();
     /* Re-entering dine-in menu → show remaining-time modal again */
     if (isDineInContext()) {
@@ -1313,8 +1460,10 @@
 
     if (backBtn) {
       /* After first takeaway send — stay on menu until Admin closes the order. */
-      backBtn.hidden = !isTakeaway || isTakeawayOrderLocked();
-      if (isTakeaway && !isTakeawayOrderLocked()) {
+      const isButcher = isButcherContext();
+      const showBack = isButcher || (isTakeaway && !isTakeawayOrderLocked());
+      backBtn.hidden = !showBack;
+      if (showBack) {
         backBtn.setAttribute('aria-label', t('backToOrderTypeAria'));
       }
     }
@@ -1557,7 +1706,7 @@
   function buildNavigation() {
     const catFragment = document.createDocumentFragment();
 
-    MENU_DATA.categories.forEach((cat) => {
+    getVisibleCategories().forEach((cat) => {
       const title = getCategoryTitle(cat);
       const a = document.createElement('a');
       a.href = `#${cat.id}`;
@@ -1604,7 +1753,7 @@
   function buildMenu() {
     const fragment = document.createDocumentFragment();
 
-    MENU_DATA.categories.forEach((cat) => {
+    getVisibleCategories().forEach((cat) => {
       const section = document.createElement('section');
       section.className = 'menu-category reveal';
       section.id = cat.id;
@@ -1702,9 +1851,13 @@
     const imageSrc = getItemImage(item);
     const hasImage = Boolean(imageSrc);
     const price = getItemPrice(item);
+    const byWeight = isSoldByWeight(item);
+    const pricePerKg = getItemPricePerKg(item);
     const canAddToCart = price != null;
     const priceHtml = canAddToCart && price > 0
-      ? `<span class="food-price">${formatDishPrice(price)}</span>`
+      ? (byWeight
+        ? `<span class="food-price food-price--per-kg">${escapeHtml(tReplace('perKg', { price: formatEuroTotal(pricePerKg) }))}</span>`
+        : `<span class="food-price">${formatDishPrice(price)}</span>`)
       : '';
 
     const noteHtml = item.note
@@ -1734,6 +1887,7 @@
     const qty = getCartQtyForItem(item.id);
     const cardClass = [
       'food-card',
+      byWeight ? 'food-card--by-weight' : '',
       hasImage ? '' : 'food-card--no-image',
       qty > 0 ? 'food-card--in-cart' : '',
     ].filter(Boolean).join(' ');
@@ -2418,7 +2572,7 @@
       preloadHref(entry.src, priority);
     };
 
-    HERO_SLIDES.forEach((src, index) => {
+    getHeroSlides().forEach((src, index) => {
       const slide = document.createElement('div');
       slide.className = 'hero-slide';
 
@@ -3143,14 +3297,23 @@
     }
 
     const ctx = window.LechaimOrderContext || {};
-    const orderType = ctx.orderType === 'takeaway' || ctx.orderType === 'take-away'
-      ? 'takeaway'
-      : (ctx.orderType === 'dine-in' || ctx.orderType === 'dinein' || ctx.tableNumber != null
-        ? 'dinein'
-        : null);
+    const orderType = ctx.orderType === 'butcher'
+      ? 'butcher'
+      : (ctx.orderType === 'takeaway' || ctx.orderType === 'take-away'
+        ? 'takeaway'
+        : (ctx.orderType === 'dine-in' || ctx.orderType === 'dinein' || ctx.tableNumber != null
+          ? 'dinein'
+          : null));
     const lang = ctx.lang === 'en' || ctx.lang === 'he' ? ctx.lang : currentLang;
 
-    if (orderType === 'takeaway') {
+    if (orderType === 'butcher' && Session.startButcher) {
+      session = Session.startButcher({
+        lang,
+        customerName: ctx.customerName || '',
+        customerPhone: ctx.customerPhone || '',
+        customerNotes: ctx.customerNotes || '',
+      });
+    } else if (orderType === 'takeaway') {
       session = Session.startTakeaway({
         lang,
         customerName: ctx.customerName || '',
@@ -3173,17 +3336,19 @@
     if (!session) return;
     const isTakeaway = session.orderType === 'takeaway' ||
       session.orderType === window.LechaimOrderSession?.ORDER_TYPE?.TAKEAWAY;
+    const isButcher = session.orderType === 'butcher' ||
+      session.orderType === window.LechaimOrderSession?.ORDER_TYPE?.BUTCHER;
 
     updateOrderContext({
-      orderType: isTakeaway ? 'takeaway' : 'dine-in',
-      tableNumber: isTakeaway ? null : session.tableNumber,
+      orderType: isButcher ? 'butcher' : (isTakeaway ? 'takeaway' : 'dine-in'),
+      tableNumber: isTakeaway || isButcher ? null : session.tableNumber,
       sessionId: session.sessionId,
       openedAt: session.openedAt,
       status: session.status,
       lang: session.lang || currentLang,
-      customerName: isTakeaway ? (session.customerName || '') : null,
-      customerPhone: isTakeaway ? (session.customerPhone || '') : null,
-      customerNotes: isTakeaway ? (session.customerNotes || '') : null,
+      customerName: isTakeaway || isButcher ? (session.customerName || '') : null,
+      customerPhone: isTakeaway || isButcher ? (session.customerPhone || '') : null,
+      customerNotes: isTakeaway || isButcher ? (session.customerNotes || '') : null,
       pickupType: isTakeaway ? (session.pickupType || 'ASAP') : null,
       pickupTime: isTakeaway ? (session.pickupTime || null) : null,
       publicOrderNo: isTakeaway
@@ -3259,11 +3424,14 @@
               id: line.itemId,
               name: product.name,
               price: product.price,
+              selectedWeight: product.selectedWeight,
+              pricePerKg: product.pricePerKg,
+              unitType: product.unitType,
             },
             Number(line.qty) || 1,
             product.notes || '',
             {
-              /* Merge drinks/starters qty; keep mains separate (sides linked). */
+              /* Merge drinks/starters/butcher qty; keep mains separate. */
               allowMerge: !linkedToMainItemId
                 && !isMainCourse(line.itemId)
                 && !isFruitShake(line.itemId),
@@ -3380,17 +3548,28 @@
     const map = readSupabaseSessionMap();
     const ctxEarly = window.LechaimOrderContext || {};
     const rawTypeEarly = localOrder?.orderType || localSession?.orderType || ctxEarly.orderType;
-    const isTakeawayEarly = String(rawTypeEarly).toLowerCase().includes('take');
+    const typesApi = window.LechaimOrderTypes;
+    const normalizedEarly = typesApi?.normalizeOrderType?.(rawTypeEarly, { warn: false })
+      || (String(rawTypeEarly).toLowerCase().includes('take')
+        ? 'takeaway'
+        : (String(rawTypeEarly).toLowerCase().includes('butcher')
+          ? 'butcher'
+          : (String(rawTypeEarly).toLowerCase().includes('dine') ? 'dine_in' : null)));
+    const isTakeawayEarly = normalizedEarly === 'takeaway';
+    const isButcherEarly = normalizedEarly === 'butcher';
     if (map[localId]) {
       await ensurePublicOrderNoRemembered(map[localId], isTakeawayEarly);
       return map[localId];
     }
 
     const ctx = ctxEarly;
-    const rawType = rawTypeEarly;
-    const isTakeawayResolved = isTakeawayEarly;
-    const orderType = isTakeawayResolved ? 'takeaway' : 'dine_in';
-    const tableNumber = isTakeawayResolved
+    const orderType = normalizedEarly === 'butcher'
+      ? 'butcher'
+      : (normalizedEarly === 'takeaway' ? 'takeaway' : 'dine_in');
+    const isTakeawayResolved = orderType === 'takeaway';
+    const isButcherResolved = orderType === 'butcher';
+    const hasCustomer = isTakeawayResolved || isButcherResolved;
+    const tableNumber = hasCustomer
       ? null
       : Number(localOrder?.tableNumber ?? localSession?.tableNumber ?? ctx.tableNumber);
 
@@ -3413,13 +3592,13 @@
         orderType,
         tableNumber: orderType === 'dine_in' ? tableNumber : null,
         language: currentLang,
-        customerName: isTakeawayResolved
+        customerName: hasCustomer
           ? (localSession?.customerName || ctx.customerName || null)
           : null,
-        customerPhone: isTakeawayResolved
+        customerPhone: hasCustomer
           ? (localSession?.customerPhone || ctx.customerPhone || null)
           : null,
-        notes: isTakeawayResolved
+        notes: hasCustomer
           ? (localSession?.customerNotes || ctx.customerNotes || null)
           : null,
         pickupType: isTakeawayResolved
@@ -3516,17 +3695,23 @@
     }
 
     function toPayload(item, parentRemoteId) {
-      return {
+      const payload = {
         productId: item.productId,
         productName: item.name || '',
         printName: resolveItemPrintName(item),
         quantity: Number(item.qty) || 1,
         price: Number(item.price) || 0,
-        category: findProductCategoryId(item.productId),
+        category: findProductCategoryId(item.productId) || (item.unitType === 'kg' ? 'butcher' : null),
         notes: item.notes || null,
         sideDish: null,
         parentItemId: parentRemoteId || null,
       };
+      if (item.unitType || item.selectedWeight != null || item.pricePerKg != null) {
+        payload.unitType = item.unitType || 'kg';
+        payload.selectedWeight = item.selectedWeight != null ? item.selectedWeight : 1;
+        payload.pricePerKg = item.pricePerKg;
+      }
+      return payload;
     }
 
     const mainRows = await api.createOrderItems(
@@ -3574,8 +3759,10 @@
 
     const ctx = window.LechaimOrderContext || {};
     const rawType = localOrder?.orderType || localSession?.orderType || ctx.orderType;
-    const isTakeaway = String(rawType).toLowerCase().includes('take');
-    if (isTakeaway) return null;
+    const normalized = window.LechaimOrderTypes?.normalizeOrderType?.(rawType, { warn: false });
+    const isTakeaway = normalized === 'takeaway' || String(rawType).toLowerCase().includes('take');
+    const isButcher = normalized === 'butcher' || String(rawType).toLowerCase().includes('butcher');
+    if (isTakeaway || isButcher) return null;
 
     const tableNumber = Number(
       localOrder?.tableNumber ?? localSession?.tableNumber ?? ctx.tableNumber
@@ -3640,10 +3827,15 @@
     const tableNumber = ctx.tableNumber != null
       ? Number(ctx.tableNumber)
       : window.LechaimOrderSession?.getTableNumber?.();
-    const wasTakeaway = ctx.orderType === 'takeaway'
-      || ctx.orderType === 'take-away'
-      || window.LechaimOrderSession?.getOrderType?.() === 'takeaway'
-      || window.LechaimOrderSession?.getOrderType?.() === window.LechaimOrderSession?.ORDER_TYPE?.TAKEAWAY;
+    const sessionOrderType = ctx.orderType
+      || window.LechaimOrderSession?.getOrderType?.()
+      || '';
+    const wasTakeaway = sessionOrderType === 'takeaway'
+      || sessionOrderType === 'take-away'
+      || sessionOrderType === window.LechaimOrderSession?.ORDER_TYPE?.TAKEAWAY;
+    const wasButcher = sessionOrderType === 'butcher'
+      || String(sessionOrderType).toLowerCase().includes('butcher')
+      || sessionOrderType === window.LechaimOrderSession?.ORDER_TYPE?.BUTCHER;
 
     remoteSessionTotalOverride = null;
     if (remoteTotalSyncTimer) {
@@ -3655,6 +3847,8 @@
     try {
       if (wasTakeaway && window.LechaimOrderEngine?.closeTakeaway) {
         window.LechaimOrderEngine.closeTakeaway();
+      } else if (wasButcher) {
+        window.LechaimOrderEngine?.clearOrder?.();
       } else if (tableNumber != null && window.LechaimOrderEngine?.closeTable) {
         window.LechaimOrderEngine.closeTable(tableNumber);
       }
@@ -3942,8 +4136,22 @@
     const item = findItem(productId);
     if (!item) return null;
     const resolved = getResolvedItem(item);
+    const baseName = resolved?.name || item.name || '';
+    if (line?.unitType === 'kg' || isSoldByWeight(item)) {
+      const pricePerKg = Number(line.pricePerKg) > 0
+        ? Number(line.pricePerKg)
+        : getItemPricePerKg(item);
+      return {
+        name: baseName,
+        price: Number(pricePerKg.toFixed(2)),
+        notes: line?.notes == null ? '' : String(line.notes),
+        selectedWeight: 1,
+        pricePerKg,
+        unitType: 'kg',
+      };
+    }
     return {
-      name: resolved?.name || item.name || '',
+      name: baseName,
       price: resolved?.price != null ? resolved.price : (item.price != null ? item.price : 0),
       notes: line?.notes == null ? '' : String(line.notes),
     };
@@ -3971,7 +4179,7 @@
     /* Stage 7: order is committed on "שלח הזמנה", not on every cart edit. */
   }
 
-  function addToCart(itemId) {
+  function addToCart(itemId, options = {}) {
     if (!isOrderingAllowed()) {
       showCartToast(t('orderingClosedToast'));
       return;
@@ -4031,7 +4239,13 @@
         moveCartLineToTop(existing.lineId);
       } else {
         const lineId = createCartLineId();
-        cartLines.push({ lineId, itemId, qty: 1, linkedToMainLineId: null });
+        const line = { lineId, itemId, qty: 1, linkedToMainLineId: null };
+        if (isSoldByWeight(catalogItem)) {
+          line.selectedWeight = 1;
+          line.unitType = 'kg';
+          line.pricePerKg = getItemPricePerKg(catalogItem);
+        }
+        cartLines.push(line);
         moveCartLineToTop(lineId);
       }
     }
@@ -4142,11 +4356,19 @@
       .reduce((sum, line) => sum + line.qty, 0);
   }
 
+  function getCartLineUnitPrice(line, item) {
+    if (line?.unitType === 'kg' || isSoldByWeight(item)) {
+      const perKg = Number(line.pricePerKg) > 0 ? Number(line.pricePerKg) : getItemPricePerKg(item);
+      return perKg;
+    }
+    return getItemPrice(item) || 0;
+  }
+
   function getCartTotal() {
     return cartLines.reduce((sum, line) => {
       const item = findItem(line.itemId);
       if (!item) return sum;
-      const price = getItemPrice(item);
+      const price = getCartLineUnitPrice(line, item);
       return sum + ((price || 0) * line.qty);
     }, 0);
   }
@@ -4179,7 +4401,8 @@
     const mainClass = variant === 'main' ? ' cart-item--main' : '';
     const sideClass = variant === 'child' ? ' cart-item--side' : '';
     const imageSrc = getItemImage(item);
-    const price = getItemPrice(item) || 0;
+    const byWeight = line.unitType === 'kg' || isSoldByWeight(item);
+    const price = getCartLineUnitPrice(line, item);
     const noImageClass = imageSrc ? '' : ' cart-item--no-image';
     const lineTotal = price * line.qty;
     const imageHtml = imageSrc
@@ -4193,7 +4416,9 @@
       : t('sideLabel');
     const unitHtml = variant === 'child'
       ? `<p class="cart-item-badge">${escapeHtml(childBadge)}</p>`
-      : `<p class="cart-item-unit">${escapeHtml(tReplace('perUnit', { price: formatPrice(price) }))}</p>`;
+      : (byWeight
+        ? `<p class="cart-item-unit">${escapeHtml(tReplace('perKg', { price: formatEuroTotal(Number(line.pricePerKg) || getItemPricePerKg(item)) }))}</p>`
+        : `<p class="cart-item-unit">${escapeHtml(tReplace('perUnit', { price: formatPrice(getItemPrice(item) || 0) }))}</p>`);
 
     const controlsHtml = variant === 'child'
       ? ''
@@ -4214,7 +4439,7 @@
           </div>
           ${controlsHtml}
         </div>
-        <div class="cart-item-total">${price > 0 ? formatPrice(lineTotal) : ''}</div>
+        <div class="cart-item-total">${price > 0 ? formatEuroTotal(lineTotal) : ''}</div>
       </article>
     `;
   }

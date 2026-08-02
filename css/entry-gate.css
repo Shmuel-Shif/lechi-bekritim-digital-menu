@@ -918,7 +918,7 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks) {
 
 .entry-gate.is-home .entry-gate__welcome {
   margin: 0;
-  font-size: clamp(0.72rem, 1.8vh, 1.05rem);
+  font-size: clamp(1.05rem, 2.6vh, 1.55rem);
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: none;
@@ -937,7 +937,7 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks) {
   padding-top: 0.35rem;
   width: fit-content;
   border-top: 1.5px solid rgba(196, 160, 106, 0.95);
-  font-size: clamp(0.75rem, 1.7vh, 1.05rem);
+  font-size: clamp(1.05rem, 2.5vh, 1.45rem);
   font-weight: 700;
   filter: drop-shadow(0 0 8px rgba(243, 235, 224, 0.9));
 }
@@ -1000,6 +1000,29 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks) {
   background: #fff;
   border-color: var(--entry-gold);
   color: var(--entry-navy);
+}
+
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn--butcher {
+  background: linear-gradient(135deg, #8b1e1e 0%, #b32626 55%, #c43a2f 100%);
+  color: #fff;
+  border: 1.5px solid rgba(255, 210, 180, 0.28);
+  box-shadow: 0 6px 18px rgba(139, 30, 30, 0.32);
+}
+
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn--butcher:hover {
+  background: linear-gradient(135deg, #7a1818 0%, #a31f1f 55%, #b83228 100%);
+  color: #fff;
+  border-color: rgba(255, 220, 190, 0.4);
+  box-shadow: 0 9px 24px rgba(139, 30, 30, 0.4);
+}
+
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn--butcher .entry-gate__btn-icon,
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn--butcher .entry-gate__btn-chevron {
+  color: #f0c9a0;
+}
+
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn--butcher .entry-gate__btn-hint {
+  opacity: 0.9;
 }
 
 .entry-gate.is-home .entry-gate__actions .entry-gate__btn-icon {
@@ -1665,7 +1688,7 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks) {
   }
 
   .entry-gate.is-home .entry-gate__welcome {
-    font-size: 0.7rem;
+    font-size: 0.95rem;
   }
 
   .entry-gate.is-home .entry-gate__title {
@@ -1675,7 +1698,7 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks) {
   .entry-gate.is-home .entry-gate__kosher {
     margin-top: 0.2rem;
     padding-top: 0.25rem;
-    font-size: 0.72rem;
+    font-size: 0.95rem;
   }
 
   .entry-gate.is-home .entry-gate__actions .entry-gate__btn {

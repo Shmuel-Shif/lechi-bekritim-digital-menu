@@ -176,6 +176,12 @@
         row.pickup_time = row.pickup_time ? String(row.pickup_time) : '13:00-14:00';
         row.public_order_no = null;
         break;
+      case 'butcher':
+        /* Butcher shop — customer details only, no table / pickup slot / public number */
+        row.pickup_type = null;
+        row.pickup_time = null;
+        row.public_order_no = null;
+        break;
       case 'dine_in':
         row.pickup_type = null;
         row.pickup_time = null;
@@ -306,7 +312,7 @@
         throw new Error('[LechaimSupabaseOrders.createOrderItems] quantity must be > 0');
       }
 
-      return {
+      const row = {
         order_id: orderId,
         product_id: String(productId),
         product_name: String(item.productName ?? item.product_name ?? item.name ?? ''),
@@ -318,6 +324,21 @@
         side_dish: item.sideDish ?? item.side_dish ?? null,
         parent_item_id: item.parentItemId ?? item.parent_item_id ?? null,
       };
+
+      const unitType = item.unitType ?? item.unit_type;
+      if (unitType) row.unit_type = String(unitType);
+
+      const selectedWeight = Number(item.selectedWeight ?? item.selected_weight);
+      if (Number.isFinite(selectedWeight) && selectedWeight > 0) {
+        row.selected_weight = selectedWeight;
+      }
+
+      const pricePerKg = Number(item.pricePerKg ?? item.price_per_kg);
+      if (Number.isFinite(pricePerKg) && pricePerKg >= 0) {
+        row.price_per_kg = pricePerKg;
+      }
+
+      return row;
     });
 
     const { data, error } = await sb
@@ -1095,6 +1116,48 @@
   }
 
   /**
+   * Closed butcher-shop sessions (newest first), with nested orders + items.
+   * @param {{ limit?: number }} [options]
+   */
+  async function getClosedButcherSessions(options = {}) {
+    const sb = getClient();
+    const limit = Math.min(Math.max(Number(options.limit) || 40, 1), 100);
+
+    const { data: sessions, error } = await sb
+      .from(TABLE_SESSIONS)
+      .select('*')
+      .eq('order_type', 'butcher')
+      .eq('status', 'closed')
+      .order('closed_at', { ascending: false })
+      .limit(limit);
+
+    throwIfError(error, 'getClosedButcherSessions');
+    const list = sessions || [];
+    if (!list.length) return [];
+
+    const ids = list.map((row) => row.session_id).filter(Boolean);
+    const { data: orders, error: ordersError } = await sb
+      .from(TABLE_ORDERS)
+      .select('*, order_items(*)')
+      .in('session_id', ids)
+      .order('order_number', { ascending: true });
+
+    throwIfError(ordersError, 'getClosedButcherSessions.orders');
+
+    const bySession = new Map();
+    ids.forEach((id) => bySession.set(id, []));
+    (orders || []).forEach((order) => {
+      const bucket = bySession.get(order.session_id);
+      if (bucket) bucket.push(order);
+    });
+
+    return list.map((session) => ({
+      session,
+      orders: bySession.get(session.session_id) || [],
+    }));
+  }
+
+  /**
    * Closed Shabbat sessions (newest first), with nested orders + items.
    * @param {{ limit?: number }} [options]
    */
@@ -1403,6 +1466,7 @@
     getOpenSessionsWithOrders,
     getClosedSessionsForTable,
     getClosedTakeawaySessions,
+    getClosedButcherSessions,
     getClosedShabbatSessions,
     restoreClosedSession,
     deleteClosedSession,

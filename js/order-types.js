@@ -3,7 +3,7 @@
  *
  * When adding a new type (e.g. delivery, catering):
  *  1. Add it to VALID_ORDER_TYPES + ALIASES
- *  2. Update supabase-shabbat-orders.sql-style CHECK constraints
+ *  2. Update supabase-*-orders.sql-style CHECK constraints
  *  3. Grep for LechaimOrderTypes / VALID_ORDER_TYPES / warnUnknownOrderType
  *  4. Decide: board vs dedicated tab vs print vs coupons
  */
@@ -11,10 +11,10 @@
   'use strict';
 
   /** Values stored in public.order_sessions.order_type */
-  const VALID_ORDER_TYPES = Object.freeze(['dine_in', 'takeaway', 'shabbat']);
+  const VALID_ORDER_TYPES = Object.freeze(['dine_in', 'takeaway', 'shabbat', 'butcher']);
 
   /** Shown on Admin tables / takeaway boards (not Shabbat tab) */
-  const BOARD_ORDER_TYPES = Object.freeze(['dine_in', 'takeaway']);
+  const BOARD_ORDER_TYPES = Object.freeze(['dine_in', 'takeaway', 'butcher']);
 
   const ALIASES = Object.freeze({
     dine_in: 'dine_in',
@@ -26,6 +26,10 @@
     shabbat: 'shabbat',
     shabbos: 'shabbat',
     shabat: 'shabbat',
+    butcher: 'butcher',
+    butcher_shop: 'butcher',
+    'butcher-shop': 'butcher',
+    meat: 'butcher',
   });
 
   const warned = new Set();
@@ -42,7 +46,7 @@
   /**
    * @param {*} value
    * @param {{ context?: string, warn?: boolean }} [options]
-   * @returns {'dine_in'|'takeaway'|'shabbat'|null}
+   * @returns {'dine_in'|'takeaway'|'shabbat'|'butcher'|null}
    */
   function normalizeOrderType(value, options = {}) {
     const raw = String(value || '').toLowerCase().trim();
@@ -67,9 +71,13 @@
     return normalizeOrderType(value, { warn: false }) === 'shabbat';
   }
 
+  function isButcherOrderType(value) {
+    return normalizeOrderType(value, { warn: false }) === 'butcher';
+  }
+
   /**
    * Classify for Admin routing. Unknown types are warned and ignored.
-   * @returns {'dine_in'|'takeaway'|'shabbat'|'unknown'|null}
+   * @returns {'dine_in'|'takeaway'|'shabbat'|'butcher'|'unknown'|null}
    */
   function classifyOrderType(value, context) {
     const type = normalizeOrderType(value, { context, warn: true });
@@ -88,6 +96,7 @@
     isValidOrderType,
     isBoardOrderType,
     isShabbatOrderType,
+    isButcherOrderType,
     classifyOrderType,
     warnUnknownOrderType,
   };

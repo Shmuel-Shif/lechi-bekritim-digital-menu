@@ -72,6 +72,10 @@
           איסוף עצמי
           <span class="admin-tab__badge" id="tab-badge-takeaway" data-count="0" hidden>0</span>
         </button>
+        <button type="button" class="admin-tab" data-tab="butcher">
+          חנות בשרים
+          <span class="admin-tab__badge" id="tab-badge-butcher" data-count="0" hidden>0</span>
+        </button>
         <button type="button" class="admin-tab" data-tab="shabbat">
           הזמנות לשבת
           <span class="admin-tab__badge" id="tab-badge-shabbat" data-count="0" hidden>0</span>
@@ -114,6 +118,18 @@
           </header>
           <div class="tables-takeaway__grid" id="tables-takeaway-grid"></div>
           <p class="tables-category__empty" id="tables-takeaway-empty">אין הזמנות איסוף עצמי כרגע</p>
+        </section>
+
+        <section class="tables-category tables-takeaway tables-butcher" id="tables-butcher" hidden>
+          <header class="admin-header">
+            <div class="admin-header__text">
+              <p class="admin-header__eyebrow">ניהול</p>
+              <h1 class="admin-header__title">חנות בשרים</h1>
+              <p class="admin-header__subtitle">הזמנות חנות הבשר הפעילות</p>
+            </div>
+          </header>
+          <div class="tables-takeaway__grid" id="tables-butcher-grid"></div>
+          <p class="tables-category__empty" id="tables-butcher-empty">אין הזמנות חנות בשר כרגע</p>
         </section>
       </div>
 
@@ -177,7 +193,7 @@
             <div class="admin-header__text">
               <p class="admin-header__eyebrow">ניהול</p>
               <h1 class="admin-header__title">היסטוריה</h1>
-              <p class="admin-header__subtitle">בחרו שולחן, איסוף עצמי או הזמנות לשבת לצפייה בהזמנות שנסגרו</p>
+              <p class="admin-header__subtitle">בחרו שולחן, איסוף עצמי, חנות בשרים או הזמנות לשבת לצפייה בהזמנות שנסגרו</p>
             </div>
             <button type="button" class="admin-btn admin-btn--danger" id="history-reset-all-btn">אפס היסטוריה</button>
           </header>

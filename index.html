@@ -68,7 +68,7 @@
 
         <div class="entry-gate__hero">
           <p class="entry-gate__welcome entry-gate__reveal entry-gate__reveal--fade" id="entry-hero-welcome" style="--reveal-delay: 0ms">✦ ברוכים הבאים ✦</p>
-          <h1 class="entry-gate__title entry-gate__reveal entry-gate__reveal--up" id="entry-hero-title" style="--reveal-delay: 120ms">מסעדת לחיים בכרתים</h1>
+          <h1 class="entry-gate__title entry-gate__reveal entry-gate__reveal--up" id="entry-hero-title" style="--reveal-delay: 120ms">למסעדת לחיים בכרתים</h1>
           <p class="entry-gate__kosher entry-gate__reveal entry-gate__reveal--fade" id="entry-hero-kosher" style="--reveal-delay: 240ms">כשר למהדרין</p>
         </div>
 
@@ -114,7 +114,17 @@
               </span>
               <span class="entry-gate__btn-chevron" aria-hidden="true"></span>
             </button>
-            <a href="shabbat.html" class="entry-gate__btn entry-gate__btn--primary entry-gate__reveal entry-gate__reveal--up" id="entry-shabbat-link" style="--reveal-delay: 600ms">
+            <button type="button" class="entry-gate__btn entry-gate__btn--butcher entry-gate__reveal entry-gate__reveal--up" data-order-type="butcher" style="--reveal-delay: 600ms">
+              <span class="entry-gate__btn-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 14c2-4 5-6 8-6s6 2 8 6"/><path d="M6 14v3a2 2 0 002 2h8a2 2 0 002-2v-3"/><path d="M9 8c.5-2 1.5-3 3-3s2.5 1 3 3"/><circle cx="9" cy="15.5" r="0.8" fill="currentColor" stroke="none"/><circle cx="15" cy="15.5" r="0.8" fill="currentColor" stroke="none"/></svg>
+              </span>
+              <span class="entry-gate__btn-text">
+                <span class="entry-gate__btn-label" data-entry-i18n="butcherShop">חנות הבשר שלנו</span>
+                <span class="entry-gate__btn-hint" data-entry-i18n="butcherShopHint">בשר חלק כשר למהדרין • שחיטת ליובאוויטש • כשרות מהודרת</span>
+              </span>
+              <span class="entry-gate__btn-chevron" aria-hidden="true"></span>
+            </button>
+            <a href="shabbat.html" class="entry-gate__btn entry-gate__btn--primary entry-gate__reveal entry-gate__reveal--up" id="entry-shabbat-link" style="--reveal-delay: 680ms">
               <span class="entry-gate__btn-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 14c0-2 1.5-3 2.5-4S12 7 12 5c0 2 .5 3.5 1.5 5S16 12 16 14"/><path d="M7 18h10M9 18v2M15 18v2"/></svg>
               </span>
@@ -195,7 +205,7 @@
         <div class="entry-gate__about-copy">
           <h2 class="entry-gate__about-title entry-gate__reveal entry-gate__reveal--fade" id="entry-about-title" data-entry-i18n="aboutTitle" style="--reveal-delay: 180ms">מי אנחנו</h2>
           <p class="entry-gate__about-text entry-gate__reveal entry-gate__reveal--up" data-entry-i18n="aboutP1" style="--reveal-delay: 280ms">מסעדת לחיים היא מסעדה כשרה למהדרין בכרתים.</p>
-          <p class="entry-gate__about-text entry-gate__reveal entry-gate__reveal--up" data-entry-i18n="aboutP2" style="--reveal-delay: 380ms">אנו מגישים אוכל ישראלי איכותי, בשרים, דגים ומנות אהובות באווירה חמה ומשפחתית.</p>
+          <p class="entry-gate__about-text entry-gate__reveal entry-gate__reveal--up" data-entry-i18n="aboutP2" style="--reveal-delay: 380ms">אנו מגישים אוכל ישראלי כשר למהדרין.</p>
           <p class="entry-gate__about-text entry-gate__reveal entry-gate__reveal--up" data-entry-i18n="aboutP3" style="--reveal-delay: 480ms">המסעדה ממוקמת בלב כרתים ומציעה ישיבה במקום, איסוף עצמי והזמנות מיוחדות לשבת.</p>
         </div>
       </section>
@@ -329,6 +339,57 @@
 
           <button type="submit" class="entry-gate__btn entry-gate__btn--primary" id="entry-place-res-submit">
             <span class="entry-gate__btn-label" data-entry-i18n="placeResSubmit">שליחת בקשה</span>
+          </button>
+        </form>
+        <button type="button" class="entry-gate__back" data-entry-back="order" data-entry-i18n="back">חזרה</button>
+      </div>
+
+      <div class="entry-gate__step" id="entry-step-butcher" hidden>
+        <form class="entry-pickup entry-butcher" id="entry-butcher-form" novalidate>
+          <label class="entry-pickup__field">
+            <span class="entry-pickup__label" data-entry-i18n="customerName">שם הלקוח *</span>
+            <input
+              type="text"
+              id="entry-butcher-name"
+              class="entry-pickup__input"
+              name="customerName"
+              autocomplete="name"
+              required
+              maxlength="80"
+            >
+          </label>
+
+          <label class="entry-pickup__field">
+            <span class="entry-pickup__label" data-entry-i18n="customerPhone">טלפון *</span>
+            <input
+              type="tel"
+              id="entry-butcher-phone"
+              class="entry-pickup__input"
+              name="customerPhone"
+              autocomplete="tel"
+              inputmode="tel"
+              required
+              maxlength="32"
+              dir="ltr"
+            >
+          </label>
+
+          <label class="entry-pickup__field">
+            <span class="entry-pickup__label" data-entry-i18n="customerNotes">הערות (אופציונלי)</span>
+            <textarea
+              id="entry-butcher-notes"
+              class="entry-pickup__input entry-pickup__textarea"
+              name="customerNotes"
+              rows="2"
+              maxlength="240"
+              dir="auto"
+            ></textarea>
+          </label>
+
+          <p class="entry-pickup__error" id="entry-butcher-error" role="alert" hidden></p>
+
+          <button type="submit" class="entry-gate__btn entry-gate__btn--primary" id="entry-butcher-submit">
+            <span class="entry-gate__btn-label" data-entry-i18n="continueToButcher">המשך לחנות הבשר</span>
           </button>
         </form>
         <button type="button" class="entry-gate__back" data-entry-back="order" data-entry-i18n="back">חזרה</button>
@@ -558,6 +619,7 @@
           <p class="hero-welcome reveal" data-i18n="heroWelcome">ברוכים הבאים</p>
           <p class="hero-title reveal" data-i18n="heroTitle">מסעדת לחיים בכרתים</p>
           <p class="hero-kosher reveal" data-i18n="heroKosher">כשר למהדרין</p>
+          <div class="hero-butcher-desc" id="butcher-hero-desc" hidden></div>
         </div>
         <a href="#menu" class="btn btn-primary reveal" id="hero-cta" data-i18n="viewMenu">צפייה בתפריט</a>
       </div>
@@ -571,6 +633,16 @@
         <ul class="category-nav-list" id="category-nav-list"></ul>
       </div>
     </nav>
+  </div>
+
+  <div class="app-confirm" id="butcher-notice-modal" hidden aria-hidden="true">
+    <button type="button" class="app-confirm__backdrop" id="butcher-notice-backdrop" aria-label="סגור"></button>
+    <div class="app-confirm__panel" role="dialog" aria-modal="true" aria-labelledby="butcher-notice-text">
+      <p class="app-confirm__text" id="butcher-notice-text"></p>
+      <div class="app-confirm__actions">
+        <button type="button" class="cart-send-btn" id="butcher-notice-ok" data-i18n="gotIt">הבנתי</button>
+      </div>
+    </div>
   </div>
 
   <!-- Menu -->

@@ -121,6 +121,7 @@
     if (tab === 'inventory') currentTab = 'inventory';
     else if (tab === 'stats') currentTab = 'stats';
     else if (tab === 'takeaway') currentTab = 'takeaway';
+    else if (tab === 'butcher') currentTab = 'butcher';
     else if (tab === 'shabbat') currentTab = 'shabbat';
     else if (tab === 'reservations') currentTab = 'reservations';
     else if (tab === 'history') currentTab = 'history';
@@ -131,7 +132,9 @@
       btn.classList.toggle('is-active', isActive);
     });
 
-    const onBoard = currentTab === 'tables' || currentTab === 'takeaway';
+    const onBoard = currentTab === 'tables'
+      || currentTab === 'takeaway'
+      || currentTab === 'butcher';
     if (viewTables) viewTables.hidden = !onBoard;
     if (viewShabbat) viewShabbat.hidden = currentTab !== 'shabbat';
     if (viewReservations) viewReservations.hidden = currentTab !== 'reservations';
@@ -147,7 +150,10 @@
     window.LechaimAdminShabbat?.start?.();
     window.LechaimAdminReservations?.start?.();
     if (onBoard) {
-      window.LechaimAdminTables?.setBoardFilter?.(currentTab === 'takeaway' ? 'takeaway' : 'tables');
+      const filter = currentTab === 'takeaway'
+        ? 'takeaway'
+        : (currentTab === 'butcher' ? 'butcher' : 'tables');
+      window.LechaimAdminTables?.setBoardFilter?.(filter);
     } else {
       window.LechaimAdminTables?.closeDrawer?.();
     }
@@ -606,6 +612,7 @@
     if (
       tab !== 'tables'
       && tab !== 'takeaway'
+      && tab !== 'butcher'
       && tab !== 'shabbat'
       && tab !== 'reservations'
       && tab !== 'history'

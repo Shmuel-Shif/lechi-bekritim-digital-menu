@@ -15,6 +15,7 @@
   const ORDER_TYPE = Object.freeze({
     DINE_IN: 'dinein',
     TAKEAWAY: 'takeaway',
+    BUTCHER: 'butcher',
   });
 
   const STATUS = Object.freeze({
@@ -35,12 +36,20 @@
   }
 
   function normalizeOrderType(value) {
-    /* Local customer session: dine-in + takeaway only (Shabbat has its own page) */
+    /* Local customer session: dine-in + takeaway + butcher (Shabbat has its own page) */
     if (value === ORDER_TYPE.DINE_IN || value === 'dine-in' || value === 'dine_in') {
       return ORDER_TYPE.DINE_IN;
     }
     if (value === ORDER_TYPE.TAKEAWAY || value === 'take-away' || value === 'take_away') {
       return ORDER_TYPE.TAKEAWAY;
+    }
+    if (
+      value === ORDER_TYPE.BUTCHER
+      || value === 'butcher_shop'
+      || value === 'butcher-shop'
+      || value === 'meat'
+    ) {
+      return ORDER_TYPE.BUTCHER;
     }
     if (value === 'shabbat' || value === 'shabbos' || value === 'shabat') {
       console.warn('[order-session] Shabbat orders use shabbat.html — not the local session store');
@@ -168,6 +177,15 @@
     );
   }
 
+  function hasActiveButcherSession() {
+    const session = getSession();
+    return Boolean(
+      session &&
+      session.orderType === ORDER_TYPE.BUTCHER &&
+      session.status === STATUS.ACTIVE
+    );
+  }
+
   function getOrderType() {
     return getSession()?.orderType || null;
   }
@@ -241,6 +259,28 @@
     return payload;
   }
 
+  function startButcher(options = {}) {
+    const existing = getSession();
+    const payload = {
+      sessionId: createSessionId(),
+      orderType: ORDER_TYPE.BUTCHER,
+      tableNumber: null,
+      openedAt: new Date().toISOString(),
+      status: STATUS.ACTIVE,
+      lang: options.lang === 'he' || options.lang === 'en'
+        ? options.lang
+        : (existing?.lang || null),
+      customerName: typeof options.customerName === 'string' ? options.customerName.trim() : '',
+      customerPhone: typeof options.customerPhone === 'string' ? options.customerPhone.trim() : '',
+      customerNotes: typeof options.customerNotes === 'string' ? options.customerNotes.trim() : '',
+      pickupType: null,
+      pickupTime: null,
+      publicOrderNo: null,
+    };
+    writeRaw(payload);
+    return payload;
+  }
+
   function patchSession(patch = {}) {
     const existing = getSession();
     if (!existing) return null;
@@ -297,8 +337,12 @@
       };
     }
 
+    let orderTypeUi = 'takeaway';
+    if (session.orderType === ORDER_TYPE.DINE_IN) orderTypeUi = 'dine-in';
+    else if (session.orderType === ORDER_TYPE.BUTCHER) orderTypeUi = 'butcher';
+
     return {
-      orderType: session.orderType === ORDER_TYPE.DINE_IN ? 'dine-in' : 'takeaway',
+      orderType: orderTypeUi,
       tableNumber: session.tableNumber,
       lang: overrides.lang || session.lang || null,
       sessionId: session.sessionId,
@@ -324,9 +368,11 @@
     getTableNumber,
     hasActiveDineInSession,
     hasActiveTakeawaySession,
+    hasActiveButcherSession,
     startDineIn,
     updateTable,
     startTakeaway,
+    startButcher,
     patchSession,
     setLang,
     clearSession,

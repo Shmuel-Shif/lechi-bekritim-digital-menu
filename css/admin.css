@@ -849,6 +849,10 @@ body {
   display: none !important;
 }
 
+.tables-butcher .admin-header__title {
+  color: #8b1e1e;
+}
+
 .tables-takeaway {
   margin-top: 1.5rem;
 }
@@ -930,6 +934,23 @@ body {
 .table-card--pickup .table-card__badge {
   background: rgba(196, 160, 106, 0.28);
   color: #5c4318;
+}
+
+.table-card__badge--butcher {
+  background: rgba(139, 69, 45, 0.2);
+  color: #6b2f1a;
+}
+
+.table-card--active .table-card__badge--butcher,
+.table-card--pending_print .table-card__badge--butcher,
+.table-card--preparing .table-card__badge--butcher,
+.table-card--bill_requested .table-card__badge--butcher {
+  background: rgba(255, 255, 255, 0.28);
+  color: #fff;
+}
+
+.table-drawer__pickup-badge--butcher {
+  color: #6b2f1a;
 }
 
 .table-card__customer,
@@ -2296,6 +2317,11 @@ body.admin-modal-open {
 
 .history-pick-card--shabbat .history-pick-card__num {
   font-size: 1.15rem;
+}
+
+.history-pick-card--butcher .history-pick-card__num {
+  font-size: 1.1rem;
+  color: #6b2f1a;
 }
 
 .history-detail__header {

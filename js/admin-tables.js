@@ -12,9 +12,13 @@
   const takeawaySection = document.getElementById('tables-takeaway');
   const takeawayGrid = document.getElementById('tables-takeaway-grid');
   const takeawayEmpty = document.getElementById('tables-takeaway-empty');
+  const butcherSection = document.getElementById('tables-butcher');
+  const butcherGrid = document.getElementById('tables-butcher-grid');
+  const butcherEmpty = document.getElementById('tables-butcher-empty');
   const dineInSection = document.getElementById('tables-dinein');
   const tabBadgeTables = document.getElementById('tab-badge-tables');
   const tabBadgeTakeaway = document.getElementById('tab-badge-takeaway');
+  const tabBadgeButcher = document.getElementById('tab-badge-butcher');
   const drawer = document.getElementById('table-drawer');
   const drawerBackdrop = document.getElementById('table-drawer-backdrop');
   const drawerClose = document.getElementById('table-drawer-close');
@@ -55,6 +59,7 @@
   let catalogCache = [];
   let boardCache = [];
   let takeawayCache = [];
+  let butcherCache = [];
   let dataSource = 'local'; /* 'supabase' | 'local' */
   let hasSupabaseSnapshot = false;
   let unsubscribeRealtime = null;
@@ -72,7 +77,11 @@
   let confirmResolver = null;
   let pendingBillEntry = null;
   let pendingBillCoupon = null;
-  let boardFilter = 'tables'; /* 'tables' | 'takeaway' */
+  let boardFilter = 'tables'; /* 'tables' | 'takeaway' | 'butcher' */
+
+  function pickupCaches() {
+    return [...(takeawayCache || []), ...(butcherCache || [])];
+  }
   let watchRunning = false;
   /** Session ids with order_type=shabbat — excluded from dine-in/takeaway boards */
   const shabbatSessionIds = new Set();
@@ -277,6 +286,7 @@
   }
 
   function orderTypeLabel(orderType) {
+    if (orderType === 'butcher') return 'חנות בשר';
     if (orderType === 'takeaway') return 'איסוף עצמי';
     if (orderType === 'dinein') return 'ישיבה במקום';
     return '—';
@@ -305,18 +315,22 @@
   }
 
   function entryKey(entry) {
-    if (entry.orderType === 'takeaway') {
+    if (entry.orderType === 'takeaway' || entry.orderType === 'butcher') {
+      const prefix = entry.orderType === 'butcher' ? 'butcher' : 'takeaway';
       return entry.order?.orderId
-        ? `takeaway:${entry.order.orderId}`
-        : 'takeaway';
+        ? `${prefix}:${entry.order.orderId}`
+        : prefix;
     }
     return `table:${entry.tableNumber}`;
   }
 
-  function findSelectedEntry(board, takeaway) {
+  function findSelectedEntry(board, takeaway, butcher) {
     if (!selectedKey) return null;
     if (String(selectedKey).startsWith('takeaway')) {
-      return takeaway.find((row) => entryKey(row) === selectedKey) || takeaway[0] || null;
+      return (takeaway || []).find((row) => entryKey(row) === selectedKey) || null;
+    }
+    if (String(selectedKey).startsWith('butcher')) {
+      return (butcher || []).find((row) => entryKey(row) === selectedKey) || null;
     }
     const num = Number(String(selectedKey).replace('table:', ''));
     return board.find((row) => row.tableNumber === num) || null;
@@ -324,14 +338,25 @@
 
   function getSelectedEntry() {
     if (!selectedKey) return null;
-    return findSelectedEntry(boardCache, takeawayCache);
+    return findSelectedEntry(boardCache, takeawayCache, butcherCache);
+  }
+
+  function stripWeightFromProductName(name) {
+    return String(name || '')
+      .replace(/\s*[–-]\s*\d+(?:[.,]\d+)?\s*ק["״]?ג\.?/gi, '')
+      .replace(/\s*[–-]\s*\d+(?:[.,]\d+)?\s*kg\b/gi, '')
+      .trim();
   }
 
   function mapRemoteItem(row, extras = {}) {
+    const weight = Number(row.selected_weight);
+    const name = stripWeightFromProductName(
+      row.product_name || row.print_name || row.product_id || ''
+    );
     return {
       itemId: String(row.id),
       productId: String(row.product_id || ''),
-      name: row.product_name || row.print_name || row.product_id || '',
+      name,
       printName: row.print_name || '',
       price: Number(row.price) || 0,
       qty: Number(row.quantity) || 0,
@@ -340,6 +365,9 @@
       linkedToMainItemId: row.parent_item_id ? String(row.parent_item_id) : null,
       createdAt: row.created_at || null,
       isLateAdd: Boolean(extras.isLateAdd),
+      selectedWeight: Number.isFinite(weight) && weight > 0 ? weight : null,
+      pricePerKg: row.price_per_kg == null ? null : Number(row.price_per_kg),
+      unitType: row.unit_type || null,
     };
   }
 
@@ -373,14 +401,17 @@
       ?? (() => {
         const raw = String(session.order_type || '');
         if (raw === 'takeaway') return 'takeaway';
+        if (raw === 'butcher') return 'butcher';
         if (raw === 'dine_in' || raw === 'dinein') return 'dine_in';
         if (raw === 'shabbat') return 'shabbat';
         if (raw) console.warn(`[admin-tables] Unknown order type: ${raw}`);
         return null;
       })();
-    const uiOrderType = classified === 'takeaway'
-      ? 'takeaway'
-      : (classified === 'dine_in' ? 'dinein' : null);
+    const uiOrderType = classified === 'butcher'
+      ? 'butcher'
+      : (classified === 'takeaway'
+        ? 'takeaway'
+        : (classified === 'dine_in' ? 'dinein' : null));
     let status = 'active';
     if (session.status === 'bill_requested' || session.bill_requested) {
       status = 'bill_requested';
@@ -425,6 +456,7 @@
 
     const dineInByTable = new Map();
     const takeaway = [];
+    const butcher = [];
     const shabbatOrderIds = [];
     shabbatSessionIds.clear();
 
@@ -441,6 +473,7 @@
           return; /* Shabbat has its own Admin tab */
         case 'dine_in':
         case 'takeaway':
+        case 'butcher':
           break;
         case 'unknown':
           return;
@@ -453,22 +486,24 @@
 
       const synthetic = flattenSessionOrders(session, orders);
       if (!synthetic?.orderType) return;
-      const isTakeaway = synthetic.orderType === 'takeaway';
-      /* Keep takeaway visible even if admin removed all line items */
-      if (!isTakeaway && !synthetic.items.length && !(Number(synthetic._sessionTotal) > 0)) return;
+      const isPickupBoard = synthetic.orderType === 'takeaway' || synthetic.orderType === 'butcher';
+      /* Keep takeaway/butcher visible even if admin removed all line items */
+      if (!isPickupBoard && !synthetic.items.length && !(Number(synthetic._sessionTotal) > 0)) return;
 
-      if (isTakeaway) {
+      if (isPickupBoard) {
         const payable = synthetic.billTotal != null ? synthetic.billTotal : synthetic._sessionTotal;
-        takeaway.push({
+        const entry = {
           tableNumber: null,
           uiStatus: resolveEntryUiStatus(synthetic),
-          orderType: 'takeaway',
+          orderType: synthetic.orderType,
           order: synthetic,
           total: payable,
           itemCount: synthetic.items.reduce((sum, item) => sum + (Number(item.qty) || 0), 0),
           openedAt: synthetic.createdAt,
           updatedAt: synthetic.updatedAt,
-        });
+        };
+        if (synthetic.orderType === 'butcher') butcher.push(entry);
+        else takeaway.push(entry);
         return;
       }
 
@@ -500,7 +535,7 @@
       });
     }
 
-    return { board, takeaway, shabbatOrderIds };
+    return { board, takeaway, butcher, shabbatOrderIds };
   }
 
   function loadLocalBoards() {
@@ -508,6 +543,7 @@
     return {
       board: engine?.getTablesBoard?.() || [],
       takeaway: engine?.getTakeawayBoard?.() || [],
+      butcher: engine?.getButcherBoard?.() || [],
       shabbatOrderIds: [],
       source: 'local',
     };
@@ -529,6 +565,7 @@
           return {
             board: boardCache,
             takeaway: takeawayCache,
+            butcher: butcherCache,
             shabbatOrderIds: [],
             source: 'supabase',
             stale: true,
@@ -549,37 +586,48 @@
   }
 
   function setBoardFilter(filter) {
-    boardFilter = filter === 'takeaway' ? 'takeaway' : 'tables';
-    paintBoard(boardCache, takeawayCache);
+    if (filter === 'takeaway') boardFilter = 'takeaway';
+    else if (filter === 'butcher') boardFilter = 'butcher';
+    else boardFilter = 'tables';
+    paintBoard(boardCache, takeawayCache, butcherCache);
   }
 
-  function paintBoard(board, takeaway) {
+  function paintPickupGrid(grid, emptyEl, rows) {
+    if (!grid) return;
+    const list = Array.isArray(rows) ? rows : [];
+    if (list.length) {
+      grid.innerHTML = list.map(renderCard).join('');
+      if (emptyEl) emptyEl.hidden = true;
+    } else {
+      grid.innerHTML = '';
+      if (emptyEl) emptyEl.hidden = false;
+    }
+  }
+
+  function paintBoard(board, takeaway, butcher) {
     if (!gridEl) return;
 
     const occupiedTables = (board || []).filter((row) => row && row.uiStatus && row.uiStatus !== 'free').length;
-    const pickupCount = (takeaway || []).length;
+    const takeawayCount = (takeaway || []).length;
+    const butcherCount = (butcher || []).length;
     setCategoryBadge(tabBadgeTables, occupiedTables);
-    setCategoryBadge(tabBadgeTakeaway, pickupCount);
+    setCategoryBadge(tabBadgeTakeaway, takeawayCount);
+    setCategoryBadge(tabBadgeButcher, butcherCount);
 
     const showTakeaway = boardFilter === 'takeaway';
-    if (dineInSection) dineInSection.hidden = showTakeaway;
+    const showButcher = boardFilter === 'butcher';
+    if (dineInSection) dineInSection.hidden = showTakeaway || showButcher;
     if (takeawaySection) takeawaySection.hidden = !showTakeaway;
+    if (butcherSection) butcherSection.hidden = !showButcher;
 
-    if (!showTakeaway) {
+    if (!showTakeaway && !showButcher) {
       gridEl.innerHTML = board.map(renderCard).join('');
     }
 
-    if (takeawayGrid) {
-      if (pickupCount) {
-        takeawayGrid.innerHTML = takeaway.map(renderCard).join('');
-        if (takeawayEmpty) takeawayEmpty.hidden = true;
-      } else {
-        takeawayGrid.innerHTML = '';
-        if (takeawayEmpty) takeawayEmpty.hidden = false;
-      }
-    }
+    paintPickupGrid(takeawayGrid, takeawayEmpty, takeaway);
+    paintPickupGrid(butcherGrid, butcherEmpty, butcher);
 
-    const selected = findSelectedEntry(board, takeaway);
+    const selected = findSelectedEntry(board, takeaway, butcher);
     if (selectedKey && selected?.order) {
       fillDrawer(selected);
     } else if (selectedKey && (!selected || !selected.order)) {
@@ -593,11 +641,12 @@
       const data = await loadBoardData();
       boardCache = data.board;
       takeawayCache = data.takeaway;
+      butcherCache = data.butcher || [];
       dataSource = data.source;
       if (!data.stale) {
-        syncKnownOrderIdsAfterBoardLoad(boardCache, takeawayCache, data.shabbatOrderIds);
+        syncKnownOrderIdsAfterBoardLoad(boardCache, pickupCaches(), data.shabbatOrderIds);
       }
-      paintBoard(boardCache, takeawayCache);
+      paintBoard(boardCache, takeawayCache, butcherCache);
     })().finally(() => {
       loadPromise = null;
     });
@@ -636,13 +685,16 @@
     const free = entry.uiStatus === 'free';
     const coupon = entry.order?.couponCode;
     const discountPct = entry.order?.discountPercent;
-    const isPickup = entry.orderType === 'takeaway';
+    const isPickup = entry.orderType === 'takeaway' || entry.orderType === 'butcher';
+    const badgeText = entry.orderType === 'butcher' ? 'חנות בשר' : 'איסוף עצמי';
     const pickupBlock = isPickup
       ? `
-        <span class="table-card__badge">איסוף עצמי</span>
+        <span class="table-card__badge${entry.orderType === 'butcher' ? ' table-card__badge--butcher' : ''}">${escapeHtml(badgeText)}</span>
         <span class="table-card__customer">${escapeHtml(entry.order?.customerName || '—')}</span>
         <span class="table-card__phone" dir="ltr">${escapeHtml(entry.order?.customerPhone || '—')}</span>
-        <span class="table-card__pickup">איסוף: ${escapeHtml(formatPickupLabel(entry.order))}</span>
+        ${entry.orderType === 'butcher'
+          ? ''
+          : `<span class="table-card__pickup">איסוף: ${escapeHtml(formatPickupLabel(entry.order))}</span>`}
       `
       : '';
     return `
@@ -790,7 +842,9 @@
     if (!order || !drawer) return;
 
     if (drawerTitle) {
-      if (entry.orderType === 'takeaway') {
+      if (entry.orderType === 'butcher') {
+        drawerTitle.textContent = 'חנות בשר';
+      } else if (entry.orderType === 'takeaway') {
         const no = order.publicOrderNo != null ? ` #${order.publicOrderNo}` : '';
         drawerTitle.textContent = `איסוף עצמי${no}`;
       } else {
@@ -800,7 +854,9 @@
 
     const closeTableBtn = drawer?.querySelector('[data-table-action="close-table"]');
     if (closeTableBtn) {
-      closeTableBtn.textContent = entry.orderType === 'takeaway' ? 'סגור הזמנה' : 'סגור שולחן';
+      closeTableBtn.textContent = (entry.orderType === 'takeaway' || entry.orderType === 'butcher')
+        ? 'סגור הזמנה'
+        : 'סגור שולחן';
     }
     if (drawerType) {
       drawerType.textContent = menuMode
@@ -809,7 +865,23 @@
     }
 
     if (drawerMeta) {
-      if (entry.orderType === 'takeaway') {
+      if (entry.orderType === 'butcher') {
+        drawerMeta.innerHTML = `
+          <div class="table-drawer__pickup">
+            <div class="table-drawer__pickup-badge table-drawer__pickup-badge--butcher">חנות בשר</div>
+            <div class="table-drawer__pickup-grid">
+              <div class="table-drawer__pickup-row">
+                <span>שם</span>
+                <strong>${escapeHtml(order.customerName || '—')}</strong>
+              </div>
+              <div class="table-drawer__pickup-row">
+                <span>טלפון</span>
+                <strong dir="ltr">${escapeHtml(order.customerPhone || '—')}</strong>
+              </div>
+            </div>
+          </div>
+        `;
+      } else if (entry.orderType === 'takeaway') {
         drawerMeta.innerHTML = `
           <div class="table-drawer__pickup">
             <div class="table-drawer__pickup-badge">איסוף עצמי${
@@ -981,7 +1053,7 @@
     }
     if (pendingReminderTimer) return;
     pendingReminderTimer = window.setInterval(() => {
-      if (boardNeedsAdminAttention(boardCache, takeawayCache)) {
+      if (boardNeedsAdminAttention(boardCache, pickupCaches())) {
         playOrderNotifyChime();
       } else {
         stopPendingReminder();
@@ -1069,17 +1141,23 @@
       })
       .filter(Boolean);
 
-    const isTakeaway = session.orderType === 'takeaway' || session.order_type === 'takeaway';
+    const rawSessionType = session.orderType || session.order_type || '';
+    const isButcher = rawSessionType === 'butcher'
+      || String(rawSessionType).toLowerCase().includes('butcher');
+    const isTakeaway = rawSessionType === 'takeaway'
+      || session.order_type === 'takeaway'
+      || String(rawSessionType).toLowerCase().includes('take');
+    const resolvedType = isButcher ? 'butcher' : (isTakeaway ? 'takeaway' : 'dinein');
 
     return {
       orderId: String(order.id),
       sessionId: String(order.session_id || session.sessionId || ''),
-      tableNumber: isTakeaway
+      tableNumber: (isTakeaway || isButcher)
         ? null
         : (session.tableNumber != null
           ? Number(session.tableNumber)
           : (session.table_number == null ? null : Number(session.table_number))),
-      orderType: isTakeaway ? 'takeaway' : 'dinein',
+      orderType: resolvedType,
       status: 'active',
       createdAt: order.created_at || null,
       updatedAt: order.updated_at || null,
@@ -1207,15 +1285,17 @@
       (max, row) => Math.max(max, Number(row.order_number) || 0),
       0
     );
+    const isButcher = entry.orderType === 'butcher';
     const isTakeaway = entry.orderType === 'takeaway';
+    const resolvedType = isButcher ? 'butcher' : (isTakeaway ? 'takeaway' : 'dinein');
 
     return {
       orderId: `full-${order._supabaseSessionId || order.sessionId || entry.tableNumber || 'order'}`,
       sessionId: String(order._supabaseSessionId || order.sessionId || ''),
-      tableNumber: isTakeaway
+      tableNumber: (isTakeaway || isButcher)
         ? null
         : (entry.tableNumber != null ? Number(entry.tableNumber) : null),
-      orderType: isTakeaway ? 'takeaway' : 'dinein',
+      orderType: resolvedType,
       status: 'active',
       createdAt: order.createdAt || null,
       updatedAt: order.updatedAt || null,
@@ -1720,13 +1800,14 @@
     }
 
     if (action === 'close-table') {
-      const closeLabel = entry.orderType === 'takeaway' ? 'סגור הזמנה' : 'סגור שולחן';
-      const ok = await showConfirmModal(
-        entry.orderType === 'takeaway'
+      const isPickupClose = entry.orderType === 'takeaway' || entry.orderType === 'butcher';
+      const closeLabel = isPickupClose ? 'סגור הזמנה' : 'סגור שולחן';
+      const confirmMsg = entry.orderType === 'butcher'
+        ? 'האם אתה בטוח שברצונך לסגור את הזמנת חנות הבשר?'
+        : (entry.orderType === 'takeaway'
           ? 'האם אתה בטוח שברצונך לסגור את הזמנת האיסוף העצמי?'
-          : `האם אתה בטוח שברצונך לסגור את שולחן ${entry.tableNumber}?`,
-        { yesLabel: `כן, ${closeLabel}` }
-      );
+          : `האם אתה בטוח שברצונך לסגור את שולחן ${entry.tableNumber}?`);
+      const ok = await showConfirmModal(confirmMsg, { yesLabel: `כן, ${closeLabel}` });
       if (!ok) return;
 
       try {
@@ -1740,7 +1821,7 @@
           closed = true;
         } else {
           const engine = Engine();
-          closed = entry.orderType === 'takeaway'
+          closed = isPickupClose
             ? Boolean(engine?.closeOrder?.({ orderId: entry.order.orderId }))
             : Boolean(engine?.closeTable?.(entry.tableNumber));
         }
@@ -1750,7 +1831,11 @@
           return;
         }
 
-        showToast(entry.orderType === 'takeaway' ? 'איסוף עצמי נסגר' : `שולחן ${entry.tableNumber} נסגר`);
+        showToast(
+          entry.orderType === 'butcher'
+            ? 'הזמנת חנות בשר נסגרה'
+            : (entry.orderType === 'takeaway' ? 'איסוף עצמי נסגר' : `שולחן ${entry.tableNumber} נסגר`)
+        );
         closeDrawer();
         await refreshBoardData();
       } catch (err) {
@@ -1770,9 +1855,14 @@
     const card = event.target.closest('[data-entry-key]');
     if (!card) return;
     const key = card.dataset.entryKey;
-    const entry = String(key).startsWith('takeaway')
-      ? (takeawayCache.find((row) => entryKey(row) === key) || takeawayCache[0])
-      : boardCache.find((row) => entryKey(row) === key);
+    let entry = null;
+    if (String(key).startsWith('butcher')) {
+      entry = butcherCache.find((row) => entryKey(row) === key) || null;
+    } else if (String(key).startsWith('takeaway')) {
+      entry = takeawayCache.find((row) => entryKey(row) === key) || null;
+    } else {
+      entry = boardCache.find((row) => entryKey(row) === key) || null;
+    }
     if (entry) openDrawer(entry);
   }
 
@@ -1871,6 +1961,7 @@
   function init() {
     gridEl?.addEventListener('click', onGridClick);
     takeawayGrid?.addEventListener('click', onGridClick);
+    butcherGrid?.addEventListener('click', onGridClick);
     drawerBackdrop?.addEventListener('click', closeDrawer);
     drawerClose?.addEventListener('click', closeDrawer);
     menuBack?.addEventListener('click', closeMenuPicker);

@@ -32,9 +32,17 @@
   }
 
   function normalizeOrderType(value) {
-    /* Local engine: dine-in + takeaway only (Shabbat uses shabbat-app + Supabase) */
+    /* Local engine: dine-in + takeaway + butcher (Shabbat uses shabbat-app + Supabase) */
     if (value === 'dinein' || value === 'dine-in' || value === 'dine_in') return 'dinein';
     if (value === 'takeaway' || value === 'take-away' || value === 'take_away') return 'takeaway';
+    if (
+      value === 'butcher'
+      || value === 'butcher_shop'
+      || value === 'butcher-shop'
+      || value === 'meat'
+    ) {
+      return 'butcher';
+    }
     if (value === 'shabbat' || value === 'shabbos' || value === 'shabat') {
       console.warn('[order-engine] Shabbat orders are not handled by the local order engine');
       return null;
@@ -88,6 +96,9 @@
     const qty = Number(item.qty);
     if (!Number.isFinite(qty) || qty <= 0) return null;
 
+    const selectedWeight = Number(item.selectedWeight);
+    const pricePerKg = Number(item.pricePerKg);
+
     return {
       itemId: String(item.itemId),
       productId: String(item.productId),
@@ -98,6 +109,9 @@
       printed: item.printed === true,
       createdAt: typeof item.createdAt === 'string' && item.createdAt ? item.createdAt : nowIso(),
       linkedToMainItemId: item.linkedToMainItemId || null,
+      unitType: item.unitType ? String(item.unitType) : null,
+      selectedWeight: Number.isFinite(selectedWeight) && selectedWeight > 0 ? selectedWeight : null,
+      pricePerKg: Number.isFinite(pricePerKg) && pricePerKg >= 0 ? pricePerKg : null,
     };
   }
 
@@ -135,10 +149,15 @@
   function slotKey(orderOrMeta) {
     const type = normalizeOrderType(orderOrMeta?.orderType);
     if (type === 'takeaway') return 'takeaway';
+    if (type === 'butcher') return 'butcher';
     if (type === 'dinein' && orderOrMeta?.tableNumber != null) {
       return `dinein:${Number(orderOrMeta.tableNumber)}`;
     }
     return null;
+  }
+
+  function isNoTableOrderType(type) {
+    return type === 'takeaway' || type === 'butcher';
   }
 
   function readHistory() {
@@ -337,9 +356,9 @@
         ...existing,
         sessionId: meta.sessionId || existing.sessionId,
         /* Never migrate an order to a different table via session reuse */
-        tableNumber: existing.orderType === 'takeaway' || existing.tableNumber != null
+        tableNumber: isNoTableOrderType(existing.orderType) || existing.tableNumber != null
           ? existing.tableNumber
-          : (meta.orderType === 'takeaway' ? null : meta.tableNumber),
+          : (isNoTableOrderType(meta.orderType) ? null : meta.tableNumber),
         orderType: existing.orderType || meta.orderType,
         status: existing.status === STATUS.BILL_REQUESTED
           ? STATUS.BILL_REQUESTED
@@ -352,7 +371,7 @@
     const order = {
       orderId: createId('ord'),
       sessionId: meta.sessionId,
-      tableNumber: meta.orderType === 'takeaway' ? null : meta.tableNumber,
+      tableNumber: isNoTableOrderType(meta.orderType) ? null : meta.tableNumber,
       orderType: meta.orderType,
       status: STATUS.ACTIVE,
       createdAt: stamp,
@@ -387,6 +406,16 @@
       const name = product.name == null ? '' : String(product.name);
       const notes = product.notes == null ? '' : String(product.notes);
 
+      const weightMeta = {
+        selectedWeight: Number.isFinite(Number(product.selectedWeight))
+          ? Number(product.selectedWeight)
+          : (Number.isFinite(Number(line.selectedWeight)) ? Number(line.selectedWeight) : null),
+        pricePerKg: Number.isFinite(Number(product.pricePerKg))
+          ? Number(product.pricePerKg)
+          : (Number.isFinite(Number(line.pricePerKg)) ? Number(line.pricePerKg) : null),
+        unitType: product.unitType || line.unitType || null,
+      };
+
       if (prev) {
         const qtyChanged = prev.qty !== qty;
         nextItems.push({
@@ -401,6 +430,7 @@
             : (prev.printed === true),
           createdAt: prev.createdAt || stamp,
           linkedToMainItemId: line.linkedToMainLineId || null,
+          ...weightMeta,
         });
       } else {
         nextItems.push({
@@ -413,6 +443,7 @@
           printed: false,
           createdAt: stamp,
           linkedToMainItemId: line.linkedToMainLineId || null,
+          ...weightMeta,
         });
       }
     });
@@ -571,22 +602,30 @@
     return board;
   }
 
-  function getTakeawayBoard() {
+  function mapPickupBoardOrders(orderType) {
     pruneEmptyOpenOrders();
     const openOrders = readOpenOrders().filter(
-      (order) => order.orderType === 'takeaway' && orderHasLiveItems(order)
+      (order) => order.orderType === orderType && orderHasLiveItems(order)
     );
 
     return openOrders.map((open) => ({
       tableNumber: null,
       uiStatus: open.status === STATUS.BILL_REQUESTED ? 'bill_requested' : 'active',
-      orderType: 'takeaway',
+      orderType,
       order: open,
       total: getOrderTotal(open),
       itemCount: getItemCount(open),
       openedAt: open.createdAt,
       updatedAt: open.updatedAt,
     }));
+  }
+
+  function getTakeawayBoard() {
+    return mapPickupBoardOrders('takeaway');
+  }
+
+  function getButcherBoard() {
+    return mapPickupBoardOrders('butcher');
   }
 
   function clearOrder() {
@@ -676,6 +715,16 @@
       ))
       : -1;
 
+    const weightMeta = {
+      selectedWeight: Number.isFinite(Number(product.selectedWeight))
+        ? Number(product.selectedWeight)
+        : null,
+      pricePerKg: Number.isFinite(Number(product.pricePerKg))
+        ? Number(product.pricePerKg)
+        : null,
+      unitType: product.unitType || null,
+    };
+
     if (matchIdx >= 0) {
       items[matchIdx] = {
         ...items[matchIdx],
@@ -683,6 +732,7 @@
         name,
         price: Number.isFinite(price) ? price : 0,
         printed: false,
+        ...weightMeta,
       };
       lastAddedItemId = items[matchIdx].itemId;
     } else {
@@ -697,6 +747,7 @@
         printed: false,
         createdAt: stamp,
         linkedToMainItemId,
+        ...weightMeta,
       });
     }
 
@@ -735,6 +786,7 @@
     getOpenOrders,
     getTablesBoard,
     getTakeawayBoard,
+    getButcherBoard,
     clearOrder,
     clearItems,
     setOrderItems,

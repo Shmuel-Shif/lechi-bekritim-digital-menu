@@ -123,6 +123,8 @@
         if (no != null && Number(no) > 0) return `TAKEAWAY #${Number(no)}`;
         return 'TAKEAWAY';
       }
+      case 'butcher':
+        return 'BUTCHER SHOP';
       case 'shabbat':
         /* Shabbat orders are not printed from the regular kitchen flow */
         return 'SHABBAT';
@@ -152,7 +154,7 @@
       order?.orderType || order?.order_type,
       'print-engine.selfPickup'
     );
-    if (classified !== 'takeaway' && classified !== 'shabbat') return [];
+    if (classified !== 'takeaway' && classified !== 'shabbat' && classified !== 'butcher') return [];
 
     const name = order.customerName || order.customer_name || '—';
     const phone = order.customerPhone || order.customer_phone || '—';
@@ -165,6 +167,12 @@
         `Customer: ${name}`,
         `Phone: ${phone}`,
         `Pickup: ${pickup}`,
+      );
+    } else if (classified === 'butcher') {
+      lines.push(
+        'BUTCHER SHOP',
+        `Customer: ${name}`,
+        `Phone: ${phone}`,
       );
     } else {
       lines.push(

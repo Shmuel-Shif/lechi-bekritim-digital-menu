@@ -13,7 +13,7 @@
   const COPY = {
     en: {
       welcome: '✦ Welcome ✦',
-      title: 'Lechaim Restaurant in Crete',
+      title: 'to Lechaim Restaurant in Crete',
       kosher: 'Mehadrin Kosher',
       promptOrder: 'How would you like to order?',
       promptTable: 'Choose the number of the table you are seated at.',
@@ -29,6 +29,9 @@
       takeAwayHint: 'Order and pick up from the restaurant',
       shabbatOrders: 'Shabbat Orders',
       shabbatOrdersHint: 'Special menu for Shabbat',
+      butcherShop: 'Our Butcher Shop',
+      butcherShopHint: 'Mehadrin Chalak meat • Lubavitch shechita • Premium kashrut',
+      continueToButcher: 'Continue to the butcher shop',
       browseMenu: 'View the menu',
       browseMenuHint: 'Discover all our dishes',
       placeReservationHint: 'Reserve your table at the restaurant',
@@ -40,7 +43,7 @@
       scrollHintAria: 'Scroll down',
       aboutTitle: 'About us',
       aboutP1: 'Lechaim is a Mehadrin kosher restaurant in Crete.',
-      aboutP2: 'We serve quality Israeli food, meats, fish, and beloved dishes in a warm, family atmosphere.',
+      aboutP2: 'We serve Mehadrin kosher Israeli food.',
       aboutP3: 'Located in the heart of Crete, we offer dine-in, takeaway, and special Shabbat orders.',
       aboutImageAlt: 'Lechaim restaurant in Crete',
       kosherTitle: 'Kashrut',
@@ -100,7 +103,7 @@
     },
     he: {
       welcome: '✦ ברוכים הבאים ✦',
-      title: 'מסעדת לחיים בכרתים',
+      title: 'למסעדת לחיים בכרתים',
       kosher: 'כשר למהדרין',
       promptOrder: 'איך תרצו להזמין?',
       promptTable: 'בחרו את מספר השולחן שעליו אתם יושבים.',
@@ -116,6 +119,9 @@
       takeAwayHint: 'הזמינו ואספו מהמסעדה',
       shabbatOrders: 'הזמנות לשבת',
       shabbatOrdersHint: 'תפריט מיוחד לשבת קודש',
+      butcherShop: 'חנות הבשר שלנו',
+      butcherShopHint: 'בשר חלק כשר למהדרין • שחיטת ליובאוויטש • כשרות מהודרת',
+      continueToButcher: 'המשך לחנות הבשר',
       browseMenu: 'צפייה בתפריט',
       browseMenuHint: 'גלו את כל המנות שלנו',
       placeReservationHint: 'הבטיחו את מקומכם במסעדה',
@@ -127,7 +133,7 @@
       scrollHintAria: 'גלול למטה',
       aboutTitle: 'מי אנחנו',
       aboutP1: 'מסעדת לחיים היא מסעדה כשרה למהדרין בכרתים.',
-      aboutP2: 'אנו מגישים אוכל ישראלי איכותי, בשרים, דגים ומנות אהובות באווירה חמה ומשפחתית.',
+      aboutP2: 'אנו מגישים אוכל ישראלי כשר למהדרין.',
       aboutP3: 'המסעדה ממוקמת בלב כרתים ומציעה ישיבה במקום, איסוף עצמי והזמנות מיוחדות לשבת.',
       aboutImageAlt: 'מסעדת לחיים בכרתים',
       kosherTitle: 'כשרות',
@@ -208,6 +214,12 @@
   const stepPickup = document.getElementById('entry-step-pickup');
   const stepPickupClosed = document.getElementById('entry-step-pickup-closed');
   const stepPlaceRes = document.getElementById('entry-step-place-res');
+  const stepButcher = document.getElementById('entry-step-butcher');
+  const butcherForm = document.getElementById('entry-butcher-form');
+  const butcherName = document.getElementById('entry-butcher-name');
+  const butcherPhone = document.getElementById('entry-butcher-phone');
+  const butcherNotes = document.getElementById('entry-butcher-notes');
+  const butcherError = document.getElementById('entry-butcher-error');
   const tablesEl = document.getElementById('entry-tables');
   const noticeEl = document.getElementById('entry-notice');
   const promptEl = document.getElementById('entry-prompt');
@@ -464,7 +476,7 @@
   }
 
   function showStep(step) {
-    [stepOrder, stepTable, stepPickup, stepPickupClosed, stepPlaceRes].forEach((el) => {
+    [stepOrder, stepTable, stepPickup, stepPickupClosed, stepPlaceRes, stepButcher].forEach((el) => {
       if (!el) return;
       el.hidden = el !== step;
     });
@@ -969,28 +981,28 @@
         ? extra.orderType
         : (state.orderType || fromSession.orderType || null));
     const isTakeaway = orderType === 'takeaway';
+    const isButcher = orderType === 'butcher';
+    const hasCustomer = isTakeaway || isButcher;
 
     return {
       browseOnly,
       orderType,
-      tableNumber: browseOnly
+      tableNumber: browseOnly || isTakeaway || isButcher
         ? null
-        : (isTakeaway
-          ? null
-          : (extra.tableNumber !== undefined
-            ? extra.tableNumber
-            : (state.tableNumber != null ? state.tableNumber : fromSession.tableNumber))),
+        : (extra.tableNumber !== undefined
+          ? extra.tableNumber
+          : (state.tableNumber != null ? state.tableNumber : fromSession.tableNumber)),
       lang: extra.lang || state.lang || fromSession.lang || null,
       sessionId: browseOnly ? null : (fromSession.sessionId || null),
       openedAt: browseOnly ? null : (fromSession.openedAt || null),
       status: browseOnly ? null : (fromSession.status || null),
-      customerName: isTakeaway
+      customerName: hasCustomer
         ? (extra.customerName ?? state.customerName ?? fromSession.customerName ?? '')
         : null,
-      customerPhone: isTakeaway
+      customerPhone: hasCustomer
         ? (extra.customerPhone ?? state.customerPhone ?? fromSession.customerPhone ?? '')
         : null,
-      customerNotes: isTakeaway
+      customerNotes: hasCustomer
         ? (extra.customerNotes ?? state.customerNotes ?? fromSession.customerNotes ?? '')
         : null,
       pickupType: isTakeaway
@@ -1353,6 +1365,88 @@
     }));
   }
 
+  function showButcherError(message) {
+    if (!butcherError) return;
+    butcherError.hidden = false;
+    butcherError.textContent = message;
+  }
+
+  function goToButcher() {
+    state.orderType = 'butcher';
+    state.tableNumber = null;
+    if (butcherForm) butcherForm.reset();
+    if (butcherError) {
+      butcherError.hidden = true;
+      butcherError.textContent = '';
+    }
+    showStep(stepButcher);
+    butcherName?.focus();
+  }
+
+  function finishButcher(details = {}) {
+    state.orderType = 'butcher';
+    state.tableNumber = null;
+    state.customerName = details.customerName || '';
+    state.customerPhone = details.customerPhone || '';
+    state.customerNotes = details.customerNotes || '';
+    state.pickupType = null;
+    state.pickupTime = null;
+    changingTable = false;
+
+    if (Session?.startButcher) {
+      Session.startButcher({
+        lang: state.lang,
+        customerName: state.customerName,
+        customerPhone: state.customerPhone,
+        customerNotes: state.customerNotes,
+      });
+    }
+
+    enterMenu(buildMenuContext({
+      orderType: 'butcher',
+      tableNumber: null,
+      lang: state.lang,
+      customerName: state.customerName,
+      customerPhone: state.customerPhone,
+      customerNotes: state.customerNotes,
+    }));
+  }
+
+  function submitButcherForm(event) {
+    event?.preventDefault?.();
+    const nameRaw = String(butcherName?.value || '').trim();
+    const phone = String(butcherPhone?.value || '').trim();
+    const notes = String(butcherNotes?.value || '').trim();
+    const nameEn = transliterateToEnglish(nameRaw);
+
+    if (!nameRaw || !nameEn) {
+      showButcherError(t('pickupNameRequired'));
+      butcherName?.focus();
+      return;
+    }
+    if (!phone) {
+      showButcherError(t('pickupPhoneRequired'));
+      butcherPhone?.focus();
+      return;
+    }
+    if (!isValidPhone(phone)) {
+      showButcherError(t('pickupPhoneInvalid'));
+      butcherPhone?.focus();
+      return;
+    }
+
+    if (butcherError) {
+      butcherError.hidden = true;
+      butcherError.textContent = '';
+    }
+
+    finishButcher({
+      customerName: nameEn,
+      customerPhone: phone,
+      customerNotes: notes,
+    });
+  }
+
   function submitPickupForm(event) {
     event?.preventDefault?.();
     if (!isTakeawayDayOpen()) {
@@ -1499,6 +1593,22 @@
     }
   }
 
+  function clearPersistedCartStorage() {
+    try {
+      localStorage.setItem('lechaim-keri-cart', JSON.stringify({ lines: [], order: [] }));
+    } catch (_) { /* ignore */ }
+  }
+
+  function isButcherSessionType(orderType) {
+    const raw = String(orderType || '').toLowerCase();
+    return raw === 'butcher' || raw.includes('butcher');
+  }
+
+  function isTakeawaySessionType(orderType) {
+    const raw = String(orderType || '').toLowerCase();
+    return raw === 'takeaway' || raw === 'take-away' || raw.includes('take');
+  }
+
   async function discardClosedLocalSession(session) {
     if (!session) return;
     clearLocalSessionMapEntry(session.sessionId);
@@ -1510,10 +1620,17 @@
     try {
       if (session.tableNumber != null && window.LechaimOrderEngine?.closeTable) {
         window.LechaimOrderEngine.closeTable(session.tableNumber);
+      } else if (isTakeawaySessionType(session.orderType)) {
+        clearTakeawayLockStorage();
+        window.LechaimOrderEngine?.closeTakeaway?.()
+          || window.LechaimOrderEngine?.clearOrder?.();
+      } else if (isButcherSessionType(session.orderType)) {
+        window.LechaimOrderEngine?.clearOrder?.();
       }
     } catch (err) {
-      console.warn('[entry-gate] local closeTable failed', err);
+      console.warn('[entry-gate] local order clear failed', err);
     }
+    clearPersistedCartStorage();
   }
 
   function clearTakeawayLockStorage() {
@@ -1589,17 +1706,15 @@
       if (!Array.isArray(list)) return false;
       const sid = session.sessionId != null ? String(session.sessionId) : '';
       const table = session.tableNumber != null ? Number(session.tableNumber) : null;
-      const takeaway = session.orderType === 'takeaway'
-        || session.orderType === 'take-away'
-        || session.orderType === 'takeaway';
+      const takeaway = isTakeawaySessionType(session.orderType);
+      const butcher = isButcherSessionType(session.orderType);
       return list.some((order) => {
         if (!order?.items?.some((item) => item && Number(item.qty) > 0)) return false;
         if (sid && String(order.sessionId || '') === sid) return true;
         if (table != null && Number(order.tableNumber) === table) return true;
-        if (takeaway) {
-          const ot = String(order.orderType || '');
-          if (ot === 'takeaway' || ot === 'take-away') return true;
-        }
+        const ot = String(order.orderType || '').toLowerCase();
+        if (takeaway && (ot === 'takeaway' || ot === 'take-away')) return true;
+        if (butcher && ot.includes('butcher')) return true;
         return false;
       });
     } catch {
@@ -1627,18 +1742,57 @@
       console.warn('[entry-gate] clear idle session failed', err);
     }
     try {
-      if (session.orderType === 'takeaway' || session.orderType === 'take-away') {
+      if (isTakeawaySessionType(session.orderType)) {
         clearTakeawayLockStorage();
         window.LechaimOrderEngine?.closeTakeaway?.();
+      } else if (isButcherSessionType(session.orderType)) {
+        window.LechaimOrderEngine?.clearOrder?.();
       } else if (session.tableNumber != null) {
         window.LechaimOrderEngine?.closeTable?.(session.tableNumber);
       }
     } catch (err) {
       console.warn('[entry-gate] idle local order clear failed', err);
     }
-    try {
-      localStorage.setItem('lechaim-keri-cart', JSON.stringify({ lines: [], order: [] }));
-    } catch (_) { /* ignore */ }
+    clearPersistedCartStorage();
+  }
+
+  async function resumeButcherSession(session) {
+    if (!session) return false;
+
+    if (await isMappedRemoteSessionClosed(session.sessionId)) {
+      console.log('[entry-gate] butcher Supabase session closed — not resuming');
+      await discardClosedLocalSession(session);
+      return false;
+    }
+
+    if (!shouldKeepSessionOnRefresh(session)) {
+      console.log('[entry-gate] empty butcher cart — return to butcher form');
+      await discardIdleSession(session);
+      return false;
+    }
+
+    state.orderType = 'butcher';
+    state.tableNumber = null;
+    state.customerName = session.customerName || '';
+    state.customerPhone = session.customerPhone || '';
+    state.customerNotes = session.customerNotes || '';
+    state.pickupType = null;
+    state.pickupTime = null;
+    if (session.lang === 'he' || session.lang === 'en') {
+      state.lang = session.lang;
+    }
+
+    setLang(state.lang);
+    Session?.setLang?.(state.lang);
+    enterMenu(buildMenuContext({
+      orderType: 'butcher',
+      tableNumber: null,
+      lang: state.lang,
+      customerName: state.customerName,
+      customerPhone: state.customerPhone,
+      customerNotes: state.customerNotes,
+    }));
+    return true;
   }
 
   /**
@@ -1753,6 +1907,19 @@
           return;
         }
         goToPickup();
+        return;
+      }
+      if (type === 'butcher') {
+        state.orderType = 'butcher';
+        if (Session?.hasActiveButcherSession?.()) {
+          void (async () => {
+            const resumed = await resumeButcherSession(Session.getSession());
+            if (!resumed) goToButcher();
+          })();
+          return;
+        }
+        goToButcher();
+        return;
       }
       return;
     }
@@ -1774,6 +1941,7 @@
   });
 
   pickupForm?.addEventListener('submit', submitPickupForm);
+  butcherForm?.addEventListener('submit', submitButcherForm);
   pickupAsap?.addEventListener('change', syncPickupTimeUi);
   pickupSelect?.addEventListener('change', syncPickupTimeUi);
   pickupClosedBrowse?.addEventListener('click', () => {

@@ -76,6 +76,13 @@
     window.alert(String(message || ''));
   }
 
+  function stripWeightFromProductName(name) {
+    return String(name || '')
+      .replace(/\s*[–-]\s*\d+(?:[.,]\d+)?\s*ק["״]?ג\.?/gi, '')
+      .replace(/\s*[–-]\s*\d+(?:[.,]\d+)?\s*kg\b/gi, '')
+      .trim();
+  }
+
   function flattenItems(orders) {
     const items = [];
     (orders || []).forEach((order) => {
@@ -83,7 +90,9 @@
         const qty = Number(row.quantity) || 0;
         if (qty <= 0) return;
         items.push({
-          name: row.print_name || row.product_name || row.product_id || '',
+          name: stripWeightFromProductName(
+            row.print_name || row.product_name || row.product_id || ''
+          ),
           qty,
           price: Number(row.price) || 0,
           notes: row.notes == null ? '' : String(row.notes),
@@ -126,6 +135,12 @@
       <button type="button" class="history-pick-card history-pick-card--takeaway" data-history-key="takeaway">
         <span class="history-pick-card__num">TA</span>
         <span class="history-pick-card__label">איסוף עצמי</span>
+      </button>
+    `);
+    tables.push(`
+      <button type="button" class="history-pick-card history-pick-card--butcher" data-history-key="butcher">
+        <span class="history-pick-card__num">בשר</span>
+        <span class="history-pick-card__label">חנות בשר</span>
       </button>
     `);
     tables.push(`
@@ -295,6 +310,7 @@
       'admin-history.restore'
     );
     if (orderType === 'shabbat') return 'shabbat';
+    if (orderType === 'butcher') return 'butcher';
     if (orderType === 'takeaway') return 'takeaway';
     return 'tables';
   }
@@ -318,6 +334,10 @@
     if (orderType === 'shabbat') {
       const name = session.customer_name ? String(session.customer_name) : 'הזמנת שבת';
       return `לשחזר את "${name}" להזמנות לשבת?`;
+    }
+    if (orderType === 'butcher') {
+      const name = session.customer_name ? String(session.customer_name) : 'חנות בשר';
+      return `לשחזר את "${name}" לחנות הבשר?`;
     }
     if (orderType === 'takeaway') {
       const name = session.customer_name ? String(session.customer_name) : 'איסוף עצמי';
@@ -432,6 +452,14 @@
       if (key === 'takeaway') {
         const rows = await ordersApi.getClosedTakeawaySessions({ limit: 40 });
         renderSessions(rows, 'איסוף עצמי — היסטוריה');
+        return;
+      }
+      if (key === 'butcher') {
+        if (typeof ordersApi.getClosedButcherSessions !== 'function') {
+          throw new Error('היסטוריית חנות בשר לא זמינה');
+        }
+        const rows = await ordersApi.getClosedButcherSessions({ limit: 40 });
+        renderSessions(rows, 'חנות בשר — היסטוריה');
         return;
       }
       if (key === 'shabbat') {

@@ -81,6 +81,16 @@ const TRANSLATIONS = {
     openMenu: 'פתח תפריט',
     showDish: 'הצג פרטים על {name}',
     perUnit: '{price} ליחידה',
+    perKg: '{price} / ק״ג',
+    pricePerKgBadge: 'מחיר לק״ג',
+    weightLabel: 'משקל',
+    weightOption: '{kg} ק״ג',
+    butcherHeroTitle: 'חנות הבשר של לחיים',
+    butcherHeroSubtitle: 'בשר חלק כשר למהדרין • שחיטת ליובאוויטש • כשרות מהודרת',
+    butcherHeroDesc: 'אצלנו תוכלו להזמין מגוון נתחי בשר ועוף איכותיים, טריים וכשרים למהדרין.\n\nכל המוצרים נבחרים בקפידה ומסופקים תחת סטנדרטים גבוהים של איכות וכשרות.',
+    butcherWeightNotice: 'כל המוצרים מגיעים באריזות של\n1 ק״ג או 1.2 ק״ג.',
+    gotIt: 'הבנתי',
+    receiptButcher: 'חנות בשר',
     currency: '€',
     langToggleAria: 'החלפת שפה – עברית / English',
     mainsNote: 'כל המנות העיקריות מוגשות עם תוספת אחת חמה (למעט שיפודי קבב ומוקפץ עוף).',
@@ -116,6 +126,8 @@ const TRANSLATIONS = {
       desserts: 'קינוחים',
       coldDrinks: 'שתייה קלה',
       hotDrinks: 'שתייה חמה',
+      butcher: 'בשרים',
+      poultry: 'עופות',
     },
   },
   en: {
@@ -197,6 +209,16 @@ const TRANSLATIONS = {
     openMenu: 'Open menu',
     showDish: 'View details for {name}',
     perUnit: '{price} each',
+    perKg: '{price} / kg',
+    pricePerKgBadge: 'Price per kg',
+    weightLabel: 'Weight',
+    weightOption: '{kg} kg',
+    butcherHeroTitle: 'Lechaim Butcher Shop',
+    butcherHeroSubtitle: 'Mehadrin Chalak meat • Lubavitch shechita • Premium kashrut',
+    butcherHeroDesc: 'Order a selection of quality meat and chicken cuts — fresh and Mehadrin kosher.\n\nAll products are carefully selected and supplied under high standards of quality and kashrut.',
+    butcherWeightNotice: 'All products come in packs of\n1 kg or 1.2 kg.',
+    gotIt: 'Got it',
+    receiptButcher: 'Butcher shop',
     currency: '€',
     langToggleAria: 'Switch language – Hebrew / English',
     mainsNote: 'All main courses are served with one hot side (except kebab skewers and stir-fried chicken).',
@@ -232,6 +254,8 @@ const TRANSLATIONS = {
       desserts: 'Desserts',
       coldDrinks: 'Soft Drinks',
       hotDrinks: 'Hot Drinks',
+      butcher: 'Meats',
+      poultry: 'Poultry',
     },
   },
   el: {
@@ -311,9 +335,37 @@ const DISH_I18N = {
       name: 'Chicken Salad',
       desc: 'Chicken pieces on a fresh vegetable salad.',
     },
+    'butcher-asado': {
+      name: 'Asado',
+      desc: 'Mehadrin kosher -\nLubavitch shechita',
+    },
+    'butcher-entrecote-premium': {
+      name: 'Entrecote',
+      desc: 'Mehadrin kosher -\nLubavitch shechita',
+    },
+    'butcher-goulash': {
+      name: 'Goulash',
+      desc: 'Mehadrin kosher -\nLubavitch shechita',
+    },
+    'butcher-chicken-schnitzel': {
+      name: 'Chicken Schnitzel',
+      desc: 'Mehadrin kosher -\nLubavitch shechita',
+    },
+    'butcher-chicken-leg': {
+      name: 'Chicken Legs',
+      desc: 'Mehadrin kosher -\nLubavitch shechita',
+    },
+    'butcher-pargit-skinless': {
+      name: 'Skinless Pargit',
+      desc: 'Mehadrin kosher -\nLubavitch shechita',
+    },
+    'butcher-wings-drumettes': {
+      name: 'Wings',
+      desc: 'Mehadrin kosher -\nLubavitch shechita',
+    },
     'israeli-salad': {
       name: 'Israeli Salad',
-      desc: 'Fresh chopped vegetable salad with herbs.',
+      desc: 'Fresh vegetable salad.',
     },
     'green-salad': {
       name: 'Green Salad',
@@ -369,6 +421,11 @@ const DISH_I18N = {
 
 function dishImage(id) {
   return `assets/images/dishes/${id}.webp`;
+}
+
+/** Butcher-shop photos live in assets/images/bif/ */
+function bifImage(filename) {
+  return `assets/images/bif/${encodeURIComponent(filename)}`;
 }
 
 const MENU_DATA = {
@@ -632,6 +689,95 @@ const MENU_DATA = {
         },
         { id: 'black-coffee', name: 'קפה שחור', printName: 'Cafe Shachor', description: '', price: 5, image: dishImage('black-coffee') },
         { id: 'mint-tea', name: 'תה חם עם נענע', printName: 'Te Im Nana', description: '', price: 5, image: dishImage('mint-tea') },
+      ],
+    },
+    {
+      id: 'butcher',
+      titleKey: 'categories.butcher',
+      items: [
+        {
+          id: 'butcher-asado',
+          name: 'אסאדו',
+          printName: 'אסאדו',
+          description: 'כשר למהדרין -\nשחיטת ליובאוויטש',
+          price: 31.9,
+          pricePerKg: 31.9,
+          soldByWeight: true,
+          unitType: 'kg',
+          image: bifImage('asado.webp'),
+        },
+        {
+          id: 'butcher-entrecote-premium',
+          name: 'אנטריקוט',
+          printName: 'אנטריקוט',
+          description: 'כשר למהדרין -\nשחיטת ליובאוויטש',
+          price: 51.9,
+          pricePerKg: 51.9,
+          soldByWeight: true,
+          unitType: 'kg',
+          image: bifImage('antrikut.webp'),
+        },
+        {
+          id: 'butcher-goulash',
+          name: 'גולש',
+          printName: 'גולש',
+          description: 'כשר למהדרין -\nשחיטת ליובאוויטש',
+          price: 26.9,
+          pricePerKg: 26.9,
+          soldByWeight: true,
+          unitType: 'kg',
+          image: bifImage('golsh.webp'),
+        },
+      ],
+    },
+    {
+      id: 'poultry',
+      titleKey: 'categories.poultry',
+      items: [
+        {
+          id: 'butcher-chicken-schnitzel',
+          name: 'שניצל עוף',
+          printName: 'שניצל עוף',
+          description: 'כשר למהדרין -\nשחיטת ליובאוויטש',
+          price: 19.9,
+          pricePerKg: 19.9,
+          soldByWeight: true,
+          unitType: 'kg',
+          image: bifImage('baked-potatoes.webp'),
+        },
+        {
+          id: 'butcher-chicken-leg',
+          name: 'כרעי עוף',
+          printName: 'כרעי עוף',
+          description: 'כשר למהדרין -\nשחיטת ליובאוויטש',
+          price: 11.9,
+          pricePerKg: 11.9,
+          soldByWeight: true,
+          unitType: 'kg',
+          image: bifImage("kar'i'im.webp"),
+        },
+        {
+          id: 'butcher-pargit-skinless',
+          name: 'פרגית ללא עור',
+          printName: 'פרגית ללא עור',
+          description: 'כשר למהדרין -\nשחיטת ליובאוויטש',
+          price: 19.9,
+          pricePerKg: 19.9,
+          soldByWeight: true,
+          unitType: 'kg',
+          image: bifImage('pirgit.webp'),
+        },
+        {
+          id: 'butcher-wings-drumettes',
+          name: 'כנפיים',
+          printName: 'כנפיים',
+          description: 'כשר למהדרין -\nשחיטת ליובאוויטש',
+          price: 7.9,
+          pricePerKg: 7.9,
+          soldByWeight: true,
+          unitType: 'kg',
+          image: bifImage("knafi'im.webp"),
+        },
       ],
     },
   ],
