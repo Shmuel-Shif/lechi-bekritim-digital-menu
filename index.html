@@ -109,8 +109,8 @@
                 <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 8h12l-1 11H7L6 8z"/><path d="M9 8a3 3 0 0 1 6 0"/></svg>
               </span>
               <span class="entry-gate__btn-text">
-                <span class="entry-gate__btn-label" data-entry-i18n="takeAway">איסוף עצמי</span>
-                <span class="entry-gate__btn-hint" data-entry-i18n="takeAwayHint">הזמינו ואספו מהמסעדה</span>
+                <span class="entry-gate__btn-label" data-entry-i18n="takeAway">איסוף עצמי / משלוחים</span>
+                <span class="entry-gate__btn-hint" data-entry-i18n="takeAwayHint">איסוף מהמסעדה או משלוח</span>
               </span>
               <span class="entry-gate__btn-chevron" aria-hidden="true"></span>
             </button>
@@ -397,6 +397,18 @@
 
       <div class="entry-gate__step" id="entry-step-pickup" hidden>
         <form class="entry-pickup" id="entry-pickup-form" novalidate>
+          <fieldset class="entry-pickup__time entry-pickup__fulfillment" id="entry-pickup-fulfillment">
+            <legend class="entry-pickup__label" data-entry-i18n="fulfillmentType">סוג הזמנה</legend>
+            <label class="entry-pickup__radio">
+              <input type="radio" name="fulfillmentType" value="pickup" id="entry-fulfillment-pickup" checked>
+              <span data-entry-i18n="fulfillmentPickup">איסוף עצמי</span>
+            </label>
+            <label class="entry-pickup__radio" id="entry-fulfillment-delivery-row">
+              <input type="radio" name="fulfillmentType" value="delivery" id="entry-fulfillment-delivery">
+              <span data-entry-i18n="fulfillmentDelivery">משלוח</span>
+            </label>
+          </fieldset>
+
           <label class="entry-pickup__field">
             <span class="entry-pickup__label" data-entry-i18n="customerName">שם הלקוח *</span>
             <input
@@ -407,6 +419,19 @@
               autocomplete="name"
               required
               maxlength="80"
+            >
+          </label>
+
+          <label class="entry-pickup__field" id="entry-pickup-address-field" hidden>
+            <span class="entry-pickup__label" data-entry-i18n="customerAddress">כתובת *</span>
+            <input
+              type="text"
+              id="entry-pickup-address"
+              class="entry-pickup__input"
+              name="customerAddress"
+              autocomplete="street-address"
+              maxlength="160"
+              dir="auto"
             >
           </label>
 
@@ -438,7 +463,7 @@
             ></textarea>
           </label>
 
-          <fieldset class="entry-pickup__time">
+          <fieldset class="entry-pickup__time" id="entry-pickup-time-fieldset">
             <legend class="entry-pickup__label" data-entry-i18n="pickupTime">שעת איסוף</legend>
             <label class="entry-pickup__radio">
               <input type="radio" name="pickupType" value="ASAP" id="entry-pickup-asap" checked>

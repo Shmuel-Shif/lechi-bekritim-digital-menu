@@ -159,6 +159,8 @@
         : String(options.notes),
       pickup_type: options.pickupType ?? options.pickup_type ?? null,
       pickup_time: options.pickupTime ?? options.pickup_time ?? null,
+      customer_address: options.customerAddress ?? options.customer_address ?? null,
+      fulfillment_type: options.fulfillmentType ?? options.fulfillment_type ?? null,
     };
 
     switch (orderType) {
@@ -168,6 +170,13 @@
         row.pickup_time = pickupType === 'TIME' && row.pickup_time
           ? String(row.pickup_time)
           : null;
+        const fulfillment = String(row.fulfillment_type || 'pickup').toLowerCase() === 'delivery'
+          ? 'delivery'
+          : 'pickup';
+        row.fulfillment_type = fulfillment;
+        row.customer_address = fulfillment === 'delivery' && row.customer_address
+          ? String(row.customer_address).trim()
+          : null;
         break;
       }
       case 'shabbat':
@@ -175,23 +184,31 @@
         row.pickup_type = 'TIME';
         row.pickup_time = row.pickup_time ? String(row.pickup_time) : '13:00-14:00';
         row.public_order_no = null;
+        row.customer_address = null;
+        row.fulfillment_type = null;
         break;
       case 'butcher':
         /* Butcher shop — customer details only, no table / pickup slot / public number */
         row.pickup_type = null;
         row.pickup_time = null;
         row.public_order_no = null;
+        row.customer_address = null;
+        row.fulfillment_type = null;
         break;
       case 'dine_in':
         row.pickup_type = null;
         row.pickup_time = null;
         row.public_order_no = null;
+        row.customer_address = null;
+        row.fulfillment_type = null;
         break;
       default:
         console.warn(`[LechaimSupabaseOrders.createSession] Unknown order type: ${orderType}`);
         row.pickup_type = null;
         row.pickup_time = null;
         row.public_order_no = null;
+        row.customer_address = null;
+        row.fulfillment_type = null;
         break;
     }
 
@@ -1412,10 +1429,51 @@
     return false;
   }
 
-  let flagsChannel = null;
+  /**
+   * When true, customer entry UI hides delivery wording and delivery option.
+   * @returns {Promise<boolean>}
+   */
+  async function getDeliveriesClosed() {
+    const sb = getClient();
+    const { data, error } = await sb
+      .from('restaurant_flags')
+      .select('flag_value')
+      .eq('flag_key', 'deliveries_closed')
+      .maybeSingle();
+    throwIfError(error, 'getDeliveriesClosed');
+    return Boolean(data?.flag_value);
+  }
 
   /**
-   * Realtime for restaurant_flags.
+   * Admin: close/open deliveries on the customer site only.
+   * @param {boolean} closed
+   * @returns {Promise<boolean>}
+   */
+  async function setDeliveriesClosed(closed) {
+    const sb = getClient();
+    const { data: authData } = await sb.auth.getSession();
+    if (!authData?.session) {
+      throw new Error(
+        'setDeliveriesClosed: must be signed in as admin (RLS blocks anon write)'
+      );
+    }
+    const { error } = await sb
+      .from('restaurant_flags')
+      .upsert({
+        flag_key: 'deliveries_closed',
+        flag_value: Boolean(closed),
+        flag_text: null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'flag_key' });
+    throwIfError(error, 'setDeliveriesClosed');
+    return Boolean(closed);
+  }
+
+  let flagsChannel = null;
+  const flagsListeners = new Set();
+
+  /**
+   * Realtime for restaurant_flags (supports multiple listeners).
    * @param {(payload: object) => void} onEvent
    * @returns {() => void}
    */
@@ -1423,29 +1481,34 @@
     if (typeof onEvent !== 'function') {
       throw new Error('[LechaimSupabaseOrders.subscribeRestaurantFlags] callback required');
     }
+    flagsListeners.add(onEvent);
     const sb = getClient();
-    if (flagsChannel) {
-      try { sb.removeChannel(flagsChannel); } catch (_) { /* ignore */ }
-      flagsChannel = null;
+    if (!flagsChannel) {
+      flagsChannel = sb
+        .channel('lechaim-restaurant-flags')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'restaurant_flags' },
+          (payload) => {
+            const row = payload?.new || payload?.old || {};
+            const evt = {
+              flagKey: String(row.flag_key || ''),
+              flagValue: Boolean(row.flag_value),
+              flagText: row.flag_text == null ? null : String(row.flag_text),
+              eventType: payload?.eventType || payload?.event || '',
+            };
+            flagsListeners.forEach((fn) => {
+              try { fn(evt); } catch (err) {
+                console.warn('[LechaimSupabaseOrders] flags listener failed', err);
+              }
+            });
+          }
+        )
+        .subscribe();
     }
-    flagsChannel = sb
-      .channel('lechaim-restaurant-flags')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'restaurant_flags' },
-        (payload) => {
-          const row = payload?.new || payload?.old || {};
-          onEvent({
-            flagKey: String(row.flag_key || ''),
-            flagValue: Boolean(row.flag_value),
-            flagText: row.flag_text == null ? null : String(row.flag_text),
-            eventType: payload?.eventType || payload?.event || '',
-          });
-        }
-      )
-      .subscribe();
     return () => {
-      if (flagsChannel) {
+      flagsListeners.delete(onEvent);
+      if (!flagsListeners.size && flagsChannel) {
         try { sb.removeChannel(flagsChannel); } catch (_) { /* ignore */ }
         flagsChannel = null;
       }
@@ -1485,6 +1548,8 @@
     clearDineInCloseCountdown,
     getDineInOrdersClosed,
     setDineInOrdersClosed,
+    getDeliveriesClosed,
+    setDeliveriesClosed,
     subscribeRestaurantFlags,
     subscribeToOrders,
   };

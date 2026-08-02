@@ -119,9 +119,12 @@
     );
     switch (classified) {
       case 'takeaway': {
+        const isDelivery = String(order.fulfillmentType || order.fulfillment_type || '') === 'delivery'
+          || Boolean(String(order.customerAddress || order.customer_address || '').trim());
         const no = order.publicOrderNo || order.public_order_no;
-        if (no != null && Number(no) > 0) return `TAKEAWAY #${Number(no)}`;
-        return 'TAKEAWAY';
+        const prefix = isDelivery ? 'DELIVERY' : 'TAKEAWAY';
+        if (no != null && Number(no) > 0) return `${prefix} #${Number(no)}`;
+        return prefix;
       }
       case 'butcher':
         return 'BUTCHER SHOP';
@@ -175,10 +178,14 @@
         `Phone: ${phone}`,
       );
     } else {
+      const address = String(order.customerAddress || order.customer_address || '').trim();
+      const isDelivery = String(order.fulfillmentType || order.fulfillment_type || '') === 'delivery'
+        || Boolean(address);
+      lines.push(`Customer: ${name}`);
+      if (isDelivery && address) lines.push(`Address: ${address}`);
       lines.push(
-        `Customer: ${name}`,
         `Phone: ${phone}`,
-        `Pickup: ${pickup}`,
+        `${isDelivery ? 'Delivery' : 'Pickup'}: ${pickup}`,
       );
     }
     /* Customer notes stay in Admin only — not on kitchen bon.
@@ -363,19 +370,29 @@
     return { ok: missing.length === 0, missing };
   }
 
+  function hasHebrewChars(value) {
+    return /[\u0590-\u05FF]/.test(String(value || ''));
+  }
+
   /**
-   * Kitchen/bar tickets use Latin transliteration (`printName`), never English UI names.
+   * Kitchen/bar tickets use Latin transliteration (`printName`), never Hebrew UI names.
+   * If a stored printName is Hebrew (legacy butcher rows), prefer catalog Latin name.
    * Never returns empty/undefined — falls back to name with a console warning.
    */
   function resolvePrintName(item) {
-    if (item?.printName != null) {
-      const direct = String(item.printName).trim();
-      if (direct) return direct;
-    }
-
     const productId = item?.productId == null ? '' : String(item.productId);
     const catalog = productId ? findCatalogProduct(productId) : null;
     const fromCatalog = getCatalogPrintName(catalog);
+
+    if (item?.printName != null) {
+      const direct = String(item.printName).trim();
+      if (direct && !hasHebrewChars(direct)) return direct;
+      if (direct && hasHebrewChars(direct) && fromCatalog && !hasHebrewChars(fromCatalog)) {
+        return fromCatalog;
+      }
+      if (direct) return direct;
+    }
+
     if (fromCatalog) return fromCatalog;
 
     const fallback = formatItemName(item);

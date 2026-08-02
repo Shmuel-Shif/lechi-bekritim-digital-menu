@@ -134,7 +134,7 @@
     tables.push(`
       <button type="button" class="history-pick-card history-pick-card--takeaway" data-history-key="takeaway">
         <span class="history-pick-card__num">TA</span>
-        <span class="history-pick-card__label">איסוף עצמי</span>
+        <span class="history-pick-card__label">איסוף עצמי / משלוחים</span>
       </button>
     `);
     tables.push(`
@@ -253,6 +253,9 @@
     const customerHtml = session.customer_name
       ? `<p class="history-session-modal__meta"><strong>לקוח:</strong> ${escapeHtml(session.customer_name)}${session.customer_phone ? ` · ${escapeHtml(session.customer_phone)}` : ''}</p>`
       : '';
+    const addressHtml = session.customer_address
+      ? `<p class="history-session-modal__meta"><strong>כתובת:</strong> ${escapeHtml(session.customer_address)}</p>`
+      : '';
     const couponHtml = session.coupon_code
       ? `<p class="history-session-modal__meta"><strong>קופון:</strong> ${escapeHtml(session.coupon_code)}${discount ? ` (−${formatMoney(discount)})` : ''}</p>`
       : '';
@@ -283,6 +286,7 @@
           <p><strong>התחלה:</strong> ${escapeHtml(formatClock(started))}</p>
           <p><strong>נסגר:</strong> ${escapeHtml(formatClock(closed))}</p>
           ${customerHtml}
+          ${addressHtml}
           ${couponHtml}
           ${notesHtml}
         </div>
@@ -451,7 +455,7 @@
     try {
       if (key === 'takeaway') {
         const rows = await ordersApi.getClosedTakeawaySessions({ limit: 40 });
-        renderSessions(rows, 'איסוף עצמי — היסטוריה');
+        renderSessions(rows, 'איסוף עצמי / משלוחים — היסטוריה');
         return;
       }
       if (key === 'butcher') {

@@ -236,6 +236,11 @@
     return Array.isArray(data) ? data[0] : data;
   }
 
+  function todayDateStr() {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  }
+
   /**
    * Admin: list requests for a calendar day (all statuses).
    */
@@ -254,6 +259,28 @@
       .order('created_at', { ascending: true });
 
     if (error) throw new Error(error.message || 'טעינת בקשות נכשלה');
+    return data || [];
+  }
+
+  /**
+   * Admin: today + future requests that are still active (not cancelled).
+   * Sorted by reservation_date, then arrival_time (nearest first).
+   */
+  async function listUpcomingActive() {
+    const sb = getClient();
+    const fromDay = todayDateStr();
+    const { data, error } = await sb
+      .from(TABLE)
+      .select(
+        'id, customer_name, customer_phone, party_size, notes, arrival_time, reservation_date, status, created_at'
+      )
+      .gte('reservation_date', fromDay)
+      .neq('status', 'cancelled')
+      .order('reservation_date', { ascending: true })
+      .order('arrival_time', { ascending: true })
+      .order('created_at', { ascending: true });
+
+    if (error) throw new Error(error.message || 'טעינת בקשות עתידיות נכשלה');
     return data || [];
   }
 
@@ -342,12 +369,76 @@
     if (error) throw new Error(error.message || 'מחיקת הבקשה נכשלה');
   }
 
+  /**
+   * Admin: update request details (not status). Capacity checked when row still holds seats.
+   */
+  async function updateRequest(id, payload) {
+    const sb = getClient();
+    if (!id) throw new Error('חסר מזהה בקשה');
+
+    const customer_name = String(payload?.customer_name || '').trim();
+    const customer_phone = String(payload?.customer_phone || '').trim();
+    const notes = String(payload?.notes || '').trim();
+    const reservation_date = normalizeDateStr(payload?.reservation_date);
+    const arrival_time = String(payload?.arrival_time || '').trim();
+    const party_size = Math.floor(Number(payload?.party_size));
+
+    if (!customer_name) throw new Error('נא להזין שם לקוח');
+    if (!customer_phone) throw new Error('נא להזין טלפון');
+    if (!reservation_date) throw new Error('תאריך לא תקין');
+    /* Admin may use 15-min slots beyond the public half-hour list */
+    if (timeToMinutes(arrival_time) == null) throw new Error('שעת הגעה לא תקינה');
+    if (!Number.isFinite(party_size) || party_size < 1 || party_size > CAPACITY_SEATS) {
+      throw new Error('מספר סועדים לא תקין');
+    }
+
+    const { data: current, error: readErr } = await sb
+      .from(TABLE)
+      .select('id, status, party_size, arrival_time, reservation_date')
+      .eq('id', String(id))
+      .single();
+    if (readErr) throw new Error(readErr.message || 'טעינת הבקשה נכשלה');
+
+    const status = String(current?.status || '');
+    if (status === 'pending' || status === 'confirmed' || status === 'arrived') {
+      const occupancy = await getOccupancyForDate(reservation_date);
+      const others = occupiedSeatsForWindow(occupancy, arrival_time, String(id));
+      if (others + party_size > CAPACITY_SEATS) {
+        const e = new Error('CAPACITY_EXCEEDED');
+        e.code = 'CAPACITY_EXCEEDED';
+        throw e;
+      }
+    }
+
+    const arrivalNormalized = minutesToTime(timeToMinutes(arrival_time));
+    const { data, error } = await sb
+      .from(TABLE)
+      .update({
+        customer_name,
+        customer_phone,
+        notes: notes || null,
+        reservation_date,
+        arrival_time: arrivalNormalized,
+        party_size,
+      })
+      .eq('id', String(id))
+      .select(
+        'id, customer_name, customer_phone, party_size, notes, arrival_time, reservation_date, status, created_at'
+      )
+      .single();
+
+    if (error) throw new Error(error.message || 'עדכון הבקשה נכשל');
+    return data;
+  }
+
   global.LechaimPlaceReservations = {
     isConfigured,
     createRequest,
     listForDate,
+    listUpcomingActive,
     setStatus,
     deleteRequest,
+    updateRequest,
     getOccupancyForDate,
     getUnavailableSlots,
     getDailyOccupancy,

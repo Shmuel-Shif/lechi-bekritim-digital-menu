@@ -941,6 +941,19 @@ body {
   color: #6b2f1a;
 }
 
+.table-card__badge--delivery {
+  background: rgba(37, 99, 135, 0.18);
+  color: #1a4d6b;
+}
+
+.table-card--active .table-card__badge--delivery,
+.table-card--pending_print .table-card__badge--delivery,
+.table-card--preparing .table-card__badge--delivery,
+.table-card--bill_requested .table-card__badge--delivery {
+  background: rgba(255, 255, 255, 0.28);
+  color: #fff;
+}
+
 .table-card--active .table-card__badge--butcher,
 .table-card--pending_print .table-card__badge--butcher,
 .table-card--preparing .table-card__badge--butcher,
@@ -2125,6 +2138,11 @@ body.admin-modal-open {
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.02em;
+}
+
+.reservation-card__status--hold {
+  background: rgba(30, 51, 84, 0.12);
+  color: var(--color-navy, #1e3354);
 }
 
 .reservation-card__status--pending {

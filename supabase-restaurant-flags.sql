@@ -29,6 +29,11 @@ insert into public.restaurant_flags (flag_key, flag_value)
 values ('dine_in_orders_closed', false)
 on conflict (flag_key) do nothing;
 
+-- Customer takeaway card: when true, hide delivery wording + address option
+insert into public.restaurant_flags (flag_key, flag_value)
+values ('deliveries_closed', false)
+on conflict (flag_key) do nothing;
+
 alter table public.restaurant_flags enable row level security;
 
 drop policy if exists "restaurant_flags_public_select" on public.restaurant_flags;

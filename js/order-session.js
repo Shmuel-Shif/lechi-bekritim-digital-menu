@@ -123,6 +123,8 @@
       customerName: typeof session.customerName === 'string' ? session.customerName : '',
       customerPhone: typeof session.customerPhone === 'string' ? session.customerPhone : '',
       customerNotes: typeof session.customerNotes === 'string' ? session.customerNotes : '',
+      customerAddress: typeof session.customerAddress === 'string' ? session.customerAddress : '',
+      fulfillmentType: session.fulfillmentType === 'delivery' ? 'delivery' : (session.fulfillmentType === 'pickup' ? 'pickup' : null),
       pickupType: session.pickupType === 'TIME' ? 'TIME' : (session.pickupType === 'ASAP' ? 'ASAP' : null),
       pickupTime: typeof session.pickupTime === 'string' && session.pickupTime ? session.pickupTime : null,
       publicOrderNo: Number.isFinite(Number(session.publicOrderNo)) && Number(session.publicOrderNo) > 0
@@ -150,6 +152,8 @@
       customerName: typeof raw.customerName === 'string' ? raw.customerName : '',
       customerPhone: typeof raw.customerPhone === 'string' ? raw.customerPhone : '',
       customerNotes: typeof raw.customerNotes === 'string' ? raw.customerNotes : '',
+      customerAddress: typeof raw.customerAddress === 'string' ? raw.customerAddress : '',
+      fulfillmentType: raw.fulfillmentType === 'delivery' ? 'delivery' : 'pickup',
       pickupType: raw.pickupType === 'TIME' ? 'TIME' : 'ASAP',
       pickupTime: typeof raw.pickupTime === 'string' && raw.pickupTime ? raw.pickupTime : null,
       publicOrderNo: Number.isFinite(Number(raw.publicOrderNo)) && Number(raw.publicOrderNo) > 0
@@ -237,6 +241,7 @@
   function startTakeaway(options = {}) {
     const existing = getSession();
     const pickupType = options.pickupType === 'TIME' ? 'TIME' : 'ASAP';
+    const fulfillmentType = options.fulfillmentType === 'delivery' ? 'delivery' : 'pickup';
     const payload = {
       sessionId: createSessionId(),
       orderType: ORDER_TYPE.TAKEAWAY,
@@ -249,6 +254,10 @@
       customerName: typeof options.customerName === 'string' ? options.customerName.trim() : '',
       customerPhone: typeof options.customerPhone === 'string' ? options.customerPhone.trim() : '',
       customerNotes: typeof options.customerNotes === 'string' ? options.customerNotes.trim() : '',
+      fulfillmentType,
+      customerAddress: fulfillmentType === 'delivery' && typeof options.customerAddress === 'string'
+        ? options.customerAddress.trim()
+        : '',
       pickupType,
       pickupTime: pickupType === 'TIME' && typeof options.pickupTime === 'string'
         ? options.pickupTime.trim()
@@ -292,6 +301,10 @@
     if (typeof patch.customerName === 'string') next.customerName = patch.customerName;
     if (typeof patch.customerPhone === 'string') next.customerPhone = patch.customerPhone;
     if (typeof patch.customerNotes === 'string') next.customerNotes = patch.customerNotes;
+    if (typeof patch.customerAddress === 'string') next.customerAddress = patch.customerAddress;
+    if (patch.fulfillmentType === 'delivery' || patch.fulfillmentType === 'pickup') {
+      next.fulfillmentType = patch.fulfillmentType;
+    }
     if (patch.pickupType === 'TIME' || patch.pickupType === 'ASAP') next.pickupType = patch.pickupType;
     if (patch.pickupTime !== undefined) {
       next.pickupTime = typeof patch.pickupTime === 'string' && patch.pickupTime
@@ -351,6 +364,8 @@
       customerName: session.customerName || '',
       customerPhone: session.customerPhone || '',
       customerNotes: session.customerNotes || '',
+      customerAddress: session.customerAddress || '',
+      fulfillmentType: session.fulfillmentType || 'pickup',
       pickupType: session.pickupType || null,
       pickupTime: session.pickupTime || null,
       publicOrderNo: session.publicOrderNo != null ? Number(session.publicOrderNo) : null,

@@ -23,10 +23,20 @@
       tablePickTable: 'Choose a table',
       tableBrowseMenu: 'View the menu',
       promptPickup: 'Takeaway details',
+      promptPickupWithDelivery: 'Takeaway & delivery details',
+      promptDelivery: 'Delivery details',
       dineIn: 'Dine In',
       dineInHint: 'Join us for a meal at the restaurant',
       takeAway: 'Takeaway',
+      takeAwayWithDelivery: 'Takeaway / Delivery',
       takeAwayHint: 'Order and pick up from the restaurant',
+      takeAwayHintWithDelivery: 'Pickup from the restaurant or delivery',
+      fulfillmentType: 'Order type',
+      fulfillmentPickup: 'Takeaway',
+      fulfillmentDelivery: 'Delivery',
+      customerAddress: 'Address *',
+      pickupAddressRequired: 'Please enter a delivery address',
+      deliveryTime: 'Delivery time',
       shabbatOrders: 'Shabbat Orders',
       shabbatOrdersHint: 'Special menu for Shabbat',
       butcherShop: 'Our Butcher Shop',
@@ -59,10 +69,10 @@
       occupied: 'Occupied',
       tableOccupied: 'This table is occupied',
       langAria: 'Switch language – Hebrew / English',
-      customerName: 'Customer Name *',
-      customerPhone: 'Phone Number *',
+      customerName: 'Customer name *',
+      customerPhone: 'Phone *',
       customerNotes: 'Notes (optional)',
-      pickupTime: 'Pickup Time',
+      pickupTime: 'Pickup time',
       pickupAsap: 'ASAP',
       pickupSelect: 'Select Time',
       continueToMenu: 'Continue to menu',
@@ -113,10 +123,20 @@
       tablePickTable: 'לבחירת שולחן',
       tableBrowseMenu: 'לצפייה בתפריט',
       promptPickup: 'פרטי איסוף עצמי',
+      promptPickupWithDelivery: 'פרטי איסוף עצמי ומשלוחים',
+      promptDelivery: 'פרטי משלוח',
       dineIn: 'ישיבה במקום',
       dineInHint: 'הצטרפו אלינו לארוחה במקום',
       takeAway: 'איסוף עצמי',
+      takeAwayWithDelivery: 'איסוף עצמי / משלוחים',
       takeAwayHint: 'הזמינו ואספו מהמסעדה',
+      takeAwayHintWithDelivery: 'איסוף מהמסעדה או משלוח',
+      fulfillmentType: 'סוג הזמנה',
+      fulfillmentPickup: 'איסוף עצמי',
+      fulfillmentDelivery: 'משלוח',
+      customerAddress: 'כתובת *',
+      pickupAddressRequired: 'נא להזין כתובת למשלוח',
+      deliveryTime: 'שעת משלוח',
       shabbatOrders: 'הזמנות לשבת',
       shabbatOrdersHint: 'תפריט מיוחד לשבת קודש',
       butcherShop: 'חנות הבשר שלנו',
@@ -238,6 +258,16 @@
   const pickupForm = document.getElementById('entry-pickup-form');
   const pickupName = document.getElementById('entry-pickup-name');
   const pickupPhone = document.getElementById('entry-pickup-phone');
+  const pickupAddress = document.getElementById('entry-pickup-address');
+  const pickupAddressField = document.getElementById('entry-pickup-address-field');
+  const pickupTimeFieldset = document.getElementById('entry-pickup-time-fieldset');
+  const fulfillmentFieldset = document.getElementById('entry-pickup-fulfillment')
+    || document.querySelector('.entry-pickup__fulfillment');
+  const fulfillmentPickup = document.getElementById('entry-fulfillment-pickup');
+  const fulfillmentDelivery = document.getElementById('entry-fulfillment-delivery');
+  const fulfillmentDeliveryRow = document.getElementById('entry-fulfillment-delivery-row');
+  const takeAwayLabelEl = gate?.querySelector('[data-order-type="takeaway"] [data-entry-i18n="takeAway"]');
+  const takeAwayHintEl = gate?.querySelector('[data-order-type="takeaway"] [data-entry-i18n="takeAwayHint"]');
   const pickupNotes = document.getElementById('entry-pickup-notes');
   const pickupAsap = document.getElementById('entry-pickup-asap');
   const pickupSelect = document.getElementById('entry-pickup-select');
@@ -275,8 +305,12 @@
     customerName: '',
     customerPhone: '',
     customerNotes: '',
+    customerAddress: '',
+    fulfillmentType: 'pickup', // 'pickup' | 'delivery'
     pickupType: 'ASAP', // 'ASAP' | 'TIME'
     pickupTime: null,
+    /** Admin flag: when true, hide all delivery wording/options on customer UI */
+    deliveriesClosed: false,
   };
 
   let noticeTimer = null;
@@ -308,7 +342,13 @@
     gate.querySelectorAll('[data-entry-i18n]').forEach((el) => {
       const key = el.getAttribute('data-entry-i18n');
       if (key && COPY.en[key] != null) {
-        const text = t(key);
+        let text = t(key);
+        /* Delivery wording only when admin has deliveries open */
+        if (key === 'takeAway') {
+          text = state.deliveriesClosed ? t('takeAway') : t('takeAwayWithDelivery');
+        } else if (key === 'takeAwayHint') {
+          text = state.deliveriesClosed ? t('takeAwayHint') : t('takeAwayHintWithDelivery');
+        }
         el.innerHTML = String(text).includes('\n')
           ? String(text).split('\n').map((line) => line.replace(/</g, '&lt;')).join('<br>')
           : text;
@@ -358,7 +398,9 @@
         } else if (stepPlaceRes && !stepPlaceRes.hidden) {
           promptEl.textContent = t('promptPlaceRes');
         } else if (stepPickup && !stepPickup.hidden) {
-          promptEl.textContent = t('promptPickup');
+          promptEl.textContent = state.deliveriesClosed
+            ? t('promptPickup')
+            : t('promptPickupWithDelivery');
         } else if (stepTable && !stepTable.hidden) {
           promptEl.textContent = t('promptTable');
         } else {
@@ -1005,6 +1047,12 @@
       customerNotes: hasCustomer
         ? (extra.customerNotes ?? state.customerNotes ?? fromSession.customerNotes ?? '')
         : null,
+      customerAddress: isTakeaway
+        ? (extra.customerAddress ?? state.customerAddress ?? fromSession.customerAddress ?? '')
+        : null,
+      fulfillmentType: isTakeaway
+        ? (extra.fulfillmentType ?? state.fulfillmentType ?? fromSession.fulfillmentType ?? 'pickup')
+        : null,
       pickupType: isTakeaway
         ? (extra.pickupType ?? state.pickupType ?? fromSession.pickupType ?? 'ASAP')
         : null,
@@ -1066,6 +1114,8 @@
     state.customerName = '';
     state.customerPhone = '';
     state.customerNotes = '';
+    state.customerAddress = '';
+    state.fulfillmentType = 'pickup';
     state.pickupType = 'ASAP';
     state.pickupTime = null;
     tablesEl?.querySelectorAll('.entry-gate__table').forEach((btn) => {
@@ -1256,8 +1306,76 @@
     )).join('');
   }
 
+  function deliveriesOpen() {
+    return !state.deliveriesClosed;
+  }
+
+  function getSelectedFulfillment() {
+    if (!deliveriesOpen()) return 'pickup';
+    return fulfillmentDelivery?.checked ? 'delivery' : 'pickup';
+  }
+
+  function syncFulfillmentUi() {
+    const allowDelivery = deliveriesOpen();
+    /* When deliveries closed: hide whole "סוג הזמנה" block + משלוח option */
+    if (fulfillmentFieldset) fulfillmentFieldset.hidden = !allowDelivery;
+    if (fulfillmentDeliveryRow) fulfillmentDeliveryRow.hidden = !allowDelivery;
+    if (fulfillmentDelivery) fulfillmentDelivery.disabled = !allowDelivery;
+    if (!allowDelivery && fulfillmentPickup) fulfillmentPickup.checked = true;
+
+    const isDelivery = getSelectedFulfillment() === 'delivery';
+    if (pickupAddressField) pickupAddressField.hidden = !isDelivery;
+    if (pickupAddress) {
+      pickupAddress.required = isDelivery;
+      if (!isDelivery) pickupAddress.value = '';
+    }
+    const timeLegend = pickupTimeFieldset?.querySelector('legend');
+    if (timeLegend) timeLegend.textContent = isDelivery ? t('deliveryTime') : t('pickupTime');
+    if (promptEl && stepPickup && !stepPickup.hidden) {
+      promptEl.textContent = allowDelivery
+        ? t('promptPickupWithDelivery')
+        : t('promptPickup');
+    }
+  }
+
+  function applyDeliveriesMode() {
+    if (takeAwayLabelEl) {
+      takeAwayLabelEl.textContent = state.deliveriesClosed
+        ? t('takeAway')
+        : t('takeAwayWithDelivery');
+    }
+    if (takeAwayHintEl) {
+      takeAwayHintEl.textContent = state.deliveriesClosed
+        ? t('takeAwayHint')
+        : t('takeAwayHintWithDelivery');
+    }
+    syncFulfillmentUi();
+    if (promptEl && stepPickup && !stepPickup.hidden) {
+      promptEl.textContent = state.deliveriesClosed
+        ? t('promptPickup')
+        : t('promptPickupWithDelivery');
+    }
+  }
+
+  async function refreshDeliveriesClosedFlag() {
+    const api = window.LechaimSupabaseOrders;
+    if (!api?.isConfigured?.() || typeof api.getDeliveriesClosed !== 'function') {
+      state.deliveriesClosed = false;
+      applyDeliveriesMode();
+      return;
+    }
+    try {
+      state.deliveriesClosed = Boolean(await api.getDeliveriesClosed());
+    } catch (err) {
+      console.warn('[entry-gate] deliveries flag load failed', err);
+      state.deliveriesClosed = false;
+    }
+    applyDeliveriesMode();
+  }
+
   function resetPickupForm() {
     if (pickupForm) pickupForm.reset();
+    if (fulfillmentPickup) fulfillmentPickup.checked = true;
     if (pickupAsap) pickupAsap.checked = true;
     if (pickupSlot) {
       pickupSlot.hidden = true;
@@ -1267,6 +1385,7 @@
       pickupError.hidden = true;
       pickupError.textContent = '';
     }
+    syncFulfillmentUi();
   }
 
   function syncPickupTimeUi() {
@@ -1284,17 +1403,19 @@
     pickupError.textContent = message;
   }
 
-  function goToPickup() {
+  async function goToPickup() {
     state.orderType = 'takeaway';
     state.tableNumber = null;
     if (!isTakeawayDayOpen()) {
       showOrderingClosedStep('takeaway');
       return;
     }
+    await refreshDeliveriesClosedFlag();
     resetPickupForm();
     fillPickupSlots();
     syncPickupTimeUi();
     showStep(stepPickup);
+    syncFulfillmentUi();
     pickupName?.focus();
   }
 
@@ -1324,6 +1445,10 @@
     state.customerName = details.customerName || '';
     state.customerPhone = details.customerPhone || '';
     state.customerNotes = details.customerNotes || '';
+    state.fulfillmentType = details.fulfillmentType === 'delivery' ? 'delivery' : 'pickup';
+    state.customerAddress = state.fulfillmentType === 'delivery'
+      ? (details.customerAddress || '')
+      : '';
     state.pickupType = details.pickupType === 'TIME' ? 'TIME' : 'ASAP';
     state.pickupTime = state.pickupType === 'TIME' ? (details.pickupTime || null) : null;
     changingTable = false;
@@ -1347,6 +1472,8 @@
         customerName: state.customerName,
         customerPhone: state.customerPhone,
         customerNotes: state.customerNotes,
+        customerAddress: state.customerAddress,
+        fulfillmentType: state.fulfillmentType,
         pickupType: state.pickupType,
         pickupTime: state.pickupTime,
       });
@@ -1359,6 +1486,8 @@
       customerName: state.customerName,
       customerPhone: state.customerPhone,
       customerNotes: state.customerNotes,
+      customerAddress: state.customerAddress,
+      fulfillmentType: state.fulfillmentType,
       pickupType: state.pickupType,
       pickupTime: state.pickupTime,
       publicOrderNo: null,
@@ -1456,6 +1585,8 @@
     const nameRaw = String(pickupName?.value || '').trim();
     const phone = String(pickupPhone?.value || '').trim();
     const notes = String(pickupNotes?.value || '').trim();
+    const fulfillmentType = getSelectedFulfillment();
+    const address = String(pickupAddress?.value || '').trim();
     const pickupType = pickupSelect?.checked ? 'TIME' : 'ASAP';
     const pickupTime = pickupType === 'TIME' ? String(pickupSlot?.value || '').trim() : null;
     const nameEn = transliterateToEnglish(nameRaw);
@@ -1463,6 +1594,11 @@
     if (!nameRaw || !nameEn) {
       showPickupError(t('pickupNameRequired'));
       pickupName?.focus();
+      return;
+    }
+    if (fulfillmentType === 'delivery' && !address) {
+      showPickupError(t('pickupAddressRequired'));
+      pickupAddress?.focus();
       return;
     }
     if (!phone) {
@@ -1490,6 +1626,8 @@
       customerName: nameEn,
       customerPhone: phone,
       customerNotes: notes,
+      customerAddress: fulfillmentType === 'delivery' ? address : '',
+      fulfillmentType,
       pickupType,
       pickupTime,
     });
@@ -1545,6 +1683,8 @@
     state.customerName = '';
     state.customerPhone = '';
     state.customerNotes = '';
+    state.customerAddress = '';
+    state.fulfillmentType = 'pickup';
     state.pickupType = 'ASAP';
     state.pickupTime = null;
     tablesEl?.querySelectorAll('.entry-gate__table').forEach((btn) => {
@@ -1942,6 +2082,8 @@
 
   pickupForm?.addEventListener('submit', submitPickupForm);
   butcherForm?.addEventListener('submit', submitButcherForm);
+  fulfillmentPickup?.addEventListener('change', syncFulfillmentUi);
+  fulfillmentDelivery?.addEventListener('change', syncFulfillmentUi);
   pickupAsap?.addEventListener('change', syncPickupTimeUi);
   pickupSelect?.addEventListener('change', syncPickupTimeUi);
   pickupClosedBrowse?.addEventListener('click', () => {
@@ -1997,6 +2139,15 @@
 
   (async function bootEntryGate() {
     setLang('he');
+    await refreshDeliveriesClosedFlag();
+    const api = window.LechaimSupabaseOrders;
+    if (api?.subscribeRestaurantFlags) {
+      api.subscribeRestaurantFlags((evt) => {
+        if (evt?.flagKey !== 'deliveries_closed') return;
+        state.deliveriesClosed = Boolean(evt.flagValue);
+        applyDeliveriesMode();
+      });
+    }
     if (await tryResumeSession()) return;
     goToOrderType();
     if (gate.classList.contains('is-home')) {

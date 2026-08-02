@@ -12,6 +12,7 @@
   const takeawaySection = document.getElementById('tables-takeaway');
   const takeawayGrid = document.getElementById('tables-takeaway-grid');
   const takeawayEmpty = document.getElementById('tables-takeaway-empty');
+  const closeDeliveriesBtn = document.getElementById('takeaway-close-deliveries-btn');
   const butcherSection = document.getElementById('tables-butcher');
   const butcherGrid = document.getElementById('tables-butcher-grid');
   const butcherEmpty = document.getElementById('tables-butcher-empty');
@@ -285,9 +286,17 @@
     return 'active';
   }
 
-  function orderTypeLabel(orderType) {
+  function isDeliveryOrder(order) {
+    if (!order) return false;
+    if (String(order.fulfillmentType || '') === 'delivery') return true;
+    return Boolean(String(order.customerAddress || '').trim());
+  }
+
+  function orderTypeLabel(orderType, order) {
     if (orderType === 'butcher') return 'חנות בשר';
-    if (orderType === 'takeaway') return 'איסוף עצמי';
+    if (orderType === 'takeaway') {
+      return isDeliveryOrder(order) ? 'משלוח' : 'איסוף עצמי';
+    }
     if (orderType === 'dinein') return 'ישיבה במקום';
     return '—';
   }
@@ -437,6 +446,8 @@
       customerName: session.customer_name || null,
       customerPhone: session.customer_phone || null,
       customerNotes: session.notes || null,
+      customerAddress: session.customer_address || null,
+      fulfillmentType: session.fulfillment_type === 'delivery' ? 'delivery' : (session.fulfillment_type === 'pickup' ? 'pickup' : null),
       pickupType: session.pickup_type || null,
       pickupTime: session.pickup_time || null,
       publicOrderNo: session.public_order_no == null
@@ -686,15 +697,21 @@
     const coupon = entry.order?.couponCode;
     const discountPct = entry.order?.discountPercent;
     const isPickup = entry.orderType === 'takeaway' || entry.orderType === 'butcher';
-    const badgeText = entry.orderType === 'butcher' ? 'חנות בשר' : 'איסוף עצמי';
+    const isDelivery = entry.orderType === 'takeaway' && isDeliveryOrder(entry.order);
+    const badgeText = entry.orderType === 'butcher'
+      ? 'חנות בשר'
+      : (isDelivery ? 'משלוח' : 'איסוף עצמי');
     const pickupBlock = isPickup
       ? `
-        <span class="table-card__badge${entry.orderType === 'butcher' ? ' table-card__badge--butcher' : ''}">${escapeHtml(badgeText)}</span>
+        <span class="table-card__badge${entry.orderType === 'butcher' ? ' table-card__badge--butcher' : ''}${isDelivery ? ' table-card__badge--delivery' : ''}">${escapeHtml(badgeText)}</span>
         <span class="table-card__customer">${escapeHtml(entry.order?.customerName || '—')}</span>
         <span class="table-card__phone" dir="ltr">${escapeHtml(entry.order?.customerPhone || '—')}</span>
+        ${entry.orderType === 'takeaway' && entry.order?.customerAddress
+          ? `<span class="table-card__pickup">כתובת: ${escapeHtml(entry.order.customerAddress)}</span>`
+          : ''}
         ${entry.orderType === 'butcher'
           ? ''
-          : `<span class="table-card__pickup">איסוף: ${escapeHtml(formatPickupLabel(entry.order))}</span>`}
+          : `<span class="table-card__pickup">${isDelivery ? 'משלוח' : 'איסוף'}: ${escapeHtml(formatPickupLabel(entry.order))}</span>`}
       `
       : '';
     return `
@@ -713,7 +730,7 @@
             : escapeHtml(String(entry.tableNumber))
         }</span>
         <span class="table-card__status">${escapeHtml(statusLabel(entry.uiStatus))}</span>
-        <span class="table-card__type">${escapeHtml(orderTypeLabel(entry.orderType))}</span>
+        <span class="table-card__type">${escapeHtml(orderTypeLabel(entry.orderType, entry.order))}</span>
         ${pickupBlock}
         <span class="table-card__total">${free ? '€0' : escapeHtml(formatMoney(entry.total))}</span>
         <span class="table-card__items">${free ? '0 פריטים' : `${entry.itemCount} פריטים`}</span>
@@ -846,7 +863,7 @@
         drawerTitle.textContent = 'חנות בשר';
       } else if (entry.orderType === 'takeaway') {
         const no = order.publicOrderNo != null ? ` #${order.publicOrderNo}` : '';
-        drawerTitle.textContent = `איסוף עצמי${no}`;
+        drawerTitle.textContent = `${isDeliveryOrder(order) ? 'משלוח' : 'איסוף עצמי'}${no}`;
       } else {
         drawerTitle.textContent = `שולחן ${entry.tableNumber}`;
       }
@@ -854,14 +871,18 @@
 
     const closeTableBtn = drawer?.querySelector('[data-table-action="close-table"]');
     if (closeTableBtn) {
-      closeTableBtn.textContent = (entry.orderType === 'takeaway' || entry.orderType === 'butcher')
-        ? 'סגור הזמנה'
-        : 'סגור שולחן';
+      if (entry.orderType === 'takeaway' && isDeliveryOrder(order)) {
+        closeTableBtn.textContent = 'סגור משלוח';
+      } else if (entry.orderType === 'takeaway' || entry.orderType === 'butcher') {
+        closeTableBtn.textContent = 'סגור הזמנה';
+      } else {
+        closeTableBtn.textContent = 'סגור שולחן';
+      }
     }
     if (drawerType) {
       drawerType.textContent = menuMode
-        ? `${orderTypeLabel(entry.orderType)} · הוספת מנות`
-        : `${orderTypeLabel(entry.orderType)} · ${statusLabel(entry.uiStatus)}`;
+        ? `${orderTypeLabel(entry.orderType, order)} · הוספת מנות`
+        : `${orderTypeLabel(entry.orderType, order)} · ${statusLabel(entry.uiStatus)}`;
     }
 
     if (drawerMeta) {
@@ -882,9 +903,10 @@
           </div>
         `;
       } else if (entry.orderType === 'takeaway') {
+        const delivery = isDeliveryOrder(order);
         drawerMeta.innerHTML = `
           <div class="table-drawer__pickup">
-            <div class="table-drawer__pickup-badge">איסוף עצמי${
+            <div class="table-drawer__pickup-badge">${delivery ? 'משלוח' : 'איסוף עצמי'}${
               order.publicOrderNo != null
                 ? ` · #${escapeHtml(String(order.publicOrderNo))}`
                 : ''
@@ -897,15 +919,21 @@
                   </div>`
                 : ''}
               <div class="table-drawer__pickup-row">
-                <span>לקוח</span>
+                <span>שם הלקוח</span>
                 <strong>${escapeHtml(order.customerName || '—')}</strong>
               </div>
+              ${delivery || order.customerAddress
+                ? `<div class="table-drawer__pickup-row">
+                    <span>כתובת</span>
+                    <strong dir="auto">${escapeHtml(order.customerAddress || '—')}</strong>
+                  </div>`
+                : ''}
               <div class="table-drawer__pickup-row">
                 <span>טלפון</span>
                 <strong dir="ltr">${escapeHtml(order.customerPhone || '—')}</strong>
               </div>
               <div class="table-drawer__pickup-row">
-                <span>איסוף</span>
+                <span>${delivery ? 'משלוח' : 'איסוף'}</span>
                 <strong>${escapeHtml(formatPickupLabel(order))}</strong>
               </div>
               ${order.customerNotes
@@ -1164,6 +1192,9 @@
       items: mappedItems,
       ticketSeq: Number(order.order_number) || 1,
       customerName: session.customerName || session.customer_name || null,
+      customerAddress: session.customerAddress || session.customer_address || null,
+      fulfillmentType: session.fulfillmentType
+        || (session.fulfillment_type === 'delivery' ? 'delivery' : (session.fulfillment_type === 'pickup' ? 'pickup' : null)),
       customerPhone: session.customerPhone || session.customer_phone || null,
       customerNotes: session.customerNotes || session.notes || null,
       pickupType: session.pickupType || session.pickup_type || null,
@@ -1257,31 +1288,36 @@
     }
   }
 
-  /** One ticket with every item currently shown on the order card. */
-  function mapEntryToFullPrintOrder(entry) {
+  /**
+   * Kitchen/bar ticket: only blue (late-add / unprinted wave) items when present.
+   * If nothing is pending (reprint), fall back to the full order.
+   */
+  function mapEntryToPrintOrder(entry) {
     const order = entry?.order;
     if (!order) return null;
 
-    const items = (order.items || [])
-      .map((row) => {
-        const qty = Number(row.qty) || 0;
-        if (qty <= 0) return null;
-        return {
-          itemId: String(row.itemId),
-          productId: String(row.productId || ''),
-          name: row.printName || row.name || row.productId || '',
-          printName: row.printName || '',
-          price: Number(row.price) || 0,
-          qty,
-          notes: row.notes == null ? '' : String(row.notes),
-          printed: false,
-          linkedToMainItemId: row.linkedToMainItemId || null,
-        };
-      })
-      .filter(Boolean);
+    const liveItems = (order.items || []).filter((row) => Number(row.qty) > 0);
+    const lateItems = liveItems.filter((row) => row && row.isLateAdd);
+    /* Blue = new since last print → print only those. Else full reprint. */
+    const sourceItems = lateItems.length ? lateItems : liveItems;
+
+    const items = sourceItems
+      .map((row) => ({
+        itemId: String(row.itemId),
+        productId: String(row.productId || ''),
+        name: row.printName || row.name || row.productId || '',
+        printName: row.printName || '',
+        price: Number(row.price) || 0,
+        qty: Number(row.qty) || 0,
+        notes: row.notes == null ? '' : String(row.notes),
+        printed: false,
+        linkedToMainItemId: row.linkedToMainItemId || null,
+      }))
+      .filter((row) => row.qty > 0);
 
     const remoteOrders = order._remoteOrders || [];
-    const maxWave = remoteOrders.reduce(
+    const unprintedWaves = remoteOrders.filter(orderNeedsPrint);
+    const waveForSeq = (unprintedWaves.length ? unprintedWaves : remoteOrders).reduce(
       (max, row) => Math.max(max, Number(row.order_number) || 0),
       0
     );
@@ -1290,7 +1326,7 @@
     const resolvedType = isButcher ? 'butcher' : (isTakeaway ? 'takeaway' : 'dinein');
 
     return {
-      orderId: `full-${order._supabaseSessionId || order.sessionId || entry.tableNumber || 'order'}`,
+      orderId: `print-${order._supabaseSessionId || order.sessionId || entry.tableNumber || 'order'}`,
       sessionId: String(order._supabaseSessionId || order.sessionId || ''),
       tableNumber: (isTakeaway || isButcher)
         ? null
@@ -1300,14 +1336,17 @@
       createdAt: order.createdAt || null,
       updatedAt: order.updatedAt || null,
       items,
-      ticketSeq: maxWave || 1,
+      ticketSeq: waveForSeq || 1,
       customerName: order.customerName || null,
       customerPhone: order.customerPhone || null,
       customerNotes: order.customerNotes || null,
+      customerAddress: order.customerAddress || null,
+      fulfillmentType: order.fulfillmentType || null,
       pickupType: order.pickupType || null,
       pickupTime: order.pickupTime || null,
       publicOrderNo: order.publicOrderNo != null ? Number(order.publicOrderNo) : null,
       _skipLocalMarkPrinted: true,
+      _deltaOnly: lateItems.length > 0,
     };
   }
 
@@ -1321,7 +1360,7 @@
       return;
     }
 
-    const synthetic = mapEntryToFullPrintOrder(entry);
+    const synthetic = mapEntryToPrintOrder(entry);
     if (!synthetic?.items?.length) {
       showToast('אין פריטים להדפסה');
       return;
@@ -1801,11 +1840,16 @@
 
     if (action === 'close-table') {
       const isPickupClose = entry.orderType === 'takeaway' || entry.orderType === 'butcher';
-      const closeLabel = isPickupClose ? 'סגור הזמנה' : 'סגור שולחן';
+      const deliveryClose = entry.orderType === 'takeaway' && isDeliveryOrder(entry.order);
+      const closeLabel = deliveryClose
+        ? 'סגור משלוח'
+        : (isPickupClose ? 'סגור הזמנה' : 'סגור שולחן');
       const confirmMsg = entry.orderType === 'butcher'
         ? 'האם אתה בטוח שברצונך לסגור את הזמנת חנות הבשר?'
         : (entry.orderType === 'takeaway'
-          ? 'האם אתה בטוח שברצונך לסגור את הזמנת האיסוף העצמי?'
+          ? (deliveryClose
+            ? 'האם אתה בטוח שברצונך לסגור את המשלוח?'
+            : 'האם אתה בטוח שברצונך לסגור את הזמנת האיסוף העצמי?')
           : `האם אתה בטוח שברצונך לסגור את שולחן ${entry.tableNumber}?`);
       const ok = await showConfirmModal(confirmMsg, { yesLabel: `כן, ${closeLabel}` });
       if (!ok) return;
@@ -1834,7 +1878,9 @@
         showToast(
           entry.orderType === 'butcher'
             ? 'הזמנת חנות בשר נסגרה'
-            : (entry.orderType === 'takeaway' ? 'איסוף עצמי נסגר' : `שולחן ${entry.tableNumber} נסגר`)
+            : (entry.orderType === 'takeaway'
+              ? (deliveryClose ? 'המשלוח נסגר' : 'איסוף עצמי נסגר')
+              : `שולחן ${entry.tableNumber} נסגר`)
         );
         closeDrawer();
         await refreshBoardData();
@@ -1842,6 +1888,64 @@
         console.error('[admin-tables] close table failed', err);
         showToast('לא ניתן לסגור');
       }
+    }
+  }
+
+  let deliveriesClosed = false;
+  let deliveriesFlagUnsub = null;
+
+  function updateDeliveriesToggleButton() {
+    if (!closeDeliveriesBtn) return;
+    if (deliveriesClosed) {
+      closeDeliveriesBtn.textContent = 'פתח משלוחים';
+      closeDeliveriesBtn.classList.remove('admin-btn--ghost');
+      closeDeliveriesBtn.classList.add('admin-btn--primary');
+    } else {
+      closeDeliveriesBtn.textContent = 'סגור משלוחים';
+      closeDeliveriesBtn.classList.add('admin-btn--ghost');
+      closeDeliveriesBtn.classList.remove('admin-btn--primary');
+    }
+  }
+
+  async function refreshDeliveriesClosedFlag() {
+    const api = OrdersApi();
+    if (!api?.isConfigured?.() || typeof api.getDeliveriesClosed !== 'function') {
+      updateDeliveriesToggleButton();
+      return;
+    }
+    try {
+      deliveriesClosed = Boolean(await api.getDeliveriesClosed());
+      updateDeliveriesToggleButton();
+    } catch (err) {
+      console.warn('[admin-tables] deliveries flag load failed', err);
+    }
+  }
+
+  /**
+   * Toggle customer-facing delivery wording/options only (does not close orders).
+   */
+  async function toggleDeliveriesClosed() {
+    const api = OrdersApi();
+    if (!api?.setDeliveriesClosed) {
+      showToast('מתג משלוחים לא זמין — הריצו supabase-takeaway-delivery.sql');
+      return;
+    }
+    const nextClosed = !deliveriesClosed;
+    const ok = await showConfirmModal(
+      nextClosed
+        ? 'לסגור משלוחים בצד הלקוח?\nבכרטיס ובטופס יופיע רק "איסוף עצמי" — בלי משלוח.'
+        : 'לפתוח משלוחים בצד הלקוח?\nיופיע שוב "איסוף עצמי / משלוחים" ואפשרות משלוח בטופס.',
+      { yesLabel: nextClosed ? 'סגור משלוחים' : 'פתח משלוחים' }
+    );
+    if (!ok) return;
+    try {
+      await api.setDeliveriesClosed(nextClosed);
+      deliveriesClosed = nextClosed;
+      updateDeliveriesToggleButton();
+      showToast(nextClosed ? 'משלוחים סגורים ללקוחות' : 'משלוחים פתוחים ללקוחות');
+    } catch (err) {
+      console.error('[admin-tables] toggle deliveries failed', err);
+      showToast(err?.message || 'עדכון משלוחים נכשל');
     }
   }
 
@@ -1962,6 +2066,19 @@
     gridEl?.addEventListener('click', onGridClick);
     takeawayGrid?.addEventListener('click', onGridClick);
     butcherGrid?.addEventListener('click', onGridClick);
+    closeDeliveriesBtn?.addEventListener('click', () => {
+      toggleDeliveriesClosed().catch((err) => {
+        console.error('[admin-tables] deliveries toggle failed', err);
+      });
+    });
+    refreshDeliveriesClosedFlag().catch(() => {});
+    if (!deliveriesFlagUnsub && OrdersApi()?.subscribeRestaurantFlags) {
+      deliveriesFlagUnsub = OrdersApi().subscribeRestaurantFlags((evt) => {
+        if (evt?.flagKey !== 'deliveries_closed') return;
+        deliveriesClosed = Boolean(evt.flagValue);
+        updateDeliveriesToggleButton();
+      });
+    }
     drawerBackdrop?.addEventListener('click', closeDrawer);
     drawerClose?.addEventListener('click', closeDrawer);
     menuBack?.addEventListener('click', closeMenuPicker);

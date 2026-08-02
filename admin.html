@@ -69,7 +69,7 @@
         </button>
         <button type="button" class="admin-tab" data-tab="history">היסטוריה</button>
         <button type="button" class="admin-tab" data-tab="takeaway">
-          איסוף עצמי
+          איסוף עצמי / משלוחים
           <span class="admin-tab__badge" id="tab-badge-takeaway" data-count="0" hidden>0</span>
         </button>
         <button type="button" class="admin-tab" data-tab="butcher">
@@ -109,15 +109,18 @@
         </section>
 
         <section class="tables-category tables-takeaway" id="tables-takeaway" hidden>
-          <header class="admin-header">
+          <header class="admin-header admin-header--row">
             <div class="admin-header__text">
               <p class="admin-header__eyebrow">ניהול</p>
-              <h1 class="admin-header__title">איסוף עצמי</h1>
-              <p class="admin-header__subtitle">הזמנות Takeaway פעילות</p>
+              <h1 class="admin-header__title">איסוף עצמי / משלוחים</h1>
+              <p class="admin-header__subtitle">הזמנות איסוף עצמי ומשלוחים פעילות</p>
+            </div>
+            <div class="reservations-header-actions">
+              <button type="button" class="admin-btn admin-btn--ghost" id="takeaway-close-deliveries-btn">סגור משלוחים</button>
             </div>
           </header>
           <div class="tables-takeaway__grid" id="tables-takeaway-grid"></div>
-          <p class="tables-category__empty" id="tables-takeaway-empty">אין הזמנות איסוף עצמי כרגע</p>
+          <p class="tables-category__empty" id="tables-takeaway-empty">אין הזמנות איסוף עצמי / משלוחים כרגע</p>
         </section>
 
         <section class="tables-category tables-takeaway tables-butcher" id="tables-butcher" hidden>
@@ -173,16 +176,16 @@
               <button type="button" class="admin-btn admin-btn--primary" id="reservations-new-btn">כרטיס חדש</button>
             </div>
           </header>
-          <h2 class="reservations-section-title">כרטיסי שמירת מקום</h2>
+          <p class="place-res-occupancy" id="place-res-occupancy" aria-live="polite">
+            תפוסה מאושרת לתאריך שנבחר: <strong id="place-res-occupancy-value">0 / 60</strong> מקומות
+          </p>
+          <h2 class="reservations-section-title" id="reservations-day-title">הזמנות לתאריך הנבחר</h2>
           <div class="reservations-grid" id="reservations-grid"></div>
           <p class="tables-category__empty" id="reservations-empty">אין הזמנות לתאריך זה</p>
 
-          <h2 class="reservations-section-title reservations-section-title--spaced">בקשות הזמנת מקום מהאתר</h2>
-          <p class="place-res-occupancy" id="place-res-occupancy" aria-live="polite">
-            תפוסה מאושרת: <strong id="place-res-occupancy-value">0 / 60</strong> מקומות
-          </p>
+          <h2 class="reservations-section-title reservations-section-title--spaced">הזמנות מקום עתידיות</h2>
           <div class="reservations-grid" id="place-res-requests-grid"></div>
-          <p class="tables-category__empty" id="place-res-requests-empty">אין בקשות לתאריך זה</p>
+          <p class="tables-category__empty" id="place-res-requests-empty">אין הזמנות מקום עתידיות</p>
         </section>
       </div>
 
@@ -391,6 +394,7 @@
         <h2 class="reservation-modal__title" id="reservation-modal-title">כרטיס שמירת מקום</h2>
         <form id="reservation-form" class="reservation-form" novalidate>
           <input type="hidden" id="reservation-id" value="">
+          <input type="hidden" id="reservation-kind" value="hold">
           <label class="admin-field">
             <span>שם לקוח *</span>
             <input type="text" id="reservation-name" name="customer_name" required autocomplete="name" maxlength="80">
@@ -398,6 +402,10 @@
           <label class="admin-field">
             <span>טלפון *</span>
             <input type="tel" id="reservation-phone" name="customer_phone" required autocomplete="tel" dir="ltr" maxlength="20" inputmode="tel">
+          </label>
+          <label class="admin-field" id="reservation-party-field" hidden>
+            <span>מספר סועדים *</span>
+            <input type="number" id="reservation-party" name="party_size" min="1" max="60" step="1" inputmode="numeric">
           </label>
           <label class="admin-field">
             <span>הערות</span>

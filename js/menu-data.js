@@ -48,7 +48,7 @@ const TRANSLATIONS = {
     receiptTable: 'שולחן {n}',
     receiptTakeaway: 'איסוף עצמי',
     receiptOrderNo: 'מספר הזמנה',
-    receiptRememberNo: 'שף המסעדה תיצור איתכם קשר — נא להיות זמינים :)',
+    receiptRememberNo: 'המסעדה מיד תיצור איתכם קשר על מנת לאשר את ההזמנה',
     receiptPickupAsap: 'איסוף: בהקדם',
     receiptPickupAt: 'איסוף: {time}',
     receiptEmpty: 'אין פריטים',
@@ -176,7 +176,7 @@ const TRANSLATIONS = {
     receiptTable: 'Table {n}',
     receiptTakeaway: 'Takeaway',
     receiptOrderNo: 'Order number',
-    receiptRememberNo: 'The restaurant chef will contact you — please stay available :)',
+    receiptRememberNo: 'The restaurant will contact you shortly to confirm your order',
     receiptPickupAsap: 'Pickup: ASAP',
     receiptPickupAt: 'Pickup: {time}',
     receiptEmpty: 'No items',
@@ -698,7 +698,7 @@ const MENU_DATA = {
         {
           id: 'butcher-asado',
           name: 'אסאדו',
-          printName: 'אסאדו',
+          printName: 'Asado',
           description: 'כשר למהדרין -\nשחיטת ליובאוויטש',
           price: 31.9,
           pricePerKg: 31.9,
@@ -709,7 +709,7 @@ const MENU_DATA = {
         {
           id: 'butcher-entrecote-premium',
           name: 'אנטריקוט',
-          printName: 'אנטריקוט',
+          printName: 'Entrecote',
           description: 'כשר למהדרין -\nשחיטת ליובאוויטש',
           price: 51.9,
           pricePerKg: 51.9,
@@ -720,7 +720,7 @@ const MENU_DATA = {
         {
           id: 'butcher-goulash',
           name: 'גולש',
-          printName: 'גולש',
+          printName: 'Goulash',
           description: 'כשר למהדרין -\nשחיטת ליובאוויטש',
           price: 26.9,
           pricePerKg: 26.9,
@@ -737,7 +737,7 @@ const MENU_DATA = {
         {
           id: 'butcher-chicken-schnitzel',
           name: 'שניצל עוף',
-          printName: 'שניצל עוף',
+          printName: 'Chicken Schnitzel',
           description: 'כשר למהדרין -\nשחיטת ליובאוויטש',
           price: 19.9,
           pricePerKg: 19.9,
@@ -748,7 +748,7 @@ const MENU_DATA = {
         {
           id: 'butcher-chicken-leg',
           name: 'כרעי עוף',
-          printName: 'כרעי עוף',
+          printName: 'Chicken Legs',
           description: 'כשר למהדרין -\nשחיטת ליובאוויטש',
           price: 11.9,
           pricePerKg: 11.9,
@@ -759,7 +759,7 @@ const MENU_DATA = {
         {
           id: 'butcher-pargit-skinless',
           name: 'פרגית ללא עור',
-          printName: 'פרגית ללא עור',
+          printName: 'Skinless Pargit',
           description: 'כשר למהדרין -\nשחיטת ליובאוויטש',
           price: 19.9,
           pricePerKg: 19.9,
@@ -770,7 +770,7 @@ const MENU_DATA = {
         {
           id: 'butcher-wings-drumettes',
           name: 'כנפיים',
-          printName: 'כנפיים',
+          printName: 'Wings',
           description: 'כשר למהדרין -\nשחיטת ליובאוויטש',
           price: 7.9,
           pricePerKg: 7.9,

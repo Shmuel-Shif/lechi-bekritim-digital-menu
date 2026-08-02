@@ -1301,6 +1301,10 @@
       customerName: !browseOnly && startHasCustomer ? (options.customerName || '') : null,
       customerPhone: !browseOnly && startHasCustomer ? (options.customerPhone || '') : null,
       customerNotes: !browseOnly && startHasCustomer ? (options.customerNotes || '') : null,
+      customerAddress: !browseOnly && startType === 'takeaway' ? (options.customerAddress || '') : null,
+      fulfillmentType: !browseOnly && startType === 'takeaway'
+        ? (options.fulfillmentType === 'delivery' ? 'delivery' : 'pickup')
+        : null,
       pickupType: !browseOnly && startType === 'takeaway' ? (options.pickupType || 'ASAP') : null,
       pickupTime: !browseOnly && startType === 'takeaway' ? (options.pickupTime || null) : null,
       publicOrderNo: !browseOnly && startType === 'takeaway'
@@ -1366,6 +1370,14 @@
         : null,
       customerNotes: hasCustomer
         ? (options.customerNotes !== undefined ? options.customerNotes : prev.customerNotes)
+        : null,
+      customerAddress: isTakeaway
+        ? (options.customerAddress !== undefined ? options.customerAddress : (prev.customerAddress || ''))
+        : null,
+      fulfillmentType: isTakeaway
+        ? (options.fulfillmentType !== undefined
+          ? (options.fulfillmentType === 'delivery' ? 'delivery' : 'pickup')
+          : (prev.fulfillmentType === 'delivery' ? 'delivery' : 'pickup'))
         : null,
       pickupType: isTakeaway
         ? (options.pickupType !== undefined ? options.pickupType : (prev.pickupType || 'ASAP'))
@@ -3319,6 +3331,8 @@
         customerName: ctx.customerName || '',
         customerPhone: ctx.customerPhone || '',
         customerNotes: ctx.customerNotes || '',
+        customerAddress: ctx.customerAddress || '',
+        fulfillmentType: ctx.fulfillmentType === 'delivery' ? 'delivery' : 'pickup',
         pickupType: ctx.pickupType || 'ASAP',
         pickupTime: ctx.pickupTime || null,
       });
@@ -3349,6 +3363,10 @@
       customerName: isTakeaway || isButcher ? (session.customerName || '') : null,
       customerPhone: isTakeaway || isButcher ? (session.customerPhone || '') : null,
       customerNotes: isTakeaway || isButcher ? (session.customerNotes || '') : null,
+      customerAddress: isTakeaway ? (session.customerAddress || '') : null,
+      fulfillmentType: isTakeaway
+        ? (session.fulfillmentType === 'delivery' ? 'delivery' : 'pickup')
+        : null,
       pickupType: isTakeaway ? (session.pickupType || 'ASAP') : null,
       pickupTime: isTakeaway ? (session.pickupTime || null) : null,
       publicOrderNo: isTakeaway
@@ -3600,6 +3618,16 @@
           : null,
         notes: hasCustomer
           ? (localSession?.customerNotes || ctx.customerNotes || null)
+          : null,
+        customerAddress: isTakeawayResolved
+          ? (localSession?.customerAddress || ctx.customerAddress || null)
+          : null,
+        fulfillmentType: isTakeawayResolved
+          ? (
+            (localSession?.fulfillmentType || ctx.fulfillmentType) === 'delivery'
+              ? 'delivery'
+              : 'pickup'
+          )
           : null,
         pickupType: isTakeawayResolved
           ? (localSession?.pickupType || ctx.pickupType || 'ASAP')

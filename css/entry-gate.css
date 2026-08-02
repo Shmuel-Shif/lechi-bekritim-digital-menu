@@ -503,6 +503,14 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks) {
   border: 0;
 }
 
+.entry-pickup__field[hidden],
+.entry-pickup__time[hidden],
+.entry-pickup__radio[hidden],
+.entry-pickup__fulfillment[hidden],
+#entry-fulfillment-delivery-row[hidden] {
+  display: none !important;
+}
+
 .entry-pickup__label {
   font-family: var(--font-body, 'Heebo', sans-serif);
   font-size: 0.88rem;
