@@ -541,9 +541,7 @@ const MENU_DATA = {
           printName: 'Lechem',
           description: '',
           price: 2,
-          image: dishImage('pita'),
-          /* Visible in Admin "add dishes" only — hidden from customer menu */
-          adminOnly: true,
+          image: dishImage('lechem'),
         },
       ],
     },

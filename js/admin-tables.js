@@ -788,14 +788,23 @@
     return groups;
   }
 
+  function isShakeBaseProduct(productId) {
+    return Boolean(window.SHAKE_BASE_IDS?.has?.(String(productId || '')));
+  }
+
+  function isFruitShakeProduct(productId) {
+    return String(productId || '') === String(window.FRUIT_SHAKE_ID || 'fruit-shake');
+  }
+
   function renderDrawerItemLine(item, options = {}) {
     const isSide = Boolean(options.isSide);
     const lateClass = item.isLateAdd ? ' table-drawer__item--late' : '';
     const sideClass = isSide ? ' table-drawer__item--side' : '';
     const nameLate = item.isLateAdd ? ' table-drawer__name--late' : '';
+    const sideBadge = isShakeBaseProduct(item.productId) ? 'בסיס' : 'תוספת';
     return `
       <div class="table-drawer__line${sideClass}${lateClass}">
-        ${isSide ? `<span class="table-drawer__side-badge">תוספת</span>` : ''}
+        ${isSide ? `<span class="table-drawer__side-badge">${sideBadge}</span>` : ''}
         <span class="table-drawer__qty">${escapeHtml(String(item.qty))}×</span>
         <span class="table-drawer__name${nameLate}">${escapeHtml(item.name || item.productId || '')}</span>
         <span class="table-drawer__price">${
@@ -808,8 +817,8 @@
               type="button"
               class="table-drawer__remove"
               data-remove-item-id="${escapeHtml(String(item.itemId))}"
-              aria-label="הסר מנה"
-              title="הסר מנה"
+              aria-label="הסר"
+              title="הסר"
             >×</button>`
           : ''}
       </div>
@@ -1221,7 +1230,23 @@
 
     const item = (entry.order.items || []).find((row) => String(row.itemId) === id);
     const label = item?.name || item?.productId || 'מנה';
-    const ok = await showConfirmModal(`האם אתה בטוח שברצונך להסיר את "${label}" מההזמנה?`, {
+    const isShakeBase = isShakeBaseProduct(item?.productId);
+    const isShakeParent = isFruitShakeProduct(item?.productId)
+      && !(item?.linkedToMainItemId);
+    const linkedKids = isShakeParent
+      ? (entry.order.items || []).filter((row) => String(row.linkedToMainItemId || '') === id)
+      : [];
+
+    let ask = `האם אתה בטוח שברצונך להסיר את "${label}" מההזמנה?`;
+    if (isShakeBase) {
+      ask = `להסיר את בסיס השייק "${label}" מההזמנה?`;
+    } else if (isShakeParent) {
+      ask = linkedKids.length
+        ? `להסיר את שייק הפירות ואת הבסיס שנבחר (${linkedKids.map((k) => k.name).filter(Boolean).join(', ') || 'בסיס'})?`
+        : `להסיר את שייק הפירות מההזמנה?`;
+    }
+
+    const ok = await showConfirmModal(ask, {
       yesLabel: 'כן, הסר',
     });
     if (!ok) return;
@@ -1236,7 +1261,7 @@
     suppressCustomerNotify();
     try {
       await api.deleteOrderItem(id);
-      showToast('המנה הוסרה');
+      showToast(isShakeBase ? 'בסיס השייק הוסר' : 'המנה הוסרה');
       await refreshBoardData();
       const next = getSelectedEntry();
       if (next?.order) {

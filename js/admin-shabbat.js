@@ -725,10 +725,24 @@
     if (!entry) return;
     const item = (entry.items || []).find((row) => String(row.itemId) === id);
     const label = item?.name || 'מנה';
-    const ok = await showConfirm(
-      `האם אתה בטוח שברצונך להסיר את "${label}" מההזמנה?`,
-      'כן, הסר'
-    );
+    const productId = String(item?.productId || '');
+    const isShakeBase = Boolean(global.SHAKE_BASE_IDS?.has?.(productId));
+    const isShakeParent = productId === String(global.FRUIT_SHAKE_ID || 'fruit-shake')
+      && !item?.linkedToMainItemId;
+    const linkedKids = isShakeParent
+      ? (entry.items || []).filter((row) => String(row.linkedToMainItemId || '') === id)
+      : [];
+
+    let ask = `האם אתה בטוח שברצונך להסיר את "${label}" מההזמנה?`;
+    if (isShakeBase) {
+      ask = `להסיר את בסיס השייק "${label}" מההזמנה?`;
+    } else if (isShakeParent) {
+      ask = linkedKids.length
+        ? `להסיר את שייק הפירות ואת הבסיס שנבחר (${linkedKids.map((k) => k.name).filter(Boolean).join(', ') || 'בסיס'})?`
+        : `להסיר את שייק הפירות מההזמנה?`;
+    }
+
+    const ok = await showConfirm(ask, 'כן, הסר');
     if (!ok) return;
 
     const api = global.LechaimSupabaseOrders;
@@ -740,7 +754,7 @@
     removeBusy = true;
     try {
       await api.deleteOrderItem(id);
-      showToast('המנה הוסרה');
+      showToast(isShakeBase ? 'בסיס השייק הוסר' : 'המנה הוסרה');
       await refresh();
       if (!cache.find((row) => row.sessionId === selectedId)) closeDrawer();
     } catch (err) {
@@ -927,9 +941,12 @@
   });
 
   drawerItems?.addEventListener('click', (event) => {
-    const btn = event.target.closest('[data-shabbat-remove-id]');
-    if (!btn) return;
-    handleRemoveItem(btn.getAttribute('data-shabbat-remove-id'));
+    const btn = event.target.closest('[data-remove-item-id], [data-shabbat-remove-id]');
+    if (!btn || !drawerItems.contains(btn)) return;
+    event.preventDefault();
+    handleRemoveItem(
+      btn.getAttribute('data-remove-item-id') || btn.getAttribute('data-shabbat-remove-id')
+    );
   });
 
   document.addEventListener('keydown', (event) => {

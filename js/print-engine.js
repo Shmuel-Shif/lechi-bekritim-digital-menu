@@ -216,7 +216,11 @@
 
   function isBarItem(item, drinkIds) {
     if (!item?.productId) return false;
-    return drinkIds.has(String(item.productId));
+    const pid = String(item.productId);
+    if (drinkIds.has(pid)) return true;
+    /* Shake bases are drink options — always bar with the fruit shake */
+    if (global.SHAKE_BASE_IDS?.has?.(pid)) return true;
+    return false;
   }
 
   function resolveOrder(order) {
@@ -244,8 +248,28 @@
     const kitchen = [];
     const bar = [];
 
+    const byId = new Map();
     printable.forEach((item) => {
-      if (isBarItem(item, drinkIds)) bar.push(item);
+      if (item?.itemId) byId.set(String(item.itemId), item);
+    });
+
+    /* Linked sides/bases follow their parent ticket (kitchen vs bar). */
+    function channelFor(item, seen = new Set()) {
+      if (!item) return 'kitchen';
+      const id = item.itemId != null ? String(item.itemId) : '';
+      if (id) {
+        if (seen.has(id)) return isBarItem(item, drinkIds) ? 'bar' : 'kitchen';
+        seen.add(id);
+      }
+      if (item.linkedToMainItemId) {
+        const parent = byId.get(String(item.linkedToMainItemId));
+        if (parent) return channelFor(parent, seen);
+      }
+      return isBarItem(item, drinkIds) ? 'bar' : 'kitchen';
+    }
+
+    printable.forEach((item) => {
+      if (channelFor(item) === 'bar') bar.push(item);
       else kitchen.push(item);
     });
 
