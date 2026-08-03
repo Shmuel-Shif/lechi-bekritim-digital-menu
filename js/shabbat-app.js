@@ -356,6 +356,7 @@
     openModalItemId = itemId;
     const name = itemName(item);
     const desc = lang === 'en' && item.descEn ? item.descEn : (item.desc || '');
+    const note = lang === 'en' && item.noteEn ? item.noteEn : (item.note || '');
     const imageSrc = String(item.image || '').trim();
     const price = Number(item.price) || 0;
     const imageHtml = imageSrc
@@ -379,7 +380,7 @@
           <div class="food-modal-info">
             <h2 id="shabbat-food-modal-title" class="food-modal-title">${escapeHtml(name)}</h2>
             ${desc ? `<p class="food-modal-desc">${escapeHtml(desc)}</p>` : ''}
-            <p class="food-modal-price">${escapeHtml(formatPrice(price))}</p>
+            <p class="food-modal-price">${escapeHtml(formatPrice(price))}${note ? ` <span class="food-note">${escapeHtml(note)}</span>` : ''}</p>
           </div>
           ${renderModalActions(item)}
         </article>
@@ -774,6 +775,7 @@
                         ${item.desc ? `<p class="food-desc">${escapeHtml(lang === 'en' && item.descEn ? item.descEn : item.desc)}</p>` : ''}
                         <div class="food-meta">
                           <span class="food-price">${escapeHtml(formatPrice(price))}</span>
+                          ${item.note ? `<span class="food-note">${escapeHtml(lang === 'en' && item.noteEn ? item.noteEn : item.note)}</span>` : ''}
                         </div>
                       </div>
                       <div class="food-card-actions">${actions}</div>

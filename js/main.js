@@ -2422,7 +2422,7 @@
     const cellsHtml = getPickerOptionsForParent(mainLine.itemId).map((side) => {
       const qty = getSideQtyForMain(openSidesMainLineId, side.id);
       const selected = qty > 0;
-      const available = isShakeBase(side.id) ? true : isProductAvailable(side.id);
+      const available = isProductAvailable(side.id);
       if (!available && !selected) return '';
       const hasImage = Boolean(getItemImage(side));
       const imageHtml = hasImage

@@ -76,6 +76,11 @@
         desserts: 'קינוחים',
         coldDrinks: 'שתייה קרה',
       },
+      categoryNotes: {
+        fish: 'מחיר ליחידה',
+        mains: 'מחיר לאדם',
+        sides: 'התוספות מגיעות בתבנית ל־4 אנשים',
+      },
     },
     en: {
       pageTitle: 'Shabbat Orders | Lechaim',
@@ -138,6 +143,11 @@
         desserts: 'Desserts',
         coldDrinks: 'Cold drinks',
       },
+      categoryNotes: {
+        fish: 'Price per unit',
+        mains: 'Price per person',
+        sides: 'Sides are served in a tray for 4 people',
+      },
     },
   };
 
@@ -187,6 +197,8 @@
             printName: 'Challah',
             desc: '',
             price: 8,
+            note: 'ליחידה',
+            noteEn: 'per unit',
             image: sabatImage('chala'),
           },
         ],
@@ -194,6 +206,7 @@
       {
         id: 'fish',
         titleKey: 'categories.fish',
+        noteKey: 'categoryNotes.fish',
         items: [
           {
             id: 'shabbat-salmon',
@@ -228,6 +241,7 @@
       {
         id: 'mains',
         titleKey: 'categories.mains',
+        noteKey: 'categoryNotes.mains',
         items: [
           {
             id: 'shabbat-schnitzel',
@@ -279,6 +293,7 @@
       {
         id: 'sides',
         titleKey: 'categories.sides',
+        noteKey: 'categoryNotes.sides',
         items: [
           {
             id: 'shabbat-rice',

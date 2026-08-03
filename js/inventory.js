@@ -282,6 +282,10 @@
       (Array.isArray(hotSides) ? hotSides : []).forEach((item) => {
         pushItem(item, 'hotSides', 'categories.hotSides');
       });
+      const shakeBases = global.SHAKE_BASE_ITEMS;
+      (Array.isArray(shakeBases) ? shakeBases : []).forEach((item) => {
+        pushItem(item, 'shakeBases', 'categories.shakeBases');
+      });
     }
 
     if (!items.length) {

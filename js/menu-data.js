@@ -140,6 +140,7 @@ const TRANSLATIONS = {
       hotDrinks: 'שתייה חמה',
       butcher: 'בשרים',
       poultry: 'עופות',
+      shakeBases: 'בסיסי שייק פירות',
     },
   },
   en: {
@@ -280,6 +281,7 @@ const TRANSLATIONS = {
       hotDrinks: 'Hot Drinks',
       butcher: 'Meats',
       poultry: 'Poultry',
+      shakeBases: 'Fruit shake bases',
     },
   },
   el: {
