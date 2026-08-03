@@ -44,7 +44,7 @@ body.shabbat-page {
 }
 
 .shabbat-app {
-  padding-top: calc(var(--header-height, 72px) + 1.25rem);
+  padding-top: calc(var(--header-height, 72px) + 1.85rem);
 }
 
 .shabbat-hero {

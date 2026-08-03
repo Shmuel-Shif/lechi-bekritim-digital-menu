@@ -1,12 +1,17 @@
 /**
  * LECHAIM — Shabbat menu (separate from regular MENU_DATA)
- * Images reuse assets/images/dishes where available.
+ * Shabbat photos: assets/images/sabat/*.webp; other dishes reuse assets/images/dishes.
  */
 (function (global) {
   'use strict';
 
   function dishImage(id) {
     return id ? `assets/images/dishes/${id}.webp` : '';
+  }
+
+  /** Shabbat-only photos in assets/images/sabat */
+  function sabatImage(id) {
+    return id ? `assets/images/sabat/${id}.webp` : '';
   }
 
   const SHABBAT_TRANSLATIONS = {
@@ -71,11 +76,6 @@
         desserts: 'קינוחים',
         coldDrinks: 'שתייה קרה',
       },
-      categoryNotes: {
-        fish: 'מחיר למנה',
-        mains: 'מחיר למנה',
-        sides: 'תבנית מתאימה לכ־5 סועדים',
-      },
     },
     en: {
       pageTitle: 'Shabbat Orders | Lechaim',
@@ -138,11 +138,6 @@
         desserts: 'Desserts',
         coldDrinks: 'Cold drinks',
       },
-      categoryNotes: {
-        fish: 'Price per portion',
-        mains: 'Price per portion',
-        sides: 'Tray serves about 5 people',
-      },
     },
   };
 
@@ -174,7 +169,16 @@
             printName: '4 Salatim + Salat Chai',
             desc: '',
             price: 20,
-            image: dishImage('salad-plate'),
+            image: sabatImage('salatim'),
+          },
+          {
+            id: 'shabbat-hummus',
+            name: 'חומוס הבית',
+            nameEn: 'House hummus',
+            printName: 'Hummus',
+            desc: '',
+            price: 13,
+            image: dishImage('hummus'),
           },
           {
             id: 'shabbat-challah',
@@ -183,91 +187,98 @@
             printName: 'Challah',
             desc: '',
             price: 8,
-            image: '',
+            image: sabatImage('chala'),
           },
         ],
       },
       {
         id: 'fish',
         titleKey: 'categories.fish',
-        noteKey: 'categoryNotes.fish',
         items: [
           {
             id: 'shabbat-salmon',
-            name: 'נתח סלמון ברוטב מרוקאי',
-            nameEn: 'Salmon fillet in Moroccan sauce',
+            name: 'סלמון ברוטב מרוקאי',
+            nameEn: 'Salmon in Moroccan sauce',
             printName: 'Salmon Moroccan',
             desc: '',
             price: 17,
-            image: dishImage('salmon'),
+            image: sabatImage('salmon'),
           },
           {
             id: 'shabbat-denis-whole',
             name: 'דניס שלם בתנור',
             nameEn: 'Whole oven-baked sea bream',
             printName: 'Denis Whole',
-            desc: '',
+            desc: 'מלח פלפל לימון שמן זית',
+            descEn: 'Salt, pepper, lemon, olive oil',
             price: 18,
-            image: dishImage('denis'),
+            image: sabatImage('denis-shalem'),
           },
           {
             id: 'shabbat-denis-fillet',
-            name: 'דניס מפולט',
-            nameEn: 'Sea bream fillet',
-            printName: 'Denis Fillet',
+            name: 'דניס ברוטב מרוקאי',
+            nameEn: 'Sea bream in Moroccan sauce',
+            printName: 'Denis Moroccan',
             desc: '',
             price: 18,
-            image: dishImage('denis-fillet'),
+            image: sabatImage('file-denis'),
           },
         ],
       },
       {
         id: 'mains',
         titleKey: 'categories.mains',
-        noteKey: 'categoryNotes.mains',
         items: [
           {
             id: 'shabbat-schnitzel',
-            name: 'שניצל',
-            nameEn: 'Schnitzel',
+            name: 'שניצל קריספי',
+            nameEn: 'Crispy schnitzel',
             printName: 'Schnitzel',
             desc: '',
             price: 17,
-            image: dishImage('schnitzel'),
+            image: sabatImage('shnizel'),
           },
           {
             id: 'shabbat-pargit',
-            name: 'פרגית',
-            nameEn: 'Pargiyot (chicken thighs)',
+            name: 'פרגית בטיבול ים תיכוני',
+            nameEn: 'Mediterranean-spiced pargiyot',
             printName: 'Pargit',
             desc: '',
             price: 18,
-            image: dishImage('chicken-steak'),
+            image: sabatImage('pargit'),
           },
           {
-            id: 'shabbat-kebab',
-            name: 'קבב',
-            nameEn: 'Kebab',
-            printName: 'Kebab',
+            id: 'shabbat-kraim',
+            name: 'כרעיים בתנור בבצל מקורמל',
+            nameEn: 'Oven-baked drumsticks with caramelized onion',
+            printName: 'Kraim',
             desc: '',
-            price: 18,
-            image: dishImage('kebab'),
+            price: 20,
+            image: sabatImage('kraim'),
           },
           {
             id: 'shabbat-meat-stew',
-            name: 'תבשיל בשר',
-            nameEn: 'Meat stew',
+            name: 'תבשיל בשר עם תפוחי אדמה',
+            nameEn: 'Meat stew with potatoes',
             printName: 'Meat Stew',
             desc: '',
-            price: 18,
-            image: '',
+            price: 26,
+            image: sabatImage('basar'),
+          },
+          {
+            id: 'shabbat-asado',
+            name: 'נתח אסאדו בבישול ארוך',
+            nameEn: 'Slow-cooked asado cut',
+            printName: 'Asado',
+            desc: '',
+            price: 46,
+            image: sabatImage('asado'),
           },
         ],
       },
       {
         id: 'sides',
         titleKey: 'categories.sides',
-        noteKey: 'categoryNotes.sides',
         items: [
           {
             id: 'shabbat-rice',
@@ -295,15 +306,6 @@
             desc: '',
             price: 35,
             image: dishImage('fries'),
-          },
-          {
-            id: 'shabbat-baked-potatoes',
-            name: 'תפוחי אדמה אפויים',
-            nameEn: 'Baked potatoes',
-            printName: 'Baked Potatoes',
-            desc: '',
-            price: 40,
-            image: dishImage('baked-potatoes'),
           },
           {
             id: 'shabbat-beans',
@@ -406,15 +408,6 @@
             desc: '',
             price: 3,
             image: dishImage('water'),
-          },
-          {
-            id: 'shabbat-fruit-shake',
-            name: 'שייק פירות מרענן',
-            nameEn: 'Refreshing fruit shake',
-            printName: 'Fruit Shake',
-            desc: '',
-            price: 8,
-            image: dishImage('fruit-shake'),
           },
         ],
       },

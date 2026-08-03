@@ -150,15 +150,82 @@
       'MENU_DATA.categories': Array.isArray(global.MENU_DATA?.categories),
       HOT_SIDE_ITEMS: Array.isArray(global.HOT_SIDE_ITEMS),
       TRANSLATIONS: Boolean(global.TRANSLATIONS),
+      'js/shabbat-menu-data.js': typeof global.SHABBAT_MENU_DATA !== 'undefined',
+      SHABBAT_MENU_DATA: Boolean(global.SHABBAT_MENU_DATA),
     };
     return report;
   }
 
+  const BUTCHER_CATEGORY_IDS = new Set(['butcher', 'poultry']);
+
   /**
-   * Catalog from MENU_DATA + HOT_SIDE_ITEMS only (resolved with overrides).
-   * Same source as the public menu — never a separate product list.
+   * Catalog from MENU_DATA / SHABBAT_MENU_DATA (+ HOT_SIDE_ITEMS for weekday).
+   * @param {{ scope?: 'all' | 'weekday' | 'butcher' | 'shabbat' }} [options]
    */
-  function getCatalog() {
+  function getCatalog(options) {
+    const scope = options && options.scope ? String(options.scope) : 'all';
+    if (scope === 'shabbat') return getShabbatCatalog();
+    return getMenuDataCatalog(scope);
+  }
+
+  function getShabbatCategoryTitle(titleKey, fallback) {
+    const pack = global.SHABBAT_TRANSLATIONS?.he;
+    if (!titleKey) return fallback || '';
+    const key = String(titleKey).startsWith('categories.')
+      ? String(titleKey).slice('categories.'.length)
+      : String(titleKey);
+    return pack?.categories?.[key] || fallback || key;
+  }
+
+  function getShabbatCatalog() {
+    const items = [];
+    const seen = new Set();
+    const menuData = global.SHABBAT_MENU_DATA;
+
+    if (!menuData || !Array.isArray(menuData.categories)) {
+      console.error(
+        '[inventory] getCatalog(shabbat) empty: SHABBAT_MENU_DATA missing. ' +
+        'Ensure admin.html loads js/shabbat-menu-data.js BEFORE js/inventory.js'
+      );
+      return items;
+    }
+
+    menuData.categories.forEach((cat) => {
+      const categoryTitle = getShabbatCategoryTitle(cat.titleKey, cat.id);
+      (cat.items || []).forEach((item) => {
+        if (!item?.id || seen.has(item.id)) return;
+        seen.add(item.id);
+        const resolved = resolveItem({
+          ...item,
+          description: item.description || item.desc || '',
+        });
+        items.push({
+          id: resolved.id,
+          name: resolved.name,
+          description: resolved.description || resolved.desc || '',
+          price: resolved.price,
+          image: resolved.image || '',
+          categoryId: cat.id,
+          categoryTitleKey: cat.titleKey || cat.id,
+          categoryTitle,
+          available: isAvailable(resolved.id),
+          adminOnly: Boolean(item.adminOnly),
+          scope: 'shabbat',
+          base: {
+            name: item.name,
+            description: item.description || item.desc || '',
+            price: item.price,
+            image: item.image || '',
+          },
+        });
+      });
+    });
+
+    console.log('[inventory] getCatalog(shabbat)', items.length, 'products');
+    return items;
+  }
+
+  function getMenuDataCatalog(scope) {
     const items = [];
     const seen = new Set();
     const menuData = global.MENU_DATA;
@@ -178,6 +245,7 @@
       if (!item?.id || seen.has(item.id)) return;
       seen.add(item.id);
       const resolved = resolveItem(item);
+      const isButcher = BUTCHER_CATEGORY_IDS.has(categoryId);
       items.push({
         id: resolved.id,
         name: resolved.name,
@@ -189,6 +257,7 @@
         categoryTitle: getCategoryTitle(categoryTitleKey, categoryId),
         available: isAvailable(resolved.id),
         adminOnly: Boolean(item.adminOnly),
+        scope: isButcher ? 'butcher' : 'weekday',
         base: {
           name: item.name,
           description: item.description || '',
@@ -199,23 +268,30 @@
     }
 
     menuData.categories.forEach((cat) => {
+      const isButcher = BUTCHER_CATEGORY_IDS.has(cat.id);
+      if (scope === 'weekday' && isButcher) return;
+      if (scope === 'butcher' && !isButcher) return;
+
       (cat.items || []).forEach((item) => pushItem(item, cat.id, cat.titleKey));
       (cat.subsections || []).forEach((sub) => {
         (sub.items || []).forEach((item) => pushItem(item, cat.id, cat.titleKey));
       });
     });
 
-    (Array.isArray(hotSides) ? hotSides : []).forEach((item) => {
-      pushItem(item, 'hotSides', 'categories.hotSides');
-    });
+    if (scope === 'weekday' || scope === 'all') {
+      (Array.isArray(hotSides) ? hotSides : []).forEach((item) => {
+        pushItem(item, 'hotSides', 'categories.hotSides');
+      });
+    }
 
     if (!items.length) {
       console.error('[inventory] getCatalog() produced 0 items despite MENU_DATA present', {
+        scope,
         categories: menuData.categories.length,
         hotSides: Array.isArray(hotSides) ? hotSides.length : 0,
       });
     } else {
-      console.log('[inventory] getCatalog()', items.length, 'products from MENU_DATA + HOT_SIDE_ITEMS');
+      console.log('[inventory] getCatalog(' + scope + ')', items.length, 'products');
     }
 
     return items;

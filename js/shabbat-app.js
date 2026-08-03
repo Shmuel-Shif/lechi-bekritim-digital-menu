@@ -61,11 +61,18 @@
   const receiptTotal = $('#shabbat-receipt-total');
   const receiptContinue = $('#shabbat-receipt-continue');
   const receiptNew = $('#shabbat-receipt-new');
+  const foodModal = $('#shabbat-food-modal');
+  const foodModalBody = $('#shabbat-food-modal-body');
+  const foodModalClose = $('#shabbat-food-modal-close');
+  const foodModalBackdrop = $('#shabbat-food-modal-backdrop');
+
+  let openModalItemId = null;
 
   const focusTrapReleases = {
     cart: null,
     receipt: null,
     details: null,
+    food: null,
   };
 
   function setFocusTrap(key, root) {
@@ -338,6 +345,115 @@
     document.body.classList.remove('order-receipt-open');
   }
 
+  function openFoodModalById(itemId) {
+    const item = findItem(itemId);
+    if (!item || !foodModal || !foodModalBody) return;
+    if (!isProductAvailable(item.id)) {
+      closeFoodModal();
+      return;
+    }
+
+    openModalItemId = itemId;
+    const name = itemName(item);
+    const desc = lang === 'en' && item.descEn ? item.descEn : (item.desc || '');
+    const imageSrc = String(item.image || '').trim();
+    const price = Number(item.price) || 0;
+    const imageHtml = imageSrc
+      ? `<div class="food-modal-hero">
+           <img
+             class="food-modal-image"
+             src="${escapeAttr(imageSrc)}"
+             alt="${escapeAttr(name)}"
+             width="540"
+             height="540"
+             decoding="async"
+             onerror="this.closest('.food-modal-hero')?.remove();"
+           >
+         </div>`
+      : '';
+
+    foodModalBody.innerHTML = `
+      <div class="food-modal-content" data-item-id="${escapeAttr(itemId)}">
+        <article class="food-modal-card">
+          ${imageHtml}
+          <div class="food-modal-info">
+            <h2 id="shabbat-food-modal-title" class="food-modal-title">${escapeHtml(name)}</h2>
+            ${desc ? `<p class="food-modal-desc">${escapeHtml(desc)}</p>` : ''}
+            <p class="food-modal-price">${escapeHtml(formatPrice(price))}</p>
+          </div>
+          ${renderModalActions(item)}
+        </article>
+      </div>
+    `;
+
+    foodModal.hidden = false;
+    foodModal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('modal-open');
+    setFocusTrap('food', foodModal);
+
+    requestAnimationFrame(() => {
+      foodModal.classList.add('is-open');
+      foodModalClose?.focus();
+    });
+  }
+
+  function renderModalActions(item) {
+    if (browseOnly || !item) return '';
+    const qty = cart.find((row) => row.id === item.id)?.qty || 0;
+    if (qty > 0) {
+      return `
+        <div class="food-modal-actions" data-stop-modal="true">
+          <div class="food-qty-control food-qty-control--modal">
+            <button type="button" class="food-qty-btn" data-action="dec" data-id="${escapeAttr(item.id)}" aria-label="${escapeAttr(t('decrease'))}">−</button>
+            <span class="food-qty-value" aria-live="polite">${qty}</span>
+            <button type="button" class="food-qty-btn" data-action="inc" data-id="${escapeAttr(item.id)}" aria-label="${escapeAttr(t('increase'))}">+</button>
+          </div>
+        </div>
+      `;
+    }
+    return `
+      <div class="food-modal-actions" data-stop-modal="true">
+        <button type="button" class="btn btn-primary food-modal-add" data-action="add" data-id="${escapeAttr(item.id)}">
+          ${escapeHtml(t('addToCart'))}
+        </button>
+      </div>
+    `;
+  }
+
+  function updateOpenFoodModal() {
+    if (!openModalItemId || !foodModal || foodModal.hidden) return;
+    const item = findItem(openModalItemId);
+    if (!item || !isProductAvailable(item.id)) {
+      closeFoodModal();
+      return;
+    }
+    const card = foodModalBody?.querySelector('.food-modal-card');
+    if (!card) {
+      openFoodModalById(openModalItemId);
+      return;
+    }
+    const nextActions = renderModalActions(item);
+    const existingActions = card.querySelector('.food-modal-actions');
+    if (existingActions && nextActions) {
+      existingActions.outerHTML = nextActions;
+    } else if (existingActions && !nextActions) {
+      existingActions.remove();
+    } else if (!existingActions && nextActions) {
+      card.insertAdjacentHTML('beforeend', nextActions);
+    }
+  }
+
+  function closeFoodModal() {
+    if (!foodModal) return;
+    clearFocusTrap('food');
+    foodModal.classList.remove('is-open');
+    foodModal.hidden = true;
+    foodModal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('modal-open');
+    openModalItemId = null;
+    if (foodModalBody) foodModalBody.innerHTML = '';
+  }
+
   function showOrderReceipt(itemsOverride) {
     if (!orderReceipt) {
       showFeedback(true, t('orderSentSuccess'));
@@ -579,10 +695,15 @@
     }).join('');
   }
 
+  function isProductAvailable(itemId) {
+    if (!window.LechaimInventory?.isAvailable) return true;
+    return window.LechaimInventory.isAvailable(itemId);
+  }
+
   function renderMenu() {
     if (!menuSections) return;
     const categories = window.SHABBAT_MENU_DATA?.categories || [];
-    const hasItems = categories.some((cat) => (cat.items || []).length > 0);
+    const hasItems = categories.some((cat) => (cat.items || []).some((item) => item && isProductAvailable(item.id)));
 
     renderNotes();
 
@@ -590,6 +711,8 @@
     if (navList) {
       navList.innerHTML = hasItems
         ? categories.map((cat) => {
+          const visibleItems = (cat.items || []).filter((item) => item && isProductAvailable(item.id));
+          if (!visibleItems.length) return '';
           const title = cat.titleKey ? t(cat.titleKey) : (cat.title || cat.id);
           return `<li><a class="category-link" href="#${escapeAttr(cat.id)}">${escapeHtml(title)}</a></li>`;
         }).join('')
@@ -599,7 +722,7 @@
     menuSections.innerHTML = categories.map((cat) => {
       const title = cat.titleKey ? t(cat.titleKey) : (cat.title || cat.id);
       const note = cat.noteKey ? t(cat.noteKey) : '';
-      const items = cat.items || [];
+      const items = (cat.items || []).filter((item) => item && isProductAvailable(item.id));
       if (!items.length) return '';
       return `
         <section class="menu-category is-visible" id="${escapeAttr(cat.id)}">
@@ -638,9 +761,7 @@
                 hasImage ? '' : 'food-card--no-image',
                 qty > 0 ? 'food-card--in-cart' : '',
               ].filter(Boolean).join(' ');
-              const cardAttrs = browseOnly
-                ? ''
-                : ` tabindex="0" role="button" aria-label="${escapeAttr(`${t('addToCart')}: ${name}`)}"`;
+              const cardAttrs = ` tabindex="0" role="button" aria-label="${escapeAttr(name)}"`;
               return `
                 <article
                   class="${cardClass}"
@@ -666,6 +787,23 @@
         </section>
       `;
     }).join('');
+  }
+
+  function initInventory() {
+    if (!window.LechaimInventory) return;
+    const apply = () => {
+      const before = cart.length;
+      cart = cart.filter((row) => isProductAvailable(row.id));
+      if (cart.length !== before) saveCart();
+      if (openModalItemId && !isProductAvailable(openModalItemId)) closeFoodModal();
+      else updateOpenFoodModal();
+      renderMenu();
+      renderCart();
+    };
+    window.LechaimInventory.load()
+      .then(apply)
+      .catch(() => { /* keep full menu if inventory fails */ });
+    window.LechaimInventory.subscribe(apply);
   }
 
   function renderCart() {
@@ -741,6 +879,7 @@
   }
 
   function addToCart(id) {
+    if (!isProductAvailable(id)) return;
     const item = findItem(id);
     if (!item) return;
     const existing = cart.find((row) => row.id === id);
@@ -757,6 +896,7 @@
     }
     saveCart();
     updateFoodCardActions(id);
+    updateOpenFoodModal();
     renderCart();
   }
 
@@ -770,6 +910,7 @@
     if (row.qty <= 0) cart = cart.filter((r) => r.id !== id);
     saveCart();
     updateFoodCardActions(id);
+    updateOpenFoodModal();
     renderCart();
   }
 
@@ -779,6 +920,7 @@
     saveCart();
     ids.forEach((id) => updateFoodCardActions(id));
     if (!ids.length) renderMenu();
+    updateOpenFoodModal();
     renderCart();
   }
 
@@ -1164,6 +1306,8 @@
       bootOpenUi();
     }
 
+    initInventory();
+
     langToggle?.addEventListener('click', onLangClick);
     entryLangToggle?.addEventListener('click', onLangClick);
 
@@ -1185,9 +1329,13 @@
     });
 
     menuSections?.addEventListener('click', (event) => {
-      if (browseOnly) return;
+      if (event.target.closest('[data-stop-modal]')) {
+        event.stopPropagation();
+      }
       const btn = event.target.closest('[data-action][data-id]');
       if (btn) {
+        event.stopPropagation();
+        if (browseOnly) return;
         const id = btn.dataset.id;
         const action = btn.dataset.action;
         if (action === 'add' || action === 'inc') changeQty(id, 1);
@@ -1196,18 +1344,30 @@
       }
       const card = event.target.closest('.food-card[data-item-id]');
       if (!card) return;
-      changeQty(card.dataset.itemId, 1);
+      openFoodModalById(card.dataset.itemId);
     });
 
     menuSections?.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter' && event.key !== ' ') return;
-      if (browseOnly) return;
       if (event.target.closest('[data-action]')) return;
       const card = event.target.closest('.food-card[data-item-id]');
-      if (!card || event.target !== card) return;
+      if (!card || (event.target !== card && !event.target.closest('.food-card'))) return;
       event.preventDefault();
-      changeQty(card.dataset.itemId, 1);
+      openFoodModalById(card.dataset.itemId);
     });
+
+    foodModalBody?.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-action][data-id]');
+      if (!btn || browseOnly) return;
+      event.stopPropagation();
+      const id = btn.dataset.id;
+      const action = btn.dataset.action;
+      if (action === 'add' || action === 'inc') changeQty(id, 1);
+      if (action === 'dec') changeQty(id, -1);
+    });
+
+    foodModalClose?.addEventListener('click', closeFoodModal);
+    foodModalBackdrop?.addEventListener('click', closeFoodModal);
 
     cartBody?.addEventListener('click', (event) => {
       const btn = event.target.closest('[data-action][data-id]');
@@ -1219,6 +1379,10 @@
 
     document.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape') return;
+      if (foodModal && !foodModal.hidden) {
+        closeFoodModal();
+        return;
+      }
       if (orderReceipt && !orderReceipt.hidden) {
         closeOrderReceipt();
         return;

@@ -224,7 +224,9 @@
           price: Number(item.price) || 0,
           categoryId: cat.id,
           categoryTitle: title,
-          available: true,
+          available: window.LechaimInventory
+            ? window.LechaimInventory.isAvailable(item.id)
+            : true,
         });
       });
     });
@@ -433,16 +435,19 @@
         lastCat = catId;
         parts.push(`<h3 class="table-menu__section">${escapeHtml(item.categoryTitle || catId)}</h3>`);
       }
+      const available = item.available !== false;
       parts.push(`
-        <div class="table-menu__item">
+        <div class="table-menu__item${!available ? ' is-unavailable' : ''}">
           <div class="table-menu__item-text">
             <strong>${escapeHtml(item.name || item.id)}</strong>
             <span>${escapeHtml(formatMoney(item.price))}</span>
+            ${!available ? '<em>אין במלאי</em>' : ''}
           </div>
           <button
             type="button"
             class="admin-btn admin-btn--soft table-menu__add"
             data-shabbat-add-product="${escapeAttr(item.id)}"
+            ${available ? '' : 'disabled'}
           >הוסף</button>
         </div>
       `);
@@ -638,6 +643,10 @@
       .find((item) => item.id === productId);
     if (!product) {
       showToast('המנה לא נמצאה');
+      return;
+    }
+    if (product.available === false) {
+      showToast('אין במלאי');
       return;
     }
     const api = global.LechaimSupabaseOrders;

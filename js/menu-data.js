@@ -836,11 +836,9 @@ const HOT_SIDE_IDS = new Set(['fries-side', 'rice', 'green-beans', 'puree']);
 const SHAKE_BASE_IDS = new Set(['shake-base-soy', 'shake-base-water', 'shake-base-orange']);
 const FRUIT_SHAKE_ID = 'fruit-shake';
 const HAMBURGER_MEAL_ID = 'hamburger-fries';
-/** Drinks offered with hamburger meal (fruit-shake excluded — has its own picker). */
+/** Soft drinks only with hamburger meal (no beer, coffee, tea, limonana, or fruit-shake). */
 const HAMBURGER_DRINK_IDS = new Set([
-  'coke', 'coke-zero', 'fanta', 'sprite', 'red-bull', 'heineken', 'corona', 'soda', 'water',
-  'limonana',
-  'espresso', 'hafukh', 'black-coffee', 'mint-tea',
+  'coke', 'coke-zero', 'fanta', 'sprite', 'red-bull', 'soda', 'water',
 ]);
 const MAX_SIDES_PER_MAIN = 1;
 

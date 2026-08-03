@@ -229,12 +229,18 @@
           <div class="admin-header__text">
             <p class="admin-header__eyebrow">ניהול</p>
             <h1 class="admin-header__title">ניהול מלאי</h1>
-            <p class="admin-header__subtitle">לחצו על הכפתור כדי לסמן יש במלאי / אין במלאי</p>
+            <p class="admin-header__subtitle">בחרו סוג מלאי · לחצו על הכפתור כדי לסמן יש במלאי / אין במלאי</p>
           </div>
           <button type="button" class="admin-btn admin-btn--danger" id="admin-kitchen-close-btn">
             סגירת מטבח (ישיבה במקום)
           </button>
         </header>
+
+        <div class="admin-inventory-scopes" role="tablist" aria-label="סוג מלאי">
+          <button type="button" class="admin-filter" data-inventory-scope="shabbat" role="tab" aria-selected="false">מלאי של שבת</button>
+          <button type="button" class="admin-filter is-active" data-inventory-scope="weekday" role="tab" aria-selected="true">מלאי יום חול</button>
+          <button type="button" class="admin-filter" data-inventory-scope="butcher" role="tab" aria-selected="false">מלאי חנות בשרים</button>
+        </div>
 
         <div class="admin-stats" id="admin-stats" aria-live="polite">
           <div class="admin-stat">

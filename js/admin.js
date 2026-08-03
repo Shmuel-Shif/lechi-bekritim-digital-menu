@@ -1,6 +1,6 @@
 /**
  * LECHAIM — Admin inventory & menu management UI
- * Catalog always comes from MENU_DATA / HOT_SIDE_ITEMS via LechaimInventory.getCatalog().
+ * Catalog scopes: weekday / shabbat / butcher via LechaimInventory.getCatalog({ scope }).
  */
 (function () {
   'use strict';
@@ -23,6 +23,7 @@
   const loginSubmit = document.getElementById('admin-login-submit');
   const searchInput = document.getElementById('admin-search');
   const filtersEl = document.querySelector('.admin-filters');
+  const scopesEl = document.querySelector('.admin-inventory-scopes');
   const statTotal = document.getElementById('stat-total');
   const statAvailable = document.getElementById('stat-available');
   const statUnavailable = document.getElementById('stat-unavailable');
@@ -38,6 +39,7 @@
   let inventorySubscribed = false;
   let currentFilter = 'all';
   let currentQuery = '';
+  let currentInventoryScope = 'weekday';
   let catalogCache = [];
   let currentTab = 'tables';
   let dineInCloseAtMs = null;
@@ -191,18 +193,19 @@
   }
 
   function refreshCatalogCache() {
-    catalogCache = LechaimInventory.getCatalog();
+    catalogCache = LechaimInventory.getCatalog({ scope: currentInventoryScope });
     if (!catalogCache.length) {
       const report = LechaimInventory.diagnoseMenuGlobals?.() || {
         MENU_DATA: typeof window.MENU_DATA !== 'undefined',
         HOT_SIDE_ITEMS: typeof window.HOT_SIDE_ITEMS !== 'undefined',
+        SHABBAT_MENU_DATA: typeof window.SHABBAT_MENU_DATA !== 'undefined',
       };
       console.error('[admin] getCatalog() returned []. Missing globals / scripts:', report);
       showError(
         panelError,
-        'לא נטענו מוצרים מ-MENU_DATA.\n' +
+        'לא נטענו מוצרים לקטלוג המלאי.\n' +
         JSON.stringify(report, null, 2) +
-        '\nודאו ש-admin.html טוען js/menu-data.js לפני js/inventory.js ו-js/admin.js'
+        '\nודאו ש-admin.html טוען menu-data / shabbat-menu-data לפני inventory.js'
       );
     }
     return catalogCache;
@@ -592,6 +595,20 @@
 
   searchInput?.addEventListener('input', () => {
     currentQuery = searchInput.value || '';
+    renderList();
+  });
+
+  scopesEl?.addEventListener('click', (event) => {
+    const btn = event.target.closest('[data-inventory-scope]');
+    if (!btn) return;
+    const scope = btn.dataset.inventoryScope;
+    if (!scope || scope === currentInventoryScope) return;
+    currentInventoryScope = scope;
+    scopesEl.querySelectorAll('[data-inventory-scope]').forEach((el) => {
+      const active = el === btn;
+      el.classList.toggle('is-active', active);
+      el.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
     renderList();
   });
 

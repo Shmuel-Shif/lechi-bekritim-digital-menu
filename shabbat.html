@@ -249,11 +249,23 @@
 
   <div class="order-feedback" id="shabbat-feedback" role="status" aria-live="polite" hidden></div>
 
+  <!-- Food item modal (same pattern as main menu) -->
+  <div class="food-modal" id="shabbat-food-modal" hidden aria-hidden="true">
+    <button type="button" class="food-modal-backdrop" id="shabbat-food-modal-backdrop" aria-label="סגור"></button>
+    <div class="food-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="shabbat-food-modal-title">
+      <button type="button" class="food-modal-close" id="shabbat-food-modal-close" aria-label="סגור">
+        <span aria-hidden="true">&times;</span>
+      </button>
+      <div class="food-modal-body" id="shabbat-food-modal-body"></div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
   <script src="js/order-types.js" defer></script>
   <script src="js/supabase-order-service.js" defer></script>
   <script src="js/shabbat-menu-data.js" defer></script>
+  <script src="js/inventory.js" defer></script>
   <script src="js/a11y-focus-trap.js" defer></script>
   <script src="js/shabbat-app.js" defer></script>
 </body>
