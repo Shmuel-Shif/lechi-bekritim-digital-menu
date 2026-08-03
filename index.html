@@ -228,6 +228,13 @@
           <h2 class="entry-gate__kashrut-title" id="entry-kosher-title" data-entry-i18n="kosherTitle">כשרות</h2>
           <p class="entry-gate__kashrut-text entry-gate__reveal entry-gate__reveal--up" data-entry-i18n="kosherP1" style="--reveal-delay: 80ms">המסעדה פועלת תחת כשרות מהדרין EK, בפיקוחו של הרב שניאור טורנהיים רב חב״ד כרתים.</p>
           <p class="entry-gate__kashrut-text entry-gate__reveal entry-gate__reveal--up" data-entry-i18n="kosherP2" style="--reveal-delay: 160ms">אנו מקפידים על חומרי גלם איכותיים, מטבח כשר למהדרין וסטנדרטים גבוהים של כשרות לאורך כל השנה.</p>
+          <button
+            type="button"
+            class="entry-gate__kashrut-cert entry-gate__reveal entry-gate__reveal--up"
+            id="entry-kosher-certificate-btn"
+            data-entry-i18n="kosherCertificateBtn"
+            style="--reveal-delay: 240ms"
+          >תעודת כשרות</button>
         </div>
       </section>
 
@@ -507,6 +514,32 @@
             לצפייה בתפריט
           </button>
         </div>
+      </div>
+    </div>
+
+    <div class="entry-kosher-lightbox" id="entry-kosher-lightbox" hidden aria-hidden="true">
+      <button type="button" class="entry-kosher-lightbox__backdrop" id="entry-kosher-lightbox-backdrop" aria-label="סגור" data-entry-i18n-aria="kosherCertificateClose"></button>
+      <div
+        class="entry-kosher-lightbox__panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="entry-kosher-lightbox-title"
+      >
+        <div class="entry-kosher-lightbox__top">
+          <h2 class="entry-kosher-lightbox__title" id="entry-kosher-lightbox-title" data-entry-i18n="kosherCertificateTitle">תעודת כשרות</h2>
+          <button type="button" class="entry-kosher-lightbox__close" id="entry-kosher-lightbox-close" aria-label="סגור" data-entry-i18n-aria="kosherCertificateClose">×</button>
+        </div>
+        <img
+          src="assets/logo/kosher.webp"
+          alt="תעודת כשרות"
+          class="entry-kosher-lightbox__img"
+          id="entry-kosher-lightbox-img"
+          data-entry-i18n-alt="kosherCertificateAlt"
+          width="900"
+          height="1200"
+          loading="lazy"
+          decoding="async"
+        >
       </div>
     </div>
 

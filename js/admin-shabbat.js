@@ -518,6 +518,7 @@
     busy = true;
     updateActionButtons(entry);
     try {
+      global.LechaimAdminTables?.silenceNotifyChime?.();
       for (const order of pending) {
         await api.markOrderApproved(order.id);
       }

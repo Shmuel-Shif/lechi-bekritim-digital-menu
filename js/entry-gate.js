@@ -59,6 +59,10 @@
       kosherP1: 'The restaurant operates under Mehadrin EK kashrut, under the supervision of Rabbi Shneor Tornheim, Chabad Rabbi of Crete.',
       kosherP2: 'We insist on quality ingredients, a Mehadrin kosher kitchen, and high kashrut standards year-round.',
       kosherBadgeAlt: 'Mehadrin kosher badge',
+      kosherCertificateBtn: 'Kosher certificate',
+      kosherCertificateTitle: 'Kosher certificate',
+      kosherCertificateAlt: 'Restaurant kosher certificate',
+      kosherCertificateClose: 'Close',
       kosherCheck1: 'Mehadrin kosher',
       kosherCheck2: 'EK',
       kosherCheck3: 'Quality ingredients',
@@ -158,6 +162,10 @@
       kosherP1: 'המסעדה פועלת תחת כשרות מהדרין EK, בפיקוחו של הרב שניאור טורנהיים רב חב״ד כרתים.',
       kosherP2: 'אנו מקפידים על חומרי גלם איכותיים, מטבח כשר למהדרין וסטנדרטים גבוהים של כשרות לאורך כל השנה.',
       kosherBadgeAlt: 'סמל כשרות למהדרין',
+      kosherCertificateBtn: 'תעודת כשרות',
+      kosherCertificateTitle: 'תעודת כשרות',
+      kosherCertificateAlt: 'תעודת הכשרות של המסעדה',
+      kosherCertificateClose: 'סגור',
       kosherCheck1: 'כשר למהדרין',
       kosherCheck2: 'EK',
       kosherCheck3: 'חומרי גלם איכותיים',
@@ -286,6 +294,13 @@
   const tableModalPick = document.getElementById('entry-table-modal-pick');
   const tableModalBrowse = document.getElementById('entry-table-modal-browse');
   let tableModalTrapRelease = null;
+
+  const kosherCertBtn = document.getElementById('entry-kosher-certificate-btn');
+  const kosherLightbox = document.getElementById('entry-kosher-lightbox');
+  const kosherLightboxBackdrop = document.getElementById('entry-kosher-lightbox-backdrop');
+  const kosherLightboxClose = document.getElementById('entry-kosher-lightbox-close');
+  let kosherLightboxTrapRelease = null;
+  let kosherLightboxLastFocus = null;
   let placeResThanksTrapRelease = null;
   let placeResCapacityTrapRelease = null;
   let placeResSlotsToken = 0;
@@ -1135,6 +1150,31 @@
     tableModalTrapRelease = null;
     tableModal.hidden = true;
     tableModal.setAttribute('aria-hidden', 'true');
+  }
+
+  function openKosherCertificateLightbox() {
+    if (!kosherLightbox) return;
+    kosherLightboxLastFocus = document.activeElement;
+    kosherLightbox.hidden = false;
+    kosherLightbox.setAttribute('aria-hidden', 'false');
+    if (typeof kosherLightboxTrapRelease === 'function') kosherLightboxTrapRelease();
+    const release = window.LechaimFocusTrap?.activate?.(kosherLightbox);
+    kosherLightboxTrapRelease = typeof release === 'function' ? release : null;
+    requestAnimationFrame(() => kosherLightboxClose?.focus());
+  }
+
+  function closeKosherCertificateLightbox() {
+    if (!kosherLightbox || kosherLightbox.hidden) return;
+    if (typeof kosherLightboxTrapRelease === 'function') kosherLightboxTrapRelease();
+    kosherLightboxTrapRelease = null;
+    kosherLightbox.hidden = true;
+    kosherLightbox.setAttribute('aria-hidden', 'true');
+    if (kosherLightboxLastFocus && typeof kosherLightboxLastFocus.focus === 'function') {
+      kosherLightboxLastFocus.focus();
+    } else {
+      kosherCertBtn?.focus();
+    }
+    kosherLightboxLastFocus = null;
   }
 
   function goToTable() {
@@ -2083,6 +2123,17 @@
     enterBrowseOnly();
   });
   tableModalBackdrop?.addEventListener('click', closeTableInfoModal);
+
+  kosherCertBtn?.addEventListener('click', openKosherCertificateLightbox);
+  kosherLightboxClose?.addEventListener('click', closeKosherCertificateLightbox);
+  kosherLightboxBackdrop?.addEventListener('click', closeKosherCertificateLightbox);
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    if (kosherLightbox && !kosherLightbox.hidden) {
+      event.preventDefault();
+      closeKosherCertificateLightbox();
+    }
+  });
 
   window.LechaimEntryGate = {
     reopenTablePicker,

@@ -1059,10 +1059,15 @@
   }
 
   function boardNeedsAdminAttention(board, takeaway) {
-    return [...(board || []), ...(takeaway || [])].some((entry) => (
+    const dineInNeeds = (board || []).some((entry) => (
       entry?.uiStatus === 'pending_print'
       || entry?.uiStatus === 'preparing'
     ));
+    /* Takeaway / delivery / butcher: chime only until Approve — not while waiting for print */
+    const pickupNeeds = (takeaway || []).some((entry) => (
+      entry?.uiStatus === 'pending_print'
+    ));
+    return dineInNeeds || pickupNeeds;
   }
 
   function stopPendingReminder() {
@@ -1267,7 +1272,11 @@
     }
 
     approvePrintBusy = true;
-    suppressCustomerNotify();
+    suppressCustomerNotify(8000);
+    /* Takeaway / butcher: stop reminder on Approve (tables keep beeping until print) */
+    if (entry.orderType === 'takeaway' || entry.orderType === 'butcher') {
+      stopPendingReminder();
+    }
     updateApprovePrintButton(entry);
 
     try {
@@ -1285,6 +1294,9 @@
       approvePrintBusy = false;
       const next = getSelectedEntry();
       updateApprovePrintButton(next);
+      if (entry.orderType === 'takeaway' || entry.orderType === 'butcher') {
+        updatePendingReminder(boardCache, pickupCaches());
+      }
     }
   }
 
@@ -2158,6 +2170,11 @@
     closeDrawer,
     setBoardFilter,
     playNotifyChime: playOrderNotifyChime,
+    silenceNotifyChime() {
+      suppressCustomerNotify(8000);
+      stopPendingReminder();
+      updatePendingReminder(boardCache, pickupCaches());
+    },
     showConfirmModal,
     showSuccessModal,
     renderDrawerItemsHtml,

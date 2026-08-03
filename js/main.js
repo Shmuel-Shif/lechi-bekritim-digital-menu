@@ -668,14 +668,12 @@
     headerFoto('3.webp'),
     headerFoto('fruit-shake.webp'),
     headerFoto('hummus-egg.webp'),
-    headerFoto('kebab.webp'),
+    headerFoto('amburger.webp'),
     headerFoto('denis.webp'),
     headerFoto('4.webp'),
-    headerFoto('mushrooms.webp'),
     headerFoto('salmon.webp'),
     headerFoto('2.webp'),
     headerFoto('schnitzel.webp'),
-    headerFoto('salad-plate.webp'),
     headerFoto('puree.webp'),
     headerFoto('fanta.webp'),
     headerFoto('sprite.webp'),
@@ -1115,6 +1113,17 @@
     return window.SHAKE_BASE_ITEMS || [];
   }
 
+  function getHamburgerDrinkItems() {
+    const ids = window.HAMBURGER_DRINK_IDS;
+    if (!ids || typeof ids.forEach !== 'function') return [];
+    const out = [];
+    ids.forEach((id) => {
+      const item = findItem(id);
+      if (item) out.push(item);
+    });
+    return out;
+  }
+
   function findItem(itemId) {
     for (const category of MENU_DATA.categories) {
       const item = getCategoryItems(category).find((i) => i.id === itemId);
@@ -1206,21 +1215,30 @@
     return itemId === (window.FRUIT_SHAKE_ID || 'fruit-shake');
   }
 
+  function isHamburgerMeal(itemId) {
+    return itemId === (window.HAMBURGER_MEAL_ID || 'hamburger-fries');
+  }
+
   function isShakeBase(itemId) {
     return Boolean(window.SHAKE_BASE_IDS?.has?.(itemId));
   }
 
-  /** Linked option under a parent line (hot side or shake base). */
+  function isHamburgerDrinkOption(itemId) {
+    return Boolean(window.HAMBURGER_DRINK_IDS?.has?.(itemId));
+  }
+
+  /** Linked option under a parent line (hot side, shake base, or meal drink). */
   function isLinkedOption(itemId) {
     return isHotSide(itemId) || isShakeBase(itemId);
   }
 
   function isParentWithOptions(itemId) {
-    return isMainCourse(itemId) || isFruitShake(itemId);
+    return isMainCourse(itemId) || isFruitShake(itemId) || isHamburgerMeal(itemId);
   }
 
   function getPickerOptionsForParent(parentItemId) {
     if (isFruitShake(parentItemId)) return getShakeBaseItems();
+    if (isHamburgerMeal(parentItemId)) return getHamburgerDrinkItems();
     return getHotSideItems();
   }
 
@@ -2393,8 +2411,13 @@
     }
 
     const shakeMode = isFruitShake(mainLine.itemId);
-    const titleKey = shakeMode ? 'chooseShakeBaseTitle' : 'chooseSidesTitle';
-    const subtitleKey = shakeMode ? 'chooseShakeBaseSubtitle' : 'chooseSidesSubtitle';
+    const drinkMode = isHamburgerMeal(mainLine.itemId);
+    const titleKey = shakeMode
+      ? 'chooseShakeBaseTitle'
+      : (drinkMode ? 'chooseDrinkTitle' : 'chooseSidesTitle');
+    const subtitleKey = shakeMode
+      ? 'chooseShakeBaseSubtitle'
+      : (drinkMode ? 'chooseDrinkSubtitle' : 'chooseSidesSubtitle');
     const selectedCount = countSidesForMain(openSidesMainLineId);
     const cellsHtml = getPickerOptionsForParent(mainLine.itemId).map((side) => {
       const qty = getSideQtyForMain(openSidesMainLineId, side.id);
@@ -2432,15 +2455,15 @@
       `;
     }).join('');
 
-    const continueDisabled = shakeMode && selectedCount < 1;
+    const continueDisabled = (shakeMode || drinkMode) && selectedCount < 1;
     sidesModalBody.innerHTML = `
-      <div class="sides-modal-content${shakeMode ? ' sides-modal-content--shake' : ''}">
+      <div class="sides-modal-content${shakeMode || drinkMode ? ' sides-modal-content--shake' : ''}">
         <header class="sides-modal-header">
           <h2 id="sides-modal-title" class="sides-modal-title">${escapeHtml(t(titleKey))}</h2>
           <p class="sides-modal-subtitle">${escapeHtml(tReplace(subtitleKey, { name: getItemName(mainItem) }))}</p>
           <p class="sides-modal-count" aria-live="polite">${escapeHtml(tReplace('sidesSelected', { count: String(selectedCount) }))}</p>
         </header>
-        <div class="sides-picker-table${shakeMode ? ' sides-picker-table--shake' : ''}" role="group" aria-label="${escapeAttr(t(titleKey))}">
+        <div class="sides-picker-table${shakeMode || drinkMode ? ' sides-picker-table--shake' : ''}" role="group" aria-label="${escapeAttr(t(titleKey))}">
           ${cellsHtml}
         </div>
         <footer class="sides-modal-footer">
@@ -2488,7 +2511,8 @@
 
     const parentLineId = openSidesMainLineId;
     const parentLine = parentLineId ? findCartLine(parentLineId) : null;
-    const mustPickBase = parentLine && isFruitShake(parentLine.itemId);
+    const mustPickOption = parentLine
+      && (isFruitShake(parentLine.itemId) || isHamburgerMeal(parentLine.itemId));
     const hasPick = parentLineId ? countSidesForMain(parentLineId) > 0 : true;
 
     openSidesMainLineId = null;
@@ -2497,12 +2521,12 @@
     sidesModal.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('modal-open');
 
-    if (mustPickBase && !hasPick && parentLineId) {
-      const shakeItemId = parentLine.itemId;
+    if (mustPickOption && !hasPick && parentLineId) {
+      const parentItemId = parentLine.itemId;
       removeCartLine(parentLineId);
       saveCart();
       renderCart();
-      refreshFoodCards(shakeItemId);
+      refreshFoodCards(parentItemId);
       updateOpenFoodModal();
     }
 
@@ -3615,7 +3639,8 @@
               /* Merge drinks/starters/butcher qty; keep mains separate. */
               allowMerge: !linkedToMainItemId
                 && !isMainCourse(line.itemId)
-                && !isFruitShake(line.itemId),
+                && !isFruitShake(line.itemId)
+                && !isHamburgerMeal(line.itemId),
               linkedToMainItemId,
             }
           );
@@ -4341,9 +4366,15 @@
         unitType: 'kg',
       };
     }
+    let price = resolved?.price != null ? resolved.price : (item.price != null ? item.price : 0);
+    if (line?.linkedToMainLineId && isIncludedMealOption(line)) {
+      if (isHotSide(line.itemId) || isShakeBase(line.itemId) || isHamburgerDrinkOption(line.itemId)) {
+        price = 0;
+      }
+    }
     return {
       name: baseName,
-      price: resolved?.price != null ? resolved.price : (item.price != null ? item.price : 0),
+      price,
       notes: line?.notes == null ? '' : String(line.notes),
     };
   }
@@ -4386,7 +4417,7 @@
 
     let newMainLineId = null;
 
-    if (isMainCourse(itemId) || isFruitShake(itemId)) {
+    if (isMainCourse(itemId) || isFruitShake(itemId) || isHamburgerMeal(itemId)) {
       const lineId = createCartLineId();
       cartLines.push({ lineId, itemId, qty: 1, linkedToMainLineId: null });
       moveCartLineToTop(lineId);
@@ -4421,8 +4452,13 @@
       /* Shake bases are only added via the fruit-shake picker. */
       return;
     } else {
+      /* Standalone drink/item — do not merge into an open hamburger meal line */
       const existing = cartLines.find(
-        (l) => l.itemId === itemId && !l.linkedToMainLineId && !isMainCourse(l.itemId) && !isFruitShake(l.itemId)
+        (l) => l.itemId === itemId
+          && !l.linkedToMainLineId
+          && !isMainCourse(l.itemId)
+          && !isFruitShake(l.itemId)
+          && !isHamburgerMeal(l.itemId)
       );
 
       if (existing) {
@@ -4477,7 +4513,7 @@
     const itemId = line.itemId;
     const newQty = line.qty + delta;
     if (newQty <= 0) {
-      const wasLinkedOption = isLinkedOption(itemId) && line.linkedToMainLineId;
+      const wasLinkedOption = Boolean(line.linkedToMainLineId);
       const mainLineId = wasLinkedOption ? line.linkedToMainLineId : null;
 
       removeCartLine(lineId);
@@ -4495,7 +4531,7 @@
       return;
     }
 
-    if (delta > 0 && isLinkedOption(itemId) && line.linkedToMainLineId) {
+    if (delta > 0 && line.linkedToMainLineId) {
       if (!canAddSideToMain(line.linkedToMainLineId)) {
         showCartToast(t('maxSidesPerMain'));
         return;
@@ -4543,11 +4579,24 @@
 
   function getCartCount() {
     return cartLines
-      .filter((line) => !isLinkedOption(line.itemId))
+      .filter((line) => !line.linkedToMainLineId && !isLinkedOption(line.itemId))
       .reduce((sum, line) => sum + line.qty, 0);
   }
 
+  function isIncludedMealOption(line) {
+    if (!line?.linkedToMainLineId) return false;
+    const parent = findCartLine(line.linkedToMainLineId);
+    if (!parent) return false;
+    return isFruitShake(parent.itemId) || isHamburgerMeal(parent.itemId) || isMainCourse(parent.itemId);
+  }
+
   function getCartLineUnitPrice(line, item) {
+    /* Hot sides / meal drinks / shake bases included with parent — €0 */
+    if (line?.linkedToMainLineId && isIncludedMealOption(line)) {
+      if (isHotSide(line.itemId) || isShakeBase(line.itemId) || isHamburgerDrinkOption(line.itemId)) {
+        return 0;
+      }
+    }
     if (line?.unitType === 'kg' || isSoldByWeight(item)) {
       const perKg = Number(line.pricePerKg) > 0 ? Number(line.pricePerKg) : getItemPricePerKg(item);
       return perKg;
@@ -4575,7 +4624,9 @@
     if (line.linkedToMainLineId && mainItem && variant !== 'child') {
       metaHtml = isFruitShake(mainItem.id)
         ? `<p class="cart-item-meta">${escapeHtml(t('shakeBaseLabel'))}</p>`
-        : `<p class="cart-item-meta">${escapeHtml(tReplace('sideForMain', { name: getItemName(mainItem) }))}</p>`;
+        : (isHamburgerMeal(mainItem.id)
+          ? `<p class="cart-item-meta">${escapeHtml(t('drinkIncludedLabel'))}</p>`
+          : `<p class="cart-item-meta">${escapeHtml(tReplace('sideForMain', { name: getItemName(mainItem) }))}</p>`);
     } else if (isParentWithOptions(line.itemId)) {
       const sideNames = getSideLinesForMain(line.lineId)
         .map((s) => {
@@ -4604,7 +4655,9 @@
 
     const childBadge = mainItem && isFruitShake(mainItem.id)
       ? t('shakeBaseLabel')
-      : t('sideLabel');
+      : (mainItem && isHamburgerMeal(mainItem.id)
+        ? t('drinkIncludedLabel')
+        : t('sideLabel'));
     const unitHtml = variant === 'child'
       ? `<p class="cart-item-badge">${escapeHtml(childBadge)}</p>`
       : (byWeight

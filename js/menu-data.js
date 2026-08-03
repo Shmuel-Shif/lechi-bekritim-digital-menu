@@ -102,7 +102,7 @@ const TRANSLATIONS = {
     receiptButcher: 'חנות בשר',
     currency: '€',
     langToggleAria: 'החלפת שפה – עברית / English',
-    mainsNote: 'כל המנות העיקריות מוגשות עם תוספת אחת חמה (למעט שיפודי קבב ומוקפץ עוף).',
+    mainsNote: 'כל המנות העיקריות מוגשות עם תוספת אחת חמה (למעט שיפודי קבב, מוקפץ עוף והמבורגר וצ\'יפס).',
     mainsSidesTitle: 'תוספות לבחירה',
     mainsSidesList: "צ'יפס פריך | אורז לבן | שעועית ירוקה | פירה",
     sidesIncluded: 'כלול',
@@ -119,6 +119,9 @@ const TRANSLATIONS = {
     chooseShakeBaseTitle: 'מה אתם מעדיפים?',
     chooseShakeBaseSubtitle: 'בחרו בסיס לשייק: {name}',
     shakeBaseLabel: 'בסיס',
+    chooseDrinkTitle: 'בחרו שתייה',
+    chooseDrinkSubtitle: 'שתייה כלולה במנה: {name}',
+    drinkIncludedLabel: 'שתייה',
     contact: 'יצירת קשר',
     hours: 'שעות פעילות',
     hoursDays: 'א׳ – ה׳',
@@ -239,7 +242,7 @@ const TRANSLATIONS = {
     receiptButcher: 'Butcher shop',
     currency: '€',
     langToggleAria: 'Switch language – Hebrew / English',
-    mainsNote: 'All main courses are served with one hot side (except kebab skewers and stir-fried chicken).',
+    mainsNote: 'All main courses are served with one hot side (except kebab skewers, stir-fried chicken, and hamburger & fries).',
     mainsSidesTitle: 'Sides to choose from',
     mainsSidesList: 'Crispy fries | White rice | Green beans | Mashed potatoes',
     sidesIncluded: 'Included',
@@ -256,6 +259,9 @@ const TRANSLATIONS = {
     chooseShakeBaseTitle: 'What do you prefer?',
     chooseShakeBaseSubtitle: 'Choose a base for: {name}',
     shakeBaseLabel: 'Base',
+    chooseDrinkTitle: 'Choose a drink',
+    chooseDrinkSubtitle: 'Drink included with: {name}',
+    drinkIncludedLabel: 'Drink',
     contact: 'Contact',
     hours: 'Opening Hours',
     hoursDays: 'Sun – Thu',
@@ -348,6 +354,10 @@ const DISH_I18N = {
     'chicken-stirfry': {
       name: 'Stir-Fried Chicken',
       desc: 'Chicken pieces stir-fried with vegetables in soy and ginger sauce.',
+    },
+    'hamburger-fries': {
+      name: 'Hamburger & Fries',
+      desc: 'Hamburger patty in a bun with tomato, lettuce and sauces on the side, including fries and a drink of your choice.',
     },
     'chicken-salad': {
       name: 'Chicken Salad',
@@ -600,6 +610,14 @@ const MENU_DATA = {
           price: 20,
           image: dishImage('chicken-stirfry'),
         },
+        {
+          id: 'hamburger-fries',
+          name: 'המבורגר וצ\'יפס',
+          printName: 'Hamburger Chips',
+          description: 'קציצת המבורגר בלחמנייה עם עגבנייה חסה ורטבים בצד כולל צ\'יפס ושתייה לבחירה',
+          price: 25,
+          image: 'assets/images/dishes/amburger.webp',
+        },
       ],
     },
     {
@@ -819,6 +837,13 @@ const MAIN_COURSE_IDS = new Set(['schnitzel', 'chicken-steak', 'whole-fish', 'de
 const HOT_SIDE_IDS = new Set(['fries-side', 'rice', 'green-beans', 'puree']);
 const SHAKE_BASE_IDS = new Set(['shake-base-soy', 'shake-base-water', 'shake-base-orange']);
 const FRUIT_SHAKE_ID = 'fruit-shake';
+const HAMBURGER_MEAL_ID = 'hamburger-fries';
+/** Drinks offered with hamburger meal (fruit-shake excluded — has its own picker). */
+const HAMBURGER_DRINK_IDS = new Set([
+  'coke', 'coke-zero', 'fanta', 'sprite', 'red-bull', 'heineken', 'corona', 'soda', 'water',
+  'limonana',
+  'espresso', 'hafukh', 'black-coffee', 'mint-tea',
+]);
 const MAX_SIDES_PER_MAIN = 1;
 
 const SOCIAL_LINKS = {
@@ -835,6 +860,8 @@ window.MAIN_COURSE_IDS = MAIN_COURSE_IDS;
 window.HOT_SIDE_IDS = HOT_SIDE_IDS;
 window.SHAKE_BASE_IDS = SHAKE_BASE_IDS;
 window.FRUIT_SHAKE_ID = FRUIT_SHAKE_ID;
+window.HAMBURGER_MEAL_ID = HAMBURGER_MEAL_ID;
+window.HAMBURGER_DRINK_IDS = HAMBURGER_DRINK_IDS;
 window.MAX_SIDES_PER_MAIN = MAX_SIDES_PER_MAIN;
 window.SOCIAL_LINKS = SOCIAL_LINKS;
 
