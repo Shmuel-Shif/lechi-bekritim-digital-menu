@@ -344,57 +344,6 @@
         <button type="button" class="entry-gate__back" data-entry-back="order" data-entry-i18n="back">חזרה</button>
       </div>
 
-      <div class="entry-gate__step" id="entry-step-butcher" hidden>
-        <form class="entry-pickup entry-butcher" id="entry-butcher-form" novalidate>
-          <label class="entry-pickup__field">
-            <span class="entry-pickup__label" data-entry-i18n="customerName">שם הלקוח *</span>
-            <input
-              type="text"
-              id="entry-butcher-name"
-              class="entry-pickup__input"
-              name="customerName"
-              autocomplete="name"
-              required
-              maxlength="80"
-            >
-          </label>
-
-          <label class="entry-pickup__field">
-            <span class="entry-pickup__label" data-entry-i18n="customerPhone">טלפון *</span>
-            <input
-              type="tel"
-              id="entry-butcher-phone"
-              class="entry-pickup__input"
-              name="customerPhone"
-              autocomplete="tel"
-              inputmode="tel"
-              required
-              maxlength="32"
-              dir="ltr"
-            >
-          </label>
-
-          <label class="entry-pickup__field">
-            <span class="entry-pickup__label" data-entry-i18n="customerNotes">הערות (אופציונלי)</span>
-            <textarea
-              id="entry-butcher-notes"
-              class="entry-pickup__input entry-pickup__textarea"
-              name="customerNotes"
-              rows="2"
-              maxlength="240"
-              dir="auto"
-            ></textarea>
-          </label>
-
-          <p class="entry-pickup__error" id="entry-butcher-error" role="alert" hidden></p>
-
-          <button type="submit" class="entry-gate__btn entry-gate__btn--primary" id="entry-butcher-submit">
-            <span class="entry-gate__btn-label" data-entry-i18n="continueToButcher">המשך לחנות הבשר</span>
-          </button>
-        </form>
-        <button type="button" class="entry-gate__back" data-entry-back="order" data-entry-i18n="back">חזרה</button>
-      </div>
-
       <div class="entry-gate__step" id="entry-step-pickup" hidden>
         <form class="entry-pickup" id="entry-pickup-form" novalidate>
           <fieldset class="entry-pickup__time entry-pickup__fulfillment" id="entry-pickup-fulfillment">
@@ -660,16 +609,6 @@
     </nav>
   </div>
 
-  <div class="app-confirm" id="butcher-notice-modal" hidden aria-hidden="true">
-    <button type="button" class="app-confirm__backdrop" id="butcher-notice-backdrop" aria-label="סגור"></button>
-    <div class="app-confirm__panel" role="dialog" aria-modal="true" aria-labelledby="butcher-notice-text">
-      <p class="app-confirm__text" id="butcher-notice-text"></p>
-      <div class="app-confirm__actions">
-        <button type="button" class="cart-send-btn" id="butcher-notice-ok" data-i18n="gotIt">הבנתי</button>
-      </div>
-    </div>
-  </div>
-
   <div class="app-confirm" id="delivery-fee-modal" hidden aria-hidden="true">
     <button type="button" class="app-confirm__backdrop" id="delivery-fee-backdrop" aria-label="סגור"></button>
     <div class="app-confirm__panel" role="dialog" aria-modal="true" aria-labelledby="delivery-fee-text">
@@ -677,6 +616,33 @@
       <div class="app-confirm__actions">
         <button type="button" class="cart-send-btn" id="delivery-fee-ok" data-i18n="gotIt">הבנתי</button>
       </div>
+    </div>
+  </div>
+
+  <div class="app-confirm" id="butcher-checkout-modal" hidden aria-hidden="true">
+    <button type="button" class="app-confirm__backdrop" id="butcher-checkout-backdrop" aria-label="סגור"></button>
+    <div class="app-confirm__panel app-confirm__panel--form" role="dialog" aria-modal="true" aria-labelledby="butcher-checkout-title">
+      <h2 class="app-confirm__title" id="butcher-checkout-title" data-i18n="butcherCheckoutTitle">פרטי הזמנה</h2>
+      <p class="app-confirm__text app-confirm__text--soft" id="butcher-checkout-hint" data-i18n="butcherCheckoutHint">לשליחת ההזמנה נדרשים שם וטלפון</p>
+      <form class="butcher-checkout" id="butcher-checkout-form" novalidate>
+        <label class="butcher-checkout__field">
+          <span class="butcher-checkout__label" data-i18n="butcherCheckoutName">שם מלא *</span>
+          <input type="text" id="butcher-checkout-name" class="butcher-checkout__input" name="customerName" autocomplete="name" required maxlength="80">
+        </label>
+        <label class="butcher-checkout__field">
+          <span class="butcher-checkout__label" data-i18n="butcherCheckoutPhone">טלפון *</span>
+          <input type="tel" id="butcher-checkout-phone" class="butcher-checkout__input" name="customerPhone" autocomplete="tel" inputmode="tel" required maxlength="32" dir="ltr">
+        </label>
+        <label class="butcher-checkout__field">
+          <span class="butcher-checkout__label" data-i18n="butcherCheckoutNotes">הערות (אופציונלי)</span>
+          <textarea id="butcher-checkout-notes" class="butcher-checkout__input butcher-checkout__textarea" name="customerNotes" rows="2" maxlength="240" dir="auto"></textarea>
+        </label>
+        <p class="butcher-checkout__error" id="butcher-checkout-error" role="alert" hidden></p>
+        <div class="app-confirm__actions">
+          <button type="submit" class="cart-send-btn" id="butcher-checkout-submit" data-i18n="butcherCheckoutSubmit">שלח הזמנה</button>
+          <button type="button" class="cart-clear-btn" id="butcher-checkout-cancel" data-i18n="clearCartCancel">ביטול</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -730,7 +696,7 @@
         <div class="footer-card">
           <h3 class="footer-heading" data-i18n="hours">שעות פעילות</h3>
           <ul class="footer-hours">
-            <li><span data-i18n="hoursDays">א׳ – ה׳</span><span>14:00 – 23:00</span></li>
+            <li><span data-i18n="hoursDays">א׳ – ה׳</span><span>14:00 – 21:00</span></li>
           </ul>
         </div>
 

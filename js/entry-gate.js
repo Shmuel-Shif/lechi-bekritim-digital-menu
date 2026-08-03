@@ -41,7 +41,6 @@
       shabbatOrdersHint: 'Special menu for Shabbat',
       butcherShop: 'Our Butcher Shop',
       butcherShopHint: 'Mehadrin Chalak meat • Lubavitch shechita • Premium kashrut',
-      continueToButcher: 'Continue to the butcher shop',
       browseMenu: 'View the menu',
       browseMenuHint: 'Discover all our dishes',
       placeReservationHint: 'Reserve your table at the restaurant',
@@ -141,7 +140,6 @@
       shabbatOrdersHint: 'תפריט מיוחד לשבת קודש',
       butcherShop: 'חנות הבשר שלנו',
       butcherShopHint: 'בשר חלק כשר למהדרין • שחיטת ליובאוויטש • כשרות מהודרת',
-      continueToButcher: 'המשך לחנות הבשר',
       browseMenu: 'צפייה בתפריט',
       browseMenuHint: 'גלו את כל המנות שלנו',
       placeReservationHint: 'הבטיחו את מקומכם במסעדה',
@@ -234,12 +232,6 @@
   const stepPickup = document.getElementById('entry-step-pickup');
   const stepPickupClosed = document.getElementById('entry-step-pickup-closed');
   const stepPlaceRes = document.getElementById('entry-step-place-res');
-  const stepButcher = document.getElementById('entry-step-butcher');
-  const butcherForm = document.getElementById('entry-butcher-form');
-  const butcherName = document.getElementById('entry-butcher-name');
-  const butcherPhone = document.getElementById('entry-butcher-phone');
-  const butcherNotes = document.getElementById('entry-butcher-notes');
-  const butcherError = document.getElementById('entry-butcher-error');
   const tablesEl = document.getElementById('entry-tables');
   const noticeEl = document.getElementById('entry-notice');
   const promptEl = document.getElementById('entry-prompt');
@@ -518,7 +510,7 @@
   }
 
   function showStep(step) {
-    [stepOrder, stepTable, stepPickup, stepPickupClosed, stepPlaceRes, stepButcher].forEach((el) => {
+    [stepOrder, stepTable, stepPickup, stepPickupClosed, stepPlaceRes].forEach((el) => {
       if (!el) return;
       el.hidden = el !== step;
     });
@@ -1494,24 +1486,7 @@
     }));
   }
 
-  function showButcherError(message) {
-    if (!butcherError) return;
-    butcherError.hidden = false;
-    butcherError.textContent = message;
-  }
-
-  function goToButcher() {
-    state.orderType = 'butcher';
-    state.tableNumber = null;
-    if (butcherForm) butcherForm.reset();
-    if (butcherError) {
-      butcherError.hidden = true;
-      butcherError.textContent = '';
-    }
-    showStep(stepButcher);
-    butcherName?.focus();
-  }
-
+  /** Open butcher catalog immediately — name/phone collected at cart send. */
   function finishButcher(details = {}) {
     state.orderType = 'butcher';
     state.tableNumber = null;
@@ -1541,39 +1516,8 @@
     }));
   }
 
-  function submitButcherForm(event) {
-    event?.preventDefault?.();
-    const nameRaw = String(butcherName?.value || '').trim();
-    const phone = String(butcherPhone?.value || '').trim();
-    const notes = String(butcherNotes?.value || '').trim();
-    const nameEn = transliterateToEnglish(nameRaw);
-
-    if (!nameRaw || !nameEn) {
-      showButcherError(t('pickupNameRequired'));
-      butcherName?.focus();
-      return;
-    }
-    if (!phone) {
-      showButcherError(t('pickupPhoneRequired'));
-      butcherPhone?.focus();
-      return;
-    }
-    if (!isValidPhone(phone)) {
-      showButcherError(t('pickupPhoneInvalid'));
-      butcherPhone?.focus();
-      return;
-    }
-
-    if (butcherError) {
-      butcherError.hidden = true;
-      butcherError.textContent = '';
-    }
-
-    finishButcher({
-      customerName: nameEn,
-      customerPhone: phone,
-      customerNotes: notes,
-    });
+  function goToButcher() {
+    finishButcher({});
   }
 
   function submitPickupForm(event) {
@@ -1906,7 +1850,7 @@
     }
 
     if (!shouldKeepSessionOnRefresh(session)) {
-      console.log('[entry-gate] empty butcher cart — return to butcher form');
+      console.log('[entry-gate] empty butcher cart — return to entry');
       await discardIdleSession(session);
       return false;
     }
@@ -1978,6 +1922,21 @@
         return false;
       }
       return resumeTakeawaySession(session);
+    }
+
+    if (Session?.hasActiveButcherSession?.()) {
+      const session = Session.getSession();
+      if (!session) return false;
+      if (await isMappedRemoteSessionClosed(session.sessionId)) {
+        await discardClosedLocalSession(session);
+        return false;
+      }
+      if (!shouldKeepSessionOnRefresh(session)) {
+        console.log('[entry-gate] empty butcher cart — return to entry buttons');
+        await discardIdleSession(session);
+        return false;
+      }
+      return resumeButcherSession(session);
     }
 
     return false;
@@ -2081,7 +2040,6 @@
   });
 
   pickupForm?.addEventListener('submit', submitPickupForm);
-  butcherForm?.addEventListener('submit', submitButcherForm);
   fulfillmentPickup?.addEventListener('change', syncFulfillmentUi);
   fulfillmentDelivery?.addEventListener('change', syncFulfillmentUi);
   pickupAsap?.addEventListener('change', syncPickupTimeUi);
@@ -2130,6 +2088,8 @@
     reopenTablePicker,
     reopenOrderTypePicker,
     resetToEntry,
+    transliterateToEnglish,
+    isValidPhone,
   };
 
   document.body.classList.add('entry-pending');

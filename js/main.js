@@ -189,6 +189,8 @@
 
   function isOrderingAllowed() {
     if (window.LechaimOrderContext?.browseOnly) return false;
+    /* Butcher shop: always open for ordering */
+    if (isButcherContext()) return true;
     if (isManualDineInClosed()) return false;
     if (!ORDERING_HOURS_ENABLED) return true;
     return isWithinOrderingHours();
@@ -751,7 +753,8 @@
 
   function getItemPricePerKg(item) {
     const resolved = getResolvedItem(item);
-    const perKg = Number(resolved?.pricePerKg ?? resolved?.price);
+    /* Listed catalog price is the price per kg */
+    const perKg = Number(resolved?.price ?? resolved?.pricePerKg);
     return Number.isFinite(perKg) ? perKg : 0;
   }
 
@@ -763,47 +766,146 @@
     return cats.filter((cat) => cat.id !== 'butcher' && cat.id !== 'poultry');
   }
 
-  let butcherNoticeFocusTrapRelease = null;
-  let butcherNoticeShownThisVisit = false;
   let deliveryFeeFocusTrapRelease = null;
   let deliveryFeeShownThisVisit = false;
+  let butcherCheckoutFocusTrapRelease = null;
+  let butcherCheckoutBound = false;
 
-  function closeButcherNoticeModal() {
-    const modal = document.getElementById('butcher-notice-modal');
+  function hasButcherCustomerDetails() {
+    const ctx = window.LechaimOrderContext || {};
+    const name = String(ctx.customerName || '').trim();
+    const phone = String(ctx.customerPhone || '').trim();
+    const gate = window.LechaimEntryGate;
+    const phoneOk = typeof gate?.isValidPhone === 'function'
+      ? gate.isValidPhone(phone)
+      : /^\d{9,15}$/.test(phone.replace(/\D/g, ''));
+    return Boolean(name && phone && phoneOk);
+  }
+
+  function applyButcherCustomerDetails({ customerName, customerPhone, customerNotes }) {
+    const name = customerName || '';
+    const phone = customerPhone || '';
+    const notes = customerNotes || '';
+    const Session = window.LechaimOrderSession;
+    if (Session?.patchSession) {
+      Session.patchSession({
+        customerName: name,
+        customerPhone: phone,
+        customerNotes: notes,
+      });
+    }
+    const prev = window.LechaimOrderContext || {};
+    window.LechaimOrderContext = {
+      ...prev,
+      customerName: name,
+      customerPhone: phone,
+      customerNotes: notes,
+    };
+  }
+
+  function closeButcherCheckoutModal() {
+    const modal = document.getElementById('butcher-checkout-modal');
     if (!modal) return;
-    if (typeof butcherNoticeFocusTrapRelease === 'function') butcherNoticeFocusTrapRelease();
-    butcherNoticeFocusTrapRelease = null;
+    if (typeof butcherCheckoutFocusTrapRelease === 'function') butcherCheckoutFocusTrapRelease();
+    butcherCheckoutFocusTrapRelease = null;
     modal.hidden = true;
     modal.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('app-confirm-open');
   }
 
-  function showButcherNoticeModal() {
-    const modal = document.getElementById('butcher-notice-modal');
-    const textEl = document.getElementById('butcher-notice-text');
-    const okBtn = document.getElementById('butcher-notice-ok');
-    if (!modal || !isButcherContext()) return;
+  function showButcherCheckoutError(message) {
+    const errEl = document.getElementById('butcher-checkout-error');
+    if (!errEl) return;
+    errEl.hidden = !message;
+    errEl.textContent = message || '';
+  }
 
-    if (textEl) textEl.textContent = t('butcherWeightNotice');
-    if (okBtn) okBtn.textContent = t('gotIt');
+  function openButcherCheckoutModal() {
+    const modal = document.getElementById('butcher-checkout-modal');
+    const form = document.getElementById('butcher-checkout-form');
+    const nameInput = document.getElementById('butcher-checkout-name');
+    const phoneInput = document.getElementById('butcher-checkout-phone');
+    const notesInput = document.getElementById('butcher-checkout-notes');
+    if (!modal || !form) return;
+
+    const ctx = window.LechaimOrderContext || {};
+    if (nameInput) nameInput.value = String(ctx.customerName || '');
+    if (phoneInput) phoneInput.value = String(ctx.customerPhone || '');
+    if (notesInput) notesInput.value = String(ctx.customerNotes || '');
+    showButcherCheckoutError('');
+
+    const title = document.getElementById('butcher-checkout-title');
+    const hint = document.getElementById('butcher-checkout-hint');
+    const submit = document.getElementById('butcher-checkout-submit');
+    const cancel = document.getElementById('butcher-checkout-cancel');
+    const nameLabel = modal.querySelector('[data-i18n="butcherCheckoutName"]');
+    const phoneLabel = modal.querySelector('[data-i18n="butcherCheckoutPhone"]');
+    const notesLabel = modal.querySelector('[data-i18n="butcherCheckoutNotes"]');
+    if (title) title.textContent = t('butcherCheckoutTitle');
+    if (hint) hint.textContent = t('butcherCheckoutHint');
+    if (submit) submit.textContent = t('butcherCheckoutSubmit');
+    if (cancel) cancel.textContent = t('clearCartCancel');
+    if (nameLabel) nameLabel.textContent = t('butcherCheckoutName');
+    if (phoneLabel) phoneLabel.textContent = t('butcherCheckoutPhone');
+    if (notesLabel) notesLabel.textContent = t('butcherCheckoutNotes');
 
     modal.hidden = false;
     modal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('app-confirm-open');
 
-    if (typeof butcherNoticeFocusTrapRelease === 'function') butcherNoticeFocusTrapRelease();
+    if (typeof butcherCheckoutFocusTrapRelease === 'function') butcherCheckoutFocusTrapRelease();
     const release = window.LechaimFocusTrap?.activate?.(modal);
-    butcherNoticeFocusTrapRelease = typeof release === 'function' ? release : null;
-    okBtn?.focus();
+    butcherCheckoutFocusTrapRelease = typeof release === 'function' ? release : null;
+    nameInput?.focus();
   }
 
-  function initButcherNoticeModal() {
-    const okBtn = document.getElementById('butcher-notice-ok');
-    const backdrop = document.getElementById('butcher-notice-backdrop');
-    if (okBtn?.dataset.bound === '1') return;
-    if (okBtn) okBtn.dataset.bound = '1';
-    okBtn?.addEventListener('click', closeButcherNoticeModal);
-    backdrop?.addEventListener('click', closeButcherNoticeModal);
+  function submitButcherCheckoutForm(event) {
+    event?.preventDefault?.();
+    const nameRaw = String(document.getElementById('butcher-checkout-name')?.value || '').trim();
+    const phone = String(document.getElementById('butcher-checkout-phone')?.value || '').trim();
+    const notes = String(document.getElementById('butcher-checkout-notes')?.value || '').trim();
+    const gate = window.LechaimEntryGate;
+    const nameEn = typeof gate?.transliterateToEnglish === 'function'
+      ? gate.transliterateToEnglish(nameRaw)
+      : nameRaw;
+    const phoneOk = typeof gate?.isValidPhone === 'function'
+      ? gate.isValidPhone(phone)
+      : /^\d{9,15}$/.test(phone.replace(/\D/g, ''));
+
+    if (!nameRaw || !nameEn) {
+      showButcherCheckoutError(t('butcherCheckoutNameRequired'));
+      document.getElementById('butcher-checkout-name')?.focus();
+      return;
+    }
+    if (!phone) {
+      showButcherCheckoutError(t('butcherCheckoutPhoneRequired'));
+      document.getElementById('butcher-checkout-phone')?.focus();
+      return;
+    }
+    if (!phoneOk) {
+      showButcherCheckoutError(t('butcherCheckoutPhoneInvalid'));
+      document.getElementById('butcher-checkout-phone')?.focus();
+      return;
+    }
+
+    applyButcherCustomerDetails({
+      customerName: nameEn,
+      customerPhone: phone,
+      customerNotes: notes,
+    });
+    closeButcherCheckoutModal();
+    handleSendOrder();
+  }
+
+  function initButcherCheckoutModal() {
+    if (butcherCheckoutBound) return;
+    butcherCheckoutBound = true;
+    const form = document.getElementById('butcher-checkout-form');
+    const cancel = document.getElementById('butcher-checkout-cancel');
+    const backdrop = document.getElementById('butcher-checkout-backdrop');
+    form?.addEventListener('submit', submitButcherCheckoutForm);
+    cancel?.addEventListener('click', closeButcherCheckoutModal);
+    backdrop?.addEventListener('click', closeButcherCheckoutModal);
   }
 
   function isDeliveryContext() {
@@ -889,10 +991,6 @@
           .map((line) => `<p>${escapeHtml(line)}</p>`)
           .join('');
       }
-      if (!butcherNoticeShownThisVisit) {
-        butcherNoticeShownThisVisit = true;
-        showButcherNoticeModal();
-      }
     } else {
       if (titleEl) titleEl.textContent = t('heroTitle');
       if (welcomeEl) {
@@ -907,8 +1005,6 @@
         desc.hidden = true;
         desc.innerHTML = '';
       }
-      closeButcherNoticeModal();
-      butcherNoticeShownThisVisit = false;
     }
   }
 
@@ -1297,8 +1393,8 @@
     hideOrderFeedback();
     refreshOrderingHoursUi();
     initDineInOrdersClosedWatch();
-    initButcherNoticeModal();
     initDeliveryFeeModal();
+    initButcherCheckoutModal();
     syncButcherModeUi();
     maybeShowDeliveryFeeNotice();
   }
@@ -3452,6 +3548,12 @@
     if (!window.LechaimOrderEngine?.ensureActiveOrder) {
       console.error('[cart] Order engine missing');
       showOrderFeedback('err', t('orderSentFail'));
+      return;
+    }
+
+    /* Butcher: collect name/phone only at checkout (after browsing the catalog). */
+    if (isButcherContext() && !hasButcherCustomerDetails()) {
+      openButcherCheckoutModal();
       return;
     }
 
