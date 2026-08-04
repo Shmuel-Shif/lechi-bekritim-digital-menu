@@ -159,6 +159,7 @@
         : String(options.notes),
       pickup_type: options.pickupType ?? options.pickup_type ?? null,
       pickup_time: options.pickupTime ?? options.pickup_time ?? null,
+      pickup_date: options.pickupDate ?? options.pickup_date ?? null,
       customer_address: options.customerAddress ?? options.customer_address ?? null,
       fulfillment_type: options.fulfillmentType ?? options.fulfillment_type ?? null,
     };
@@ -169,6 +170,9 @@
         row.pickup_type = pickupType;
         row.pickup_time = pickupType === 'TIME' && row.pickup_time
           ? String(row.pickup_time)
+          : null;
+        row.pickup_date = pickupType === 'TIME' && row.pickup_date
+          ? String(row.pickup_date)
           : null;
         const fulfillment = String(row.fulfillment_type || 'pickup').toLowerCase() === 'delivery'
           ? 'delivery'
@@ -183,21 +187,30 @@
         /* Fixed Friday pickup window — no ASAP / no public takeaway number */
         row.pickup_type = 'TIME';
         row.pickup_time = row.pickup_time ? String(row.pickup_time) : '13:00-14:00';
+        row.pickup_date = null;
         row.public_order_no = null;
         row.customer_address = null;
         row.fulfillment_type = null;
         break;
-      case 'butcher':
-        /* Butcher shop — customer details only, no table / pickup slot / public number */
-        row.pickup_type = null;
-        row.pickup_time = null;
+      case 'butcher': {
+        /* Butcher shop — scheduled pickup or ASAP */
+        const pickupType = String(row.pickup_type || '').toUpperCase() === 'TIME' ? 'TIME' : 'ASAP';
+        row.pickup_type = pickupType;
+        row.pickup_time = pickupType === 'TIME' && row.pickup_time
+          ? String(row.pickup_time)
+          : null;
+        row.pickup_date = pickupType === 'TIME' && row.pickup_date
+          ? String(row.pickup_date)
+          : null;
         row.public_order_no = null;
         row.customer_address = null;
         row.fulfillment_type = null;
         break;
+      }
       case 'dine_in':
         row.pickup_type = null;
         row.pickup_time = null;
+        row.pickup_date = null;
         row.public_order_no = null;
         row.customer_address = null;
         row.fulfillment_type = null;
@@ -206,6 +219,7 @@
         console.warn(`[LechaimSupabaseOrders.createSession] Unknown order type: ${orderType}`);
         row.pickup_type = null;
         row.pickup_time = null;
+        row.pickup_date = null;
         row.public_order_no = null;
         row.customer_address = null;
         row.fulfillment_type = null;
@@ -822,6 +836,9 @@
     }
     if (patch.pickupTime !== undefined || patch.pickup_time !== undefined) {
       next.pickup_time = patch.pickupTime ?? patch.pickup_time;
+    }
+    if (patch.pickupDate !== undefined || patch.pickup_date !== undefined) {
+      next.pickup_date = patch.pickupDate ?? patch.pickup_date;
     }
 
     if (patch.couponCode !== undefined || patch.coupon_code !== undefined) {

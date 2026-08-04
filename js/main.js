@@ -777,19 +777,38 @@
     const phoneOk = typeof gate?.isValidPhone === 'function'
       ? gate.isValidPhone(phone)
       : /^\d{9,15}$/.test(phone.replace(/\D/g, ''));
-    return Boolean(name && phone && phoneOk);
+    if (!name || !phone || !phoneOk) return false;
+    if (ctx.pickupType === 'ASAP') return true;
+    return Boolean(
+      ctx.pickupType === 'TIME'
+      && String(ctx.pickupDate || '').trim()
+      && String(ctx.pickupTime || '').trim()
+    );
   }
 
-  function applyButcherCustomerDetails({ customerName, customerPhone, customerNotes }) {
+  function applyButcherCustomerDetails({
+    customerName,
+    customerPhone,
+    customerNotes,
+    pickupType,
+    pickupTime,
+    pickupDate,
+  }) {
     const name = customerName || '';
     const phone = customerPhone || '';
     const notes = customerNotes || '';
+    const type = pickupType === 'TIME' ? 'TIME' : 'ASAP';
+    const time = type === 'TIME' && pickupTime ? String(pickupTime) : null;
+    const date = type === 'TIME' && pickupDate ? String(pickupDate) : null;
     const Session = window.LechaimOrderSession;
     if (Session?.patchSession) {
       Session.patchSession({
         customerName: name,
         customerPhone: phone,
         customerNotes: notes,
+        pickupType: type,
+        pickupTime: time,
+        pickupDate: date,
       });
     }
     const prev = window.LechaimOrderContext || {};
@@ -798,6 +817,9 @@
       customerName: name,
       customerPhone: phone,
       customerNotes: notes,
+      pickupType: type,
+      pickupTime: time,
+      pickupDate: date,
     };
   }
 
@@ -818,18 +840,94 @@
     errEl.textContent = message || '';
   }
 
+  function pad2(n) {
+    return String(n).padStart(2, '0');
+  }
+
+  function formatButcherPickupDateDisplay(isoDate) {
+    const raw = String(isoDate || '').trim();
+    const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return raw;
+    return `${m[3]}/${m[2]}/${m[1]}`;
+  }
+
+  function buildButcherPickupSlots(selectedDate) {
+    const slots = [];
+    const openMinutes = 14 * 60;
+    const closeMinutes = 21 * 60;
+    const today = new Date();
+    const todayIso = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
+    let cursor = openMinutes;
+
+    if (selectedDate && selectedDate === todayIso) {
+      const nowMinutes = today.getHours() * 60 + today.getMinutes();
+      cursor = Math.max(openMinutes, Math.ceil((nowMinutes + 1) / 30) * 30);
+    }
+
+    for (let m = cursor; m <= closeMinutes; m += 30) {
+      slots.push(`${pad2(Math.floor(m / 60))}:${pad2(m % 60)}`);
+    }
+    return slots;
+  }
+
+  function fillButcherPickupTimeSlots(preferredTime) {
+    const timeSelect = document.getElementById('butcher-checkout-time');
+    const dateInput = document.getElementById('butcher-checkout-date');
+    if (!timeSelect) return;
+    const slots = buildButcherPickupSlots(dateInput?.value || '');
+    const keep = preferredTime && slots.includes(preferredTime) ? preferredTime : '';
+    timeSelect.innerHTML = [
+      '<option value="">—</option>',
+      ...slots.map((slot) => `<option value="${slot}">${slot}</option>`),
+    ].join('');
+    if (keep) timeSelect.value = keep;
+  }
+
+  function syncButcherCheckoutScheduleUi() {
+    const asap = document.getElementById('butcher-checkout-asap');
+    const schedule = document.getElementById('butcher-checkout-schedule');
+    const dateInput = document.getElementById('butcher-checkout-date');
+    const timeSelect = document.getElementById('butcher-checkout-time');
+    const asapOn = Boolean(asap?.checked);
+    if (schedule) schedule.hidden = asapOn;
+    if (dateInput) {
+      dateInput.required = !asapOn;
+      dateInput.disabled = asapOn;
+    }
+    if (timeSelect) {
+      timeSelect.required = !asapOn;
+      timeSelect.disabled = asapOn;
+    }
+  }
+
   function openButcherCheckoutModal() {
     const modal = document.getElementById('butcher-checkout-modal');
     const form = document.getElementById('butcher-checkout-form');
     const nameInput = document.getElementById('butcher-checkout-name');
     const phoneInput = document.getElementById('butcher-checkout-phone');
     const notesInput = document.getElementById('butcher-checkout-notes');
+    const asapInput = document.getElementById('butcher-checkout-asap');
+    const dateInput = document.getElementById('butcher-checkout-date');
     if (!modal || !form) return;
 
     const ctx = window.LechaimOrderContext || {};
     if (nameInput) nameInput.value = String(ctx.customerName || '');
     if (phoneInput) phoneInput.value = String(ctx.customerPhone || '');
     if (notesInput) notesInput.value = String(ctx.customerNotes || '');
+    if (asapInput) asapInput.checked = ctx.pickupType === 'ASAP';
+
+    const today = new Date();
+    const todayIso = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
+    const max = new Date(today);
+    max.setDate(max.getDate() + 14);
+    const maxIso = `${max.getFullYear()}-${pad2(max.getMonth() + 1)}-${pad2(max.getDate())}`;
+    if (dateInput) {
+      dateInput.min = todayIso;
+      dateInput.max = maxIso;
+      dateInput.value = String(ctx.pickupDate || todayIso);
+    }
+    fillButcherPickupTimeSlots(String(ctx.pickupTime || ''));
+    syncButcherCheckoutScheduleUi();
     showButcherCheckoutError('');
 
     const title = document.getElementById('butcher-checkout-title');
@@ -839,6 +937,9 @@
     const nameLabel = modal.querySelector('[data-i18n="butcherCheckoutName"]');
     const phoneLabel = modal.querySelector('[data-i18n="butcherCheckoutPhone"]');
     const notesLabel = modal.querySelector('[data-i18n="butcherCheckoutNotes"]');
+    const asapLabel = modal.querySelector('[data-i18n="butcherCheckoutAsap"]');
+    const dateLabel = modal.querySelector('[data-i18n="butcherCheckoutDate"]');
+    const timeLabel = modal.querySelector('[data-i18n="butcherCheckoutTime"]');
     if (title) title.textContent = t('butcherCheckoutTitle');
     if (hint) hint.textContent = t('butcherCheckoutHint');
     if (submit) submit.textContent = t('butcherCheckoutSubmit');
@@ -846,6 +947,9 @@
     if (nameLabel) nameLabel.textContent = t('butcherCheckoutName');
     if (phoneLabel) phoneLabel.textContent = t('butcherCheckoutPhone');
     if (notesLabel) notesLabel.textContent = t('butcherCheckoutNotes');
+    if (asapLabel) asapLabel.textContent = t('butcherCheckoutAsap');
+    if (dateLabel) dateLabel.textContent = t('butcherCheckoutDate');
+    if (timeLabel) timeLabel.textContent = t('butcherCheckoutTime');
 
     modal.hidden = false;
     modal.setAttribute('aria-hidden', 'false');
@@ -862,6 +966,9 @@
     const nameRaw = String(document.getElementById('butcher-checkout-name')?.value || '').trim();
     const phone = String(document.getElementById('butcher-checkout-phone')?.value || '').trim();
     const notes = String(document.getElementById('butcher-checkout-notes')?.value || '').trim();
+    const asapOn = Boolean(document.getElementById('butcher-checkout-asap')?.checked);
+    const pickupDate = String(document.getElementById('butcher-checkout-date')?.value || '').trim();
+    const pickupTime = String(document.getElementById('butcher-checkout-time')?.value || '').trim();
     const gate = window.LechaimEntryGate;
     const nameEn = typeof gate?.transliterateToEnglish === 'function'
       ? gate.transliterateToEnglish(nameRaw)
@@ -885,11 +992,24 @@
       document.getElementById('butcher-checkout-phone')?.focus();
       return;
     }
+    if (!asapOn && !pickupDate) {
+      showButcherCheckoutError(t('butcherCheckoutDateRequired'));
+      document.getElementById('butcher-checkout-date')?.focus();
+      return;
+    }
+    if (!asapOn && !pickupTime) {
+      showButcherCheckoutError(t('butcherCheckoutTimeRequired'));
+      document.getElementById('butcher-checkout-time')?.focus();
+      return;
+    }
 
     applyButcherCustomerDetails({
       customerName: nameEn,
       customerPhone: phone,
       customerNotes: notes,
+      pickupType: asapOn ? 'ASAP' : 'TIME',
+      pickupDate: asapOn ? null : pickupDate,
+      pickupTime: asapOn ? null : pickupTime,
     });
     closeButcherCheckoutModal();
     handleSendOrder();
@@ -901,9 +1021,333 @@
     const form = document.getElementById('butcher-checkout-form');
     const cancel = document.getElementById('butcher-checkout-cancel');
     const backdrop = document.getElementById('butcher-checkout-backdrop');
+    const asap = document.getElementById('butcher-checkout-asap');
+    const dateInput = document.getElementById('butcher-checkout-date');
     form?.addEventListener('submit', submitButcherCheckoutForm);
     cancel?.addEventListener('click', closeButcherCheckoutModal);
     backdrop?.addEventListener('click', closeButcherCheckoutModal);
+    asap?.addEventListener('change', syncButcherCheckoutScheduleUi);
+    dateInput?.addEventListener('change', () => {
+      fillButcherPickupTimeSlots(document.getElementById('butcher-checkout-time')?.value || '');
+    });
+  }
+
+  let takeawayCheckoutFocusTrapRelease = null;
+  let takeawayCheckoutBound = false;
+
+  function isTakeawayContext() {
+    const ctx = window.LechaimOrderContext || {};
+    return ctx.orderType === 'takeaway' || ctx.orderType === 'take-away';
+  }
+
+  function hasTakeawayCustomerDetails() {
+    const ctx = window.LechaimOrderContext || {};
+    const name = String(ctx.customerName || '').trim();
+    const phone = String(ctx.customerPhone || '').trim();
+    const gate = window.LechaimEntryGate;
+    const phoneOk = typeof gate?.isValidPhone === 'function'
+      ? gate.isValidPhone(phone)
+      : /^\d{9,15}$/.test(phone.replace(/\D/g, ''));
+    if (!name || !phone || !phoneOk) return false;
+    if (ctx.fulfillmentType === 'delivery' && !String(ctx.customerAddress || '').trim()) return false;
+    if (ctx.pickupType === 'ASAP') return true;
+    return Boolean(
+      ctx.pickupType === 'TIME'
+      && String(ctx.pickupDate || '').trim()
+      && String(ctx.pickupTime || '').trim()
+    );
+  }
+
+  function applyTakeawayCustomerDetails({
+    customerName,
+    customerPhone,
+    customerNotes,
+    customerAddress,
+    fulfillmentType,
+    pickupType,
+    pickupTime,
+    pickupDate,
+  }) {
+    const name = customerName || '';
+    const phone = customerPhone || '';
+    const notes = customerNotes || '';
+    const fulfillment = fulfillmentType === 'delivery' ? 'delivery' : 'pickup';
+    const address = fulfillment === 'delivery' ? (customerAddress || '') : '';
+    const type = pickupType === 'TIME' ? 'TIME' : 'ASAP';
+    const time = type === 'TIME' && pickupTime ? String(pickupTime) : null;
+    const date = type === 'TIME' && pickupDate ? String(pickupDate) : null;
+    const Session = window.LechaimOrderSession;
+    if (Session?.patchSession) {
+      Session.patchSession({
+        customerName: name,
+        customerPhone: phone,
+        customerNotes: notes,
+        customerAddress: address,
+        fulfillmentType: fulfillment,
+        pickupType: type,
+        pickupTime: time,
+        pickupDate: date,
+      });
+    }
+    const prev = window.LechaimOrderContext || {};
+    window.LechaimOrderContext = {
+      ...prev,
+      customerName: name,
+      customerPhone: phone,
+      customerNotes: notes,
+      customerAddress: address,
+      fulfillmentType: fulfillment,
+      pickupType: type,
+      pickupTime: time,
+      pickupDate: date,
+    };
+  }
+
+  function closeTakeawayCheckoutModal() {
+    const modal = document.getElementById('takeaway-checkout-modal');
+    if (!modal) return;
+    if (typeof takeawayCheckoutFocusTrapRelease === 'function') takeawayCheckoutFocusTrapRelease();
+    takeawayCheckoutFocusTrapRelease = null;
+    modal.hidden = true;
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('app-confirm-open');
+  }
+
+  function showTakeawayCheckoutError(message) {
+    const errEl = document.getElementById('takeaway-checkout-error');
+    if (!errEl) return;
+    errEl.hidden = !message;
+    errEl.textContent = message || '';
+  }
+
+  function buildTakeawayPickupSlots(selectedDate) {
+    const slots = [];
+    const openMinutes = 14 * 60;
+    const closeMinutes = 23 * 60;
+    const today = new Date();
+    const todayIso = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
+    let cursor = openMinutes;
+    if (selectedDate && selectedDate === todayIso) {
+      const nowMinutes = today.getHours() * 60 + today.getMinutes();
+      cursor = Math.max(openMinutes, Math.ceil((nowMinutes + 1) / 15) * 15);
+    }
+    for (let m = cursor; m <= closeMinutes; m += 15) {
+      slots.push(`${pad2(Math.floor(m / 60))}:${pad2(m % 60)}`);
+    }
+    return slots;
+  }
+
+  function fillTakeawayPickupTimeSlots(preferredTime) {
+    const timeSelect = document.getElementById('takeaway-checkout-time');
+    const dateInput = document.getElementById('takeaway-checkout-date');
+    if (!timeSelect) return;
+    const slots = buildTakeawayPickupSlots(dateInput?.value || '');
+    const keep = preferredTime && slots.includes(preferredTime) ? preferredTime : '';
+    timeSelect.innerHTML = slots.map((slot) => (
+      `<option value="${slot}">${slot}</option>`
+    )).join('');
+    if (keep) timeSelect.value = keep;
+    else if (slots[0]) timeSelect.value = slots[0];
+  }
+
+  function syncTakeawayCheckoutFulfillmentUi() {
+    const allowDelivery = window.LechaimEntryGate?.areDeliveriesOpen?.() !== false;
+    const fulfillment = document.getElementById('takeaway-checkout-fulfillment');
+    const deliveryRow = document.getElementById('takeaway-checkout-fulfillment-delivery-row');
+    const deliveryRadio = document.getElementById('takeaway-checkout-fulfillment-delivery');
+    const pickupRadio = document.getElementById('takeaway-checkout-fulfillment-pickup');
+    const addressField = document.getElementById('takeaway-checkout-address-field');
+    const addressInput = document.getElementById('takeaway-checkout-address');
+
+    if (fulfillment) fulfillment.hidden = !allowDelivery;
+    if (deliveryRow) deliveryRow.hidden = !allowDelivery;
+    if (deliveryRadio) deliveryRadio.disabled = !allowDelivery;
+    if (!allowDelivery && pickupRadio) pickupRadio.checked = true;
+
+    const deliveryOn = allowDelivery
+      && Boolean(document.getElementById('takeaway-checkout-fulfillment-delivery')?.checked);
+    if (addressField) addressField.hidden = !deliveryOn;
+    if (addressInput) {
+      addressInput.required = deliveryOn;
+      if (!deliveryOn) addressInput.value = '';
+    }
+  }
+
+  function syncTakeawayCheckoutScheduleUi() {
+    const asap = document.getElementById('takeaway-checkout-asap');
+    const schedule = document.getElementById('takeaway-checkout-schedule');
+    const dateInput = document.getElementById('takeaway-checkout-date');
+    const timeSelect = document.getElementById('takeaway-checkout-time');
+    const asapOn = Boolean(asap?.checked);
+    if (schedule) schedule.hidden = asapOn;
+    if (dateInput) {
+      dateInput.required = !asapOn;
+      dateInput.disabled = asapOn;
+    }
+    if (timeSelect) {
+      timeSelect.required = !asapOn;
+      timeSelect.disabled = asapOn;
+    }
+  }
+
+  async function openTakeawayCheckoutModal() {
+    const modal = document.getElementById('takeaway-checkout-modal');
+    const form = document.getElementById('takeaway-checkout-form');
+    if (!modal || !form) return;
+    try {
+      await window.LechaimEntryGate?.refreshDeliveriesClosedFlag?.();
+    } catch (_) { /* ignore */ }
+
+    const ctx = window.LechaimOrderContext || {};
+    const nameInput = document.getElementById('takeaway-checkout-name');
+    const phoneInput = document.getElementById('takeaway-checkout-phone');
+    const notesInput = document.getElementById('takeaway-checkout-notes');
+    const addressInput = document.getElementById('takeaway-checkout-address');
+    const asapInput = document.getElementById('takeaway-checkout-asap');
+    const dateInput = document.getElementById('takeaway-checkout-date');
+    const pickupRadio = document.getElementById('takeaway-checkout-fulfillment-pickup');
+    const deliveryRadio = document.getElementById('takeaway-checkout-fulfillment-delivery');
+    const deliveryRow = document.getElementById('takeaway-checkout-fulfillment-delivery-row');
+
+    if (nameInput) nameInput.value = String(ctx.customerName || '');
+    if (phoneInput) phoneInput.value = String(ctx.customerPhone || '');
+    if (notesInput) notesInput.value = String(ctx.customerNotes || '');
+    if (addressInput) addressInput.value = String(ctx.customerAddress || '');
+    if (asapInput) asapInput.checked = ctx.pickupType === 'ASAP';
+
+    const allowDelivery = window.LechaimEntryGate?.areDeliveriesOpen?.() !== false;
+    const wantDelivery = allowDelivery && ctx.fulfillmentType === 'delivery';
+    if (pickupRadio) pickupRadio.checked = !wantDelivery;
+    if (deliveryRadio) {
+      deliveryRadio.disabled = !allowDelivery;
+      deliveryRadio.checked = wantDelivery;
+    }
+    if (deliveryRow) deliveryRow.hidden = !allowDelivery;
+
+    const today = new Date();
+    const todayIso = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
+    const max = new Date(today);
+    max.setDate(max.getDate() + 14);
+    const maxIso = `${max.getFullYear()}-${pad2(max.getMonth() + 1)}-${pad2(max.getDate())}`;
+    if (dateInput) {
+      dateInput.min = todayIso;
+      dateInput.max = maxIso;
+      dateInput.value = String(ctx.pickupDate || todayIso);
+    }
+    fillTakeawayPickupTimeSlots(String(ctx.pickupTime || ''));
+    syncTakeawayCheckoutFulfillmentUi();
+    syncTakeawayCheckoutScheduleUi();
+    showTakeawayCheckoutError('');
+
+    const title = document.getElementById('takeaway-checkout-title');
+    const hint = document.getElementById('takeaway-checkout-hint');
+    const submit = document.getElementById('takeaway-checkout-submit');
+    const cancel = document.getElementById('takeaway-checkout-cancel');
+    if (title) title.textContent = t('takeawayCheckoutTitle');
+    if (hint) hint.textContent = t('takeawayCheckoutHint');
+    if (submit) submit.textContent = t('butcherCheckoutSubmit');
+    if (cancel) cancel.textContent = t('clearCartCancel');
+    modal.querySelectorAll('[data-i18n]').forEach((el) => {
+      const key = el.getAttribute('data-i18n');
+      if (key && t(key)) el.textContent = t(key);
+    });
+
+    modal.hidden = false;
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('app-confirm-open');
+    if (typeof takeawayCheckoutFocusTrapRelease === 'function') takeawayCheckoutFocusTrapRelease();
+    const release = window.LechaimFocusTrap?.activate?.(modal);
+    takeawayCheckoutFocusTrapRelease = typeof release === 'function' ? release : null;
+    nameInput?.focus();
+  }
+
+  function submitTakeawayCheckoutForm(event) {
+    event?.preventDefault?.();
+    const nameRaw = String(document.getElementById('takeaway-checkout-name')?.value || '').trim();
+    const phone = String(document.getElementById('takeaway-checkout-phone')?.value || '').trim();
+    const notes = String(document.getElementById('takeaway-checkout-notes')?.value || '').trim();
+    const address = String(document.getElementById('takeaway-checkout-address')?.value || '').trim();
+    const asapOn = Boolean(document.getElementById('takeaway-checkout-asap')?.checked);
+    const pickupDate = String(document.getElementById('takeaway-checkout-date')?.value || '').trim();
+    const pickupTime = String(document.getElementById('takeaway-checkout-time')?.value || '').trim();
+    const allowDelivery = window.LechaimEntryGate?.areDeliveriesOpen?.() !== false;
+    const fulfillment = allowDelivery
+      && document.getElementById('takeaway-checkout-fulfillment-delivery')?.checked
+      ? 'delivery'
+      : 'pickup';
+    const gate = window.LechaimEntryGate;
+    const nameEn = typeof gate?.transliterateToEnglish === 'function'
+      ? gate.transliterateToEnglish(nameRaw)
+      : nameRaw;
+    const phoneOk = typeof gate?.isValidPhone === 'function'
+      ? gate.isValidPhone(phone)
+      : /^\d{9,15}$/.test(phone.replace(/\D/g, ''));
+
+    if (!nameRaw || !nameEn) {
+      showTakeawayCheckoutError(t('butcherCheckoutNameRequired'));
+      document.getElementById('takeaway-checkout-name')?.focus();
+      return;
+    }
+    if (fulfillment === 'delivery' && !address) {
+      showTakeawayCheckoutError(t('customerAddressRequired'));
+      document.getElementById('takeaway-checkout-address')?.focus();
+      return;
+    }
+    if (!phone) {
+      showTakeawayCheckoutError(t('butcherCheckoutPhoneRequired'));
+      document.getElementById('takeaway-checkout-phone')?.focus();
+      return;
+    }
+    if (!phoneOk) {
+      showTakeawayCheckoutError(t('butcherCheckoutPhoneInvalid'));
+      document.getElementById('takeaway-checkout-phone')?.focus();
+      return;
+    }
+    if (!asapOn && !pickupDate) {
+      showTakeawayCheckoutError(t('butcherCheckoutDateRequired'));
+      document.getElementById('takeaway-checkout-date')?.focus();
+      return;
+    }
+    if (!asapOn && !pickupTime) {
+      showTakeawayCheckoutError(t('butcherCheckoutTimeRequired'));
+      document.getElementById('takeaway-checkout-time')?.focus();
+      return;
+    }
+
+    applyTakeawayCustomerDetails({
+      customerName: nameEn,
+      customerPhone: phone,
+      customerNotes: notes,
+      customerAddress: address,
+      fulfillmentType: fulfillment,
+      pickupType: asapOn ? 'ASAP' : 'TIME',
+      pickupDate: asapOn ? null : pickupDate,
+      pickupTime: asapOn ? null : pickupTime,
+    });
+    closeTakeawayCheckoutModal();
+    if (fulfillment === 'delivery') maybeShowDeliveryFeeNotice();
+    handleSendOrder();
+  }
+
+  function initTakeawayCheckoutModal() {
+    if (takeawayCheckoutBound) return;
+    takeawayCheckoutBound = true;
+    const form = document.getElementById('takeaway-checkout-form');
+    const cancel = document.getElementById('takeaway-checkout-cancel');
+    const backdrop = document.getElementById('takeaway-checkout-backdrop');
+    const asap = document.getElementById('takeaway-checkout-asap');
+    const dateInput = document.getElementById('takeaway-checkout-date');
+    form?.addEventListener('submit', submitTakeawayCheckoutForm);
+    cancel?.addEventListener('click', closeTakeawayCheckoutModal);
+    backdrop?.addEventListener('click', closeTakeawayCheckoutModal);
+    asap?.addEventListener('change', syncTakeawayCheckoutScheduleUi);
+    dateInput?.addEventListener('change', () => {
+      fillTakeawayPickupTimeSlots(document.getElementById('takeaway-checkout-time')?.value || '');
+    });
+    document.getElementById('takeaway-checkout-fulfillment-pickup')
+      ?.addEventListener('change', syncTakeawayCheckoutFulfillmentUi);
+    document.getElementById('takeaway-checkout-fulfillment-delivery')
+      ?.addEventListener('change', syncTakeawayCheckoutFulfillmentUi);
   }
 
   function isDeliveryContext() {
@@ -1413,6 +1857,7 @@
     initDineInOrdersClosedWatch();
     initDeliveryFeeModal();
     initButcherCheckoutModal();
+    initTakeawayCheckoutModal();
     syncButcherModeUi();
     maybeShowDeliveryFeeNotice();
   }
@@ -1479,8 +1924,15 @@
       fulfillmentType: !browseOnly && startType === 'takeaway'
         ? (options.fulfillmentType === 'delivery' ? 'delivery' : 'pickup')
         : null,
-      pickupType: !browseOnly && startType === 'takeaway' ? (options.pickupType || 'ASAP') : null,
-      pickupTime: !browseOnly && startType === 'takeaway' ? (options.pickupTime || null) : null,
+      pickupType: !browseOnly && (startType === 'takeaway' || startType === 'butcher')
+        ? (options.pickupType || (startType === 'takeaway' ? 'ASAP' : null))
+        : null,
+      pickupTime: !browseOnly && (startType === 'takeaway' || startType === 'butcher')
+        ? (options.pickupTime || null)
+        : null,
+      pickupDate: !browseOnly && (startType === 'takeaway' || startType === 'butcher')
+        ? (options.pickupDate || null)
+        : null,
       publicOrderNo: !browseOnly && startType === 'takeaway'
         ? (options.publicOrderNo != null ? Number(options.publicOrderNo) : null)
         : null,
@@ -1554,10 +2006,17 @@
           : (prev.fulfillmentType === 'delivery' ? 'delivery' : 'pickup'))
         : null,
       pickupType: isTakeaway
-        ? (options.pickupType !== undefined ? options.pickupType : (prev.pickupType || 'ASAP'))
-        : null,
-      pickupTime: isTakeaway
+        ? (options.pickupType !== undefined
+          ? options.pickupType
+          : (prev.pickupType || 'ASAP'))
+        : (isButcher
+          ? (options.pickupType !== undefined ? options.pickupType : prev.pickupType)
+          : null),
+      pickupTime: (isTakeaway || isButcher)
         ? (options.pickupTime !== undefined ? options.pickupTime : prev.pickupTime)
+        : null,
+      pickupDate: (isTakeaway || isButcher)
+        ? (options.pickupDate !== undefined ? options.pickupDate : prev.pickupDate)
         : null,
       publicOrderNo: isTakeaway
         ? (options.publicOrderNo !== undefined
@@ -3253,6 +3712,7 @@
 
     const ctx = window.LechaimOrderContext || {};
     const isTakeaway = ctx.orderType === 'takeaway' || ctx.orderType === 'take-away';
+    const isButcher = ctx.orderType === 'butcher';
     receiptViewingMode = Boolean(options.viewing);
     const viewing = receiptViewingMode;
     const items = Array.isArray(waveItems) ? waveItems.filter((row) => row && Number(row.qty) > 0) : [];
@@ -3302,9 +3762,28 @@
     }
 
     if (orderReceiptMeta) {
-      if (isTakeaway) {
+      if (isButcher) {
+        const bits = [t('receiptButcher')];
+        if (ctx.customerName) bits.push(ctx.customerName);
+        if (ctx.pickupType === 'TIME' && ctx.pickupDate) {
+          bits.push(t('receiptButcherPickupDate').replace(
+            '{date}',
+            formatButcherPickupDateDisplay(ctx.pickupDate)
+          ));
+          if (ctx.pickupTime) {
+            bits.push(t('receiptButcherPickupTime').replace('{time}', String(ctx.pickupTime)));
+          }
+        } else {
+          bits.push(t('receiptButcherPickupAsap'));
+        }
+        orderReceiptMeta.textContent = bits.join(' · ');
+      } else if (isTakeaway) {
         const pickup = ctx.pickupType === 'TIME' && ctx.pickupTime
-          ? t('receiptPickupAt').replace('{time}', String(ctx.pickupTime))
+          ? (
+            ctx.pickupDate
+              ? `${t('receiptButcherPickupDate').replace('{date}', formatButcherPickupDateDisplay(ctx.pickupDate))} · ${t('receiptButcherPickupTime').replace('{time}', String(ctx.pickupTime))}`
+              : t('receiptPickupAt').replace('{time}', String(ctx.pickupTime))
+          )
           : t('receiptPickupAsap');
         const bits = [t('receiptTakeaway')];
         if (ctx.customerName) bits.push(ctx.customerName);
@@ -3505,6 +3984,9 @@
         customerName: ctx.customerName || '',
         customerPhone: ctx.customerPhone || '',
         customerNotes: ctx.customerNotes || '',
+        pickupType: ctx.pickupType || null,
+        pickupTime: ctx.pickupTime || null,
+        pickupDate: ctx.pickupDate || null,
       });
     } else if (orderType === 'takeaway') {
       session = Session.startTakeaway({
@@ -3516,6 +3998,7 @@
         fulfillmentType: ctx.fulfillmentType === 'delivery' ? 'delivery' : 'pickup',
         pickupType: ctx.pickupType || 'ASAP',
         pickupTime: ctx.pickupTime || null,
+        pickupDate: ctx.pickupDate || null,
       });
     } else if (orderType === 'dinein' && Session.isValidTable?.(ctx.tableNumber)) {
       session = Session.startDineIn(Number(ctx.tableNumber), { lang });
@@ -3548,8 +4031,11 @@
       fulfillmentType: isTakeaway
         ? (session.fulfillmentType === 'delivery' ? 'delivery' : 'pickup')
         : null,
-      pickupType: isTakeaway ? (session.pickupType || 'ASAP') : null,
-      pickupTime: isTakeaway ? (session.pickupTime || null) : null,
+      pickupType: isTakeaway
+        ? (session.pickupType || 'ASAP')
+        : (isButcher ? (session.pickupType || null) : null),
+      pickupTime: isTakeaway || isButcher ? (session.pickupTime || null) : null,
+      pickupDate: isTakeaway || isButcher ? (session.pickupDate || null) : null,
       publicOrderNo: isTakeaway
         ? (session.publicOrderNo != null ? Number(session.publicOrderNo) : null)
         : null,
@@ -3575,9 +4061,13 @@
       return;
     }
 
-    /* Butcher: collect name/phone only at checkout (after browsing the catalog). */
+    /* Butcher / takeaway: collect details at checkout (after browsing the catalog). */
     if (isButcherContext() && !hasButcherCustomerDetails()) {
       openButcherCheckoutModal();
+      return;
+    }
+    if (isTakeawayContext() && !hasTakeawayCustomerDetails()) {
+      openTakeawayCheckoutModal();
       return;
     }
 
@@ -3817,11 +4307,14 @@
               : 'pickup'
           )
           : null,
-        pickupType: isTakeawayResolved
-          ? (localSession?.pickupType || ctx.pickupType || 'ASAP')
+        pickupType: (isTakeawayResolved || isButcherResolved)
+          ? (localSession?.pickupType || ctx.pickupType || (isTakeawayResolved ? 'ASAP' : null))
           : null,
-        pickupTime: isTakeawayResolved
+        pickupTime: (isTakeawayResolved || isButcherResolved)
           ? (localSession?.pickupTime || ctx.pickupTime || null)
+          : null,
+        pickupDate: (isTakeawayResolved || isButcherResolved)
+          ? (localSession?.pickupDate || ctx.pickupDate || null)
           : null,
       });
     } catch (err) {

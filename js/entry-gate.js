@@ -20,6 +20,8 @@
       tableFind: 'The table number is on the table.',
       tableHint1: 'Only one person at the table should place the order through the system.',
       tableHint2: 'Other guests can choose "View the menu" on the main page to browse dishes, prices, and descriptions.',
+      tableHowTitle: 'How does it work?',
+      tableHowText: 'Add your favorite dishes to the cart, review that everything is correct and nothing was forgotten, then tap Send order and the restaurant starts preparing your order right away.',
       tablePickTable: 'Choose a table',
       tableBrowseMenu: 'View the menu',
       promptPickup: 'Takeaway details',
@@ -123,6 +125,8 @@
       tableFind: 'מספר השולחן נמצא על השולחן.',
       tableHint1: 'רק נציג אחד מהשולחן יבצע את ההזמנה דרך המערכת.',
       tableHint2: 'שאר הסועדים יכולים לבחור באפשרות "צפייה בתפריט" שבעמוד הראשי כדי לעיין במנות, במחירים ובתיאורים.',
+      tableHowTitle: 'איך זה עובד?',
+      tableHowText: 'מוסיפים לסל המוצרים מנות שאתם אוהבים, עוברים על הסל שהכל נכון ולא שכחתם שום דבר, לוחצים שלח הזמנה והמסעדה מיד מתחילה לעבוד על ההזמנה שלכם.',
       tablePickTable: 'לבחירת שולחן',
       tableBrowseMenu: 'לצפייה בתפריט',
       promptPickup: 'פרטי איסוף עצמי',
@@ -1442,13 +1446,9 @@
       showOrderingClosedStep('takeaway');
       return;
     }
+    /* Catalog first — name / phone / pickup collected at cart send (like butcher). */
     await refreshDeliveriesClosedFlag();
-    resetPickupForm();
-    fillPickupSlots();
-    syncPickupTimeUi();
-    showStep(stepPickup);
-    syncFulfillmentUi();
-    pickupName?.focus();
+    finishTakeaway({});
   }
 
   function finishWithTable(table) {
@@ -1481,8 +1481,9 @@
     state.customerAddress = state.fulfillmentType === 'delivery'
       ? (details.customerAddress || '')
       : '';
-    state.pickupType = details.pickupType === 'TIME' ? 'TIME' : 'ASAP';
+    state.pickupType = details.pickupType === 'TIME' ? 'TIME' : (details.pickupType === 'ASAP' ? 'ASAP' : null);
     state.pickupTime = state.pickupType === 'TIME' ? (details.pickupTime || null) : null;
+    state.pickupDate = state.pickupType === 'TIME' ? (details.pickupDate || null) : null;
     changingTable = false;
     tablesEl?.querySelectorAll('.entry-gate__table').forEach((btn) => {
       btn.classList.remove('is-selected');
@@ -1506,8 +1507,9 @@
         customerNotes: state.customerNotes,
         customerAddress: state.customerAddress,
         fulfillmentType: state.fulfillmentType,
-        pickupType: state.pickupType,
+        pickupType: state.pickupType || 'ASAP',
         pickupTime: state.pickupTime,
+        pickupDate: state.pickupDate,
       });
     }
 
@@ -1520,8 +1522,9 @@
       customerNotes: state.customerNotes,
       customerAddress: state.customerAddress,
       fulfillmentType: state.fulfillmentType,
-      pickupType: state.pickupType,
+      pickupType: state.pickupType || 'ASAP',
       pickupTime: state.pickupTime,
+      pickupDate: state.pickupDate,
       publicOrderNo: null,
     }));
   }
@@ -2141,6 +2144,8 @@
     resetToEntry,
     transliterateToEnglish,
     isValidPhone,
+    areDeliveriesOpen: deliveriesOpen,
+    refreshDeliveriesClosedFlag,
   };
 
   document.body.classList.add('entry-pending');

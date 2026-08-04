@@ -148,7 +148,15 @@
     if (!order) return 'ASAP';
     const type = String(order.pickupType || order.pickup_type || '').toUpperCase();
     const time = order.pickupTime || order.pickup_time || null;
-    if (type === 'TIME' && time) return String(time);
+    const date = order.pickupDate || order.pickup_date || null;
+    if (type === 'TIME' && time) {
+      if (date) {
+        const m = String(date).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        const dateLabel = m ? `${m[3]}/${m[2]}/${m[1]}` : String(date);
+        return `${dateLabel} ${time}`;
+      }
+      return String(time);
+    }
     return 'ASAP';
   }
 
@@ -172,11 +180,23 @@
         `Pickup: ${pickup}`,
       );
     } else if (classified === 'butcher') {
+      const type = String(order.pickupType || order.pickup_type || '').toUpperCase();
+      const time = order.pickupTime || order.pickup_time || null;
+      const date = order.pickupDate || order.pickup_date || null;
       lines.push(
         'BUTCHER SHOP',
         `Customer: ${name}`,
         `Phone: ${phone}`,
       );
+      if (type === 'TIME' && (date || time)) {
+        if (date) {
+          const m = String(date).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+          lines.push(`Pickup date: ${m ? `${m[3]}/${m[2]}/${m[1]}` : date}`);
+        }
+        if (time) lines.push(`Pickup time: ${time}`);
+      } else {
+        lines.push('Pickup: ASAP');
+      }
     } else {
       const address = String(order.customerAddress || order.customer_address || '').trim();
       const isDelivery = String(order.fulfillmentType || order.fulfillment_type || '') === 'delivery'

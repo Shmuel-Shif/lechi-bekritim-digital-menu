@@ -10,12 +10,18 @@
   const OrdersApi = () => window.LechaimSupabaseOrders;
   const gridEl = document.getElementById('tables-grid');
   const takeawaySection = document.getElementById('tables-takeaway');
-  const takeawayGrid = document.getElementById('tables-takeaway-grid');
+  const takeawayGridToday = document.getElementById('tables-takeaway-grid-today');
+  const takeawayGridFuture = document.getElementById('tables-takeaway-grid-future');
   const takeawayEmpty = document.getElementById('tables-takeaway-empty');
+  const takeawayEmptyToday = document.getElementById('tables-takeaway-empty-today');
+  const takeawayEmptyFuture = document.getElementById('tables-takeaway-empty-future');
   const closeDeliveriesBtn = document.getElementById('takeaway-close-deliveries-btn');
   const butcherSection = document.getElementById('tables-butcher');
-  const butcherGrid = document.getElementById('tables-butcher-grid');
+  const butcherGridToday = document.getElementById('tables-butcher-grid-today');
+  const butcherGridFuture = document.getElementById('tables-butcher-grid-future');
   const butcherEmpty = document.getElementById('tables-butcher-empty');
+  const butcherEmptyToday = document.getElementById('tables-butcher-empty-today');
+  const butcherEmptyFuture = document.getElementById('tables-butcher-empty-future');
   const dineInSection = document.getElementById('tables-dinein');
   const tabBadgeTables = document.getElementById('tab-badge-tables');
   const tabBadgeTakeaway = document.getElementById('tab-badge-takeaway');
@@ -76,6 +82,8 @@
   let addProductBusy = false;
   let removeItemBusy = false;
   let confirmResolver = null;
+  let pendingOptionMain = null;
+  let pendingOptionSideId = null;
   let pendingBillEntry = null;
   let pendingBillCoupon = null;
   let boardFilter = 'tables'; /* 'tables' | 'takeaway' | 'butcher' */
@@ -303,7 +311,15 @@
 
   function formatPickupLabel(order) {
     if (!order) return 'בהקדם';
-    if (order.pickupType === 'TIME' && order.pickupTime) return String(order.pickupTime);
+    if (order.pickupType === 'ASAP') return 'בהקדם האפשרי';
+    if (order.pickupType === 'TIME' && order.pickupTime) {
+      if (order.pickupDate) {
+        const m = String(order.pickupDate).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        const dateLabel = m ? `${m[3]}/${m[2]}/${m[1]}` : String(order.pickupDate);
+        return `${dateLabel} · ${order.pickupTime}`;
+      }
+      return String(order.pickupTime);
+    }
     return 'בהקדם';
   }
 
@@ -450,6 +466,7 @@
       fulfillmentType: session.fulfillment_type === 'delivery' ? 'delivery' : (session.fulfillment_type === 'pickup' ? 'pickup' : null),
       pickupType: session.pickup_type || null,
       pickupTime: session.pickup_time || null,
+      pickupDate: session.pickup_date || null,
       publicOrderNo: session.public_order_no == null
         ? null
         : Number(session.public_order_no),
@@ -603,6 +620,44 @@
     paintBoard(boardCache, takeawayCache, butcherCache);
   }
 
+  function todayIsoLocal() {
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+
+  function entryPickupDateIso(entry) {
+    const raw = String(entry?.order?.pickupDate || '').trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    return todayIsoLocal();
+  }
+
+  function splitPickupByDate(rows) {
+    const today = todayIsoLocal();
+    const list = Array.isArray(rows) ? rows.slice() : [];
+    const todays = [];
+    const future = [];
+    list.forEach((entry) => {
+      const date = entryPickupDateIso(entry);
+      if (date > today) future.push(entry);
+      else todays.push(entry);
+    });
+    const byTime = (a, b) => {
+      const ta = String(a?.order?.pickupTime || '');
+      const tb = String(b?.order?.pickupTime || '');
+      if (ta !== tb) return ta.localeCompare(tb);
+      return String(a?.openedAt || '').localeCompare(String(b?.openedAt || ''));
+    };
+    todays.sort(byTime);
+    future.sort((a, b) => {
+      const da = entryPickupDateIso(a);
+      const db = entryPickupDateIso(b);
+      if (da !== db) return da.localeCompare(db);
+      return byTime(a, b);
+    });
+    return { today: todays, future };
+  }
+
   function paintPickupGrid(grid, emptyEl, rows) {
     if (!grid) return;
     const list = Array.isArray(rows) ? rows : [];
@@ -613,6 +668,13 @@
       grid.innerHTML = '';
       if (emptyEl) emptyEl.hidden = false;
     }
+  }
+
+  function paintSplitPickupBoard(todayGrid, futureGrid, emptyToday, emptyFuture, emptyAll, rows) {
+    const split = splitPickupByDate(rows);
+    paintPickupGrid(todayGrid, emptyToday, split.today);
+    paintPickupGrid(futureGrid, emptyFuture, split.future);
+    if (emptyAll) emptyAll.hidden = split.today.length + split.future.length > 0;
   }
 
   function paintBoard(board, takeaway, butcher) {
@@ -635,8 +697,22 @@
       gridEl.innerHTML = board.map(renderCard).join('');
     }
 
-    paintPickupGrid(takeawayGrid, takeawayEmpty, takeaway);
-    paintPickupGrid(butcherGrid, butcherEmpty, butcher);
+    paintSplitPickupBoard(
+      takeawayGridToday,
+      takeawayGridFuture,
+      takeawayEmptyToday,
+      takeawayEmptyFuture,
+      takeawayEmpty,
+      takeaway
+    );
+    paintSplitPickupBoard(
+      butcherGridToday,
+      butcherGridFuture,
+      butcherEmptyToday,
+      butcherEmptyFuture,
+      butcherEmpty,
+      butcher
+    );
 
     const selected = findSelectedEntry(board, takeaway, butcher);
     if (selectedKey && selected?.order) {
@@ -710,7 +786,7 @@
           ? `<span class="table-card__pickup">כתובת: ${escapeHtml(entry.order.customerAddress)}</span>`
           : ''}
         ${entry.orderType === 'butcher'
-          ? ''
+          ? `<span class="table-card__pickup">איסוף: ${escapeHtml(formatPickupLabel(entry.order))}</span>`
           : `<span class="table-card__pickup">${isDelivery ? 'משלוח' : 'איסוף'}: ${escapeHtml(formatPickupLabel(entry.order))}</span>`}
       `
       : '';
@@ -896,6 +972,12 @@
 
     if (drawerMeta) {
       if (entry.orderType === 'butcher') {
+        const pickupAsap = order.pickupType === 'ASAP' || !order.pickupTime;
+        const dateLabel = (() => {
+          const raw = String(order.pickupDate || '');
+          const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+          return m ? `${m[3]}/${m[2]}/${m[1]}` : (raw || '—');
+        })();
         drawerMeta.innerHTML = `
           <div class="table-drawer__pickup">
             <div class="table-drawer__pickup-badge table-drawer__pickup-badge--butcher">חנות בשר</div>
@@ -908,11 +990,32 @@
                 <span>טלפון</span>
                 <strong dir="ltr">${escapeHtml(order.customerPhone || '—')}</strong>
               </div>
+              <div class="table-drawer__pickup-row">
+                <span>איסוף</span>
+                <strong>${escapeHtml(pickupAsap ? 'בהקדם האפשרי' : dateLabel)}</strong>
+              </div>
+              ${pickupAsap ? '' : `
+              <div class="table-drawer__pickup-row">
+                <span>שעה</span>
+                <strong dir="ltr">${escapeHtml(order.pickupTime || '—')}</strong>
+              </div>`}
+              ${order.customerNotes
+                ? `<div class="table-drawer__pickup-row">
+                    <span>הערות</span>
+                    <strong dir="auto">${escapeHtml(order.customerNotes)}</strong>
+                  </div>`
+                : ''}
             </div>
           </div>
         `;
       } else if (entry.orderType === 'takeaway') {
         const delivery = isDeliveryOrder(order);
+        const pickupAsap = order.pickupType === 'ASAP' || !order.pickupTime;
+        const dateLabel = (() => {
+          const raw = String(order.pickupDate || '');
+          const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+          return m ? `${m[3]}/${m[2]}/${m[1]}` : (raw || '—');
+        })();
         drawerMeta.innerHTML = `
           <div class="table-drawer__pickup">
             <div class="table-drawer__pickup-badge">${delivery ? 'משלוח' : 'איסוף עצמי'}${
@@ -943,8 +1046,13 @@
               </div>
               <div class="table-drawer__pickup-row">
                 <span>${delivery ? 'משלוח' : 'איסוף'}</span>
-                <strong>${escapeHtml(formatPickupLabel(order))}</strong>
+                <strong>${escapeHtml(pickupAsap ? 'בהקדם האפשרי' : dateLabel)}</strong>
               </div>
+              ${pickupAsap ? '' : `
+              <div class="table-drawer__pickup-row">
+                <span>שעה</span>
+                <strong dir="ltr">${escapeHtml(order.pickupTime || '—')}</strong>
+              </div>`}
               ${order.customerNotes
                 ? `<div class="table-drawer__pickup-row">
                     <span>הערות</span>
@@ -1000,9 +1108,23 @@
   function updateApprovePrintButton(entry) {
     const approveBtn = document.getElementById('table-approve-order');
     const printBtn = document.getElementById('table-print-order');
+    const approvePrintBtn = document.getElementById('table-approve-print-order');
     const remote = entry?.order?._remoteOrders || [];
     const needsApprove = hasOrdersNeedingApprove(remote);
+    const isDineIn = entry?.orderType !== 'takeaway' && entry?.orderType !== 'butcher';
 
+    if (isDineIn) {
+      if (approveBtn) approveBtn.hidden = true;
+      if (printBtn) printBtn.hidden = true;
+      if (approvePrintBtn) {
+        approvePrintBtn.hidden = false;
+        approvePrintBtn.disabled = approvePrintBusy;
+        approvePrintBtn.textContent = needsApprove ? 'אשר והדפס' : 'הדפס';
+      }
+      return;
+    }
+
+    if (approvePrintBtn) approvePrintBtn.hidden = true;
     if (approveBtn) {
       approveBtn.hidden = !needsApprove;
       approveBtn.disabled = approvePrintBusy;
@@ -1011,6 +1133,16 @@
       printBtn.hidden = false;
       printBtn.disabled = approvePrintBusy;
     }
+  }
+
+  async function handleApproveAndPrint(entry) {
+    if (approvePrintBusy || !entry?.order) return;
+    const remote = entry.order._remoteOrders || [];
+    if (hasOrdersNeedingApprove(remote)) {
+      await handleApproveOrder(entry);
+      entry = getSelectedEntry() || entry;
+    }
+    await handlePrintOrder(entry);
   }
 
   function suppressCustomerNotify(ms = 4500) {
@@ -1213,6 +1345,7 @@
       customerNotes: session.customerNotes || session.notes || null,
       pickupType: session.pickupType || session.pickup_type || null,
       pickupTime: session.pickupTime || session.pickup_time || null,
+      pickupDate: session.pickupDate || session.pickup_date || null,
       publicOrderNo: session.publicOrderNo != null
         ? Number(session.publicOrderNo)
         : (session.public_order_no != null ? Number(session.public_order_no) : null),
@@ -1381,6 +1514,7 @@
       fulfillmentType: order.fulfillmentType || null,
       pickupType: order.pickupType || null,
       pickupTime: order.pickupTime || null,
+      pickupDate: order.pickupDate || null,
       publicOrderNo: order.publicOrderNo != null ? Number(order.publicOrderNo) : null,
       _skipLocalMarkPrinted: true,
       _deltaOnly: lateItems.length > 0,
@@ -1578,12 +1712,303 @@
     return candidate;
   }
 
+  function findCatalogProduct(productId) {
+    const catalog = catalogCache.length ? catalogCache : loadCatalog();
+    const fromCatalog = catalog.find((item) => item.id === productId);
+    if (fromCatalog) return fromCatalog;
+    const hot = (window.HOT_SIDE_ITEMS || []).find((item) => item.id === productId);
+    if (hot) {
+      return {
+        id: hot.id,
+        name: hot.name,
+        printName: hot.printName,
+        price: Number(hot.price) || 0,
+        image: hot.image || '',
+        categoryId: 'hotSides',
+        available: window.LechaimInventory?.isAvailable?.(hot.id) !== false,
+      };
+    }
+    const shake = (window.SHAKE_BASE_ITEMS || []).find((item) => item.id === productId);
+    if (shake) {
+      return {
+        id: shake.id,
+        name: shake.name,
+        printName: shake.printName,
+        price: Number(shake.price) || 0,
+        image: shake.image || '',
+        categoryId: 'shakeBases',
+        available: window.LechaimInventory?.isAvailable?.(shake.id) !== false,
+      };
+    }
+    return null;
+  }
+
+  function resolvePrintNameForProduct(product) {
+    if (!product) return '';
+    return window.LechaimPrintEngine?.resolvePrintName?.({
+      productId: product.id,
+      name: product.name,
+      printName: product.printName,
+    }) || product.printName || product.name || '';
+  }
+
+  function isAdminMainCourse(productId) {
+    return Boolean(window.MAIN_COURSE_IDS?.has?.(productId));
+  }
+
+  function isAdminFruitShake(productId) {
+    return productId === (window.FRUIT_SHAKE_ID || 'fruit-shake');
+  }
+
+  function isAdminHamburgerMeal(productId) {
+    return productId === (window.HAMBURGER_MEAL_ID || 'hamburger-fries');
+  }
+
+  function productNeedsOptionPicker(productId) {
+    return isAdminMainCourse(productId)
+      || isAdminFruitShake(productId)
+      || isAdminHamburgerMeal(productId);
+  }
+
+  function getAdminPickerOptions(parentProductId) {
+    const inv = window.LechaimInventory;
+    const available = (id) => inv?.isAvailable?.(id) !== false;
+
+    if (isAdminFruitShake(parentProductId)) {
+      return (window.SHAKE_BASE_ITEMS || [])
+        .filter((item) => item?.id && available(item.id))
+        .map((item) => ({
+          id: item.id,
+          name: item.name,
+          image: item.image || '',
+          price: 0,
+          printName: item.printName,
+          categoryId: 'shakeBases',
+        }));
+    }
+
+    if (isAdminHamburgerMeal(parentProductId)) {
+      const catalog = catalogCache.length ? catalogCache : loadCatalog();
+      const out = [];
+      (window.HAMBURGER_DRINK_IDS || []).forEach?.((id) => {
+        if (!available(id)) return;
+        const item = catalog.find((row) => row.id === id);
+        if (item) out.push(item);
+      });
+      return out;
+    }
+
+    return (window.HOT_SIDE_ITEMS || [])
+      .filter((item) => item?.id && available(item.id))
+      .map((item) => ({
+        id: item.id,
+        name: item.name,
+        image: item.image || '',
+        price: 0,
+        printName: item.printName,
+        categoryId: 'hotSides',
+      }));
+  }
+
+  function getAdminOptionPickerCopy(product) {
+    const name = product?.name || '';
+    if (isAdminFruitShake(product?.id)) {
+      return {
+        title: 'מה אתם מעדיפים?',
+        subtitle: `בחרו בסיס לשייק: ${name}`,
+        requireSelection: true,
+      };
+    }
+    if (isAdminHamburgerMeal(product?.id)) {
+      return {
+        title: 'בחרו שתייה',
+        subtitle: `שתייה לארוחה: ${name}`,
+        requireSelection: true,
+      };
+    }
+    return {
+      title: 'בחרו תוספת חמה',
+      subtitle: `עם מה תרצו את העיקרית: ${name}`,
+      requireSelection: true,
+    };
+  }
+
+  function closeAdminOptionPicker() {
+    const modal = document.getElementById('admin-option-picker-modal');
+    pendingOptionMain = null;
+    pendingOptionSideId = null;
+    if (!modal) return;
+    modal.hidden = true;
+    modal.setAttribute('aria-hidden', 'true');
+  }
+
+  function renderAdminOptionPicker() {
+    const grid = document.getElementById('admin-option-picker-grid');
+    const titleEl = document.getElementById('admin-option-picker-title');
+    const subtitleEl = document.getElementById('admin-option-picker-subtitle');
+    const confirmBtn = document.getElementById('admin-option-picker-confirm');
+    if (!grid || !pendingOptionMain) return;
+
+    const copy = getAdminOptionPickerCopy(pendingOptionMain);
+    if (titleEl) titleEl.textContent = copy.title;
+    if (subtitleEl) subtitleEl.textContent = copy.subtitle;
+
+    const options = getAdminPickerOptions(pendingOptionMain.id);
+    if (!options.length) {
+      grid.innerHTML = '<p class="table-drawer__empty">אין אפשרויות זמינות במלאי</p>';
+      if (confirmBtn) confirmBtn.disabled = true;
+      return;
+    }
+
+    grid.innerHTML = options.map((opt) => {
+      const selected = pendingOptionSideId === opt.id;
+      const img = opt.image
+        ? `<img class="admin-option-picker__thumb" src="${escapeAttr(opt.image)}" alt="" width="52" height="52" loading="lazy" decoding="async">`
+        : '';
+      return `
+        <button
+          type="button"
+          class="admin-option-picker__cell${selected ? ' is-selected' : ''}"
+          data-option-id="${escapeAttr(opt.id)}"
+          aria-pressed="${selected ? 'true' : 'false'}"
+        >
+          ${img}
+          <span>${escapeHtml(opt.name || opt.id)}</span>
+        </button>
+      `;
+    }).join('');
+
+    if (confirmBtn) {
+      confirmBtn.disabled = copy.requireSelection && !pendingOptionSideId;
+    }
+  }
+
+  function openAdminOptionPicker(product) {
+    const modal = document.getElementById('admin-option-picker-modal');
+    if (!modal || !product) return;
+    pendingOptionMain = product;
+    pendingOptionSideId = null;
+    renderAdminOptionPicker();
+    modal.hidden = false;
+    modal.setAttribute('aria-hidden', 'false');
+  }
+
+  async function appendLinkedSideToOrder(api, orderId, parentRemoteId, sideProduct) {
+    if (!api || !orderId || !parentRemoteId || !sideProduct) return;
+    await api.createOrderItems(orderId, [{
+      productId: sideProduct.id,
+      productName: sideProduct.name || '',
+      printName: resolvePrintNameForProduct(sideProduct),
+      quantity: 1,
+      price: Number(sideProduct.price) || 0,
+      category: sideProduct.categoryId || null,
+      notes: null,
+      parentItemId: parentRemoteId,
+    }]);
+    if (typeof api.refreshOrderTotal === 'function') {
+      await api.refreshOrderTotal(orderId);
+    }
+  }
+
+  async function commitAddProduct(product, linkedSideProduct = null) {
+    const entry = getSelectedEntry();
+    if (!entry?.order || !product) return false;
+
+    const price = Number(product.price) || 0;
+    const printName = resolvePrintNameForProduct(product);
+    const sidePrice = linkedSideProduct ? (Number(linkedSideProduct.price) || 0) : 0;
+
+    if (dataSource === 'supabase' && entry.order._supabaseSessionId && OrdersApi()?.isConfigured?.()) {
+      suppressCustomerNotify();
+      const api = OrdersApi();
+      const sessionId = entry.order._supabaseSessionId;
+      let remoteOrders = entry.order._remoteOrders || [];
+      try {
+        const fresh = await api.getSessionOrders?.(sessionId);
+        if (Array.isArray(fresh)) remoteOrders = fresh;
+      } catch (_) { /* use cached */ }
+      const stackInto = findStackableLateAddOrder(remoteOrders);
+
+      let orderId = null;
+      let parentRemoteId = null;
+
+      if (stackInto?.id) {
+        orderId = stackInto.id;
+        const lines = Array.isArray(stackInto.order_items) ? stackInto.order_items : [];
+        const same = !linkedSideProduct
+          ? lines.find((row) => (
+            String(row.product_id || '') === String(product.id)
+            && !row.parent_item_id
+          ))
+          : null;
+
+        if (same?.id && typeof api.bumpOrderItemQuantity === 'function') {
+          await api.bumpOrderItemQuantity(same.id, 1);
+          return true;
+        }
+
+        /* Linked mains+sides stay as separate lines (never merge qty). */
+        const created = await api.createOrderItems(orderId, [{
+          productId: product.id,
+          productName: product.name || '',
+          printName,
+          quantity: 1,
+          price,
+          category: product.categoryId || null,
+          notes: null,
+        }]);
+        parentRemoteId = created?.[0]?.id || null;
+        if (typeof api.refreshOrderTotal === 'function') {
+          await api.refreshOrderTotal(orderId);
+        }
+      } else {
+        const remoteOrder = await api.createOrder({
+          sessionId,
+          total: price + sidePrice,
+          status: 'submitted',
+        });
+        if (!remoteOrder?.id) throw new Error('createOrder failed');
+        orderId = remoteOrder.id;
+        const created = await api.createOrderItems(orderId, [{
+          productId: product.id,
+          productName: product.name || '',
+          printName,
+          quantity: 1,
+          price,
+          category: product.categoryId || null,
+          notes: null,
+        }]);
+        parentRemoteId = created?.[0]?.id || null;
+      }
+
+      if (linkedSideProduct) {
+        if (!parentRemoteId) throw new Error('missing parent item id for linked side');
+        await appendLinkedSideToOrder(api, orderId, parentRemoteId, linkedSideProduct);
+      }
+      return true;
+    }
+
+    const engine = Engine();
+    const updated = engine?.addProductToOrder?.(entry.order.orderId, product, 1, '', {
+      allowMerge: !linkedSideProduct,
+    });
+    if (!updated) return false;
+    if (linkedSideProduct) {
+      const parentItemId = updated._lastAddedItemId;
+      const withSide = engine.addProductToOrder(entry.order.orderId, linkedSideProduct, 1, '', {
+        linkedToMainItemId: parentItemId,
+        allowMerge: false,
+      });
+      if (!withSide) return false;
+    }
+    return true;
+  }
+
   async function handleAddProduct(productId) {
     const entry = getSelectedEntry();
     if (!entry?.order || !productId || addProductBusy) return;
 
-    const product = (catalogCache.length ? catalogCache : loadCatalog())
-      .find((item) => item.id === productId);
+    const product = findCatalogProduct(productId);
     if (!product) {
       showToast('המנה לא נמצאה');
       return;
@@ -1593,80 +2018,56 @@
       return;
     }
 
-    const price = Number(product.price) || 0;
-    const printName = window.LechaimPrintEngine?.resolvePrintName?.({
-      productId: product.id,
-      name: product.name,
-      printName: product.printName,
-    }) || product.printName || product.name || '';
+    if (productNeedsOptionPicker(product.id)) {
+      const options = getAdminPickerOptions(product.id);
+      if (!options.length) {
+        showToast('אין אפשרויות זמינות במלאי');
+        return;
+      }
+      openAdminOptionPicker(product);
+      return;
+    }
 
     addProductBusy = true;
     try {
-      if (dataSource === 'supabase' && entry.order._supabaseSessionId && OrdersApi()?.isConfigured?.()) {
-        suppressCustomerNotify();
-        const api = OrdersApi();
-        const sessionId = entry.order._supabaseSessionId;
-        /* Re-fetch so rapid adds see the latest stackable wave */
-        let remoteOrders = entry.order._remoteOrders || [];
-        try {
-          const fresh = await api.getSessionOrders?.(sessionId);
-          if (Array.isArray(fresh)) remoteOrders = fresh;
-        } catch (_) { /* use cached */ }
-        const stackInto = findStackableLateAddOrder(remoteOrders);
-
-        if (stackInto?.id) {
-          const lines = Array.isArray(stackInto.order_items) ? stackInto.order_items : [];
-          const same = lines.find((row) => (
-            String(row.product_id || '') === String(product.id)
-            && !row.parent_item_id
-          ));
-          if (same?.id && typeof api.bumpOrderItemQuantity === 'function') {
-            await api.bumpOrderItemQuantity(same.id, 1);
-          } else {
-            await api.createOrderItems(stackInto.id, [{
-              productId: product.id,
-              productName: product.name || '',
-              printName,
-              quantity: 1,
-              price,
-              category: product.categoryId || null,
-              notes: null,
-            }]);
-            if (typeof api.refreshOrderTotal === 'function') {
-              await api.refreshOrderTotal(stackInto.id);
-            }
-          }
-        } else {
-          const remoteOrder = await api.createOrder({
-            sessionId,
-            total: price,
-            status: 'submitted',
-          });
-          if (!remoteOrder?.id) throw new Error('createOrder failed');
-          await api.createOrderItems(remoteOrder.id, [{
-            productId: product.id,
-            productName: product.name || '',
-            printName,
-            quantity: 1,
-            price,
-            category: product.categoryId || null,
-            notes: null,
-          }]);
-        }
-      } else {
-        const engine = Engine();
-        const updated = engine?.addProductToOrder?.(entry.order.orderId, product, 1);
-        if (!updated) {
-          showToast('לא ניתן להוסיף');
-          return;
-        }
+      const ok = await commitAddProduct(product, null);
+      if (!ok) {
+        showToast('לא ניתן להוסיף');
+        return;
       }
-
       showSuccessModal(`המוצר נוסף בהצלחה\n${product.name}`);
       await refreshBoardData();
       if (menuMode) renderMenuPicker();
     } catch (err) {
       console.error('[admin-tables] add product failed', err);
+      showToast('לא ניתן להוסיף');
+    } finally {
+      addProductBusy = false;
+    }
+  }
+
+  async function confirmAdminOptionPicker() {
+    if (!pendingOptionMain || !pendingOptionSideId || addProductBusy) return;
+    const main = pendingOptionMain;
+    const side = findCatalogProduct(pendingOptionSideId);
+    if (!side) {
+      showToast('התוספת לא נמצאה');
+      return;
+    }
+
+    addProductBusy = true;
+    try {
+      const ok = await commitAddProduct(main, side);
+      if (!ok) {
+        showToast('לא ניתן להוסיף');
+        return;
+      }
+      closeAdminOptionPicker();
+      showSuccessModal(`המוצר נוסף בהצלחה\n${main.name}\n+ ${side.name}`);
+      await refreshBoardData();
+      if (menuMode) renderMenuPicker();
+    } catch (err) {
+      console.error('[admin-tables] add product with option failed', err);
       showToast('לא ניתן להוסיף');
     } finally {
       addProductBusy = false;
@@ -1854,6 +2255,11 @@
 
     const entry = getSelectedEntry();
     if (!entry?.order) return;
+
+    if (action === 'approve-and-print') {
+      await handleApproveAndPrint(entry);
+      return;
+    }
 
     if (action === 'approve-order') {
       await handleApproveOrder(entry);
@@ -2135,6 +2541,20 @@
       }
     });
 
+    const optionGrid = document.getElementById('admin-option-picker-grid');
+    const optionConfirm = document.getElementById('admin-option-picker-confirm');
+    const optionCancel = document.getElementById('admin-option-picker-cancel');
+    const optionBackdrop = document.getElementById('admin-option-picker-backdrop');
+    optionGrid?.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-option-id]');
+      if (!btn || !optionGrid.contains(btn)) return;
+      pendingOptionSideId = btn.getAttribute('data-option-id') || null;
+      renderAdminOptionPicker();
+    });
+    optionConfirm?.addEventListener('click', () => { confirmAdminOptionPicker(); });
+    optionCancel?.addEventListener('click', closeAdminOptionPicker);
+    optionBackdrop?.addEventListener('click', closeAdminOptionPicker);
+
     drawerItems?.addEventListener('click', (event) => {
       const btn = event.target.closest('[data-remove-item-id]');
       if (!btn || !drawerItems.contains(btn)) return;
@@ -2166,6 +2586,11 @@
 
     document.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape') return;
+      const optionPickerModal = document.getElementById('admin-option-picker-modal');
+      if (optionPickerModal && !optionPickerModal.hidden) {
+        closeAdminOptionPicker();
+        return;
+      }
       if (confirmModal && !confirmModal.hidden) {
         closeConfirmModal(false);
         return;

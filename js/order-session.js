@@ -127,6 +127,9 @@
       fulfillmentType: session.fulfillmentType === 'delivery' ? 'delivery' : (session.fulfillmentType === 'pickup' ? 'pickup' : null),
       pickupType: session.pickupType === 'TIME' ? 'TIME' : (session.pickupType === 'ASAP' ? 'ASAP' : null),
       pickupTime: typeof session.pickupTime === 'string' && session.pickupTime ? session.pickupTime : null,
+      pickupDate: typeof session.pickupDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(session.pickupDate)
+        ? session.pickupDate
+        : null,
       publicOrderNo: Number.isFinite(Number(session.publicOrderNo)) && Number(session.publicOrderNo) > 0
         ? Number(session.publicOrderNo)
         : null,
@@ -156,6 +159,9 @@
       fulfillmentType: raw.fulfillmentType === 'delivery' ? 'delivery' : 'pickup',
       pickupType: raw.pickupType === 'TIME' ? 'TIME' : 'ASAP',
       pickupTime: typeof raw.pickupTime === 'string' && raw.pickupTime ? raw.pickupTime : null,
+      pickupDate: typeof raw.pickupDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.pickupDate)
+        ? raw.pickupDate
+        : null,
       publicOrderNo: Number.isFinite(Number(raw.publicOrderNo)) && Number(raw.publicOrderNo) > 0
         ? Number(raw.publicOrderNo)
         : null,
@@ -262,6 +268,11 @@
       pickupTime: pickupType === 'TIME' && typeof options.pickupTime === 'string'
         ? options.pickupTime.trim()
         : null,
+      pickupDate: pickupType === 'TIME'
+        && typeof options.pickupDate === 'string'
+        && /^\d{4}-\d{2}-\d{2}$/.test(options.pickupDate)
+        ? options.pickupDate
+        : null,
       publicOrderNo: null,
     };
     writeRaw(payload);
@@ -282,8 +293,15 @@
       customerName: typeof options.customerName === 'string' ? options.customerName.trim() : '',
       customerPhone: typeof options.customerPhone === 'string' ? options.customerPhone.trim() : '',
       customerNotes: typeof options.customerNotes === 'string' ? options.customerNotes.trim() : '',
-      pickupType: null,
-      pickupTime: null,
+      pickupType: options.pickupType === 'TIME' || options.pickupType === 'ASAP'
+        ? options.pickupType
+        : null,
+      pickupTime: typeof options.pickupTime === 'string' && options.pickupTime
+        ? options.pickupTime.trim()
+        : null,
+      pickupDate: typeof options.pickupDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(options.pickupDate)
+        ? options.pickupDate
+        : null,
       publicOrderNo: null,
     };
     writeRaw(payload);
@@ -306,9 +324,15 @@
       next.fulfillmentType = patch.fulfillmentType;
     }
     if (patch.pickupType === 'TIME' || patch.pickupType === 'ASAP') next.pickupType = patch.pickupType;
+    if (patch.pickupType === null) next.pickupType = null;
     if (patch.pickupTime !== undefined) {
       next.pickupTime = typeof patch.pickupTime === 'string' && patch.pickupTime
         ? patch.pickupTime
+        : null;
+    }
+    if (patch.pickupDate !== undefined) {
+      next.pickupDate = typeof patch.pickupDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(patch.pickupDate)
+        ? patch.pickupDate
         : null;
     }
     writeRaw(next);
@@ -368,6 +392,7 @@
       fulfillmentType: session.fulfillmentType || 'pickup',
       pickupType: session.pickupType || null,
       pickupTime: session.pickupTime || null,
+      pickupDate: session.pickupDate || null,
       publicOrderNo: session.publicOrderNo != null ? Number(session.publicOrderNo) : null,
     };
   }

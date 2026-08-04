@@ -228,7 +228,33 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks) {
 }
 
 .entry-table-modal__hint:last-of-type {
-  margin-bottom: 1.35rem;
+  margin-bottom: 0;
+}
+
+.entry-table-modal__how {
+  margin: 1.15rem 0 1.35rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(196, 160, 106, 0.45);
+  text-align: center;
+}
+
+.entry-table-modal__how-title {
+  margin: 0 0 0.55rem;
+  font-family: var(--font-body, 'Heebo', sans-serif);
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--color-navy, #1e3354);
+  line-height: 1.35;
+}
+
+.entry-table-modal__how-text {
+  margin: 0;
+  font-family: var(--font-body, 'Heebo', sans-serif);
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--color-navy, #1e3354);
+  line-height: 1.65;
+  overflow-wrap: break-word;
 }
 
 .entry-table-modal__actions {

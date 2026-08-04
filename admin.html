@@ -119,7 +119,16 @@
               <button type="button" class="admin-btn admin-btn--ghost" id="takeaway-close-deliveries-btn">סגור משלוחים</button>
             </div>
           </header>
-          <div class="tables-takeaway__grid" id="tables-takeaway-grid"></div>
+          <div class="tables-pickup-section">
+            <h2 class="tables-pickup-section__title">הזמנות להיום</h2>
+            <div class="tables-takeaway__grid" id="tables-takeaway-grid-today"></div>
+            <p class="tables-category__empty" id="tables-takeaway-empty-today" hidden>אין הזמנות להיום</p>
+          </div>
+          <div class="tables-pickup-section">
+            <h2 class="tables-pickup-section__title">הזמנות עתידיות</h2>
+            <div class="tables-takeaway__grid" id="tables-takeaway-grid-future"></div>
+            <p class="tables-category__empty" id="tables-takeaway-empty-future" hidden>אין הזמנות עתידיות</p>
+          </div>
           <p class="tables-category__empty" id="tables-takeaway-empty">אין הזמנות איסוף עצמי / משלוחים כרגע</p>
         </section>
 
@@ -131,7 +140,16 @@
               <p class="admin-header__subtitle">הזמנות חנות הבשר הפעילות</p>
             </div>
           </header>
-          <div class="tables-takeaway__grid" id="tables-butcher-grid"></div>
+          <div class="tables-pickup-section">
+            <h2 class="tables-pickup-section__title">הזמנות להיום</h2>
+            <div class="tables-takeaway__grid" id="tables-butcher-grid-today"></div>
+            <p class="tables-category__empty" id="tables-butcher-empty-today" hidden>אין הזמנות להיום</p>
+          </div>
+          <div class="tables-pickup-section">
+            <h2 class="tables-pickup-section__title">הזמנות עתידיות</h2>
+            <div class="tables-takeaway__grid" id="tables-butcher-grid-future"></div>
+            <p class="tables-category__empty" id="tables-butcher-empty-future" hidden>אין הזמנות עתידיות</p>
+          </div>
           <p class="tables-category__empty" id="tables-butcher-empty">אין הזמנות חנות בשר כרגע</p>
         </section>
       </div>
@@ -343,6 +361,9 @@
           <div class="table-drawer__total" id="table-drawer-total"></div>
 
           <footer class="table-drawer__actions">
+            <button type="button" class="admin-btn admin-btn--approve" data-table-action="approve-and-print" id="table-approve-print-order" hidden>
+              אשר והדפס
+            </button>
             <button type="button" class="admin-btn admin-btn--approve" data-table-action="approve-order" id="table-approve-order" hidden>
               אשר
             </button>
@@ -380,6 +401,24 @@
         </div>
         <p class="admin-modal__text" id="admin-success-text">המוצר נוסף בהצלחה</p>
         <button type="button" class="admin-btn admin-btn--soft" id="admin-success-ok" hidden>אישור</button>
+      </div>
+    </div>
+
+    <div class="admin-modal" id="admin-option-picker-modal" hidden aria-hidden="true">
+      <button type="button" class="admin-modal__backdrop" id="admin-option-picker-backdrop" aria-label="סגור"></button>
+      <div
+        class="admin-modal__panel admin-modal__panel--options"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="admin-option-picker-title"
+      >
+        <h2 class="admin-option-picker__title" id="admin-option-picker-title">בחרו תוספת</h2>
+        <p class="admin-option-picker__subtitle" id="admin-option-picker-subtitle"></p>
+        <div class="admin-option-picker__grid" id="admin-option-picker-grid" role="group"></div>
+        <div class="admin-modal__actions">
+          <button type="button" class="admin-btn admin-btn--primary" id="admin-option-picker-confirm" disabled>הוסף</button>
+          <button type="button" class="admin-btn admin-btn--ghost" id="admin-option-picker-cancel">ביטול</button>
+        </div>
       </div>
     </div>
 
