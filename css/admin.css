@@ -833,6 +833,13 @@ body {
   margin-top: 1.25rem;
 }
 
+#tables-dinein[hidden],
+#tables-takeaway[hidden],
+#tables-butcher[hidden],
+.tables-category[hidden] {
+  display: none !important;
+}
+
 .tables-category:first-of-type {
   margin-top: 0.85rem;
 }

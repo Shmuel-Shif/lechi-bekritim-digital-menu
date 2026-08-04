@@ -794,7 +794,7 @@
       <button
         type="button"
         class="table-card table-card--${escapeHtml(entry.uiStatus)}${isPickup ? ' table-card--pickup' : ''}"
-        data-entry-key="${escapeHtml(entryKey(entry))}"
+        data-entry-key="${escapeAttr(entryKey(entry))}"
       >
         <span class="table-card__num">${
           isPickup
@@ -1676,9 +1676,17 @@
     if (!entry?.order) {
       return;
     }
+    if (!drawer) {
+      console.error('[admin-tables] table drawer missing from DOM');
+      return;
+    }
     selectedKey = entryKey(entry);
     setDrawerView('detail');
-    fillDrawer(entry);
+    try {
+      fillDrawer(entry);
+    } catch (err) {
+      console.error('[admin-tables] fillDrawer failed', err);
+    }
     drawer.hidden = false;
     drawer.setAttribute('aria-hidden', 'false');
     document.body.classList.add('table-drawer-open');
@@ -2398,19 +2406,49 @@
     });
   }
 
+  function findEntryByKey(key) {
+    const k = String(key || '');
+    if (!k) return null;
+    if (k.startsWith('butcher')) {
+      return butcherCache.find((row) => entryKey(row) === k) || null;
+    }
+    if (k.startsWith('takeaway')) {
+      return takeawayCache.find((row) => entryKey(row) === k) || null;
+    }
+    return boardCache.find((row) => entryKey(row) === k) || null;
+  }
+
   function onGridClick(event) {
     const card = event.target.closest('[data-entry-key]');
     if (!card) return;
-    const key = card.dataset.entryKey;
-    let entry = null;
-    if (String(key).startsWith('butcher')) {
-      entry = butcherCache.find((row) => entryKey(row) === key) || null;
-    } else if (String(key).startsWith('takeaway')) {
-      entry = takeawayCache.find((row) => entryKey(row) === key) || null;
-    } else {
-      entry = boardCache.find((row) => entryKey(row) === key) || null;
+    event.preventDefault();
+    const key = card.getAttribute('data-entry-key') || card.dataset.entryKey || '';
+    const entry = findEntryByKey(key);
+    if (!entry) {
+      console.warn('[admin-tables] card not found for key', key);
+      return;
     }
-    if (entry) openDrawer(entry);
+    if (!entry.order) return; /* free dine-in table */
+    openDrawer(entry);
+  }
+
+  let cardClicksBound = false;
+
+  function bindCardClicks() {
+    if (cardClicksBound) return;
+    const boardView = document.getElementById('admin-view-tables');
+    if (boardView) {
+      boardView.addEventListener('click', onGridClick);
+      cardClicksBound = true;
+      return;
+    }
+    /* Fallback if view wrapper is missing */
+    gridEl?.addEventListener('click', onGridClick);
+    takeawayGridToday?.addEventListener('click', onGridClick);
+    takeawayGridFuture?.addEventListener('click', onGridClick);
+    butcherGridToday?.addEventListener('click', onGridClick);
+    butcherGridFuture?.addEventListener('click', onGridClick);
+    cardClicksBound = true;
   }
 
   async function isShabbatSessionId(sessionId) {
@@ -2484,6 +2522,7 @@
   }
 
   function startPolling() {
+    bindCardClicks();
     if (watchRunning) {
       renderBoard();
       return;
@@ -2506,9 +2545,7 @@
   }
 
   function init() {
-    gridEl?.addEventListener('click', onGridClick);
-    takeawayGrid?.addEventListener('click', onGridClick);
-    butcherGrid?.addEventListener('click', onGridClick);
+    bindCardClicks();
     closeDeliveriesBtn?.addEventListener('click', () => {
       toggleDeliveriesClosed().catch((err) => {
         console.error('[admin-tables] deliveries toggle failed', err);
