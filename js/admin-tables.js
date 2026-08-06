@@ -393,6 +393,7 @@
       selectedWeight: Number.isFinite(weight) && weight > 0 ? weight : null,
       pricePerKg: row.price_per_kg == null ? null : Number(row.price_per_kg),
       unitType: row.unit_type || null,
+      thawCount: row.thaw_count == null ? null : Number(row.thaw_count),
     };
   }
 
@@ -467,6 +468,7 @@
       pickupType: session.pickup_type || null,
       pickupTime: session.pickup_time || null,
       pickupDate: session.pickup_date || null,
+      deliveryFee: session.delivery_fee == null ? null : Number(session.delivery_fee),
       publicOrderNo: session.public_order_no == null
         ? null
         : Number(session.public_order_no),
@@ -773,21 +775,20 @@
     const coupon = entry.order?.couponCode;
     const discountPct = entry.order?.discountPercent;
     const isPickup = entry.orderType === 'takeaway' || entry.orderType === 'butcher';
-    const isDelivery = entry.orderType === 'takeaway' && isDeliveryOrder(entry.order);
+    const isDelivery = isDeliveryOrder(entry.order)
+      && (entry.orderType === 'takeaway' || entry.orderType === 'butcher');
     const badgeText = entry.orderType === 'butcher'
-      ? 'חנות בשר'
+      ? (isDelivery ? 'חנות בשר · משלוח' : 'חנות בשר')
       : (isDelivery ? 'משלוח' : 'איסוף עצמי');
     const pickupBlock = isPickup
       ? `
         <span class="table-card__badge${entry.orderType === 'butcher' ? ' table-card__badge--butcher' : ''}${isDelivery ? ' table-card__badge--delivery' : ''}">${escapeHtml(badgeText)}</span>
         <span class="table-card__customer">${escapeHtml(entry.order?.customerName || '—')}</span>
         <span class="table-card__phone" dir="ltr">${escapeHtml(entry.order?.customerPhone || '—')}</span>
-        ${entry.orderType === 'takeaway' && entry.order?.customerAddress
+        ${(entry.orderType === 'takeaway' || entry.orderType === 'butcher') && entry.order?.customerAddress
           ? `<span class="table-card__pickup">כתובת: ${escapeHtml(entry.order.customerAddress)}</span>`
           : ''}
-        ${entry.orderType === 'butcher'
-          ? `<span class="table-card__pickup">איסוף: ${escapeHtml(formatPickupLabel(entry.order))}</span>`
-          : `<span class="table-card__pickup">${isDelivery ? 'משלוח' : 'איסוף'}: ${escapeHtml(formatPickupLabel(entry.order))}</span>`}
+        <span class="table-card__pickup">${isDelivery ? 'משלוח' : 'איסוף'}: ${escapeHtml(formatPickupLabel(entry.order))}</span>
       `
       : '';
     return `
@@ -878,16 +879,27 @@
     const sideClass = isSide ? ' table-drawer__item--side' : '';
     const nameLate = item.isLateAdd ? ' table-drawer__name--late' : '';
     const sideBadge = isShakeBaseProduct(item.productId) ? 'בסיס' : 'תוספת';
+    const isPack = String(item.unitType || '') === 'pack';
+    const thawRaw = Number(item.thawCount);
+    const thawLabel = isPack && Number.isFinite(thawRaw)
+      ? `<span class="table-drawer__thaw">להפשיר: ${escapeHtml(String(Math.max(0, Math.floor(thawRaw))))}</span>`
+      : '';
+    const qtyLabel = isPack
+      ? `${escapeHtml(String(item.qty))} חבילות`
+      : `${escapeHtml(String(item.qty))}×`;
+    const priceHtml = isPack
+      ? (item.pricePerKg != null
+        ? `<span class="table-drawer__price">${escapeHtml(formatMoney(item.pricePerKg))}/ק״ג</span>`
+        : '')
+      : (isSide && !(Number(item.price) > 0)
+        ? ''
+        : escapeHtml(formatMoney((Number(item.price) || 0) * (Number(item.qty) || 0))));
     return `
       <div class="table-drawer__line${sideClass}${lateClass}">
         ${isSide ? `<span class="table-drawer__side-badge">${sideBadge}</span>` : ''}
-        <span class="table-drawer__qty">${escapeHtml(String(item.qty))}×</span>
+        <span class="table-drawer__qty">${qtyLabel}</span>
         <span class="table-drawer__name${nameLate}">${escapeHtml(item.name || item.productId || '')}</span>
-        <span class="table-drawer__price">${
-          isSide && !(Number(item.price) > 0)
-            ? ''
-            : escapeHtml(formatMoney((Number(item.price) || 0) * (Number(item.qty) || 0)))
-        }</span>
+        <span class="table-drawer__price">${priceHtml}</span>
         ${item.itemId
           ? `<button
               type="button"
@@ -898,6 +910,7 @@
             >×</button>`
           : ''}
       </div>
+      ${thawLabel}
       ${item.notes ? `<p class="table-drawer__notes" dir="auto">${escapeHtml(item.notes)}</p>` : ''}
     `;
   }
@@ -972,15 +985,19 @@
 
     if (drawerMeta) {
       if (entry.orderType === 'butcher') {
+        const delivery = isDeliveryOrder(order);
         const pickupAsap = order.pickupType === 'ASAP' || !order.pickupTime;
         const dateLabel = (() => {
           const raw = String(order.pickupDate || '');
           const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
           return m ? `${m[3]}/${m[2]}/${m[1]}` : (raw || '—');
         })();
+        const fee = Number(order.deliveryFee);
         drawerMeta.innerHTML = `
           <div class="table-drawer__pickup">
-            <div class="table-drawer__pickup-badge table-drawer__pickup-badge--butcher">חנות בשר</div>
+            <div class="table-drawer__pickup-badge table-drawer__pickup-badge--butcher">חנות בשר${
+              delivery ? ' · משלוח' : ''
+            }</div>
             <div class="table-drawer__pickup-grid">
               <div class="table-drawer__pickup-row">
                 <span>שם</span>
@@ -991,7 +1008,21 @@
                 <strong dir="ltr">${escapeHtml(order.customerPhone || '—')}</strong>
               </div>
               <div class="table-drawer__pickup-row">
-                <span>איסוף</span>
+                <span>סוג הזמנה</span>
+                <strong>${escapeHtml(delivery ? 'משלוח' : 'איסוף עצמי')}</strong>
+              </div>
+              ${delivery
+                ? `<div class="table-drawer__pickup-row">
+                    <span>כתובת</span>
+                    <strong dir="auto">${escapeHtml(order.customerAddress || '—')}</strong>
+                  </div>
+                  <div class="table-drawer__pickup-row">
+                    <span>עלות משלוח</span>
+                    <strong>${escapeHtml(Number.isFinite(fee) ? formatMoney(fee) : '€10')}</strong>
+                  </div>`
+                : ''}
+              <div class="table-drawer__pickup-row">
+                <span>${delivery ? 'משלוח' : 'איסוף'}</span>
                 <strong>${escapeHtml(pickupAsap ? 'בהקדם האפשרי' : dateLabel)}</strong>
               </div>
               ${pickupAsap ? '' : `
@@ -1311,6 +1342,9 @@
           printed: false,
           linkedToMainItemId: row.parent_item_id ? String(row.parent_item_id) : null,
           createdAt: row.created_at || null,
+          unitType: row.unit_type || null,
+          pricePerKg: row.price_per_kg == null ? null : Number(row.price_per_kg),
+          thawCount: row.thaw_count == null ? null : Number(row.thaw_count),
         };
       })
       .filter(Boolean);
@@ -1346,6 +1380,9 @@
       pickupType: session.pickupType || session.pickup_type || null,
       pickupTime: session.pickupTime || session.pickup_time || null,
       pickupDate: session.pickupDate || session.pickup_date || null,
+      deliveryFee: session.deliveryFee != null
+        ? Number(session.deliveryFee)
+        : (session.delivery_fee != null ? Number(session.delivery_fee) : null),
       publicOrderNo: session.publicOrderNo != null
         ? Number(session.publicOrderNo)
         : (session.public_order_no != null ? Number(session.public_order_no) : null),
@@ -1482,6 +1519,9 @@
         notes: row.notes == null ? '' : String(row.notes),
         printed: false,
         linkedToMainItemId: row.linkedToMainItemId || null,
+        unitType: row.unitType || null,
+        pricePerKg: row.pricePerKg == null ? null : Number(row.pricePerKg),
+        thawCount: row.thawCount == null ? null : Number(row.thawCount),
       }))
       .filter((row) => row.qty > 0);
 
@@ -1515,6 +1555,7 @@
       pickupType: order.pickupType || null,
       pickupTime: order.pickupTime || null,
       pickupDate: order.pickupDate || null,
+      deliveryFee: order.deliveryFee == null ? null : Number(order.deliveryFee),
       publicOrderNo: order.publicOrderNo != null ? Number(order.publicOrderNo) : null,
       _skipLocalMarkPrinted: true,
       _deltaOnly: lateItems.length > 0,

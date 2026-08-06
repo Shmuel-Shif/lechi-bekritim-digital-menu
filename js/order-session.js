@@ -125,6 +125,9 @@
       customerNotes: typeof session.customerNotes === 'string' ? session.customerNotes : '',
       customerAddress: typeof session.customerAddress === 'string' ? session.customerAddress : '',
       fulfillmentType: session.fulfillmentType === 'delivery' ? 'delivery' : (session.fulfillmentType === 'pickup' ? 'pickup' : null),
+      deliveryFee: Number.isFinite(Number(session.deliveryFee)) && Number(session.deliveryFee) >= 0
+        ? Number(session.deliveryFee)
+        : null,
       pickupType: session.pickupType === 'TIME' ? 'TIME' : (session.pickupType === 'ASAP' ? 'ASAP' : null),
       pickupTime: typeof session.pickupTime === 'string' && session.pickupTime ? session.pickupTime : null,
       pickupDate: typeof session.pickupDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(session.pickupDate)
@@ -281,6 +284,8 @@
 
   function startButcher(options = {}) {
     const existing = getSession();
+    const fulfillmentType = options.fulfillmentType === 'delivery' ? 'delivery' : 'pickup';
+    const deliveryFeeRaw = Number(options.deliveryFee);
     const payload = {
       sessionId: createSessionId(),
       orderType: ORDER_TYPE.BUTCHER,
@@ -293,6 +298,13 @@
       customerName: typeof options.customerName === 'string' ? options.customerName.trim() : '',
       customerPhone: typeof options.customerPhone === 'string' ? options.customerPhone.trim() : '',
       customerNotes: typeof options.customerNotes === 'string' ? options.customerNotes.trim() : '',
+      customerAddress: fulfillmentType === 'delivery' && typeof options.customerAddress === 'string'
+        ? options.customerAddress.trim()
+        : '',
+      fulfillmentType,
+      deliveryFee: fulfillmentType === 'delivery' && Number.isFinite(deliveryFeeRaw) && deliveryFeeRaw >= 0
+        ? deliveryFeeRaw
+        : null,
       pickupType: options.pickupType === 'TIME' || options.pickupType === 'ASAP'
         ? options.pickupType
         : null,
@@ -322,6 +334,10 @@
     if (typeof patch.customerAddress === 'string') next.customerAddress = patch.customerAddress;
     if (patch.fulfillmentType === 'delivery' || patch.fulfillmentType === 'pickup') {
       next.fulfillmentType = patch.fulfillmentType;
+    }
+    if (patch.deliveryFee !== undefined) {
+      const fee = Number(patch.deliveryFee);
+      next.deliveryFee = Number.isFinite(fee) && fee >= 0 ? fee : null;
     }
     if (patch.pickupType === 'TIME' || patch.pickupType === 'ASAP') next.pickupType = patch.pickupType;
     if (patch.pickupType === null) next.pickupType = null;
@@ -390,6 +406,7 @@
       customerNotes: session.customerNotes || '',
       customerAddress: session.customerAddress || '',
       fulfillmentType: session.fulfillmentType || 'pickup',
+      deliveryFee: session.deliveryFee != null ? Number(session.deliveryFee) : null,
       pickupType: session.pickupType || null,
       pickupTime: session.pickupTime || null,
       pickupDate: session.pickupDate || null,

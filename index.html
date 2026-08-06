@@ -119,7 +119,7 @@
                 <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 14c2-4 5-6 8-6s6 2 8 6"/><path d="M6 14v3a2 2 0 002 2h8a2 2 0 002-2v-3"/><path d="M9 8c.5-2 1.5-3 3-3s2.5 1 3 3"/><circle cx="9" cy="15.5" r="0.8" fill="currentColor" stroke="none"/><circle cx="15" cy="15.5" r="0.8" fill="currentColor" stroke="none"/></svg>
               </span>
               <span class="entry-gate__btn-text">
-                <span class="entry-gate__btn-label" data-entry-i18n="butcherShop">חנות הבשר שלנו</span>
+                <span class="entry-gate__btn-label" data-entry-i18n="butcherShop">חנות הבשר של לחיים</span>
                 <span class="entry-gate__btn-hint" data-entry-i18n="butcherShopHint">בשר חלק כשר למהדרין • שחיטת ליובאוויטש • כשרות מהודרת</span>
               </span>
               <span class="entry-gate__btn-chevron" aria-hidden="true"></span>
@@ -660,11 +660,25 @@
     <button type="button" class="app-confirm__backdrop" id="butcher-checkout-backdrop" aria-label="סגור"></button>
     <div class="app-confirm__panel app-confirm__panel--form" role="dialog" aria-modal="true" aria-labelledby="butcher-checkout-title">
       <h2 class="app-confirm__title" id="butcher-checkout-title" data-i18n="butcherCheckoutTitle">פרטי הזמנה</h2>
-      <p class="app-confirm__text app-confirm__text--soft" id="butcher-checkout-hint" data-i18n="butcherCheckoutHint">לשליחת ההזמנה נדרשים שם וטלפון</p>
       <form class="butcher-checkout" id="butcher-checkout-form" novalidate>
+        <fieldset class="butcher-checkout__fulfillment" id="butcher-checkout-fulfillment" hidden>
+          <legend class="butcher-checkout__label" data-i18n="fulfillmentType">סוג הזמנה</legend>
+          <label class="butcher-checkout__radio">
+            <input type="radio" name="butcherFulfillment" value="pickup" id="butcher-checkout-fulfillment-pickup" checked>
+            <span data-i18n="fulfillmentPickup">איסוף עצמי</span>
+          </label>
+          <label class="butcher-checkout__radio" hidden>
+            <input type="radio" name="butcherFulfillment" value="delivery" id="butcher-checkout-fulfillment-delivery" disabled>
+            <span data-i18n="fulfillmentDelivery">משלוח</span>
+          </label>
+        </fieldset>
         <label class="butcher-checkout__field">
           <span class="butcher-checkout__label" data-i18n="butcherCheckoutName">שם מלא *</span>
           <input type="text" id="butcher-checkout-name" class="butcher-checkout__input" name="customerName" autocomplete="name" required maxlength="80">
+        </label>
+        <label class="butcher-checkout__field" id="butcher-checkout-address-field" hidden>
+          <span class="butcher-checkout__label" data-i18n="customerAddress">כתובת *</span>
+          <input type="text" id="butcher-checkout-address" class="butcher-checkout__input" name="customerAddress" autocomplete="street-address" maxlength="160" dir="auto">
         </label>
         <label class="butcher-checkout__field">
           <span class="butcher-checkout__label" data-i18n="butcherCheckoutPhone">טלפון *</span>
@@ -676,20 +690,23 @@
         </label>
         <div class="butcher-checkout__schedule" id="butcher-checkout-schedule">
           <label class="butcher-checkout__field">
-            <span class="butcher-checkout__label" data-i18n="butcherCheckoutDate">תאריך איסוף *</span>
+            <span class="butcher-checkout__label" id="butcher-checkout-date-label" data-i18n="butcherCheckoutDate">תאריך איסוף *</span>
             <input type="date" id="butcher-checkout-date" class="butcher-checkout__input" name="pickupDate" required>
           </label>
           <label class="butcher-checkout__field">
-            <span class="butcher-checkout__label" data-i18n="butcherCheckoutTime">שעת איסוף *</span>
+            <span class="butcher-checkout__label" id="butcher-checkout-time-label" data-i18n="butcherCheckoutTime">שעת איסוף *</span>
             <select id="butcher-checkout-time" class="butcher-checkout__input" name="pickupTime" required>
-              <option value="">—</option>
             </select>
           </label>
         </div>
         <label class="butcher-checkout__field">
           <span class="butcher-checkout__label" data-i18n="butcherCheckoutNotes">הערות (אופציונלי)</span>
-          <textarea id="butcher-checkout-notes" class="butcher-checkout__input butcher-checkout__textarea" name="customerNotes" rows="2" maxlength="240" dir="auto"></textarea>
+          <textarea id="butcher-checkout-notes" class="butcher-checkout__input butcher-checkout__textarea" name="customerNotes" rows="1" maxlength="240" dir="auto"></textarea>
         </label>
+        <div class="butcher-checkout__notice" id="butcher-checkout-notice" hidden>
+          <p class="butcher-checkout__notice-title" data-i18n="butcherNoticeTitle">שימו לב</p>
+          <p class="butcher-checkout__notice-body" data-i18n="butcherNoticeBody">כל מוצרי הבשר נמכרים באריזות קפואות.</p>
+        </div>
         <p class="butcher-checkout__error" id="butcher-checkout-error" role="alert" hidden></p>
         <div class="app-confirm__actions">
           <button type="submit" class="cart-send-btn" id="butcher-checkout-submit" data-i18n="butcherCheckoutSubmit">שלח הזמנה</button>

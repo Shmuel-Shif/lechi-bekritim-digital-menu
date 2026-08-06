@@ -183,19 +183,26 @@
       const type = String(order.pickupType || order.pickup_type || '').toUpperCase();
       const time = order.pickupTime || order.pickup_time || null;
       const date = order.pickupDate || order.pickup_date || null;
+      const address = String(order.customerAddress || order.customer_address || '').trim();
+      const isDelivery = String(order.fulfillmentType || order.fulfillment_type || '') === 'delivery'
+        || Boolean(address);
+      const fee = Number(order.deliveryFee ?? order.delivery_fee);
       lines.push(
         'BUTCHER SHOP',
         `Customer: ${name}`,
         `Phone: ${phone}`,
+        `Type: ${isDelivery ? 'Delivery' : 'Pickup'}`,
       );
+      if (isDelivery && address) lines.push(`Address: ${address}`);
+      if (isDelivery && Number.isFinite(fee)) lines.push(`Delivery fee: EUR ${fee.toFixed(2)}`);
       if (type === 'TIME' && (date || time)) {
         if (date) {
           const m = String(date).match(/^(\d{4})-(\d{2})-(\d{2})$/);
-          lines.push(`Pickup date: ${m ? `${m[3]}/${m[2]}/${m[1]}` : date}`);
+          lines.push(`${isDelivery ? 'Delivery' : 'Pickup'} date: ${m ? `${m[3]}/${m[2]}/${m[1]}` : date}`);
         }
-        if (time) lines.push(`Pickup time: ${time}`);
+        if (time) lines.push(`${isDelivery ? 'Delivery' : 'Pickup'} time: ${time}`);
       } else {
-        lines.push('Pickup: ASAP');
+        lines.push(`${isDelivery ? 'Delivery' : 'Pickup'}: ASAP`);
       }
     } else {
       const address = String(order.customerAddress || order.customer_address || '').trim();
@@ -531,6 +538,10 @@
         productId: String(item.productId || ''),
         name: resolvePrintName(item),
         qty: Number(item.qty) || 0,
+        unitType: item.unitType || item.unit_type || null,
+        thawCount: item.thawCount == null && item.thaw_count == null
+          ? null
+          : Number(item.thawCount ?? item.thaw_count),
         sideProductId: side ? String(side.productId || '') : '',
         sideName: side ? resolvePrintName(side) : '',
       });
@@ -552,6 +563,10 @@
         productId: String(item.productId || ''),
         name: resolvePrintName(item),
         qty: Number(item.qty) || 0,
+        unitType: item.unitType || item.unit_type || null,
+        thawCount: item.thawCount == null && item.thaw_count == null
+          ? null
+          : Number(item.thawCount ?? item.thaw_count),
         sideProductId: '',
         sideName: '',
       });
@@ -569,7 +584,7 @@
     const merged = [];
     const indexBySig = new Map();
     blocks.forEach((block) => {
-      const sig = `${block.productId}::${block.sideProductId}`;
+      const sig = `${block.productId}::${block.sideProductId}::${block.unitType || ''}::${block.thawCount ?? ''}`;
       if (indexBySig.has(sig)) {
         merged[indexBySig.get(sig)].qty += block.qty;
         return;
@@ -578,6 +593,8 @@
       merged.push({
         name: block.name,
         qty: block.qty,
+        unitType: block.unitType || null,
+        thawCount: block.thawCount,
         sideName: block.sideName,
       });
     });
@@ -589,12 +606,20 @@
         lines.push('');
       }
 
+      const isPack = String(block.unitType || '') === 'pack';
+      const mainLine = isPack
+        ? `${block.qty} PACK ${block.name}`
+        : `${block.qty} x ${block.name}`;
+
       /* Main: ~2x + bold */
       lines.push(
         `${POS.fontA}${POS.size2x}${POS.boldOn}` +
-        `${block.qty} x ${block.name}` +
+        mainLine +
         `${POS.boldOff}`
       );
+      if (isPack && Number.isFinite(Number(block.thawCount))) {
+        lines.push(`Thaw: ${Math.max(0, Math.floor(Number(block.thawCount)))}`);
+      }
 
       /* Side under main: also ~2x, slightly less emphasis + indent */
       if (block.sideName) {

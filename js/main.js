@@ -749,11 +749,62 @@
     return Boolean(resolved?.soldByWeight || resolved?.unitType === 'kg');
   }
 
+  function isSoldByPack(itemOrId) {
+    const item = typeof itemOrId === 'string' ? findItem(itemOrId) : itemOrId;
+    const resolved = getResolvedItem(item);
+    return Boolean(resolved && (resolved.soldByPack || resolved.unitType === 'pack'));
+  }
+
+  function getButcherPackWeightMin() {
+    return Number(window.BUTCHER_PACK_WEIGHT_MIN_KG) || 0.98;
+  }
+
+  function getButcherPackWeightMax() {
+    return Number(window.BUTCHER_PACK_WEIGHT_MAX_KG) || 1.2;
+  }
+
+  function getButcherDeliveryFee() {
+    return Number(window.BUTCHER_DEFAULT_DELIVERY_FEE) || 10;
+  }
+
+  function formatEuroAmount(n) {
+    return `${t('currency')}${(Number(n) || 0).toFixed(2)}`;
+  }
+
+  function getPackEstRange(pricePerKg, packs) {
+    const p = Math.max(1, Number(packs) || 1);
+    const perKg = Number(pricePerKg) || 0;
+    return {
+      min: perKg * getButcherPackWeightMin() * p,
+      max: perKg * getButcherPackWeightMax() * p,
+    };
+  }
+
+  function packQtyLabel(count) {
+    const n = Math.max(0, Number(count) || 0);
+    return n === 1
+      ? t('packQtyLabelOne')
+      : tReplace('packQtyLabel', { count: String(n) });
+  }
+
   function getItemPricePerKg(item) {
     const resolved = getResolvedItem(item);
     /* Listed catalog price is the price per kg */
     const perKg = Number(resolved?.price ?? resolved?.pricePerKg);
     return Number.isFinite(perKg) ? perKg : 0;
+  }
+
+  function isCartPackLine(line) {
+    if (!line) return false;
+    if (line.unitType === 'pack') return true;
+    return isSoldByPack(line.itemId);
+  }
+
+  function clampPackThawCount(line) {
+    if (!isCartPackLine(line)) return;
+    const qty = Math.max(0, Number(line.qty) || 0);
+    const thaw = Math.min(Math.max(0, Number(line.thawCount) || 0), qty);
+    line.thawCount = thaw;
   }
 
   function getVisibleCategories() {
@@ -797,6 +848,7 @@
     const name = customerName || '';
     const phone = customerPhone || '';
     const notes = customerNotes || '';
+    const fulfillment = 'pickup';
     const type = pickupType === 'TIME' ? 'TIME' : 'ASAP';
     const time = type === 'TIME' && pickupTime ? String(pickupTime) : null;
     const date = type === 'TIME' && pickupDate ? String(pickupDate) : null;
@@ -806,6 +858,9 @@
         customerName: name,
         customerPhone: phone,
         customerNotes: notes,
+        customerAddress: '',
+        fulfillmentType: fulfillment,
+        deliveryFee: null,
         pickupType: type,
         pickupTime: time,
         pickupDate: date,
@@ -817,6 +872,9 @@
       customerName: name,
       customerPhone: phone,
       customerNotes: notes,
+      customerAddress: '',
+      fulfillmentType: fulfillment,
+      deliveryFee: null,
       pickupType: type,
       pickupTime: time,
       pickupDate: date,
@@ -876,11 +934,41 @@
     if (!timeSelect) return;
     const slots = buildButcherPickupSlots(dateInput?.value || '');
     const keep = preferredTime && slots.includes(preferredTime) ? preferredTime : '';
-    timeSelect.innerHTML = [
-      '<option value="">—</option>',
-      ...slots.map((slot) => `<option value="${slot}">${slot}</option>`),
-    ].join('');
+    timeSelect.innerHTML = slots.map((slot) => (
+      `<option value="${slot}">${slot}</option>`
+    )).join('');
     if (keep) timeSelect.value = keep;
+    else if (slots[0]) timeSelect.value = slots[0];
+  }
+
+  function syncButcherCheckoutFulfillmentUi() {
+    const fulfillment = document.getElementById('butcher-checkout-fulfillment');
+    const deliveryRadio = document.getElementById('butcher-checkout-fulfillment-delivery');
+    const pickupRadio = document.getElementById('butcher-checkout-fulfillment-pickup');
+    const addressField = document.getElementById('butcher-checkout-address-field');
+    const addressInput = document.getElementById('butcher-checkout-address');
+    const asapInput = document.getElementById('butcher-checkout-asap');
+    const asapLabel = asapInput?.closest('.butcher-checkout__check');
+    const dateLabel = document.getElementById('butcher-checkout-date-label');
+    const timeLabel = document.getElementById('butcher-checkout-time-label');
+
+    /* Butcher shop: pickup only — no delivery */
+    if (fulfillment) fulfillment.hidden = true;
+    if (pickupRadio) pickupRadio.checked = true;
+    if (deliveryRadio) {
+      deliveryRadio.checked = false;
+      deliveryRadio.disabled = true;
+    }
+    if (addressField) addressField.hidden = true;
+    if (addressInput) {
+      addressInput.required = false;
+      addressInput.value = '';
+    }
+    if (asapLabel) asapLabel.hidden = false;
+    if (dateLabel) dateLabel.textContent = t('butcherCheckoutDate');
+    if (timeLabel) timeLabel.textContent = t('butcherCheckoutTime');
+
+    syncButcherCheckoutScheduleUi();
   }
 
   function syncButcherCheckoutScheduleUi() {
@@ -900,21 +988,38 @@
     }
   }
 
-  function openButcherCheckoutModal() {
+  async function openButcherCheckoutModal() {
     const modal = document.getElementById('butcher-checkout-modal');
     const form = document.getElementById('butcher-checkout-form');
     const nameInput = document.getElementById('butcher-checkout-name');
     const phoneInput = document.getElementById('butcher-checkout-phone');
     const notesInput = document.getElementById('butcher-checkout-notes');
+    const addressInput = document.getElementById('butcher-checkout-address');
     const asapInput = document.getElementById('butcher-checkout-asap');
     const dateInput = document.getElementById('butcher-checkout-date');
+    const pickupRadio = document.getElementById('butcher-checkout-fulfillment-pickup');
+    const deliveryRadio = document.getElementById('butcher-checkout-fulfillment-delivery');
     if (!modal || !form) return;
+
+    try {
+      await window.LechaimEntryGate?.refreshDeliveriesClosedFlag?.();
+    } catch (_) { /* ignore */ }
 
     const ctx = window.LechaimOrderContext || {};
     if (nameInput) nameInput.value = String(ctx.customerName || '');
     if (phoneInput) phoneInput.value = String(ctx.customerPhone || '');
     if (notesInput) notesInput.value = String(ctx.customerNotes || '');
-    if (asapInput) asapInput.checked = ctx.pickupType === 'ASAP';
+    if (addressInput) addressInput.value = '';
+
+    if (pickupRadio) pickupRadio.checked = true;
+    if (deliveryRadio) {
+      deliveryRadio.disabled = true;
+      deliveryRadio.checked = false;
+    }
+
+    if (asapInput) {
+      asapInput.checked = ctx.pickupType === 'ASAP';
+    }
 
     const today = new Date();
     const todayIso = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
@@ -927,29 +1032,27 @@
       dateInput.value = String(ctx.pickupDate || todayIso);
     }
     fillButcherPickupTimeSlots(String(ctx.pickupTime || ''));
-    syncButcherCheckoutScheduleUi();
+    syncButcherCheckoutFulfillmentUi();
     showButcherCheckoutError('');
 
     const title = document.getElementById('butcher-checkout-title');
     const hint = document.getElementById('butcher-checkout-hint');
     const submit = document.getElementById('butcher-checkout-submit');
     const cancel = document.getElementById('butcher-checkout-cancel');
-    const nameLabel = modal.querySelector('[data-i18n="butcherCheckoutName"]');
-    const phoneLabel = modal.querySelector('[data-i18n="butcherCheckoutPhone"]');
-    const notesLabel = modal.querySelector('[data-i18n="butcherCheckoutNotes"]');
-    const asapLabel = modal.querySelector('[data-i18n="butcherCheckoutAsap"]');
-    const dateLabel = modal.querySelector('[data-i18n="butcherCheckoutDate"]');
-    const timeLabel = modal.querySelector('[data-i18n="butcherCheckoutTime"]');
     if (title) title.textContent = t('butcherCheckoutTitle');
     if (hint) hint.textContent = t('butcherCheckoutHint');
     if (submit) submit.textContent = t('butcherCheckoutSubmit');
     if (cancel) cancel.textContent = t('clearCartCancel');
-    if (nameLabel) nameLabel.textContent = t('butcherCheckoutName');
-    if (phoneLabel) phoneLabel.textContent = t('butcherCheckoutPhone');
-    if (notesLabel) notesLabel.textContent = t('butcherCheckoutNotes');
-    if (asapLabel) asapLabel.textContent = t('butcherCheckoutAsap');
-    if (dateLabel) dateLabel.textContent = t('butcherCheckoutDate');
-    if (timeLabel) timeLabel.textContent = t('butcherCheckoutTime');
+    modal.querySelectorAll('[data-i18n]').forEach((el) => {
+      const key = el.getAttribute('data-i18n');
+      if (!key || !t(key)) return;
+      if (key === 'butcherNoticeBody') {
+        el.innerHTML = escapeHtml(t(key)).replace(/\n/g, '<br>');
+        return;
+      }
+      el.textContent = t(key);
+    });
+    syncButcherCheckoutFulfillmentUi();
 
     modal.hidden = false;
     modal.setAttribute('aria-hidden', 'false');
@@ -966,6 +1069,7 @@
     const nameRaw = String(document.getElementById('butcher-checkout-name')?.value || '').trim();
     const phone = String(document.getElementById('butcher-checkout-phone')?.value || '').trim();
     const notes = String(document.getElementById('butcher-checkout-notes')?.value || '').trim();
+    const fulfillment = 'pickup';
     const asapOn = Boolean(document.getElementById('butcher-checkout-asap')?.checked);
     const pickupDate = String(document.getElementById('butcher-checkout-date')?.value || '').trim();
     const pickupTime = String(document.getElementById('butcher-checkout-time')?.value || '').trim();
@@ -1007,11 +1111,15 @@
       customerName: nameEn,
       customerPhone: phone,
       customerNotes: notes,
+      customerAddress: '',
+      fulfillmentType: fulfillment,
+      deliveryFee: null,
       pickupType: asapOn ? 'ASAP' : 'TIME',
       pickupDate: asapOn ? null : pickupDate,
       pickupTime: asapOn ? null : pickupTime,
     });
     closeButcherCheckoutModal();
+    renderCart();
     handleSendOrder();
   }
 
@@ -1030,6 +1138,10 @@
     dateInput?.addEventListener('change', () => {
       fillButcherPickupTimeSlots(document.getElementById('butcher-checkout-time')?.value || '');
     });
+    document.getElementById('butcher-checkout-fulfillment-pickup')
+      ?.addEventListener('change', syncButcherCheckoutFulfillmentUi);
+    document.getElementById('butcher-checkout-fulfillment-delivery')
+      ?.addEventListener('change', syncButcherCheckoutFulfillmentUi);
   }
 
   let takeawayCheckoutFocusTrapRelease = null;
@@ -1352,8 +1464,8 @@
 
   function isDeliveryContext() {
     const ctx = window.LechaimOrderContext || {};
-    return ctx.orderType === 'takeaway'
-      && String(ctx.fulfillmentType || '') === 'delivery';
+    return String(ctx.fulfillmentType || '') === 'delivery'
+      && (ctx.orderType === 'takeaway' || isButcherContext());
   }
 
   function closeDeliveryFeeModal() {
@@ -1920,9 +2032,18 @@
       customerName: !browseOnly && startHasCustomer ? (options.customerName || '') : null,
       customerPhone: !browseOnly && startHasCustomer ? (options.customerPhone || '') : null,
       customerNotes: !browseOnly && startHasCustomer ? (options.customerNotes || '') : null,
-      customerAddress: !browseOnly && startType === 'takeaway' ? (options.customerAddress || '') : null,
-      fulfillmentType: !browseOnly && startType === 'takeaway'
+      customerAddress: !browseOnly && (startType === 'takeaway' || startType === 'butcher')
+        ? (options.customerAddress || '')
+        : null,
+      fulfillmentType: !browseOnly && (startType === 'takeaway' || startType === 'butcher')
         ? (options.fulfillmentType === 'delivery' ? 'delivery' : 'pickup')
+        : null,
+      deliveryFee: !browseOnly && startType === 'butcher'
+        ? (options.fulfillmentType === 'delivery'
+          ? (Number.isFinite(Number(options.deliveryFee)) && Number(options.deliveryFee) >= 0
+            ? Number(options.deliveryFee)
+            : getButcherDeliveryFee())
+          : null)
         : null,
       pickupType: !browseOnly && (startType === 'takeaway' || startType === 'butcher')
         ? (options.pickupType || (startType === 'takeaway' ? 'ASAP' : null))
@@ -1997,13 +2118,20 @@
       customerNotes: hasCustomer
         ? (options.customerNotes !== undefined ? options.customerNotes : prev.customerNotes)
         : null,
-      customerAddress: isTakeaway
+      customerAddress: (isTakeaway || isButcher)
         ? (options.customerAddress !== undefined ? options.customerAddress : (prev.customerAddress || ''))
         : null,
-      fulfillmentType: isTakeaway
+      fulfillmentType: (isTakeaway || isButcher)
         ? (options.fulfillmentType !== undefined
           ? (options.fulfillmentType === 'delivery' ? 'delivery' : 'pickup')
           : (prev.fulfillmentType === 'delivery' ? 'delivery' : 'pickup'))
+        : null,
+      deliveryFee: isButcher
+        ? (options.deliveryFee !== undefined
+          ? (Number.isFinite(Number(options.deliveryFee)) && Number(options.deliveryFee) >= 0
+            ? Number(options.deliveryFee)
+            : null)
+          : (prev.deliveryFee != null ? Number(prev.deliveryFee) : null))
         : null,
       pickupType: isTakeaway
         ? (options.pickupType !== undefined
@@ -2459,6 +2587,56 @@
     parent.appendChild(list);
   }
 
+  function renderPackThawControls(item, { modal = false } = {}) {
+    if (!isSoldByPack(item)) return '';
+    const line = cartLines.find((l) => l.itemId === item.id && !l.linkedToMainLineId);
+    if (!line || !(Number(line.qty) > 0)) return '';
+
+    const qty = Math.max(0, Math.floor(Number(line.qty) || 0));
+    const thawCount = Math.min(Math.max(0, Math.floor(Number(line.thawCount) || 0)), qty);
+    const wrapClass = modal ? 'food-pack-thaw food-pack-thaw--modal' : 'food-pack-thaw';
+
+    if (qty <= 1) {
+      const frozenChecked = thawCount < 1 ? ' checked' : '';
+      const thawedChecked = thawCount >= 1 ? ' checked' : '';
+      return `
+        <div class="${wrapClass}" data-stop-modal="true">
+          <label class="food-pack-thaw__check">
+            <input
+              type="checkbox"
+              data-action="set-thaw"
+              data-item-id="${escapeAttr(item.id)}"
+              data-thaw-value="0"
+              ${frozenChecked}
+            >
+            <span>${escapeHtml(t('frozenStateLabel'))}</span>
+          </label>
+          <label class="food-pack-thaw__check">
+            <input
+              type="checkbox"
+              data-action="set-thaw"
+              data-item-id="${escapeAttr(item.id)}"
+              data-thaw-value="1"
+              ${thawedChecked}
+            >
+            <span>${escapeHtml(t('thawedStateLabel'))}</span>
+          </label>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="${wrapClass}" data-stop-modal="true">
+        <p class="food-pack-thaw__label">${escapeHtml(t('thawPacksLabel'))}</p>
+        <div class="food-qty-control food-qty-control--thaw">
+          <button type="button" class="food-qty-btn" data-action="thaw-dec" data-item-id="${escapeAttr(item.id)}" aria-label="${escapeAttr(t('decrease'))}">−</button>
+          <span class="food-qty-value" aria-live="polite">${thawCount}</span>
+          <button type="button" class="food-qty-btn" data-action="thaw-inc" data-item-id="${escapeAttr(item.id)}" aria-label="${escapeAttr(t('increase'))}">+</button>
+        </div>
+      </div>
+    `;
+  }
+
   function renderCardActions(item) {
     const qty = getCartQtyForItem(item.id);
     const name = getItemName(item);
@@ -2475,11 +2653,18 @@
     }
 
     if (qty > 0) {
+      const byPack = isSoldByPack(item);
       return `
-        <div class="food-qty-control" data-stop-modal="true">
-          <button type="button" class="food-qty-btn" data-action="dec-qty" data-item-id="${escapeAttr(item.id)}" aria-label="${escapeAttr(t('decrease'))}">−</button>
-          <span class="food-qty-value" aria-live="polite">${qty}</span>
-          <button type="button" class="food-qty-btn" data-action="inc-qty" data-item-id="${escapeAttr(item.id)}" aria-label="${escapeAttr(t('increase'))}">+</button>
+        <div class="food-card-actions__stack" data-stop-modal="true">
+          <div class="food-pack-qty">
+            ${byPack ? `<p class="food-pack-qty__label">${escapeHtml(t('packQtyControlLabel'))}</p>` : ''}
+            <div class="food-qty-control">
+              <button type="button" class="food-qty-btn" data-action="dec-qty" data-item-id="${escapeAttr(item.id)}" aria-label="${escapeAttr(t('decrease'))}">−</button>
+              <span class="food-qty-value" aria-live="polite">${qty}</span>
+              <button type="button" class="food-qty-btn" data-action="inc-qty" data-item-id="${escapeAttr(item.id)}" aria-label="${escapeAttr(t('increase'))}">+</button>
+            </div>
+          </div>
+          ${renderPackThawControls(item)}
         </div>
       `;
     }
@@ -2498,12 +2683,29 @@
     const hasImage = Boolean(imageSrc);
     const price = getItemPrice(item);
     const byWeight = isSoldByWeight(item);
+    const byPack = !byWeight && isSoldByPack(item);
     const pricePerKg = getItemPricePerKg(item);
     const canAddToCart = price != null;
+    const packRange = byPack ? getPackEstRange(pricePerKg, 1) : null;
     const priceHtml = canAddToCart && price > 0
-      ? (byWeight
+      ? ((byWeight || byPack)
         ? `<span class="food-price food-price--per-kg">${escapeHtml(tReplace('perKg', { price: formatEuroTotal(pricePerKg) }))}</span>`
         : `<span class="food-price">${formatDishPrice(price)}</span>`)
+      : '';
+    const packMetaHtml = byPack
+      ? `<div class="food-pack-meta">
+           <span class="food-pack-weight">
+             <span class="food-pack-weight__label">${escapeHtml(t('packWeightLabel'))}</span>
+             <span class="food-pack-weight__value">${escapeHtml(t('packWeightValue'))}</span>
+           </span>
+           <span class="food-pack-est">
+             <span class="food-pack-est__label">${escapeHtml(t('packEstPriceLabel'))}</span>
+             <span class="food-pack-est__value">${escapeHtml(tReplace('packEstPrice', {
+               min: formatEuroAmount(packRange.min),
+               max: formatEuroAmount(packRange.max),
+             }))}</span>
+           </span>
+         </div>`
       : '';
 
     const noteHtml = item.note
@@ -2534,6 +2736,7 @@
     const cardClass = [
       'food-card',
       byWeight ? 'food-card--by-weight' : '',
+      byPack ? 'food-card--by-pack' : '',
       hasImage ? '' : 'food-card--no-image',
       qty > 0 ? 'food-card--in-cart' : '',
     ].filter(Boolean).join(' ');
@@ -2549,6 +2752,7 @@
               ${descHtml}
               <div class="food-meta">
                 ${priceHtml}
+                ${packMetaHtml}
                 ${noteHtml}
               </div>
             </div>
@@ -2649,7 +2853,8 @@
         event.stopPropagation();
       }
 
-      const actionBtn = event.target.closest('[data-action]');
+      const actionBtn = event.target.closest('[data-action]')
+        || event.target.closest('.food-pack-thaw__check')?.querySelector('[data-action]');
       if (actionBtn) {
         event.stopPropagation();
         handleCardAction(actionBtn);
@@ -2673,7 +2878,8 @@
     });
 
     foodModalBody.addEventListener('click', (event) => {
-      const actionBtn = event.target.closest('[data-action]');
+      const actionBtn = event.target.closest('[data-action]')
+        || event.target.closest('.food-pack-thaw__check')?.querySelector('[data-action]');
       if (actionBtn) {
         event.stopPropagation();
         handleCardAction(actionBtn);
@@ -2705,6 +2911,17 @@
 
     if (action === 'dec-qty' && itemId) {
       changeItemQuantity(itemId, -1);
+      return;
+    }
+
+    if ((action === 'thaw-inc' || action === 'thaw-dec' || action === 'set-thaw') && itemId) {
+      const line = cartLines.find((l) => l.itemId === itemId && !l.linkedToMainLineId);
+      if (!line || !isCartPackLine(line)) return;
+      if (action === 'set-thaw') {
+        setItemThawCount(itemId, Number(btn.dataset.thawValue) || 0);
+      } else {
+        changeItemThawCount(itemId, action === 'thaw-inc' ? 1 : -1);
+      }
     }
   }
 
@@ -2725,13 +2942,18 @@
     const qty = getCartQtyForItem(item.id);
 
     if (qty > 0) {
+      const byPack = isSoldByPack(item);
       return `
         <div class="food-modal-actions" data-stop-modal="true">
-          <div class="food-qty-control food-qty-control--modal">
-            <button type="button" class="food-qty-btn" data-action="dec-qty" data-item-id="${escapeAttr(item.id)}" aria-label="${escapeAttr(t('decrease'))}">−</button>
-            <span class="food-qty-value" aria-live="polite">${qty}</span>
-            <button type="button" class="food-qty-btn" data-action="inc-qty" data-item-id="${escapeAttr(item.id)}" aria-label="${escapeAttr(t('increase'))}">+</button>
+          <div class="food-pack-qty">
+            ${byPack ? `<p class="food-pack-qty__label">${escapeHtml(t('packQtyControlLabel'))}</p>` : ''}
+            <div class="food-qty-control food-qty-control--modal">
+              <button type="button" class="food-qty-btn" data-action="dec-qty" data-item-id="${escapeAttr(item.id)}" aria-label="${escapeAttr(t('decrease'))}">−</button>
+              <span class="food-qty-value" aria-live="polite">${qty}</span>
+              <button type="button" class="food-qty-btn" data-action="inc-qty" data-item-id="${escapeAttr(item.id)}" aria-label="${escapeAttr(t('increase'))}">+</button>
+            </div>
           </div>
+          ${renderPackThawControls(item, { modal: true })}
         </div>
       `;
     }
@@ -3417,6 +3639,10 @@
         changeQuantity(lineId, 1);
       } else if (btn.dataset.action === 'cart-dec') {
         changeQuantity(lineId, -1);
+      } else if (btn.dataset.action === 'thaw-inc') {
+        changeThawCount(lineId, 1);
+      } else if (btn.dataset.action === 'thaw-dec') {
+        changeThawCount(lineId, -1);
       }
     });
   }
@@ -3763,9 +3989,26 @@
 
     if (orderReceiptMeta) {
       if (isButcher) {
+        const isDelivery = ctx.fulfillmentType === 'delivery';
         const bits = [t('receiptButcher')];
         if (ctx.customerName) bits.push(ctx.customerName);
-        if (ctx.pickupType === 'TIME' && ctx.pickupDate) {
+        if (isDelivery) {
+          bits.push(t('receiptButcherDelivery'));
+          if (ctx.customerAddress) bits.push(String(ctx.customerAddress));
+          const fee = Number.isFinite(Number(ctx.deliveryFee)) && Number(ctx.deliveryFee) >= 0
+            ? Number(ctx.deliveryFee)
+            : getButcherDeliveryFee();
+          bits.push(t('receiptButcherDeliveryFee').replace('{price}', formatEuroAmount(fee)));
+          if (ctx.pickupType === 'TIME' && ctx.pickupDate) {
+            bits.push(t('receiptButcherPickupDate').replace(
+              '{date}',
+              formatButcherPickupDateDisplay(ctx.pickupDate)
+            ));
+            if (ctx.pickupTime) {
+              bits.push(t('receiptButcherPickupTime').replace('{time}', String(ctx.pickupTime)));
+            }
+          }
+        } else if (ctx.pickupType === 'TIME' && ctx.pickupDate) {
           bits.push(t('receiptButcherPickupDate').replace(
             '{date}',
             formatButcherPickupDateDisplay(ctx.pickupDate)
@@ -3984,6 +4227,13 @@
         customerName: ctx.customerName || '',
         customerPhone: ctx.customerPhone || '',
         customerNotes: ctx.customerNotes || '',
+        customerAddress: ctx.customerAddress || '',
+        fulfillmentType: ctx.fulfillmentType === 'delivery' ? 'delivery' : 'pickup',
+        deliveryFee: ctx.fulfillmentType === 'delivery'
+          ? (Number.isFinite(Number(ctx.deliveryFee)) && Number(ctx.deliveryFee) >= 0
+            ? Number(ctx.deliveryFee)
+            : getButcherDeliveryFee())
+          : null,
         pickupType: ctx.pickupType || null,
         pickupTime: ctx.pickupTime || null,
         pickupDate: ctx.pickupDate || null,
@@ -4027,9 +4277,12 @@
       customerName: isTakeaway || isButcher ? (session.customerName || '') : null,
       customerPhone: isTakeaway || isButcher ? (session.customerPhone || '') : null,
       customerNotes: isTakeaway || isButcher ? (session.customerNotes || '') : null,
-      customerAddress: isTakeaway ? (session.customerAddress || '') : null,
-      fulfillmentType: isTakeaway
+      customerAddress: isTakeaway || isButcher ? (session.customerAddress || '') : null,
+      fulfillmentType: isTakeaway || isButcher
         ? (session.fulfillmentType === 'delivery' ? 'delivery' : 'pickup')
+        : null,
+      deliveryFee: isButcher
+        ? (session.deliveryFee != null ? Number(session.deliveryFee) : null)
         : null,
       pickupType: isTakeaway
         ? (session.pickupType || 'ASAP')
@@ -4122,6 +4375,7 @@
               selectedWeight: product.selectedWeight,
               pricePerKg: product.pricePerKg,
               unitType: product.unitType,
+              thawCount: product.thawCount,
             },
             Number(line.qty) || 1,
             product.notes || '',
@@ -4297,16 +4551,28 @@
         notes: hasCustomer
           ? (localSession?.customerNotes || ctx.customerNotes || null)
           : null,
-        customerAddress: isTakeawayResolved
+        customerAddress: (isTakeawayResolved || isButcherResolved)
           ? (localSession?.customerAddress || ctx.customerAddress || null)
           : null,
-        fulfillmentType: isTakeawayResolved
+        fulfillmentType: (isTakeawayResolved || isButcherResolved)
           ? (
             (localSession?.fulfillmentType || ctx.fulfillmentType) === 'delivery'
               ? 'delivery'
               : 'pickup'
           )
           : null,
+        deliveryFee: isButcherResolved
+          ? (
+            (localSession?.fulfillmentType || ctx.fulfillmentType) === 'delivery'
+              ? (
+                Number.isFinite(Number(localSession?.deliveryFee ?? ctx.deliveryFee))
+                  && Number(localSession?.deliveryFee ?? ctx.deliveryFee) >= 0
+                  ? Number(localSession?.deliveryFee ?? ctx.deliveryFee)
+                  : getButcherDeliveryFee()
+              )
+              : null
+          )
+          : undefined,
         pickupType: (isTakeawayResolved || isButcherResolved)
           ? (localSession?.pickupType || ctx.pickupType || (isTakeawayResolved ? 'ASAP' : null))
           : null,
@@ -4410,12 +4676,20 @@
         printName: resolveItemPrintName(item),
         quantity: Number(item.qty) || 1,
         price: Number(item.price) || 0,
-        category: findProductCategoryId(item.productId) || (item.unitType === 'kg' ? 'butcher' : null),
+        category: findProductCategoryId(item.productId)
+          || (item.unitType === 'kg' || item.unitType === 'pack' ? 'butcher' : null),
         notes: item.notes || null,
         sideDish: null,
         parentItemId: parentRemoteId || null,
       };
-      if (item.unitType || item.selectedWeight != null || item.pricePerKg != null) {
+      if (item.unitType === 'pack') {
+        payload.unitType = 'pack';
+        payload.price = 0;
+        payload.pricePerKg = item.pricePerKg;
+        payload.thawCount = Number.isFinite(Number(item.thawCount))
+          ? Math.max(0, Math.floor(Number(item.thawCount)))
+          : 0;
+      } else if (item.unitType || item.selectedWeight != null || item.pricePerKg != null) {
         payload.unitType = item.unitType || 'kg';
         payload.selectedWeight = item.selectedWeight != null ? item.selectedWeight : 1;
         payload.pricePerKg = item.pricePerKg;
@@ -4846,6 +5120,22 @@
     if (!item) return null;
     const resolved = getResolvedItem(item);
     const baseName = resolved?.name || item.name || '';
+    if (line?.unitType === 'pack' || isSoldByPack(item)) {
+      const pricePerKg = Number(line.pricePerKg) > 0
+        ? Number(line.pricePerKg)
+        : getItemPricePerKg(item);
+      return {
+        name: baseName,
+        price: 0,
+        notes: line?.notes == null ? '' : String(line.notes),
+        pricePerKg,
+        unitType: 'pack',
+        thawCount: Math.min(
+          Math.max(0, Number(line?.thawCount) || 0),
+          Math.max(1, Number(line?.qty) || 1)
+        ),
+      };
+    }
     if (line?.unitType === 'kg' || isSoldByWeight(item)) {
       const pricePerKg = Number(line.pricePerKg) > 0
         ? Number(line.pricePerKg)
@@ -4944,6 +5234,27 @@
     } else if (isShakeBase(itemId)) {
       /* Shake bases are only added via the fruit-shake picker. */
       return;
+    } else if (isSoldByPack(catalogItem) || isSoldByPack(itemId)) {
+      const existing = cartLines.find(
+        (l) => l.itemId === itemId && !l.linkedToMainLineId
+      );
+      if (existing) {
+        existing.qty += 1;
+        existing.thawCount = Math.min(Number(existing.thawCount) || 0, existing.qty);
+        moveCartLineToTop(existing.lineId);
+      } else {
+        const lineId = createCartLineId();
+        cartLines.push({
+          lineId,
+          itemId,
+          qty: 1,
+          thawCount: 0,
+          unitType: 'pack',
+          pricePerKg: getItemPricePerKg(catalogItem),
+          linkedToMainLineId: null,
+        });
+        moveCartLineToTop(lineId);
+      }
     } else {
       /* Standalone drink/item — do not merge into an open hamburger meal line */
       const existing = cartLines.find(
@@ -5033,6 +5344,7 @@
     } else {
       line.qty = newQty;
     }
+    clampPackThawCount(line);
 
     saveCart();
     renderCart();
@@ -5040,6 +5352,35 @@
       refreshFoodCards(itemId);
       updateOpenFoodModal();
     }
+  }
+
+  function changeThawCount(lineId, delta) {
+    const line = findCartLine(lineId);
+    if (!line || !isCartPackLine(line)) return;
+    changeItemThawCount(line.itemId, delta);
+  }
+
+  function changeItemThawCount(itemId, delta) {
+    const line = cartLines.find((l) => l.itemId === itemId && !l.linkedToMainLineId);
+    if (!line || !isCartPackLine(line)) return;
+    const next = (Number(line.thawCount) || 0) + Number(delta || 0);
+    line.thawCount = Math.min(Math.max(0, next), Number(line.qty) || 0);
+    saveCart();
+    renderCart();
+    refreshFoodCards(itemId);
+    updateOpenFoodModal();
+  }
+
+  function setItemThawCount(itemId, thawValue) {
+    const line = cartLines.find((l) => l.itemId === itemId && !l.linkedToMainLineId);
+    if (!line || !isCartPackLine(line)) return;
+    const qty = Math.max(0, Math.floor(Number(line.qty) || 0));
+    const next = Math.min(Math.max(0, Math.floor(Number(thawValue) || 0)), qty);
+    line.thawCount = next;
+    saveCart();
+    renderCart();
+    refreshFoodCards(itemId);
+    updateOpenFoodModal();
   }
 
   function normalizeLoadedCart() {
@@ -5064,6 +5405,19 @@
           line.linkedToMainLineId = mainLineId;
           changed = true;
         }
+      }
+      if (isCartPackLine(line) || isSoldByPack(line.itemId)) {
+        if (line.unitType !== 'pack') {
+          line.unitType = 'pack';
+          changed = true;
+        }
+        if (!(Number(line.pricePerKg) > 0)) {
+          line.pricePerKg = getItemPricePerKg(findItem(line.itemId));
+          changed = true;
+        }
+        const prevThaw = line.thawCount;
+        clampPackThawCount(line);
+        if (line.thawCount !== prevThaw) changed = true;
       }
     });
 
@@ -5090,6 +5444,10 @@
         return 0;
       }
     }
+    /* Pack lines: estimated only — charged price is 0 until weighed */
+    if (isCartPackLine(line) || isSoldByPack(item)) {
+      return 0;
+    }
     if (line?.unitType === 'kg' || isSoldByWeight(item)) {
       const perKg = Number(line.pricePerKg) > 0 ? Number(line.pricePerKg) : getItemPricePerKg(item);
       return perKg;
@@ -5097,7 +5455,45 @@
     return getItemPrice(item) || 0;
   }
 
+  function getCartEstRange() {
+    let min = 0;
+    let max = 0;
+    cartLines.forEach((line) => {
+      const item = findItem(line.itemId);
+      if (!item) return;
+      if (isCartPackLine(line) || isSoldByPack(item)) {
+        const perKg = Number(line.pricePerKg) > 0
+          ? Number(line.pricePerKg)
+          : getItemPricePerKg(item);
+        const range = getPackEstRange(perKg, line.qty);
+        min += range.min;
+        max += range.max;
+        return;
+      }
+      const price = getCartLineUnitPrice(line, item);
+      const lineTotal = (price || 0) * (Number(line.qty) || 0);
+      min += lineTotal;
+      max += lineTotal;
+    });
+    const ctx = window.LechaimOrderContext || {};
+    if (isButcherContext() && ctx.fulfillmentType === 'delivery') {
+      const fee = Number.isFinite(Number(ctx.deliveryFee)) && Number(ctx.deliveryFee) >= 0
+        ? Number(ctx.deliveryFee)
+        : getButcherDeliveryFee();
+      min += fee;
+      max += fee;
+    }
+    return { min, max };
+  }
+
+  function cartHasPackLines() {
+    return cartLines.some((line) => isCartPackLine(line) || isSoldByPack(line.itemId));
+  }
+
   function getCartTotal() {
+    if (isButcherContext() && cartHasPackLines()) {
+      return getCartEstRange().max;
+    }
     return cartLines.reduce((sum, line) => {
       const item = findItem(line.itemId);
       if (!item) return sum;
@@ -5136,10 +5532,17 @@
     const mainClass = variant === 'main' ? ' cart-item--main' : '';
     const sideClass = variant === 'child' ? ' cart-item--side' : '';
     const imageSrc = getItemImage(item);
-    const byWeight = line.unitType === 'kg' || isSoldByWeight(item);
+    const byPack = isCartPackLine(line) || isSoldByPack(item);
+    const byWeight = !byPack && (line.unitType === 'kg' || isSoldByWeight(item));
     const price = getCartLineUnitPrice(line, item);
     const noImageClass = imageSrc ? '' : ' cart-item--no-image';
-    const lineTotal = price * line.qty;
+    const packRange = byPack
+      ? getPackEstRange(
+        Number(line.pricePerKg) > 0 ? Number(line.pricePerKg) : getItemPricePerKg(item),
+        line.qty
+      )
+      : null;
+    const lineTotal = byPack ? null : price * line.qty;
     const imageHtml = imageSrc
       ? `<div class="cart-item-thumb${variant === 'child' ? ' cart-item-thumb--side' : ''}">
            <img src="${escapeAttr(imageSrc)}" alt="" loading="lazy" decoding="async" width="52" height="52" onerror="this.closest('.cart-item')?.classList.add('cart-item--no-image');this.closest('.cart-item-thumb')?.remove();">
@@ -5153,20 +5556,39 @@
         : t('sideLabel'));
     const unitHtml = variant === 'child'
       ? `<p class="cart-item-badge">${escapeHtml(childBadge)}</p>`
-      : (byWeight
-        ? `<p class="cart-item-unit">${escapeHtml(tReplace('perKg', { price: formatEuroTotal(Number(line.pricePerKg) || getItemPricePerKg(item)) }))}</p>`
-        : `<p class="cart-item-unit">${escapeHtml(tReplace('perUnit', { price: formatPrice(getItemPrice(item) || 0) }))}</p>`);
+      : (byPack
+        ? `<p class="cart-item-unit">${escapeHtml(packQtyLabel(line.qty))}</p>
+           <p class="cart-item-unit">${escapeHtml(tReplace('perKg', { price: formatEuroTotal(Number(line.pricePerKg) || getItemPricePerKg(item)) }))}</p>`
+        : (byWeight
+          ? `<p class="cart-item-unit">${escapeHtml(tReplace('perKg', { price: formatEuroTotal(Number(line.pricePerKg) || getItemPricePerKg(item)) }))}</p>`
+          : `<p class="cart-item-unit">${escapeHtml(tReplace('perUnit', { price: formatPrice(getItemPrice(item) || 0) }))}</p>`));
 
     const controlsHtml = variant === 'child'
       ? ''
-      : `<div class="cart-item-controls">
+      : (byPack
+        ? `<div class="cart-item-controls cart-item-controls--pack">
+             <p class="cart-item-qty-label">${escapeHtml(t('packQtyControlLabel'))}</p>
+             <div class="cart-item-controls__row">
+               <button type="button" class="cart-qty-btn" data-action="cart-dec" aria-label="${escapeAttr(t('decrease'))}">−</button>
+               <span class="cart-item-qty">${line.qty}</span>
+               <button type="button" class="cart-qty-btn" data-action="cart-inc" aria-label="${escapeAttr(t('increase'))}">+</button>
+             </div>
+           </div>`
+        : `<div class="cart-item-controls">
             <button type="button" class="cart-qty-btn" data-action="cart-dec" aria-label="${escapeAttr(t('decrease'))}">−</button>
             <span class="cart-item-qty">${line.qty}</span>
             <button type="button" class="cart-qty-btn" data-action="cart-inc" aria-label="${escapeAttr(t('increase'))}">+</button>
-          </div>`;
+          </div>`);
+
+    const totalHtml = byPack
+      ? `<div class="cart-item-total cart-item-total--est">${escapeHtml(tReplace('packEstLine', {
+        min: formatEuroAmount(packRange.min),
+        max: formatEuroAmount(packRange.max),
+      }))}</div>`
+      : `<div class="cart-item-total">${price > 0 ? formatEuroTotal(lineTotal) : ''}</div>`;
 
     return `
-      <article class="cart-item${mainClass}${sideClass}${noImageClass}" data-cart-line-id="${escapeAttr(line.lineId)}">
+      <article class="cart-item${mainClass}${sideClass}${noImageClass}${byPack ? ' cart-item--by-pack' : ''}" data-cart-line-id="${escapeAttr(line.lineId)}">
         ${imageHtml}
         <div class="cart-item-body">
           <div class="cart-item-main">
@@ -5176,7 +5598,7 @@
           </div>
           ${controlsHtml}
         </div>
-        <div class="cart-item-total">${price > 0 ? formatEuroTotal(lineTotal) : ''}</div>
+        ${totalHtml}
       </article>
     `;
   }
@@ -5195,7 +5617,23 @@
 
     if (cartFooter) cartFooter.hidden = false;
     if (cartPendingTotalRow) cartPendingTotalRow.hidden = empty;
-    if (cartTotalPrice) cartTotalPrice.textContent = formatPrice(getCartTotal());
+    const cartTotalLabel = cartPendingTotalRow?.querySelector('.cart-total-label');
+    if (cartTotalPrice) {
+      if (!empty && isButcherContext() && cartHasPackLines()) {
+        const range = getCartEstRange();
+        const estText = tReplace('cartEstTotal', {
+          min: formatEuroAmount(range.min),
+          max: formatEuroAmount(range.max),
+        });
+        cartTotalPrice.classList.add('cart-total-price--est');
+        cartTotalPrice.textContent = estText;
+        if (cartTotalLabel) cartTotalLabel.textContent = t('cartEstTotalLabel');
+      } else {
+        cartTotalPrice.classList.remove('cart-total-price--est');
+        cartTotalPrice.textContent = formatPrice(getCartTotal());
+        if (cartTotalLabel) cartTotalLabel.textContent = t('total');
+      }
+    }
     if (cartSessionTotalPrice) {
       cartSessionTotalPrice.textContent = formatEuroTotal(getSessionOrderTotal());
     }
@@ -5203,6 +5641,7 @@
     /* Bill depends on sent order items — update even while send is in progress */
     if (cartRequestBill) {
       const showBill = !isTakeawayContext()
+        && !isButcherContext()
         && !Boolean(window.LechaimOrderContext?.browseOnly)
         && isOrderingAllowed();
       cartRequestBill.hidden = !showBill;

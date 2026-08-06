@@ -98,6 +98,7 @@
 
     const selectedWeight = Number(item.selectedWeight);
     const pricePerKg = Number(item.pricePerKg);
+    const thawCount = Number(item.thawCount ?? item.thaw_count);
 
     return {
       itemId: String(item.itemId),
@@ -112,6 +113,7 @@
       unitType: item.unitType ? String(item.unitType) : null,
       selectedWeight: Number.isFinite(selectedWeight) && selectedWeight > 0 ? selectedWeight : null,
       pricePerKg: Number.isFinite(pricePerKg) && pricePerKg >= 0 ? pricePerKg : null,
+      thawCount: Number.isFinite(thawCount) && thawCount >= 0 ? Math.floor(thawCount) : null,
     };
   }
 
@@ -414,6 +416,11 @@
           ? Number(product.pricePerKg)
           : (Number.isFinite(Number(line.pricePerKg)) ? Number(line.pricePerKg) : null),
         unitType: product.unitType || line.unitType || null,
+        thawCount: (() => {
+          const raw = Number(product.thawCount ?? product.thaw_count ?? line.thawCount);
+          if (!Number.isFinite(raw) || raw < 0) return null;
+          return Math.min(Math.floor(raw), qty);
+        })(),
       };
 
       if (prev) {
@@ -723,20 +730,34 @@
         ? Number(product.pricePerKg)
         : null,
       unitType: product.unitType || null,
+      thawCount: (() => {
+        const raw = Number(product.thawCount ?? product.thaw_count);
+        if (!Number.isFinite(raw) || raw < 0) return null;
+        return Math.floor(raw);
+      })(),
     };
 
     if (matchIdx >= 0) {
+      const nextQty = Number(items[matchIdx].qty) + amount;
+      const prevThaw = Number(items[matchIdx].thawCount);
+      const nextThaw = Number.isFinite(Number(weightMeta.thawCount))
+        ? Number(weightMeta.thawCount)
+        : (Number.isFinite(prevThaw) ? prevThaw : 0);
       items[matchIdx] = {
         ...items[matchIdx],
-        qty: Number(items[matchIdx].qty) + amount,
+        qty: nextQty,
         name,
         price: Number.isFinite(price) ? price : 0,
         printed: false,
         ...weightMeta,
+        thawCount: Math.min(Math.max(0, Math.floor(nextThaw)), nextQty),
       };
       lastAddedItemId = items[matchIdx].itemId;
     } else {
       lastAddedItemId = createId('item');
+      const thaw = Number.isFinite(Number(weightMeta.thawCount))
+        ? Math.min(Math.max(0, Math.floor(weightMeta.thawCount)), amount)
+        : null;
       items.push({
         itemId: lastAddedItemId,
         productId,
@@ -748,6 +769,7 @@
         createdAt: stamp,
         linkedToMainItemId,
         ...weightMeta,
+        thawCount: thaw,
       });
     }
 

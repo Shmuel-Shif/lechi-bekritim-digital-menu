@@ -28,6 +28,7 @@
   const menuList = document.getElementById('shabbat-menu-list');
   const toastEl = document.getElementById('admin-toast');
   const newBtn = document.getElementById('shabbat-new-btn');
+  const ordersToggleBtn = document.getElementById('shabbat-orders-toggle-btn');
   const newModal = document.getElementById('shabbat-new-modal');
   const newModalBackdrop = document.getElementById('shabbat-new-modal-backdrop');
   const newForm = document.getElementById('shabbat-new-form');
@@ -50,6 +51,8 @@
   let menuQuery = '';
   let catalogCache = [];
   let newModalTrapRelease = null;
+  let shabbatOrdersEnabled = true;
+  let shabbatFlagUnsub = null;
 
   function escapeHtml(str) {
     return String(str == null ? '' : str)
@@ -885,13 +888,74 @@
     if (entry) openDrawer(entry);
   }
 
+  function updateShabbatOrdersToggleButton() {
+    if (!ordersToggleBtn) return;
+    if (shabbatOrdersEnabled) {
+      ordersToggleBtn.textContent = 'הזמנות שבת פתוחות';
+      ordersToggleBtn.classList.add('admin-btn--ghost');
+      ordersToggleBtn.classList.remove('admin-btn--primary');
+    } else {
+      ordersToggleBtn.textContent = 'הזמנות שבת סגורות';
+      ordersToggleBtn.classList.remove('admin-btn--ghost');
+      ordersToggleBtn.classList.add('admin-btn--primary');
+    }
+  }
+
+  async function refreshShabbatOrdersEnabledFlag() {
+    const api = global.LechaimSupabaseOrders;
+    if (!api?.isConfigured?.() || typeof api.getShabbatOrdersEnabled !== 'function') {
+      updateShabbatOrdersToggleButton();
+      return;
+    }
+    try {
+      shabbatOrdersEnabled = Boolean(await api.getShabbatOrdersEnabled());
+      updateShabbatOrdersToggleButton();
+    } catch (err) {
+      console.warn('[admin-shabbat] orders flag load failed', err);
+    }
+  }
+
+  async function toggleShabbatOrdersEnabled() {
+    const api = global.LechaimSupabaseOrders;
+    if (!api?.setShabbatOrdersEnabled) {
+      showToast('מתג הזמנות שבת לא זמין — הריצו supabase-shabbat-orders-flag.sql');
+      return;
+    }
+    const nextEnabled = !shabbatOrdersEnabled;
+    const ok = await showConfirm(
+      nextEnabled
+        ? 'לפתוח הזמנות שבת בצד הלקוח?\nיופיע שוב כרטיס "הזמנות לשבת" וניתן יהיה להזמין.'
+        : 'לסגור הזמנות שבת בצד הלקוח?\nהכרטיס יהיה סגור ולא ניתן יהיה להיכנס להזמנה.',
+      nextEnabled ? 'פתח הזמנות שבת' : 'סגור הזמנות שבת'
+    );
+    if (!ok) return;
+    try {
+      await api.setShabbatOrdersEnabled(nextEnabled);
+      shabbatOrdersEnabled = nextEnabled;
+      updateShabbatOrdersToggleButton();
+      showSuccess(nextEnabled ? 'הזמנות שבת פתוחות' : 'הזמנות שבת סגורות', { checkOnly: true });
+    } catch (err) {
+      console.error('[admin-shabbat] toggle orders flag failed', err);
+      showToast('לא ניתן לעדכן את מצב הזמנות שבת');
+    }
+  }
+
   function start() {
     if (running) {
       refresh();
+      refreshShabbatOrdersEnabledFlag().catch(() => {});
       return;
     }
     running = true;
     refresh();
+    refreshShabbatOrdersEnabledFlag().catch(() => {});
+    if (!shabbatFlagUnsub && global.LechaimSupabaseOrders?.subscribeRestaurantFlags) {
+      shabbatFlagUnsub = global.LechaimSupabaseOrders.subscribeRestaurantFlags((evt) => {
+        if (evt?.flagKey !== 'shabbat_orders_enabled') return;
+        shabbatOrdersEnabled = Boolean(evt.flagValue);
+        updateShabbatOrdersToggleButton();
+      });
+    }
     timer = window.setInterval(refresh, 8000);
     try {
       if (global.LechaimSupabaseOrders?.subscribeToOrders) {
@@ -914,6 +978,10 @@
       try { unsub(); } catch (_) { /* ignore */ }
       unsub = null;
     }
+    if (typeof shabbatFlagUnsub === 'function') {
+      try { shabbatFlagUnsub(); } catch (_) { /* ignore */ }
+      shabbatFlagUnsub = null;
+    }
     closeNewModal();
     closeDrawer();
   }
@@ -927,6 +995,11 @@
   closeBtn?.addEventListener('click', handleClose);
   menuBack?.addEventListener('click', closeMenuPicker);
   newBtn?.addEventListener('click', openNewModal);
+  ordersToggleBtn?.addEventListener('click', () => {
+    toggleShabbatOrdersEnabled().catch((err) => {
+      console.error('[admin-shabbat] toggle failed', err);
+    });
+  });
   newCancelBtn?.addEventListener('click', closeNewModal);
   newModalBackdrop?.addEventListener('click', closeNewModal);
   newForm?.addEventListener('submit', handleCreateCard);

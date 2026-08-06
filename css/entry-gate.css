@@ -400,6 +400,22 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks) {
   box-shadow: 0 2px 10px rgba(30, 51, 84, 0.08);
 }
 
+#entry-shabbat-link.is-disabled,
+.entry-gate__btn.is-disabled {
+  opacity: 0.55;
+  filter: grayscale(0.4);
+  cursor: not-allowed;
+  pointer-events: auto;
+}
+
+#entry-shabbat-link.is-disabled:hover,
+.entry-gate__btn.is-disabled:hover {
+  transform: none;
+  box-shadow: 0 2px 10px rgba(30, 51, 84, 0.08);
+  border-color: var(--color-cream-dark, #e5ddd0);
+  filter: grayscale(0.4);
+}
+
 .entry-gate__notice {
   margin: 0;
   padding: 0.85rem 1rem;

@@ -193,7 +193,7 @@
         row.fulfillment_type = null;
         break;
       case 'butcher': {
-        /* Butcher shop — scheduled pickup or ASAP */
+        /* Butcher shop — pickup or delivery + schedule */
         const pickupType = String(row.pickup_type || '').toUpperCase() === 'TIME' ? 'TIME' : 'ASAP';
         row.pickup_type = pickupType;
         row.pickup_time = pickupType === 'TIME' && row.pickup_time
@@ -203,8 +203,18 @@
           ? String(row.pickup_date)
           : null;
         row.public_order_no = null;
-        row.customer_address = null;
-        row.fulfillment_type = null;
+        const fulfillment = String(row.fulfillment_type || 'pickup').toLowerCase() === 'delivery'
+          ? 'delivery'
+          : 'pickup';
+        row.fulfillment_type = fulfillment;
+        row.customer_address = fulfillment === 'delivery' && row.customer_address
+          ? String(row.customer_address).trim()
+          : null;
+        const feeRaw = options.deliveryFee ?? options.delivery_fee;
+        const fee = Number(feeRaw);
+        row.delivery_fee = fulfillment === 'delivery' && Number.isFinite(fee) && fee >= 0
+          ? fee
+          : (fulfillment === 'delivery' ? 10 : null);
         break;
       }
       case 'dine_in':
@@ -367,6 +377,11 @@
       const pricePerKg = Number(item.pricePerKg ?? item.price_per_kg);
       if (Number.isFinite(pricePerKg) && pricePerKg >= 0) {
         row.price_per_kg = pricePerKg;
+      }
+
+      const thawCount = Number(item.thawCount ?? item.thaw_count);
+      if (Number.isFinite(thawCount) && thawCount >= 0) {
+        row.thaw_count = Math.floor(thawCount);
       }
 
       return row;
@@ -839,6 +854,19 @@
     }
     if (patch.pickupDate !== undefined || patch.pickup_date !== undefined) {
       next.pickup_date = patch.pickupDate ?? patch.pickup_date;
+    }
+    if (patch.customerAddress !== undefined || patch.customer_address !== undefined) {
+      next.customer_address = patch.customerAddress ?? patch.customer_address;
+    }
+    if (patch.fulfillmentType !== undefined || patch.fulfillment_type !== undefined) {
+      const raw = patch.fulfillmentType ?? patch.fulfillment_type;
+      next.fulfillment_type = raw == null
+        ? null
+        : (String(raw).toLowerCase() === 'delivery' ? 'delivery' : 'pickup');
+    }
+    if (patch.deliveryFee !== undefined || patch.delivery_fee !== undefined) {
+      const fee = Number(patch.deliveryFee ?? patch.delivery_fee);
+      next.delivery_fee = Number.isFinite(fee) && fee >= 0 ? fee : null;
     }
 
     if (patch.couponCode !== undefined || patch.coupon_code !== undefined) {
@@ -1486,6 +1514,48 @@
     return Boolean(closed);
   }
 
+  /**
+   * When false, customer Shabbat card + shabbat.html ordering are closed.
+   * Missing row defaults to open (true).
+   * @returns {Promise<boolean>}
+   */
+  async function getShabbatOrdersEnabled() {
+    const sb = getClient();
+    const { data, error } = await sb
+      .from('restaurant_flags')
+      .select('flag_value')
+      .eq('flag_key', 'shabbat_orders_enabled')
+      .maybeSingle();
+    throwIfError(error, 'getShabbatOrdersEnabled');
+    if (!data) return true;
+    return Boolean(data.flag_value);
+  }
+
+  /**
+   * Admin: open/close Shabbat ordering on the customer site.
+   * @param {boolean} enabled
+   * @returns {Promise<boolean>}
+   */
+  async function setShabbatOrdersEnabled(enabled) {
+    const sb = getClient();
+    const { data: authData } = await sb.auth.getSession();
+    if (!authData?.session) {
+      throw new Error(
+        'setShabbatOrdersEnabled: must be signed in as admin (RLS blocks anon write)'
+      );
+    }
+    const { error } = await sb
+      .from('restaurant_flags')
+      .upsert({
+        flag_key: 'shabbat_orders_enabled',
+        flag_value: Boolean(enabled),
+        flag_text: null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'flag_key' });
+    throwIfError(error, 'setShabbatOrdersEnabled');
+    return Boolean(enabled);
+  }
+
   let flagsChannel = null;
   const flagsListeners = new Set();
 
@@ -1567,6 +1637,8 @@
     setDineInOrdersClosed,
     getDeliveriesClosed,
     setDeliveriesClosed,
+    getShabbatOrdersEnabled,
+    setShabbatOrdersEnabled,
     subscribeRestaurantFlags,
     subscribeToOrders,
   };

@@ -41,6 +41,8 @@
       deliveryTime: 'Delivery time',
       shabbatOrders: 'Shabbat Orders',
       shabbatOrdersHint: 'Special menu for Shabbat',
+      shabbatOrdersClosed: 'Shabbat orders are closed right now',
+      shabbatOrdersClosedHint: 'We will update when orders reopen',
       butcherShop: 'Our Butcher Shop',
       butcherShopHint: 'Mehadrin Chalak meat • Lubavitch shechita • Premium kashrut',
       browseMenu: 'View the menu',
@@ -146,7 +148,9 @@
       deliveryTime: 'שעת משלוח',
       shabbatOrders: 'הזמנות לשבת',
       shabbatOrdersHint: 'תפריט מיוחד לשבת קודש',
-      butcherShop: 'חנות הבשר שלנו',
+      shabbatOrdersClosed: 'הזמנות שבת סגורות כרגע',
+      shabbatOrdersClosedHint: 'נשמח לעדכן כאשר ההזמנות ייפתחו מחדש',
+      butcherShop: 'חנות הבשר של לחיים',
       butcherShopHint: 'בשר חלק כשר למהדרין • שחיטת ליובאוויטש • כשרות מהודרת',
       browseMenu: 'צפייה בתפריט',
       browseMenuHint: 'גלו את כל המנות שלנו',
@@ -272,6 +276,9 @@
   const fulfillmentDeliveryRow = document.getElementById('entry-fulfillment-delivery-row');
   const takeAwayLabelEl = gate?.querySelector('[data-order-type="takeaway"] [data-entry-i18n="takeAway"]');
   const takeAwayHintEl = gate?.querySelector('[data-order-type="takeaway"] [data-entry-i18n="takeAwayHint"]');
+  const shabbatLinkEl = document.getElementById('entry-shabbat-link');
+  const shabbatLabelEl = shabbatLinkEl?.querySelector('[data-entry-i18n="shabbatOrders"]');
+  const shabbatHintEl = shabbatLinkEl?.querySelector('[data-entry-i18n="shabbatOrdersHint"]');
   const pickupNotes = document.getElementById('entry-pickup-notes');
   const pickupAsap = document.getElementById('entry-pickup-asap');
   const pickupSelect = document.getElementById('entry-pickup-select');
@@ -322,6 +329,8 @@
     pickupTime: null,
     /** Admin flag: when true, hide all delivery wording/options on customer UI */
     deliveriesClosed: false,
+    /** Admin flag: when false, Shabbat card is disabled on the home page */
+    shabbatOrdersEnabled: true,
   };
 
   let noticeTimer = null;
@@ -359,6 +368,10 @@
           text = state.deliveriesClosed ? t('takeAway') : t('takeAwayWithDelivery');
         } else if (key === 'takeAwayHint') {
           text = state.deliveriesClosed ? t('takeAwayHint') : t('takeAwayHintWithDelivery');
+        } else if (key === 'shabbatOrders') {
+          text = state.shabbatOrdersEnabled ? t('shabbatOrders') : t('shabbatOrdersClosed');
+        } else if (key === 'shabbatOrdersHint') {
+          text = state.shabbatOrdersEnabled ? t('shabbatOrdersHint') : t('shabbatOrdersClosedHint');
         }
         el.innerHTML = String(text).includes('\n')
           ? String(text).split('\n').map((line) => line.replace(/</g, '&lt;')).join('<br>')
@@ -1374,6 +1387,43 @@
     }
   }
 
+  function applyShabbatOrdersMode() {
+    const open = state.shabbatOrdersEnabled !== false;
+    if (shabbatLabelEl) {
+      shabbatLabelEl.textContent = open ? t('shabbatOrders') : t('shabbatOrdersClosed');
+    }
+    if (shabbatHintEl) {
+      shabbatHintEl.textContent = open ? t('shabbatOrdersHint') : t('shabbatOrdersClosedHint');
+    }
+    if (shabbatLinkEl) {
+      shabbatLinkEl.classList.toggle('is-disabled', !open);
+      shabbatLinkEl.setAttribute('aria-disabled', open ? 'false' : 'true');
+      if (open) {
+        shabbatLinkEl.setAttribute('href', 'shabbat.html');
+        shabbatLinkEl.removeAttribute('tabindex');
+      } else {
+        shabbatLinkEl.setAttribute('href', '#');
+        shabbatLinkEl.setAttribute('tabindex', '-1');
+      }
+    }
+  }
+
+  async function refreshShabbatOrdersEnabledFlag() {
+    const api = window.LechaimSupabaseOrders;
+    if (!api?.isConfigured?.() || typeof api.getShabbatOrdersEnabled !== 'function') {
+      state.shabbatOrdersEnabled = true;
+      applyShabbatOrdersMode();
+      return;
+    }
+    try {
+      state.shabbatOrdersEnabled = Boolean(await api.getShabbatOrdersEnabled());
+    } catch (err) {
+      console.warn('[entry-gate] shabbat orders flag load failed', err);
+      state.shabbatOrdersEnabled = true;
+    }
+    applyShabbatOrdersMode();
+  }
+
   function applyDeliveriesMode() {
     if (takeAwayLabelEl) {
       takeAwayLabelEl.textContent = state.deliveriesClosed
@@ -1993,6 +2043,13 @@
     setLang(next);
   });
 
+  shabbatLinkEl?.addEventListener('click', (event) => {
+    if (state.shabbatOrdersEnabled === false) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  });
+
   gate.addEventListener('click', (event) => {
     if (event.target.closest('#entry-lang-toggle')) return;
 
@@ -2156,12 +2213,19 @@
   (async function bootEntryGate() {
     setLang('he');
     await refreshDeliveriesClosedFlag();
+    await refreshShabbatOrdersEnabledFlag();
     const api = window.LechaimSupabaseOrders;
     if (api?.subscribeRestaurantFlags) {
       api.subscribeRestaurantFlags((evt) => {
-        if (evt?.flagKey !== 'deliveries_closed') return;
-        state.deliveriesClosed = Boolean(evt.flagValue);
-        applyDeliveriesMode();
+        if (evt?.flagKey === 'deliveries_closed') {
+          state.deliveriesClosed = Boolean(evt.flagValue);
+          applyDeliveriesMode();
+          return;
+        }
+        if (evt?.flagKey === 'shabbat_orders_enabled') {
+          state.shabbatOrdersEnabled = Boolean(evt.flagValue);
+          applyShabbatOrdersMode();
+        }
       });
     }
     if (await tryResumeSession()) return;

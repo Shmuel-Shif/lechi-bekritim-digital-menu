@@ -67,6 +67,8 @@
   const foodModalBackdrop = $('#shabbat-food-modal-backdrop');
 
   let openModalItemId = null;
+  let adminShabbatOrdersEnabled = true;
+  let closedReason = 'schedule'; /* 'schedule' | 'admin' */
 
   const focusTrapReleases = {
     cart: null,
@@ -131,6 +133,36 @@
       return now.getHours() < 12;
     }
     return true; /* Sun–Wed */
+  }
+
+  function isShabbatCustomerOrderingOpen(now = new Date()) {
+    return adminShabbatOrdersEnabled !== false && isShabbatOrderingOpen(now);
+  }
+
+  async function refreshAdminShabbatOrdersFlag() {
+    const api = window.LechaimSupabaseOrders;
+    if (!api?.isConfigured?.() || typeof api.getShabbatOrdersEnabled !== 'function') {
+      adminShabbatOrdersEnabled = true;
+      return;
+    }
+    try {
+      adminShabbatOrdersEnabled = Boolean(await api.getShabbatOrdersEnabled());
+    } catch (err) {
+      console.warn('[shabbat] admin orders flag load failed', err);
+      adminShabbatOrdersEnabled = true;
+    }
+  }
+
+  function applyClosedCopy() {
+    const titleEl = $('#shabbat-closed-title');
+    const textEl = $('#shabbat-closed-text');
+    if (closedReason === 'admin') {
+      if (titleEl) titleEl.setAttribute('data-i18n', 'adminClosedTitle');
+      if (textEl) textEl.setAttribute('data-i18n', 'adminClosedText');
+    } else {
+      if (titleEl) titleEl.setAttribute('data-i18n', 'closedTitle');
+      if (textEl) textEl.setAttribute('data-i18n', 'closedText');
+    }
   }
 
   function applyI18n() {
@@ -1276,13 +1308,15 @@
     showDetailsPage();
   }
 
-  function bootClosedUi() {
+  function bootClosedUi(reason = 'schedule') {
     browseOnly = false;
+    closedReason = reason === 'admin' ? 'admin' : 'schedule';
     hideDetailsPage();
     if (appEl) appEl.hidden = true;
     if (cartToggle) cartToggle.hidden = true;
     if (closedEl) closedEl.hidden = false;
     document.body.classList.remove('shabbat-browse-only');
+    applyClosedCopy();
     applyI18n();
   }
 
@@ -1291,7 +1325,7 @@
     if (next !== 'he' && next !== 'en') return;
     lang = next;
     applyI18n();
-    if (browseOnly || (isShabbatOrderingOpen() && (customerDetails || isOrderLocked()))) {
+    if (browseOnly || (isShabbatCustomerOrderingOpen() && (customerDetails || isOrderLocked()))) {
       renderMenu();
       if (!browseOnly) renderCart();
     }
@@ -1301,14 +1335,38 @@
     updateCartToggleMode();
   }
 
-  function init() {
-    if (!isShabbatOrderingOpen()) {
-      bootClosedUi();
+  async function init() {
+    await refreshAdminShabbatOrdersFlag();
+
+    if (!adminShabbatOrdersEnabled) {
+      bootClosedUi('admin');
+    } else if (!isShabbatOrderingOpen()) {
+      bootClosedUi('schedule');
     } else {
-      bootOpenUi();
+      await bootOpenUi();
     }
 
     initInventory();
+
+    const api = window.LechaimSupabaseOrders;
+    if (api?.subscribeRestaurantFlags) {
+      api.subscribeRestaurantFlags((evt) => {
+        if (evt?.flagKey !== 'shabbat_orders_enabled') return;
+        const next = Boolean(evt.flagValue);
+        if (next === adminShabbatOrdersEnabled) return;
+        adminShabbatOrdersEnabled = next;
+        if (!next) {
+          bootClosedUi('admin');
+          return;
+        }
+        if (!isShabbatOrderingOpen()) {
+          bootClosedUi('schedule');
+          return;
+        }
+        /* Re-open without full reload when admin turns ordering back on */
+        window.location.reload();
+      });
+    }
 
     langToggle?.addEventListener('click', onLangClick);
     entryLangToggle?.addEventListener('click', onLangClick);
@@ -1398,8 +1456,8 @@
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
+    document.addEventListener('DOMContentLoaded', () => { void init(); });
   } else {
-    init();
+    void init();
   }
 })();
