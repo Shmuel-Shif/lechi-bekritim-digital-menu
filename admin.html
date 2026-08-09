@@ -417,8 +417,30 @@
         <p class="admin-option-picker__subtitle" id="admin-option-picker-subtitle"></p>
         <div class="admin-option-picker__grid" id="admin-option-picker-grid" role="group"></div>
         <div class="admin-modal__actions">
-          <button type="button" class="admin-btn admin-btn--primary" id="admin-option-picker-confirm" disabled>הוסף</button>
+          <button type="button" class="admin-btn admin-btn--primary" id="admin-option-picker-confirm" disabled>המשך</button>
           <button type="button" class="admin-btn admin-btn--ghost" id="admin-option-picker-cancel">ביטול</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="admin-modal" id="admin-qty-modal" hidden aria-hidden="true">
+      <button type="button" class="admin-modal__backdrop" id="admin-qty-backdrop" aria-label="סגור"></button>
+      <div
+        class="admin-modal__panel admin-modal__panel--qty"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="admin-qty-title"
+      >
+        <h2 class="admin-qty-modal__title" id="admin-qty-title">בחרו כמות</h2>
+        <p class="admin-qty-modal__name" id="admin-qty-product-name"></p>
+        <div class="admin-qty-stepper" role="group" aria-label="כמות">
+          <button type="button" class="admin-qty-stepper__btn" id="admin-qty-dec" aria-label="הפחת">−</button>
+          <span class="admin-qty-stepper__value" id="admin-qty-value" aria-live="polite">1</span>
+          <button type="button" class="admin-qty-stepper__btn" id="admin-qty-inc" aria-label="הוסף">+</button>
+        </div>
+        <div class="admin-modal__actions">
+          <button type="button" class="admin-btn admin-btn--primary" id="admin-qty-confirm">הוסף</button>
+          <button type="button" class="admin-btn admin-btn--ghost" id="admin-qty-cancel">ביטול</button>
         </div>
       </div>
     </div>

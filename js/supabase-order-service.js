@@ -525,20 +525,36 @@
         .select('quantity, price')
         .eq('order_id', deleted.order_id);
       if (!sumErr) {
-        const total = (remaining || []).reduce((sum, row) => (
-          sum + (Number(row.price) || 0) * (Number(row.quantity) || 0)
-        ), 0);
-        const rounded = Math.round(total * 100) / 100;
-        await sb
-          .from(TABLE_ORDERS)
-          .update({ total: rounded })
-          .eq('id', deleted.order_id);
-
+        const lines = remaining || [];
         const { data: orderRow } = await sb
           .from(TABLE_ORDERS)
           .select('session_id')
           .eq('id', deleted.order_id)
           .maybeSingle();
+
+        if (!lines.length) {
+          /* Last item removed — drop empty wave so card returns to active (no blue / beep). */
+          const { error: delOrdErr } = await sb
+            .from(TABLE_ORDERS)
+            .delete()
+            .eq('id', deleted.order_id);
+          if (delOrdErr) {
+            console.warn('[LechaimSupabaseOrders.deleteOrderItem] empty order cleanup', delOrdErr);
+            await sb
+              .from(TABLE_ORDERS)
+              .update({ total: 0 })
+              .eq('id', deleted.order_id);
+          }
+        } else {
+          const total = lines.reduce((sum, row) => (
+            sum + (Number(row.price) || 0) * (Number(row.quantity) || 0)
+          ), 0);
+          const rounded = Math.round(total * 100) / 100;
+          await sb
+            .from(TABLE_ORDERS)
+            .update({ total: rounded })
+            .eq('id', deleted.order_id);
+        }
 
         if (orderRow?.session_id) {
           await refreshSessionBillTotals(sb, orderRow.session_id);

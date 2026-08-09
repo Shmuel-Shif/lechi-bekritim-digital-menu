@@ -84,6 +84,11 @@
   let confirmResolver = null;
   let pendingOptionMain = null;
   let pendingOptionSideId = null;
+  let pendingQtyProduct = null;
+  let pendingQtySide = null;
+  let pendingQty = 1;
+  const QTY_MIN = 1;
+  const QTY_MAX = 99;
   let pendingBillEntry = null;
   let pendingBillCoupon = null;
   let boardFilter = 'tables'; /* 'tables' | 'takeaway' | 'butcher' */
@@ -261,19 +266,26 @@
     return 'פנוי';
   }
 
+  function orderHasLiveItems(order) {
+    const lines = Array.isArray(order?.order_items) ? order.order_items : [];
+    return lines.some((row) => (Number(row?.quantity) || 0) > 0);
+  }
+
   function orderNeedsApprove(order) {
-    if (!order?.id || order.printed_at) return false;
+    if (!order?.id || order.printed_at || !orderHasLiveItems(order)) return false;
     const status = String(order.status || 'submitted').toLowerCase();
     return status === 'submitted' || status === '';
   }
 
   function orderNeedsPrint(order) {
-    if (!order?.id || order.printed_at) return false;
+    if (!order?.id || order.printed_at || !orderHasLiveItems(order)) return false;
     return String(order.status || '').toLowerCase() === 'preparing';
   }
 
   function hasUnprintedRemoteOrders(orders) {
-    return (orders || []).some((order) => order && order.id && !order.printed_at);
+    return (orders || []).some((order) => (
+      order && order.id && !order.printed_at && orderHasLiveItems(order)
+    ));
   }
 
   function hasOrdersNeedingApprove(orders) {
@@ -1428,11 +1440,13 @@
     }
 
     removeItemBusy = true;
-    suppressCustomerNotify();
+    suppressCustomerNotify(8000);
     try {
       await api.deleteOrderItem(id);
       showToast(isShakeBase ? 'בסיס השייק הוסר' : 'המנה הוסרה');
       await refreshBoardData();
+      /* If no pending waves left, stop the repeating chime immediately */
+      updatePendingReminder(boardCache, pickupCaches());
       const next = getSelectedEntry();
       if (next?.order) {
         fillDrawer(next);
@@ -1942,13 +1956,62 @@
     modal.setAttribute('aria-hidden', 'false');
   }
 
-  async function appendLinkedSideToOrder(api, orderId, parentRemoteId, sideProduct) {
+  function clampQty(n) {
+    const v = Math.floor(Number(n) || 0);
+    if (!Number.isFinite(v)) return QTY_MIN;
+    return Math.min(QTY_MAX, Math.max(QTY_MIN, v));
+  }
+
+  function renderAdminQtyModal() {
+    const nameEl = document.getElementById('admin-qty-product-name');
+    const valueEl = document.getElementById('admin-qty-value');
+    const decBtn = document.getElementById('admin-qty-dec');
+    const incBtn = document.getElementById('admin-qty-inc');
+    if (!pendingQtyProduct) return;
+
+    let label = pendingQtyProduct.name || pendingQtyProduct.id || '';
+    if (pendingQtySide?.name) label = `${label} + ${pendingQtySide.name}`;
+    if (nameEl) nameEl.textContent = label;
+    if (valueEl) valueEl.textContent = String(pendingQty);
+    if (decBtn) decBtn.disabled = pendingQty <= QTY_MIN;
+    if (incBtn) incBtn.disabled = pendingQty >= QTY_MAX;
+  }
+
+  function openAdminQtyModal(product, linkedSideProduct = null) {
+    const modal = document.getElementById('admin-qty-modal');
+    if (!modal || !product) return;
+    pendingQtyProduct = product;
+    pendingQtySide = linkedSideProduct || null;
+    pendingQty = QTY_MIN;
+    renderAdminQtyModal();
+    modal.hidden = false;
+    modal.setAttribute('aria-hidden', 'false');
+    requestAnimationFrame(() => document.getElementById('admin-qty-confirm')?.focus());
+  }
+
+  function closeAdminQtyModal() {
+    const modal = document.getElementById('admin-qty-modal');
+    pendingQtyProduct = null;
+    pendingQtySide = null;
+    pendingQty = QTY_MIN;
+    if (!modal) return;
+    modal.hidden = true;
+    modal.setAttribute('aria-hidden', 'true');
+  }
+
+  function setAdminQty(next) {
+    pendingQty = clampQty(next);
+    renderAdminQtyModal();
+  }
+
+  async function appendLinkedSideToOrder(api, orderId, parentRemoteId, sideProduct, quantity = 1) {
     if (!api || !orderId || !parentRemoteId || !sideProduct) return;
+    const qty = clampQty(quantity);
     await api.createOrderItems(orderId, [{
       productId: sideProduct.id,
       productName: sideProduct.name || '',
       printName: resolvePrintNameForProduct(sideProduct),
-      quantity: 1,
+      quantity: qty,
       price: Number(sideProduct.price) || 0,
       category: sideProduct.categoryId || null,
       notes: null,
@@ -1959,10 +2022,11 @@
     }
   }
 
-  async function commitAddProduct(product, linkedSideProduct = null) {
+  async function commitAddProduct(product, linkedSideProduct = null, quantity = 1) {
     const entry = getSelectedEntry();
     if (!entry?.order || !product) return false;
 
+    const qty = clampQty(quantity);
     const price = Number(product.price) || 0;
     const printName = resolvePrintNameForProduct(product);
     const sidePrice = linkedSideProduct ? (Number(linkedSideProduct.price) || 0) : 0;
@@ -1992,7 +2056,7 @@
           : null;
 
         if (same?.id && typeof api.bumpOrderItemQuantity === 'function') {
-          await api.bumpOrderItemQuantity(same.id, 1);
+          await api.bumpOrderItemQuantity(same.id, qty);
           return true;
         }
 
@@ -2001,7 +2065,7 @@
           productId: product.id,
           productName: product.name || '',
           printName,
-          quantity: 1,
+          quantity: qty,
           price,
           category: product.categoryId || null,
           notes: null,
@@ -2013,7 +2077,7 @@
       } else {
         const remoteOrder = await api.createOrder({
           sessionId,
-          total: price + sidePrice,
+          total: (price + sidePrice) * qty,
           status: 'submitted',
         });
         if (!remoteOrder?.id) throw new Error('createOrder failed');
@@ -2022,7 +2086,7 @@
           productId: product.id,
           productName: product.name || '',
           printName,
-          quantity: 1,
+          quantity: qty,
           price,
           category: product.categoryId || null,
           notes: null,
@@ -2032,19 +2096,19 @@
 
       if (linkedSideProduct) {
         if (!parentRemoteId) throw new Error('missing parent item id for linked side');
-        await appendLinkedSideToOrder(api, orderId, parentRemoteId, linkedSideProduct);
+        await appendLinkedSideToOrder(api, orderId, parentRemoteId, linkedSideProduct, qty);
       }
       return true;
     }
 
     const engine = Engine();
-    const updated = engine?.addProductToOrder?.(entry.order.orderId, product, 1, '', {
+    const updated = engine?.addProductToOrder?.(entry.order.orderId, product, qty, '', {
       allowMerge: !linkedSideProduct,
     });
     if (!updated) return false;
     if (linkedSideProduct) {
       const parentItemId = updated._lastAddedItemId;
-      const withSide = engine.addProductToOrder(entry.order.orderId, linkedSideProduct, 1, '', {
+      const withSide = engine.addProductToOrder(entry.order.orderId, linkedSideProduct, qty, '', {
         linkedToMainItemId: parentItemId,
         allowMerge: false,
       });
@@ -2077,25 +2141,37 @@
       return;
     }
 
+    openAdminQtyModal(product, null);
+  }
+
+  async function confirmAdminQtyModal() {
+    if (!pendingQtyProduct || addProductBusy) return;
+    const product = pendingQtyProduct;
+    const side = pendingQtySide;
+    const qty = clampQty(pendingQty);
+
     addProductBusy = true;
     try {
-      const ok = await commitAddProduct(product, null);
+      const ok = await commitAddProduct(product, side, qty);
       if (!ok) {
         showToast('לא ניתן להוסיף');
         return;
       }
-      showSuccessModal(`המוצר נוסף בהצלחה\n${product.name}`);
+      closeAdminQtyModal();
+      const qtyLabel = qty > 1 ? `${qty}× ` : '';
+      const sideLabel = side?.name ? `\n+ ${side.name}` : '';
+      showSuccessModal(`המוצר נוסף בהצלחה\n${qtyLabel}${product.name}${sideLabel}`);
       await refreshBoardData();
       if (menuMode) renderMenuPicker();
     } catch (err) {
-      console.error('[admin-tables] add product failed', err);
+      console.error('[admin-tables] add product with qty failed', err);
       showToast('לא ניתן להוסיף');
     } finally {
       addProductBusy = false;
     }
   }
 
-  async function confirmAdminOptionPicker() {
+  function confirmAdminOptionPicker() {
     if (!pendingOptionMain || !pendingOptionSideId || addProductBusy) return;
     const main = pendingOptionMain;
     const side = findCatalogProduct(pendingOptionSideId);
@@ -2103,24 +2179,8 @@
       showToast('התוספת לא נמצאה');
       return;
     }
-
-    addProductBusy = true;
-    try {
-      const ok = await commitAddProduct(main, side);
-      if (!ok) {
-        showToast('לא ניתן להוסיף');
-        return;
-      }
-      closeAdminOptionPicker();
-      showSuccessModal(`המוצר נוסף בהצלחה\n${main.name}\n+ ${side.name}`);
-      await refreshBoardData();
-      if (menuMode) renderMenuPicker();
-    } catch (err) {
-      console.error('[admin-tables] add product with option failed', err);
-      showToast('לא ניתן להוסיף');
-    } finally {
-      addProductBusy = false;
-    }
+    closeAdminOptionPicker();
+    openAdminQtyModal(main, side);
   }
 
   async function handlePrintCustomerBill(entry, coupon = null) {
@@ -2633,6 +2693,17 @@
     optionCancel?.addEventListener('click', closeAdminOptionPicker);
     optionBackdrop?.addEventListener('click', closeAdminOptionPicker);
 
+    const qtyInc = document.getElementById('admin-qty-inc');
+    const qtyDec = document.getElementById('admin-qty-dec');
+    const qtyConfirm = document.getElementById('admin-qty-confirm');
+    const qtyCancel = document.getElementById('admin-qty-cancel');
+    const qtyBackdrop = document.getElementById('admin-qty-backdrop');
+    qtyInc?.addEventListener('click', () => setAdminQty(pendingQty + 1));
+    qtyDec?.addEventListener('click', () => setAdminQty(pendingQty - 1));
+    qtyConfirm?.addEventListener('click', () => { confirmAdminQtyModal(); });
+    qtyCancel?.addEventListener('click', closeAdminQtyModal);
+    qtyBackdrop?.addEventListener('click', closeAdminQtyModal);
+
     drawerItems?.addEventListener('click', (event) => {
       const btn = event.target.closest('[data-remove-item-id]');
       if (!btn || !drawerItems.contains(btn)) return;
@@ -2664,6 +2735,11 @@
 
     document.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape') return;
+      const qtyModal = document.getElementById('admin-qty-modal');
+      if (qtyModal && !qtyModal.hidden) {
+        closeAdminQtyModal();
+        return;
+      }
       const optionPickerModal = document.getElementById('admin-option-picker-modal');
       if (optionPickerModal && !optionPickerModal.hidden) {
         closeAdminOptionPicker();
