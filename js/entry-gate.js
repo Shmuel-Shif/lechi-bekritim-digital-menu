@@ -414,8 +414,13 @@
 
     if (promptEl) {
       const onHome = Boolean(stepOrder && !stepOrder.hidden);
-      promptEl.hidden = onHome;
-      if (!onHome) {
+      /* dine-in.html: never flash "איך תרצו להזמין?" while waiting to open the table modal */
+      const dineInOnlyBooting = gate.dataset.mode === 'dine-in-only'
+        && (!stepTable || stepTable.hidden)
+        && (!stepPickupClosed || stepPickupClosed.hidden)
+        && (!stepOrder || stepOrder.hidden);
+      promptEl.hidden = onHome || dineInOnlyBooting;
+      if (!promptEl.hidden) {
         promptEl.classList.toggle('is-table-prompt', Boolean(stepTable && !stepTable.hidden));
         if (stepPickupClosed && !stepPickupClosed.hidden) {
           promptEl.textContent = state.orderType === 'dine-in' ? t('dineIn') : t('takeAway');
@@ -1098,6 +1103,12 @@
   }
 
   function goToOrderType() {
+    /* dine-in.html has no order-type chooser — always return to table modal */
+    if (gate.dataset.mode === 'dine-in-only') {
+      goToTable();
+      return;
+    }
+
     closeTableInfoModal();
     if (placeResThanks && !placeResThanks.hidden) {
       if (typeof placeResThanksTrapRelease === 'function') placeResThanksTrapRelease();
@@ -1674,6 +1685,10 @@
   }
 
   function reopenOrderTypePicker() {
+    if (gate.dataset.mode === 'dine-in-only') {
+      return reopenTablePicker();
+    }
+
     const ctx = window.LechaimOrderContext || Session?.toMenuContext?.() || {};
     started = true;
     changingTable = false;
@@ -1708,6 +1723,10 @@
     });
     setLang(state.lang || 'he');
     openGate();
+    if (gate.dataset.mode === 'dine-in-only') {
+      goToTable();
+      return;
+    }
     goToOrderType();
   }
 
@@ -2194,8 +2213,7 @@
   gate.setAttribute('aria-hidden', 'false');
   activateGateFocusTrap();
 
-  (async function bootEntryGate() {
-    setLang('he');
+  async function bootRestaurantFlags() {
     await refreshDeliveriesClosedFlag();
     await refreshShabbatOrdersEnabledFlag();
     const api = window.LechaimSupabaseOrders;
@@ -2212,7 +2230,25 @@
         }
       });
     }
+  }
+
+  (async function bootEntryGate() {
+    /* dine-in.html: open table modal immediately — do not wait on restaurant flags */
+    if (gate.dataset.mode === 'dine-in-only') {
+      setLang('he');
+      if (await tryResumeSession()) {
+        void bootRestaurantFlags();
+        return;
+      }
+      goToTable();
+      void bootRestaurantFlags();
+      return;
+    }
+
+    setLang('he');
+    await bootRestaurantFlags();
     if (await tryResumeSession()) return;
+
     goToOrderType();
     if (gate.classList.contains('is-home')) {
       setupHomeReveal();

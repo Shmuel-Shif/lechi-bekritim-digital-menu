@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="description" content="ישיבה במקום — מסעדת לחיים בכרתים">
+  <title>Lechaim – Dine In</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/theme-lechaim.css">
+  <link rel="stylesheet" href="css/entry-gate.css">
+  <link rel="icon" href="assets/logo/logo.webp" type="image/webp">
+  <!-- Dine-in only: visual grouping (inside 61–69 as 3×3 / outside 70–73 as 4). Table 60 hidden on this page. -->
+  <style>
+    /* Hide brand/prompt flash until table step (or closed hours) is shown — open straight into modal */
+    #entry-gate[data-mode="dine-in-only"]:not(:has(#entry-step-table:not([hidden]))):not(:has(#entry-step-pickup-closed:not([hidden]))) .entry-gate__classic,
+    #entry-gate[data-mode="dine-in-only"]:not(:has(#entry-step-table:not([hidden]))):not(:has(#entry-step-pickup-closed:not([hidden]))) #entry-prompt {
+      display: none !important;
+    }
+
+    /* Never show the home "ישיבה במקום" chooser on this page (.entry-gate__btn { display:grid } overrides [hidden]) */
+    #entry-step-order {
+      display: none !important;
+    }
+
+    #entry-tables.entry-gate__tables--zones {
+      display: flex;
+      flex-direction: column;
+      gap: 1.35rem;
+    }
+
+    #entry-tables .dine-in-table-zone__title {
+      margin: 0 0 0.55rem;
+      font-family: "Frank Ruhl Libre", "Playfair Display", serif;
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--color-navy, #1e3354);
+      letter-spacing: 0.02em;
+      text-align: center;
+    }
+
+    #entry-tables .dine-in-table-zone__grid {
+      display: grid;
+      gap: 0.55rem;
+    }
+
+    /* בפנים: 3 × 3 (61–69) */
+    #entry-tables .dine-in-table-zone--inside .dine-in-table-zone__grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    /* בחוץ: שורה אחת של 4 (70–73) */
+    #entry-tables .dine-in-table-zone--outside .dine-in-table-zone__grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  </style>
+</head>
+<body class="entry-pending">
+  <!--
+    Entry point לישיבה במקום (Phase 2–3).
+    data-mode="dine-in-only" → entry-gate.js opens table picker directly.
+    Menu/cart DOM + main.js reuse the existing order system (no clone).
+  -->
+  <div
+    class="entry-gate"
+    id="entry-gate"
+    data-mode="dine-in-only"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="entry-hero-title"
+  >
+    <div class="entry-gate__chrome">
+      <img
+        src="assets/logo/kosher-badge.png"
+        alt="כשר למהדרין"
+        class="entry-gate__kosher-badge"
+        width="72"
+        height="72"
+        loading="eager"
+        decoding="async"
+      >
+      <button
+        type="button"
+        class="entry-gate__lang lang-toggle"
+        id="entry-lang-toggle"
+        aria-label="החלפת שפה – עברית / English"
+      >
+        <span class="lang-toggle__option lang-toggle__option--active" data-lang="he">עב</span>
+        <span class="lang-toggle__sep" aria-hidden="true">|</span>
+        <span class="lang-toggle__option" data-lang="en">EN</span>
+      </button>
+    </div>
+
+    <div class="entry-gate__shell" id="entry-shell">
+      <div class="entry-gate__classic">
+        <p class="entry-gate__bh">ב״ה</p>
+        <div class="entry-gate__brand">
+          <img src="assets/logo/logo-image.png" alt="" class="entry-gate__logo" width="96" height="96">
+          <img src="assets/logo/logo-text.png" alt="LECHAIM" class="entry-gate__wordmark" width="220" height="56">
+        </div>
+      </div>
+
+      <p class="entry-gate__prompt" id="entry-prompt" hidden>ישיבה במקום</p>
+      <p class="entry-gate__notice" id="entry-notice" role="status" aria-live="polite" hidden></p>
+
+      <div class="entry-gate__hero">
+        <p class="entry-gate__welcome" id="entry-hero-welcome" hidden></p>
+        <h1 class="entry-gate__title" id="entry-hero-title">ישיבה במקום</h1>
+        <p class="entry-gate__kosher" id="entry-hero-kosher">כשר למהדרין</p>
+      </div>
+
+      <div class="entry-gate__step" id="entry-step-order" hidden>
+        <button type="button" class="entry-gate__btn entry-gate__btn--dine-in" data-order-type="dine-in" hidden tabindex="-1" aria-hidden="true">
+          <span class="entry-gate__btn-label" data-entry-i18n="dineIn">ישיבה במקום</span>
+        </button>
+      </div>
+
+      <div class="entry-gate__step" id="entry-step-pickup-closed" hidden>
+        <div class="entry-pickup-closed" role="status">
+          <p class="entry-pickup-closed__title" data-entry-i18n="pickupClosedTitle">לא זמין כרגע.</p>
+          <p class="entry-pickup-closed__text" data-entry-i18n="pickupClosedText">ניתן לבצע הזמנות לישיבה במקום בימי א - ה<br>בין השעות 14:00 - 23:00.</p>
+          <button type="button" class="entry-gate__btn entry-gate__btn--primary" id="entry-pickup-closed-browse" data-entry-i18n="pickupClosedBrowse" hidden tabindex="-1" aria-hidden="true">
+            לצפייה בתפריט
+          </button>
+        </div>
+      </div>
+
+      <div class="entry-gate__step" id="entry-step-table" hidden>
+        <!-- Buttons are built by entry-gate.js into #entry-tables; grouped visually below via page script. -->
+        <div class="entry-gate__tables" id="entry-tables" role="group" aria-label="Table number"></div>
+        <button type="button" class="entry-gate__back" data-entry-back="order" data-entry-i18n="back" hidden tabindex="-1" aria-hidden="true">חזרה</button>
+      </div>
+    </div>
+
+    <div class="entry-table-modal" id="entry-table-modal" hidden aria-hidden="true">
+      <button type="button" class="entry-table-modal__backdrop" id="entry-table-modal-backdrop" aria-label="סגור"></button>
+      <div
+        class="entry-table-modal__panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="entry-table-find"
+      >
+        <p class="entry-table-modal__find" id="entry-table-find" data-entry-i18n="tableFind">מספר השולחן נמצא על השולחן.</p>
+        <p class="entry-table-modal__hint" id="entry-table-hint-1" data-entry-i18n="tableHint1">רק נציג אחד מהשולחן יבצע את ההזמנה דרך המערכת.</p>
+        <p class="entry-table-modal__hint" id="entry-table-hint-2" data-entry-i18n="tableHint2">שאר הסועדים יכולים לבחור באפשרות "צפייה בתפריט" שבעמוד הראשי כדי לעיין במנות, במחירים ובתיאורים.</p>
+        <div class="entry-table-modal__how">
+          <p class="entry-table-modal__how-title" data-entry-i18n="tableHowTitle">איך זה עובד?</p>
+          <p class="entry-table-modal__how-text" data-entry-i18n="tableHowText">מוסיפים לסל המוצרים מנות שאתם אוהבים, עוברים על הסל שהכל נכון ולא שכחתם שום דבר, לוחצים שלח הזמנה והמסעדה מיד מתחילה לעבוד על ההזמנה שלכם.</p>
+        </div>
+        <div class="entry-table-modal__actions">
+          <button type="button" class="entry-gate__btn entry-gate__btn--primary entry-table-modal__pick" id="entry-table-modal-pick" data-entry-i18n="tablePickTable">
+            לבחירת שולחן
+          </button>
+          <button type="button" class="entry-gate__btn entry-table-modal__browse" id="entry-table-modal-browse" data-entry-i18n="tableBrowseMenu" hidden tabindex="-1" aria-hidden="true">
+            לצפייה בתפריט
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <a class="skip-link" href="#menu" data-i18n="skipToMenu">דלג לתפריט</a>
+
+  <header class="site-header" id="site-header">
+    <span class="site-header__bh">ב״ה</span>
+    <div class="header-inner container">
+      <a href="dine-in.html" class="brand" aria-label="לחיים בכריתים — ישיבה במקום">
+        <img src="assets/logo/logo-image.png" alt="" class="brand__icon" width="64" height="64" loading="eager" decoding="async">
+        <img src="assets/logo/logo-text.png" alt="LECHAIM — The Pearl of Crete" class="brand__wordmark" width="190" height="50" loading="eager" decoding="async">
+      </a>
+      <div class="header-actions">
+        <button
+          type="button"
+          class="lang-toggle header-actions__lang"
+          data-i18n-aria="langToggleAria"
+          aria-label="החלפת שפה – עברית / English"
+        >
+          <span class="lang-toggle__option lang-toggle__option--active" data-lang="he">עב</span>
+          <span class="lang-toggle__sep" aria-hidden="true">|</span>
+          <span class="lang-toggle__option" data-lang="en">EN</span>
+        </button>
+        <button
+          type="button"
+          class="header-action header-action--table"
+          id="table-toggle"
+          hidden
+          data-i18n-aria="changeTableAria"
+          aria-label="שנה מספר שולחן"
+        >
+          <span class="header-action__table-num" id="table-number">—</span>
+          <span data-i18n="tableLabel">שולחן</span>
+        </button>
+        <button
+          type="button"
+          class="header-action header-action--order-back"
+          id="order-back-toggle"
+          hidden
+          data-i18n-aria="backToOrderTypeAria"
+          aria-label="חזרה לבחירת סוג הזמנה"
+        >
+          <span data-i18n="backToOrderType">חזרה</span>
+        </button>
+        <button
+          type="button"
+          class="header-action header-action--my-order"
+          id="my-order-toggle"
+          hidden
+          aria-label="פתח את ההזמנה שלי"
+          aria-controls="order-receipt"
+          data-i18n-aria="openMyOrder"
+        >
+          <img src="assets/icons/order.svg" alt="" width="24" height="24">
+          <span id="my-order-toggle-label" data-i18n="myOrderView">ההזמנה שלי</span>
+        </button>
+        <button type="button" class="header-action header-action--cart" id="cart-toggle" aria-label="פתח סל הזמנה" aria-controls="cart-panel" aria-expanded="false">
+          <img src="assets/icons/cart.svg" alt="" width="24" height="24" id="cart-toggle-icon">
+          <span class="header-action__badge" id="cart-badge" data-count="0" hidden>0</span>
+          <span id="cart-toggle-label" data-i18n="myCart">הסל שלי</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero" id="hero">
+    <div class="hero-bg">
+      <div class="hero-slides" id="hero-slides" aria-hidden="true"></div>
+      <div class="hero-overlay"></div>
+    </div>
+    <div class="hero-content container">
+      <div class="hero-bottom">
+        <div class="hero-text">
+          <p class="hero-welcome reveal" data-i18n="heroWelcome">ברוכים הבאים</p>
+          <p class="hero-title reveal" data-i18n="heroTitle">מסעדת לחיים בכרתים</p>
+          <p class="hero-kosher reveal" data-i18n="heroKosher">כשר למהדרין</p>
+          <div class="hero-butcher-desc" id="butcher-hero-desc" hidden></div>
+        </div>
+        <a href="#menu" class="btn btn-primary reveal" id="hero-cta" data-i18n="viewMenu">צפייה בתפריט</a>
+      </div>
+    </div>
+  </section>
+
+  <div class="category-nav-wrapper" id="category-nav-wrapper">
+    <nav class="category-nav container" id="category-nav" aria-label="קטגוריות תפריט">
+      <div class="category-nav-scroll" id="category-nav-scroll">
+        <ul class="category-nav-list" id="category-nav-list"></ul>
+      </div>
+    </nav>
+  </div>
+
+  <main class="menu-main" id="menu">
+    <div class="container">
+      <div id="menu-sections"></div>
+    </div>
+  </main>
+
+  <!-- Required by main.js init() — do not remove -->
+  <span id="year" hidden></span>
+
+  <div class="sides-modal" id="sides-modal" hidden aria-hidden="true">
+    <button type="button" class="sides-modal-backdrop" id="sides-modal-backdrop" aria-label="סגור"></button>
+    <div class="sides-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="sides-modal-title">
+      <button type="button" class="sides-modal-close" id="sides-modal-close" aria-label="סגור">
+        <span aria-hidden="true">&times;</span>
+      </button>
+      <div class="sides-modal-body" id="sides-modal-body"></div>
+    </div>
+  </div>
+
+  <div class="food-modal" id="food-modal" hidden aria-hidden="true">
+    <button type="button" class="food-modal-backdrop" id="food-modal-backdrop" aria-label="סגור"></button>
+    <div class="food-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="food-modal-title">
+      <button type="button" class="food-modal-close" id="food-modal-close" aria-label="סגור">
+        <span aria-hidden="true">&times;</span>
+      </button>
+      <div class="food-modal-body" id="food-modal-body"></div>
+    </div>
+  </div>
+
+  <div class="cart-panel" id="cart-panel" hidden aria-hidden="true">
+    <button type="button" class="cart-backdrop" id="cart-backdrop" aria-label="סגור סל"></button>
+    <aside class="cart-drawer" role="dialog" aria-modal="true" aria-labelledby="cart-title">
+      <header class="cart-header">
+        <h2 class="cart-title" id="cart-title" data-i18n="myOrder">ההזמנה שלי</h2>
+        <button type="button" class="cart-close" id="cart-close" aria-label="סגור">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </header>
+      <div class="cart-body" id="cart-body"></div>
+      <footer class="cart-footer" id="cart-footer">
+        <div class="cart-total-row" id="cart-pending-total-row">
+          <span class="cart-total-label" data-i18n="total">סה״כ</span>
+          <span class="cart-total-price" id="cart-total-price">€0</span>
+        </div>
+        <div class="cart-session-total" id="cart-session-total">
+          <span class="cart-session-total__label" data-i18n="currentTotal">סה״כ עגלה</span>
+          <span class="cart-session-total__price" id="cart-session-total-price">€0.00</span>
+        </div>
+        <div class="cart-actions">
+          <button type="button" class="cart-send-btn" id="cart-send" data-i18n="sendOrder" disabled>
+            שלח הזמנה
+          </button>
+          <button type="button" class="cart-bill-btn" id="cart-request-bill" data-i18n="requestBill" disabled hidden>
+            בקש חשבון
+          </button>
+          <button type="button" class="cart-clear-btn" id="cart-clear" data-i18n="clearCart" disabled>
+            נקה עגלה
+          </button>
+        </div>
+      </footer>
+    </aside>
+  </div>
+
+  <div class="app-confirm" id="app-confirm" hidden aria-hidden="true">
+    <button type="button" class="app-confirm__backdrop" id="app-confirm-backdrop" aria-label="Cancel"></button>
+    <div class="app-confirm__panel" role="dialog" aria-modal="true" aria-labelledby="app-confirm-text">
+      <p class="app-confirm__text" id="app-confirm-text"></p>
+      <div class="app-confirm__coupon" id="app-confirm-coupon" hidden>
+        <label class="app-confirm__coupon-label" id="app-confirm-coupon-label" for="app-confirm-coupon-input">יש לך קוד קופון?</label>
+        <div class="app-confirm__coupon-row">
+          <input
+            type="text"
+            id="app-confirm-coupon-input"
+            class="app-confirm__coupon-input"
+            autocomplete="off"
+            spellcheck="false"
+            dir="ltr"
+            maxlength="64"
+          >
+          <button type="button" class="app-confirm__coupon-apply" id="app-confirm-coupon-apply">החל קופון</button>
+        </div>
+        <p class="app-confirm__coupon-status" id="app-confirm-coupon-status" role="status" aria-live="polite" hidden></p>
+        <div class="app-confirm__coupon-totals" id="app-confirm-coupon-totals" hidden></div>
+      </div>
+      <div class="app-confirm__actions">
+        <button type="button" class="cart-send-btn" id="app-confirm-yes">כן</button>
+        <button type="button" class="cart-clear-btn" id="app-confirm-cancel">ביטול</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="cart-toast" id="cart-toast" role="status" aria-live="polite" hidden></div>
+  <div class="order-feedback" id="order-feedback" role="status" aria-live="polite" hidden></div>
+
+  <div class="order-receipt" id="order-receipt" hidden aria-hidden="true">
+    <button type="button" class="order-receipt__backdrop" id="order-receipt-backdrop" aria-label="סגור"></button>
+    <div class="order-receipt__panel" role="dialog" aria-modal="true" aria-labelledby="order-receipt-title">
+      <button type="button" class="order-receipt__close" id="order-receipt-close" aria-label="סגור" hidden>×</button>
+      <header class="order-receipt__header">
+        <p class="order-receipt__eyebrow" id="order-receipt-eyebrow">LECHAIM</p>
+        <h2 class="order-receipt__title" id="order-receipt-title">ההזמנה נשלחה</h2>
+        <p class="order-receipt__order-no" id="order-receipt-order-no" hidden></p>
+        <p class="order-receipt__remember" id="order-receipt-remember" hidden></p>
+        <p class="order-receipt__meta" id="order-receipt-meta"></p>
+      </header>
+      <div class="order-receipt__body" id="order-receipt-body"></div>
+      <div class="order-receipt__total">
+        <span id="order-receipt-total-label">סה״כ</span>
+        <strong id="order-receipt-total">€0.00</strong>
+      </div>
+      <footer class="order-receipt__actions">
+        <button type="button" class="cart-send-btn" id="order-receipt-continue" data-i18n="receiptContinue">הוסף פריטים להזמנה קיימת</button>
+        <button type="button" class="cart-clear-btn" id="order-receipt-new" data-i18n="receiptNewOrder">הזמנה חדשה</button>
+      </footer>
+    </div>
+  </div>
+
+  <div class="ordering-hours-banner" id="ordering-hours-banner" hidden role="status" aria-live="polite">
+    <p id="ordering-hours-banner-text"></p>
+  </div>
+
+  <div class="app-confirm" id="kitchen-close-modal" hidden aria-hidden="true">
+    <button type="button" class="app-confirm__backdrop" id="kitchen-close-backdrop" aria-label="סגור"></button>
+    <div class="app-confirm__panel" role="dialog" aria-modal="true" aria-labelledby="kitchen-close-text">
+      <p class="app-confirm__text" id="kitchen-close-text"></p>
+      <div class="app-confirm__actions">
+        <button type="button" class="cart-send-btn" id="kitchen-close-ok">הבנתי</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Same order as index.html (without place-reservations.js — not needed for dine-in) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+  <script src="js/supabase-config.js" defer></script>
+  <script src="js/order-types.js" defer></script>
+  <script src="js/supabase-order-service.js" defer></script>
+  <script src="js/menu-data.js" defer></script>
+  <script src="js/inventory.js" defer></script>
+  <script src="js/order-session.js" defer></script>
+  <script src="js/order-engine.js" defer></script>
+  <script src="js/a11y-focus-trap.js" defer></script>
+  <script src="js/main.js" defer></script>
+  <script src="js/entry-gate.js" defer></script>
+  <script defer>
+    /* Visual only: regroup entry-gate table buttons into Inside / Outside. Selection logic unchanged. */
+    (function groupDineInTableZones() {
+      const root = document.getElementById('entry-tables');
+      if (!root) return;
+
+      function makeZone(titleId, titleText, zoneMod) {
+        const section = document.createElement('section');
+        section.className = 'dine-in-table-zone ' + zoneMod;
+        section.setAttribute('aria-labelledby', titleId);
+
+        const title = document.createElement('h2');
+        title.id = titleId;
+        title.className = 'dine-in-table-zone__title';
+        title.textContent = titleText;
+
+        const grid = document.createElement('div');
+        grid.className = 'dine-in-table-zone__grid';
+        grid.setAttribute('role', 'group');
+        grid.setAttribute('aria-label', titleText);
+
+        section.append(title, grid);
+        return { section, grid };
+      }
+
+      function applyZones() {
+        const flatButtons = [...root.querySelectorAll(':scope > .entry-gate__table')];
+        if (!flatButtons.length) return;
+
+        const inside = makeZone('dine-in-zone-inside', 'בפנים', 'dine-in-table-zone--inside');
+        const outside = makeZone('dine-in-zone-outside', 'בחוץ', 'dine-in-table-zone--outside');
+
+        flatButtons.forEach((btn) => {
+          const n = Number(btn.dataset.table);
+          if (n === 60) {
+            btn.remove();
+            return;
+          }
+          if (n >= 70 && n <= 73) outside.grid.appendChild(btn);
+          else if (n >= 61 && n <= 69) inside.grid.appendChild(btn);
+          else btn.remove();
+        });
+
+        root.replaceChildren(inside.section, outside.section);
+        root.classList.add('entry-gate__tables--zones');
+      }
+
+      const observer = new MutationObserver(() => applyZones());
+      observer.observe(root, { childList: true });
+      applyZones();
+    })();
+  </script>
+</body>
+</html>
