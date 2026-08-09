@@ -655,36 +655,136 @@
     return data || [];
   }
 
-  /**
-   * Open sessions with nested orders + order_items (one round-trip for orders).
-   * @returns {Promise<Array<{ session: object, orders: object[] }>>}
-   */
-  async function getOpenSessionsWithOrders() {
-    const sessions = await getOpenSessions();
-    if (!sessions.length) return [];
+  /* Columns verified used by admin-tables (+ board routing). Not select('*'). */
+  const OPEN_BOARD_SESSION_COLS = [
+    'session_id',
+    'order_type',
+    'status',
+    'bill_requested',
+    'table_number',
+    'customer_name',
+    'customer_phone',
+    'notes',
+    'customer_address',
+    'fulfillment_type',
+    'pickup_type',
+    'pickup_time',
+    'pickup_date',
+    'delivery_fee',
+    'public_order_no',
+    'coupon_code',
+    'discount_percent',
+    'discount_amount',
+    'subtotal',
+    'created_at',
+    'updated_at',
+    'closed_at',
+  ].join(', ');
 
-    const sb = getClient();
+  const OPEN_BOARD_ORDER_COLS = [
+    'id',
+    'session_id',
+    'order_number',
+    'total',
+    'status',
+    'printed_at',
+    'created_at',
+    'updated_at',
+    'order_items(id, product_id, product_name, print_name, quantity, price, notes, parent_item_id, created_at, selected_weight, price_per_kg, unit_type, thaw_count)',
+  ].join(', ');
+
+  const OPEN_SHABBAT_SESSION_COLS = [
+    'session_id',
+    'order_type',
+    'customer_name',
+    'customer_phone',
+    'notes',
+    'pickup_time',
+    'created_at',
+    'subtotal',
+    'discount_amount',
+    'coupon_code',
+    'discount_percent',
+    'status',
+  ].join(', ');
+
+  const OPEN_SHABBAT_ORDER_COLS = [
+    'id',
+    'session_id',
+    'order_number',
+    'status',
+    'printed_at',
+    'order_items(id, product_id, product_name, print_name, quantity, price, parent_item_id)',
+  ].join(', ');
+
+  function groupOrdersBySession(sessions, orders) {
     const ids = sessions.map((row) => row.session_id).filter(Boolean);
-    const { data, error } = await sb
-      .from(TABLE_ORDERS)
-      .select('*, order_items(*)')
-      .in('session_id', ids)
-      .order('order_number', { ascending: true });
-
-    throwIfError(error, 'getOpenSessionsWithOrders');
-
     const bySession = new Map();
     ids.forEach((id) => bySession.set(id, []));
-    (data || []).forEach((order) => {
+    (orders || []).forEach((order) => {
       const list = bySession.get(order.session_id);
       if (list) list.push(order);
       else bySession.set(order.session_id, [order]);
     });
-
     return sessions.map((session) => ({
       session,
       orders: bySession.get(session.session_id) || [],
     }));
+  }
+
+  /**
+   * Open sessions with nested orders + order_items (one round-trip for orders).
+   * Explicit columns only — verified against admin-tables consumers.
+   * @returns {Promise<Array<{ session: object, orders: object[] }>>}
+   */
+  async function getOpenSessionsWithOrders() {
+    const sb = getClient();
+    const { data: sessions, error: sessionErr } = await sb
+      .from(TABLE_SESSIONS)
+      .select(OPEN_BOARD_SESSION_COLS)
+      .in('status', OPEN_SESSION_STATUSES)
+      .order('updated_at', { ascending: false });
+
+    throwIfError(sessionErr, 'getOpenSessionsWithOrders.sessions');
+    if (!sessions?.length) return [];
+
+    const ids = sessions.map((row) => row.session_id).filter(Boolean);
+    const { data, error } = await sb
+      .from(TABLE_ORDERS)
+      .select(OPEN_BOARD_ORDER_COLS)
+      .in('session_id', ids)
+      .order('order_number', { ascending: true });
+
+    throwIfError(error, 'getOpenSessionsWithOrders');
+    return groupOrdersBySession(sessions, data);
+  }
+
+  /**
+   * Open Shabbat sessions only, with nested orders + order_items.
+   * Server-filtered — does not download dine_in / takeaway / butcher boards.
+   * @returns {Promise<Array<{ session: object, orders: object[] }>>}
+   */
+  async function getOpenShabbatSessionsWithOrders() {
+    const sb = getClient();
+    const { data: sessions, error: sessionErr } = await sb
+      .from(TABLE_SESSIONS)
+      .select(OPEN_SHABBAT_SESSION_COLS)
+      .eq('order_type', 'shabbat')
+      .in('status', OPEN_SESSION_STATUSES)
+      .order('updated_at', { ascending: false });
+
+    throwIfError(sessionErr, 'getOpenShabbatSessionsWithOrders.sessions');
+    if (!sessions?.length) return [];
+
+    const ids = sessions.map((row) => row.session_id).filter(Boolean);
+    const { data, error } = await sb
+      .from(TABLE_ORDERS)
+      .select(OPEN_SHABBAT_ORDER_COLS)
+      .in('session_id', ids)
+      .order('order_number', { ascending: true });
+
+    throwIfError(error, 'getOpenShabbatSessionsWithOrders');
+    return groupOrdersBySession(sessions, data);
   }
 
   /**
@@ -1614,6 +1714,7 @@
     getOpenSessions,
     getSessionOrders,
     getOpenSessionsWithOrders,
+    getOpenShabbatSessionsWithOrders,
     getClosedSessionsForTable,
     getClosedTakeawaySessions,
     getClosedButcherSessions,

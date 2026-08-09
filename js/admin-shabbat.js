@@ -478,22 +478,14 @@
 
   async function refresh() {
     const api = global.LechaimSupabaseOrders;
-    if (!api?.isConfigured?.() || typeof api.getOpenSessionsWithOrders !== 'function') {
+    if (!api?.isConfigured?.() || typeof api.getOpenShabbatSessionsWithOrders !== 'function') {
       cache = [];
       renderGrid();
       return;
     }
     try {
-      const rows = await api.getOpenSessionsWithOrders();
-      cache = (rows || [])
-        .filter((row) => {
-          const classified = global.LechaimOrderTypes?.classifyOrderType?.(
-            row?.session?.order_type,
-            'admin-shabbat'
-          );
-          return classified === 'shabbat';
-        })
-        .map((row) => mapRow(row.session, row.orders));
+      const rows = await api.getOpenShabbatSessionsWithOrders();
+      cache = (rows || []).map((row) => mapRow(row.session, row.orders));
       /* Keep empty admin-created cards (name only, no items yet) */
       renderGrid();
       if (selectedId) {

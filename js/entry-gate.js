@@ -915,28 +915,7 @@
 
   async function collectRemoteOccupiedTables() {
     const occupied = new Set();
-    const api = window.LechaimSupabaseOrders;
-
-    if (api?.isConfigured?.() && typeof api.getOpenSessionsWithOrders === 'function') {
-      try {
-        const rows = await api.getOpenSessionsWithOrders();
-        (rows || []).forEach(({ session, orders }) => {
-          if (!session || session.table_number == null) return;
-          const classified = window.LechaimOrderTypes?.classifyOrderType?.(
-            session.order_type,
-            'entry-gate.occupied'
-          );
-          if (classified !== 'dine_in') return;
-          if (!remoteSessionHasLiveOrder(session, orders)) return;
-          occupied.add(Number(session.table_number));
-        });
-        return occupied;
-      } catch (err) {
-        console.warn('[entry-gate] occupied tables (with orders) failed', err);
-      }
-    }
-
-    /* Fallback: sessions only — may over-mark; prefer API path above. */
+    /* Lean path only: dine_in open sessions + qty/price (or order.total). */
     const cfg = window.LECHAIM_SUPABASE_CONFIG;
     if (!cfg?.url || !cfg?.anonKey || !window.supabase?.createClient) {
       return occupied;
