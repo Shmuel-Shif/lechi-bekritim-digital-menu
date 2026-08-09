@@ -1973,7 +1973,9 @@
   }
 
   /**
-   * Resume an open dine-in or takeaway session into the menu (unless Supabase says closed).
+   * Resume an open dine-in or butcher session into the menu (unless Supabase says closed).
+   * Takeaway: never auto-enter the menu on refresh — show home and keep order state.
+   * User resumes via the איסוף עצמי button → resumeTakeawaySession.
    */
   async function tryResumeSession() {
     if (Session?.hasActiveDineInSession()) {
@@ -2009,12 +2011,15 @@
 
     if (Session?.hasActiveTakeawaySession()) {
       const session = Session.getSession();
-      if (!shouldKeepSessionOnRefresh(session)) {
-        console.log('[entry-gate] empty takeaway cart — return to entry buttons');
-        await discardIdleSession(session);
+      if (session && await isMappedRemoteSessionClosed(session.sessionId)) {
+        console.log('[entry-gate] takeaway Supabase session closed — clearing local, showing home');
+        await discardClosedLocalSession(session);
+        clearTakeawayLockStorage();
         return false;
       }
-      return resumeTakeawaySession(session);
+      /* Keep lechaim-order-session / cart / lock. Navigation only → home. */
+      console.log('[entry-gate] takeaway session kept — showing home (no auto-resume on refresh)');
+      return false;
     }
 
     if (Session?.hasActiveButcherSession?.()) {
