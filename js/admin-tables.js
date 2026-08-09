@@ -91,6 +91,8 @@
   const QTY_MAX = 99;
   let pendingBillEntry = null;
   let pendingBillCoupon = null;
+  let paymentResolver = null;
+  let pendingPaymentTotal = 0;
   let boardFilter = 'tables'; /* 'tables' | 'takeaway' | 'butcher' */
 
   function pickupCaches() {
@@ -186,8 +188,13 @@
     clearFocusTrap('confirm');
     confirmModal.hidden = true;
     confirmModal.setAttribute('aria-hidden', 'true');
-    if (!successModal || successModal.hidden) {
+    const paymentModal = document.getElementById('admin-payment-modal');
+    const paymentOpen = Boolean(paymentModal && !paymentModal.hidden);
+    if ((!successModal || successModal.hidden) && !paymentOpen) {
       document.body.classList.remove('admin-modal-open');
+    }
+    if (confirmCancel) {
+      confirmCancel.textContent = 'ביטול';
     }
     const resolve = confirmResolver;
     confirmResolver = null;
@@ -206,6 +213,9 @@
     if (confirmYes) {
       confirmYes.textContent = options.yesLabel || 'כן';
     }
+    if (confirmCancel) {
+      confirmCancel.textContent = options.noLabel || 'ביטול';
+    }
     confirmModal.hidden = false;
     confirmModal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('admin-modal-open');
@@ -214,6 +224,23 @@
     return new Promise((resolve) => {
       confirmResolver = resolve;
     });
+  }
+
+  async function requestPaymentCancel() {
+    const ok = await showConfirmModal(
+      'האם אתה בטוח? השולחן/ההזמנה ייסגרו בלי רישום מזומן או אשראי בקופה.',
+      { yesLabel: 'כן', noLabel: 'לא' }
+    );
+    if (ok) {
+      closePaymentModal({
+        method: 'void',
+        paidTotal: null,
+        paidCash: null,
+        paidCredit: null,
+      });
+    } else {
+      document.getElementById('admin-payment-cancel')?.focus();
+    }
   }
 
   function escapeHtml(str) {
@@ -349,6 +376,136 @@
     return (order.items || []).reduce((sum, item) => (
       sum + (Number(item.price) || 0) * (Number(item.qty) || 0)
     ), 0);
+  }
+
+  function calcOrderPaidTotal(order) {
+    if (!order) return 0;
+    if (order.billTotal != null && Number.isFinite(Number(order.billTotal))) {
+      const fee = Number(order.deliveryFee) || 0;
+      return Math.max(0, Math.round((Number(order.billTotal) + fee) * 100) / 100);
+    }
+    const sub = calcOrderSubtotal(order);
+    const disc = Number(order.discountAmount) || 0;
+    const fee = Number(order.deliveryFee) || 0;
+    return Math.max(0, Math.round((sub - disc + fee) * 100) / 100);
+  }
+
+  function roundMoney(n) {
+    return Math.round((Number(n) || 0) * 100) / 100;
+  }
+
+  function hidePaymentSplitPanel() {
+    const panel = document.getElementById('admin-payment-split-panel');
+    if (panel) panel.hidden = true;
+  }
+
+  function syncPaymentSplitFields(fromCash = true) {
+    const total = roundMoney(pendingPaymentTotal);
+    const cashInput = document.getElementById('admin-payment-cash-input');
+    const creditInput = document.getElementById('admin-payment-credit-input');
+    const hint = document.getElementById('admin-payment-split-hint');
+    if (!cashInput || !creditInput) return;
+
+    let cash = roundMoney(cashInput.value);
+    if (!Number.isFinite(cash) || cash < 0) cash = 0;
+    if (cash > total) cash = total;
+    const credit = roundMoney(total - cash);
+
+    if (fromCash) {
+      cashInput.value = String(cash);
+      creditInput.value = String(credit);
+    }
+
+    if (hint) {
+      hint.textContent = cash > 0 && credit > 0
+        ? `מזומן ${formatMoney(cash)} · אשראי ${formatMoney(credit)}`
+        : 'הזינו סכום מזומן בין 0 לסכום המלא';
+    }
+  }
+
+  function showPaymentSplitPanel() {
+    const panel = document.getElementById('admin-payment-split-panel');
+    const cashInput = document.getElementById('admin-payment-cash-input');
+    if (!panel) return;
+    panel.hidden = false;
+    const half = roundMoney(pendingPaymentTotal / 2);
+    if (cashInput) {
+      cashInput.value = String(half);
+      syncPaymentSplitFields(true);
+      cashInput.focus();
+      cashInput.select();
+    }
+  }
+
+  function closePaymentModal(result = null) {
+    const modal = document.getElementById('admin-payment-modal');
+    hidePaymentSplitPanel();
+    if (modal) {
+      modal.hidden = true;
+      modal.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('admin-modal-open');
+    }
+    clearFocusTrap('payment');
+    pendingPaymentTotal = 0;
+    const resolve = paymentResolver;
+    paymentResolver = null;
+    if (typeof resolve === 'function') resolve(result);
+  }
+
+  function buildPaymentResult(method, paidTotal, paidCash, paidCredit) {
+    return {
+      method,
+      paidTotal: roundMoney(paidTotal),
+      paidCash: roundMoney(paidCash),
+      paidCredit: roundMoney(paidCredit),
+    };
+  }
+
+  function showPaymentModal(entry) {
+    const modal = document.getElementById('admin-payment-modal');
+    const subtitle = document.getElementById('admin-payment-subtitle');
+    const amountEl = document.getElementById('admin-payment-amount');
+    if (!modal) return Promise.resolve(null);
+
+    if (typeof paymentResolver === 'function') {
+      paymentResolver(null);
+      paymentResolver = null;
+    }
+
+    const deliveryClose = entry?.orderType === 'takeaway' && isDeliveryOrder(entry.order);
+    let label = `שולחן ${entry?.tableNumber ?? ''}`;
+    if (entry?.orderType === 'butcher') label = 'חנות בשר';
+    else if (entry?.orderType === 'takeaway') label = deliveryClose ? 'משלוח' : 'איסוף עצמי';
+
+    const paid = calcOrderPaidTotal(entry?.order);
+    pendingPaymentTotal = paid;
+    hidePaymentSplitPanel();
+    if (subtitle) subtitle.textContent = `${label} · בחרו אמצעי תשלום לסגירה`;
+    if (amountEl) amountEl.textContent = formatMoney(paid);
+
+    modal.hidden = false;
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('admin-modal-open');
+    setFocusTrap('payment', modal);
+    document.getElementById('admin-payment-cash')?.focus();
+
+    return new Promise((resolve) => {
+      paymentResolver = resolve;
+    });
+  }
+
+  function confirmPaymentSplit() {
+    const total = roundMoney(pendingPaymentTotal);
+    const cashInput = document.getElementById('admin-payment-cash-input');
+    let cash = roundMoney(cashInput?.value);
+    if (!Number.isFinite(cash) || cash < 0) cash = 0;
+    if (cash > total) cash = total;
+    const credit = roundMoney(total - cash);
+    if (cash <= 0 || credit <= 0) {
+      showToast('בתשלום מפוצל צריך גם מזומן וגם אשראי');
+      return;
+    }
+    closePaymentModal(buildPaymentResult('split', total, cash, credit));
   }
 
   function entryKey(entry) {
@@ -760,6 +917,8 @@
       refreshBoardData().catch((err) => {
         console.warn('[admin-tables] refresh failed', err);
       });
+      /* Keep קופה totals live whenever sessions/orders change */
+      window.LechaimAdminTill?.refresh?.();
     }, 250);
   }
 
@@ -2393,27 +2552,35 @@
     if (action === 'close-table') {
       const isPickupClose = entry.orderType === 'takeaway' || entry.orderType === 'butcher';
       const deliveryClose = entry.orderType === 'takeaway' && isDeliveryOrder(entry.order);
-      const closeLabel = deliveryClose
-        ? 'סגור משלוח'
-        : (isPickupClose ? 'סגור הזמנה' : 'סגור שולחן');
-      const confirmMsg = entry.orderType === 'butcher'
-        ? 'האם אתה בטוח שברצונך לסגור את הזמנת חנות הבשר?'
-        : (entry.orderType === 'takeaway'
-          ? (deliveryClose
-            ? 'האם אתה בטוח שברצונך לסגור את המשלוח?'
-            : 'האם אתה בטוח שברצונך לסגור את הזמנת האיסוף העצמי?')
-          : `האם אתה בטוח שברצונך לסגור את שולחן ${entry.tableNumber}?`);
-      const ok = await showConfirmModal(confirmMsg, { yesLabel: `כן, ${closeLabel}` });
-      if (!ok) return;
+      const payment = await showPaymentModal(entry);
+      const isVoidClose = payment?.method === 'void';
+      if (!payment || (!isVoidClose && !['cash', 'credit', 'split'].includes(payment.method))) return;
 
       try {
         let closed = false;
         suppressCustomerNotify();
 
         if (dataSource === 'supabase' && entry.order._supabaseSessionId && OrdersApi()?.updateSessionStatus) {
-          await OrdersApi().updateSessionStatus(entry.order._supabaseSessionId, {
+          const patch = {
             status: 'closed',
-          });
+            subtotal: entry.order.subtotal != null ? entry.order.subtotal : calcOrderSubtotal(entry.order),
+            discountAmount: entry.order.discountAmount != null ? entry.order.discountAmount : null,
+            discountPercent: entry.order.discountPercent != null ? entry.order.discountPercent : null,
+            couponCode: entry.order.couponCode || null,
+          };
+          if (isVoidClose) {
+            /* Close table/order but do not record in till */
+            patch.paymentMethod = null;
+            patch.paidTotal = null;
+            patch.paidCash = null;
+            patch.paidCredit = null;
+          } else {
+            patch.paymentMethod = payment.method;
+            patch.paidTotal = payment.paidTotal;
+            patch.paidCash = payment.paidCash;
+            patch.paidCredit = payment.paidCredit;
+          }
+          await OrdersApi().updateSessionStatus(entry.order._supabaseSessionId, patch);
           closed = true;
         } else {
           const engine = Engine();
@@ -2436,9 +2603,15 @@
         );
         closeDrawer();
         await refreshBoardData();
+        window.LechaimAdminTill?.refresh?.();
       } catch (err) {
         console.error('[admin-tables] close table failed', err);
-        showToast('לא ניתן לסגור');
+        const msg = String(err?.message || '');
+        if (msg.includes('payment_method') || msg.includes('paid_total') || msg.includes('paid_cash') || msg.includes('column')) {
+          showToast('חסרות עמודות קופה — הריצו supabase-till-payment.sql');
+        } else {
+          showToast('לא ניתן לסגור');
+        }
       }
     }
   }
@@ -2672,6 +2845,30 @@
     couponPrint?.addEventListener('click', () => { confirmAdminCouponPrint(); });
     couponCancel?.addEventListener('click', closeCouponModal);
     couponBackdrop?.addEventListener('click', closeCouponModal);
+
+    document.getElementById('admin-payment-cash')?.addEventListener('click', () => {
+      const total = roundMoney(pendingPaymentTotal);
+      closePaymentModal(buildPaymentResult('cash', total, total, 0));
+    });
+    document.getElementById('admin-payment-credit')?.addEventListener('click', () => {
+      const total = roundMoney(pendingPaymentTotal);
+      closePaymentModal(buildPaymentResult('credit', total, 0, total));
+    });
+    document.getElementById('admin-payment-split')?.addEventListener('click', () => {
+      showPaymentSplitPanel();
+    });
+    document.getElementById('admin-payment-cash-input')?.addEventListener('input', () => {
+      syncPaymentSplitFields(true);
+    });
+    document.getElementById('admin-payment-split-confirm')?.addEventListener('click', () => {
+      confirmPaymentSplit();
+    });
+    document.getElementById('admin-payment-cancel')?.addEventListener('click', () => {
+      void requestPaymentCancel();
+    });
+    document.getElementById('admin-payment-backdrop')?.addEventListener('click', () => {
+      void requestPaymentCancel();
+    });
     couponInput?.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {
         event.preventDefault();
@@ -2735,6 +2932,11 @@
 
     document.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape') return;
+      const paymentModal = document.getElementById('admin-payment-modal');
+      if (paymentModal && !paymentModal.hidden) {
+        closePaymentModal(null);
+        return;
+      }
       const qtyModal = document.getElementById('admin-qty-modal');
       if (qtyModal && !qtyModal.hidden) {
         closeAdminQtyModal();

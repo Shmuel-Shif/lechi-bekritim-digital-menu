@@ -1685,6 +1685,11 @@ body.table-drawer-open {
   padding: 1rem;
 }
 
+/* Confirm must sit above payment / other stacked modals */
+#admin-confirm-modal {
+  z-index: 14000;
+}
+
 .admin-modal__backdrop {
   position: absolute;
   inset: 0;
@@ -2763,4 +2768,280 @@ body.admin-modal-open {
   margin: 0;
   color: var(--color-text-muted, #5b6570);
   font-size: 0.9rem;
+}
+
+/* —— Till / קופה —— */
+#admin-view-till {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: min(70vh, 36rem);
+}
+
+#admin-view-till .admin-header {
+  width: 100%;
+}
+
+#admin-view-till .admin-error {
+  width: min(100%, 22rem);
+  text-align: center;
+}
+
+.admin-till-date {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-navy, #152640);
+}
+
+.admin-till-date input {
+  min-height: 2.5rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 10px;
+  border: 1px solid var(--color-cream-dark, #e6dfd0);
+  background: #fff;
+  font: inherit;
+}
+
+.admin-till-card {
+  display: grid;
+  gap: 0.4rem;
+  width: min(100%, 228px);
+  margin: auto 0;
+  padding: 0.85rem 0.9rem 0.8rem;
+  border-radius: 12px;
+  border: 1px solid rgba(30, 51, 84, 0.14);
+  background: #fff;
+  color: var(--color-navy, #152640);
+  text-align: right;
+  box-shadow: 0 3px 12px rgba(21, 38, 64, 0.07);
+}
+
+.admin-till-card__date {
+  margin: 0 0 0.05rem;
+  font-size: 0.98rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.admin-till-card__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.55rem;
+}
+
+.admin-till-card__label {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--color-text-muted, #58677b);
+}
+
+.admin-till-card__value {
+  font-size: 1.05rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  color: var(--color-navy, #152640);
+}
+
+.admin-till-card__wa {
+  width: 100%;
+  margin-top: 0.3rem;
+  justify-content: center;
+  min-height: 2.2rem;
+  padding: 0.4rem 0.55rem;
+  font-size: 0.85rem;
+}
+
+.admin-till-card__wa .admin-wa-icon {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.admin-modal__panel--payment {
+  width: min(100%, 340px);
+  gap: 0.75rem;
+}
+
+.admin-payment-modal__title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--color-navy, #152640);
+}
+
+.admin-payment-modal__subtitle {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text-muted, #58677b);
+}
+
+.admin-payment-modal__amount {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--color-navy, #152640);
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+}
+
+.admin-payment-modal__choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+}
+
+.admin-payment-modal__choice {
+  min-height: 3rem;
+  width: 100%;
+}
+
+.admin-payment-modal__choice--split {
+  grid-column: 1 / -1;
+}
+
+.admin-payment-split {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.75rem;
+  border-radius: 12px;
+  border: 1px solid var(--color-cream-dark, #e6dfd0);
+  background: rgba(255, 255, 255, 0.75);
+  text-align: right;
+}
+
+.admin-payment-split[hidden] {
+  display: none !important;
+}
+
+.admin-payment-split__field {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--color-navy, #152640);
+}
+
+.admin-payment-split__field input {
+  min-height: 2.5rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: 10px;
+  border: 1px solid var(--color-cream-dark, #e6dfd0);
+  background: #fff;
+  font: inherit;
+  font-weight: 700;
+}
+
+.admin-payment-split__field input[readonly] {
+  background: #f3f0e8;
+  color: var(--color-text-muted, #58677b);
+}
+
+.admin-payment-split__hint {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text-muted, #58677b);
+}
+
+.admin-till-tx.is-split {
+  border-color: rgba(196, 160, 106, 0.55);
+  background: rgba(196, 160, 106, 0.1);
+}
+
+.admin-till-detail-modal__panel {
+  width: min(100%, 440px);
+  max-height: min(80vh, 640px);
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+}
+
+.admin-till-detail-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.95rem 1rem;
+  border-bottom: 1px solid var(--color-cream-dark, #e6dfd0);
+}
+
+.admin-till-detail-modal__title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--color-navy, #152640);
+}
+
+.admin-till-detail-modal__body {
+  padding: 0.85rem 1rem 1.1rem;
+  overflow: auto;
+}
+
+.admin-till-tx-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.admin-till-tx {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid var(--color-cream-dark, #e6dfd0);
+  background: #fff;
+}
+
+.admin-till-tx.is-cash {
+  border-color: rgba(47, 111, 71, 0.35);
+  background: rgba(47, 111, 71, 0.06);
+}
+
+.admin-till-tx.is-credit {
+  border-color: rgba(30, 51, 84, 0.28);
+  background: rgba(30, 51, 84, 0.05);
+}
+
+.admin-till-tx__main {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.admin-till-tx__main strong {
+  font-size: 0.95rem;
+  color: var(--color-navy, #152640);
+}
+
+.admin-till-tx__main span {
+  font-size: 0.85rem;
+  color: var(--color-text-muted, #58677b);
+}
+
+.admin-till-tx__meta {
+  display: grid;
+  gap: 0.1rem;
+  text-align: left;
+  direction: ltr;
+}
+
+.admin-till-tx__method {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-text-muted, #58677b);
+  direction: rtl;
+  text-align: right;
+}
+
+.admin-till-unset-note {
+  margin: 0.75rem 0 0;
+  font-size: 0.85rem;
+  color: #8a2f2f;
+  font-weight: 600;
 }

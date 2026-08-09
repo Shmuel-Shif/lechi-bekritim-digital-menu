@@ -936,6 +936,56 @@
       if (status === 'active') {
         next.bill_requested = false;
         next.closed_at = null;
+        next.payment_method = null;
+        next.paid_total = null;
+        next.paid_cash = null;
+        next.paid_credit = null;
+      }
+    }
+
+    if (patch.paymentMethod !== undefined || patch.payment_method !== undefined) {
+      const raw = patch.paymentMethod ?? patch.payment_method;
+      if (raw == null || raw === '') {
+        next.payment_method = null;
+      } else {
+        const method = String(raw).toLowerCase();
+        if (method !== 'cash' && method !== 'credit' && method !== 'split') {
+          throw new Error('[LechaimSupabaseOrders.updateSessionStatus] invalid payment_method');
+        }
+        next.payment_method = method;
+      }
+    }
+    if (patch.paidTotal !== undefined || patch.paid_total !== undefined) {
+      const raw = patch.paidTotal ?? patch.paid_total;
+      if (raw == null || raw === '') {
+        next.paid_total = null;
+      } else {
+        const amt = Number(raw);
+        next.paid_total = Number.isFinite(amt) && amt >= 0
+          ? Math.round(amt * 100) / 100
+          : null;
+      }
+    }
+    if (patch.paidCash !== undefined || patch.paid_cash !== undefined) {
+      const raw = patch.paidCash ?? patch.paid_cash;
+      if (raw == null || raw === '') {
+        next.paid_cash = null;
+      } else {
+        const amt = Number(raw);
+        next.paid_cash = Number.isFinite(amt) && amt >= 0
+          ? Math.round(amt * 100) / 100
+          : null;
+      }
+    }
+    if (patch.paidCredit !== undefined || patch.paid_credit !== undefined) {
+      const raw = patch.paidCredit ?? patch.paid_credit;
+      if (raw == null || raw === '') {
+        next.paid_credit = null;
+      } else {
+        const amt = Number(raw);
+        next.paid_credit = Number.isFinite(amt) && amt >= 0
+          ? Math.round(amt * 100) / 100
+          : null;
       }
     }
 
@@ -1200,6 +1250,51 @@
       .limit(500);
 
     throwIfError(error, 'getShabbatSessionsReport');
+    return data || [];
+  }
+
+  /**
+   * Closed sessions for one local calendar day (till / קופה).
+   * @param {string} dateStr YYYY-MM-DD (local business day)
+   * @returns {Promise<object[]>}
+   */
+  async function getDailyTillReport(dateStr) {
+    const sb = getClient();
+    const day = String(dateStr || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+      throw new Error('[LechaimSupabaseOrders.getDailyTillReport] date YYYY-MM-DD required');
+    }
+
+    const start = new Date(`${day}T00:00:00`);
+    const end = new Date(`${day}T23:59:59.999`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      throw new Error('[LechaimSupabaseOrders.getDailyTillReport] invalid date');
+    }
+
+    const fullCols = 'session_id, table_number, order_type, payment_method, paid_total, paid_cash, paid_credit, subtotal, discount_amount, delivery_fee, closed_at, customer_name, fulfillment_type, public_order_no';
+    const basicCols = 'session_id, table_number, order_type, payment_method, paid_total, subtotal, discount_amount, delivery_fee, closed_at, customer_name, fulfillment_type, public_order_no';
+
+    let { data, error } = await sb
+      .from(TABLE_SESSIONS)
+      .select(fullCols)
+      .eq('status', 'closed')
+      .gte('closed_at', start.toISOString())
+      .lte('closed_at', end.toISOString())
+      .order('closed_at', { ascending: true })
+      .limit(500);
+
+    if (error && /paid_cash|paid_credit|column/i.test(String(error.message || ''))) {
+      ({ data, error } = await sb
+        .from(TABLE_SESSIONS)
+        .select(basicCols)
+        .eq('status', 'closed')
+        .gte('closed_at', start.toISOString())
+        .lte('closed_at', end.toISOString())
+        .order('closed_at', { ascending: true })
+        .limit(500));
+    }
+
+    throwIfError(error, 'getDailyTillReport');
     return data || [];
   }
 
@@ -1747,6 +1842,7 @@
     incrementCouponUse,
     getCouponUsageReport,
     getShabbatSessionsReport,
+    getDailyTillReport,
     getDineInCloseAt,
     startDineInCloseCountdown,
     clearDineInCloseCountdown,

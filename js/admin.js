@@ -34,6 +34,7 @@
   const viewHistory = document.getElementById('admin-view-history');
   const viewInventory = document.getElementById('admin-view-inventory');
   const viewStats = document.getElementById('admin-view-stats');
+  const viewTill = document.getElementById('admin-view-till');
   const kitchenCloseBtn = document.getElementById('admin-kitchen-close-btn');
 
   let inventorySubscribed = false;
@@ -122,6 +123,7 @@
   function setTab(tab) {
     if (tab === 'inventory') currentTab = 'inventory';
     else if (tab === 'stats') currentTab = 'stats';
+    else if (tab === 'till') currentTab = 'till';
     else if (tab === 'takeaway') currentTab = 'takeaway';
     else if (tab === 'butcher') currentTab = 'butcher';
     else if (tab === 'shabbat') currentTab = 'shabbat';
@@ -141,6 +143,7 @@
     if (viewShabbat) viewShabbat.hidden = currentTab !== 'shabbat';
     if (viewReservations) viewReservations.hidden = currentTab !== 'reservations';
     if (viewHistory) viewHistory.hidden = currentTab !== 'history';
+    if (viewTill) viewTill.hidden = currentTab !== 'till';
     if (viewInventory) viewInventory.hidden = currentTab !== 'inventory';
     if (viewStats) viewStats.hidden = currentTab !== 'stats';
 
@@ -166,6 +169,9 @@
     if (currentTab === 'history') {
       window.LechaimAdminHistory?.start?.();
     }
+
+    /* Till stays live on every tab so totals update as soon as money is closed */
+    window.LechaimAdminTill?.start?.();
 
     if (currentTab === 'stats') {
       window.LechaimAdminCoupons?.start?.();
@@ -633,6 +639,7 @@
       && tab !== 'shabbat'
       && tab !== 'reservations'
       && tab !== 'history'
+      && tab !== 'till'
       && tab !== 'inventory'
       && tab !== 'stats'
     ) return;
