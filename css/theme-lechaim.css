@@ -93,9 +93,10 @@
 
 .site-header__bh {
   position: absolute;
-  top: 10px;
-  right: 22px;
-  left: auto;
+  top: 50%;
+  left: 50%;
+  right: auto;
+  transform: translate(-50%, -50%);
   z-index: 2;
   font-family: var(--font-body);
   font-size: 0.95rem;
@@ -973,8 +974,10 @@ html[dir='ltr'] .food-modal-body .food-card .food-content {
 
 @media (max-width: 639px) {
   .site-header__bh {
-    top: 8px;
-    right: 12px;
+    top: 50%;
+    left: 50%;
+    right: auto;
+    transform: translate(-50%, -50%);
     font-size: 0.88rem;
   }
 

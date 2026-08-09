@@ -1685,11 +1685,24 @@
   }
 
   function reopenOrderTypePicker() {
+    const ctx = window.LechaimOrderContext || Session?.toMenuContext?.() || {};
+
+    /* dine-in.html: back from browse (or any non-table session) → table map, not order-type home */
     if (gate.dataset.mode === 'dine-in-only') {
+      if (ctx.browseOnly || ctx.orderType !== 'dine-in') {
+        changingTable = false;
+        started = true;
+        state.lang = ctx.lang || state.lang || 'he';
+        state.orderType = null;
+        state.tableNumber = null;
+        setLang(state.lang);
+        openGate();
+        goToTable();
+        return true;
+      }
       return reopenTablePicker();
     }
 
-    const ctx = window.LechaimOrderContext || Session?.toMenuContext?.() || {};
     started = true;
     changingTable = false;
     state.lang = ctx.lang || state.lang || 'he';
@@ -2202,6 +2215,8 @@
     reopenTablePicker,
     reopenOrderTypePicker,
     resetToEntry,
+    /** Used by dine-in floor-plan map — same path as tapping a table button */
+    selectDineInTable: finishWithTable,
     transliterateToEnglish,
     isValidPhone,
     areDeliveriesOpen: deliveriesOpen,

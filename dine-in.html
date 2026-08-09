@@ -12,8 +12,9 @@
   <link rel="stylesheet" href="css/main.css">
   <link rel="stylesheet" href="css/theme-lechaim.css">
   <link rel="stylesheet" href="css/entry-gate.css">
+  <link rel="stylesheet" href="css/dine-in-map.css">
   <link rel="icon" href="assets/logo/logo.webp" type="image/webp">
-  <!-- Dine-in only: visual grouping (inside 61–69 as 3×3 / outside 70–73 as 4). Table 60 hidden on this page. -->
+  <!-- Dine-in only: floor-plan map overlays #entry-tables buttons (positions in data/table-map.json). -->
   <style>
     /* Hide brand/prompt flash until table step (or closed hours) is shown — open straight into modal */
     #entry-gate[data-mode="dine-in-only"]:not(:has(#entry-step-table:not([hidden]))):not(:has(#entry-step-pickup-closed:not([hidden]))) .entry-gate__classic,
@@ -24,37 +25,6 @@
     /* Never show the home "ישיבה במקום" chooser on this page (.entry-gate__btn { display:grid } overrides [hidden]) */
     #entry-step-order {
       display: none !important;
-    }
-
-    #entry-tables.entry-gate__tables--zones {
-      display: flex;
-      flex-direction: column;
-      gap: 1.35rem;
-    }
-
-    #entry-tables .dine-in-table-zone__title {
-      margin: 0 0 0.55rem;
-      font-family: "Frank Ruhl Libre", "Playfair Display", serif;
-      font-size: 1.15rem;
-      font-weight: 700;
-      color: var(--color-navy, #1e3354);
-      letter-spacing: 0.02em;
-      text-align: center;
-    }
-
-    #entry-tables .dine-in-table-zone__grid {
-      display: grid;
-      gap: 0.55rem;
-    }
-
-    /* בפנים: 3 × 3 (61–69) */
-    #entry-tables .dine-in-table-zone--inside .dine-in-table-zone__grid {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-
-    /* בחוץ: שורה אחת של 4 (70–73) */
-    #entry-tables .dine-in-table-zone--outside .dine-in-table-zone__grid {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
     }
   </style>
 </head>
@@ -82,6 +52,7 @@
         loading="eager"
         decoding="async"
       >
+      <p class="entry-gate__bh">ב״ה</p>
       <button
         type="button"
         class="entry-gate__lang lang-toggle"
@@ -96,7 +67,6 @@
 
     <div class="entry-gate__shell" id="entry-shell">
       <div class="entry-gate__classic">
-        <p class="entry-gate__bh">ב״ה</p>
         <div class="entry-gate__brand">
           <img src="assets/logo/logo-image.png" alt="" class="entry-gate__logo" width="96" height="96">
           <img src="assets/logo/logo-text.png" alt="LECHAIM" class="entry-gate__wordmark" width="220" height="56">
@@ -129,7 +99,7 @@
       </div>
 
       <div class="entry-gate__step" id="entry-step-table" hidden>
-        <!-- Buttons are built by entry-gate.js into #entry-tables; grouped visually below via page script. -->
+        <!-- Buttons built by entry-gate.js into #entry-tables; dine-in-table-map.js overlays them on assets/images/tables/ -->
         <div class="entry-gate__tables" id="entry-tables" role="group" aria-label="Table number"></div>
         <button type="button" class="entry-gate__back" data-entry-back="order" data-entry-i18n="back" hidden tabindex="-1" aria-hidden="true">חזרה</button>
       </div>
@@ -393,57 +363,6 @@
   <script src="js/a11y-focus-trap.js" defer></script>
   <script src="js/main.js" defer></script>
   <script src="js/entry-gate.js" defer></script>
-  <script defer>
-    /* Visual only: regroup entry-gate table buttons into Inside / Outside. Selection logic unchanged. */
-    (function groupDineInTableZones() {
-      const root = document.getElementById('entry-tables');
-      if (!root) return;
-
-      function makeZone(titleId, titleText, zoneMod) {
-        const section = document.createElement('section');
-        section.className = 'dine-in-table-zone ' + zoneMod;
-        section.setAttribute('aria-labelledby', titleId);
-
-        const title = document.createElement('h2');
-        title.id = titleId;
-        title.className = 'dine-in-table-zone__title';
-        title.textContent = titleText;
-
-        const grid = document.createElement('div');
-        grid.className = 'dine-in-table-zone__grid';
-        grid.setAttribute('role', 'group');
-        grid.setAttribute('aria-label', titleText);
-
-        section.append(title, grid);
-        return { section, grid };
-      }
-
-      function applyZones() {
-        const flatButtons = [...root.querySelectorAll(':scope > .entry-gate__table')];
-        if (!flatButtons.length) return;
-
-        const inside = makeZone('dine-in-zone-inside', 'בפנים', 'dine-in-table-zone--inside');
-        const outside = makeZone('dine-in-zone-outside', 'בחוץ', 'dine-in-table-zone--outside');
-
-        flatButtons.forEach((btn) => {
-          const n = Number(btn.dataset.table);
-          if (n === 60) {
-            btn.remove();
-            return;
-          }
-          if (n >= 70 && n <= 73) outside.grid.appendChild(btn);
-          else if (n >= 61 && n <= 69) inside.grid.appendChild(btn);
-          else btn.remove();
-        });
-
-        root.replaceChildren(inside.section, outside.section);
-        root.classList.add('entry-gate__tables--zones');
-      }
-
-      const observer = new MutationObserver(() => applyZones());
-      observer.observe(root, { childList: true });
-      applyZones();
-    })();
-  </script>
+  <script src="js/dine-in-table-map.js" defer></script>
 </body>
 </html>
