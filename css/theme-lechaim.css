@@ -93,16 +93,17 @@
 
 .site-header__bh {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  right: auto;
-  transform: translate(-50%, -50%);
-  z-index: 2;
+  top: max(0.2rem, env(safe-area-inset-top, 0px));
+  right: max(0.55rem, env(safe-area-inset-right, 0px)) !important;
+  left: auto !important;
+  transform: none;
+  z-index: 3;
   font-family: var(--font-body);
-  font-size: 0.95rem;
+  font-size: 0.82rem;
   font-weight: 600;
   color: var(--color-navy);
   letter-spacing: 0.02em;
+  line-height: 1;
   pointer-events: none;
   user-select: none;
 }
@@ -974,11 +975,11 @@ html[dir='ltr'] .food-modal-body .food-card .food-content {
 
 @media (max-width: 639px) {
   .site-header__bh {
-    top: 50%;
-    left: 50%;
-    right: auto;
-    transform: translate(-50%, -50%);
-    font-size: 0.88rem;
+    top: max(0.15rem, env(safe-area-inset-top, 0px));
+    right: max(0.4rem, env(safe-area-inset-right, 0px)) !important;
+    left: auto !important;
+    transform: none;
+    font-size: 0.78rem;
   }
 
   .site-header .header-inner {

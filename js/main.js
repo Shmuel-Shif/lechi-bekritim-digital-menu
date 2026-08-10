@@ -33,6 +33,9 @@
   const cartFooter = $('#cart-footer');
   const cartPendingTotalRow = $('#cart-pending-total-row');
   const cartTotalPrice = $('#cart-total-price');
+  const cartDeliveryFeeRow = $('#cart-delivery-fee-row');
+  const cartDeliveryFeeLabel = $('#cart-delivery-fee-label');
+  const cartDeliveryFeePrice = $('#cart-delivery-fee-price');
   const cartSessionTotalPrice = $('#cart-session-total-price');
   const cartBadge = $('#cart-badge');
   const cartClose = $('#cart-close');
@@ -767,6 +770,45 @@
     return Number(window.BUTCHER_DEFAULT_DELIVERY_FEE) || 10;
   }
 
+  function getTakeawayDeliveryFee() {
+    return Number(window.TAKEAWAY_DEFAULT_DELIVERY_FEE)
+      || Number(window.BUTCHER_DEFAULT_DELIVERY_FEE)
+      || 10;
+  }
+
+  function getDeliveryMinOrder() {
+    return Number(window.TAKEAWAY_DELIVERY_MIN_ORDER) || 75;
+  }
+
+  function isTakeawayDeliveryContext() {
+    return isTakeawayContext()
+      && String(window.LechaimOrderContext?.fulfillmentType || '') === 'delivery';
+  }
+
+  function getActiveDeliveryFee() {
+    const ctx = window.LechaimOrderContext || {};
+    if (String(ctx.fulfillmentType || '') !== 'delivery') return 0;
+    if (!isTakeawayContext() && !isButcherContext()) return 0;
+    const fee = Number(ctx.deliveryFee);
+    if (Number.isFinite(fee) && fee >= 0) return fee;
+    return isButcherContext() ? getButcherDeliveryFee() : getTakeawayDeliveryFee();
+  }
+
+  function getCartItemsSubtotal() {
+    return cartLines.reduce((sum, line) => {
+      const item = findItem(line.itemId);
+      if (!item) return sum;
+      if (isCartPackLine(line) || isSoldByPack(item)) {
+        const perKg = Number(line.pricePerKg) > 0
+          ? Number(line.pricePerKg)
+          : getItemPricePerKg(item);
+        return sum + getPackEstRange(perKg, line.qty).max;
+      }
+      const price = getCartLineUnitPrice(line, item);
+      return sum + ((price || 0) * (Number(line.qty) || 0));
+    }, 0);
+  }
+
   function formatEuroAmount(n) {
     return `${t('currency')}${(Number(n) || 0).toFixed(2)}`;
   }
@@ -1176,6 +1218,7 @@
     customerNotes,
     customerAddress,
     fulfillmentType,
+    deliveryFee,
     pickupType,
     pickupTime,
     pickupDate,
@@ -1188,6 +1231,11 @@
     const type = pickupType === 'TIME' ? 'TIME' : 'ASAP';
     const time = type === 'TIME' && pickupTime ? String(pickupTime) : null;
     const date = type === 'TIME' && pickupDate ? String(pickupDate) : null;
+    const fee = fulfillment === 'delivery'
+      ? (Number.isFinite(Number(deliveryFee)) && Number(deliveryFee) >= 0
+        ? Number(deliveryFee)
+        : getTakeawayDeliveryFee())
+      : null;
     const Session = window.LechaimOrderSession;
     if (Session?.patchSession) {
       Session.patchSession({
@@ -1196,6 +1244,7 @@
         customerNotes: notes,
         customerAddress: address,
         fulfillmentType: fulfillment,
+        deliveryFee: fee,
         pickupType: type,
         pickupTime: time,
         pickupDate: date,
@@ -1209,6 +1258,7 @@
       customerNotes: notes,
       customerAddress: address,
       fulfillmentType: fulfillment,
+      deliveryFee: fee,
       pickupType: type,
       pickupTime: time,
       pickupDate: date,
@@ -1263,7 +1313,11 @@
   }
 
   function syncTakeawayCheckoutFulfillmentUi() {
-    const allowDelivery = window.LechaimEntryGate?.areDeliveriesOpen?.() !== false;
+    const ctx = window.LechaimOrderContext || {};
+    const lockedDelivery = ctx.fulfillmentType === 'delivery';
+    const lockedPickup = ctx.fulfillmentType === 'pickup';
+    const allowDelivery = lockedDelivery
+      || (window.LechaimEntryGate?.areDeliveriesOpen?.() !== false && !lockedPickup);
     const fulfillment = document.getElementById('takeaway-checkout-fulfillment');
     const deliveryRow = document.getElementById('takeaway-checkout-fulfillment-delivery-row');
     const deliveryRadio = document.getElementById('takeaway-checkout-fulfillment-delivery');
@@ -1271,13 +1325,19 @@
     const addressField = document.getElementById('takeaway-checkout-address-field');
     const addressInput = document.getElementById('takeaway-checkout-address');
 
-    if (fulfillment) fulfillment.hidden = !allowDelivery;
-    if (deliveryRow) deliveryRow.hidden = !allowDelivery;
-    if (deliveryRadio) deliveryRadio.disabled = !allowDelivery;
-    if (!allowDelivery && pickupRadio) pickupRadio.checked = true;
+    /* Entry already chose pickup or delivery — no need to re-pick type */
+    if (fulfillment) fulfillment.hidden = lockedDelivery || lockedPickup || !allowDelivery;
+    if (deliveryRow) deliveryRow.hidden = !allowDelivery || lockedPickup;
+    if (deliveryRadio) {
+      deliveryRadio.disabled = !allowDelivery || lockedPickup;
+      if (lockedDelivery) deliveryRadio.checked = true;
+    }
+    if (pickupRadio) {
+      if (lockedPickup || !allowDelivery) pickupRadio.checked = true;
+    }
 
-    const deliveryOn = allowDelivery
-      && Boolean(document.getElementById('takeaway-checkout-fulfillment-delivery')?.checked);
+    const deliveryOn = lockedDelivery
+      || (allowDelivery && Boolean(deliveryRadio?.checked));
     if (addressField) addressField.hidden = !deliveryOn;
     if (addressInput) {
       addressInput.required = deliveryOn;
@@ -1382,11 +1442,15 @@
     const asapOn = Boolean(document.getElementById('takeaway-checkout-asap')?.checked);
     const pickupDate = String(document.getElementById('takeaway-checkout-date')?.value || '').trim();
     const pickupTime = String(document.getElementById('takeaway-checkout-time')?.value || '').trim();
+    const ctx = window.LechaimOrderContext || {};
+    const locked = ctx.fulfillmentType === 'delivery' || ctx.fulfillmentType === 'pickup';
     const allowDelivery = window.LechaimEntryGate?.areDeliveriesOpen?.() !== false;
-    const fulfillment = allowDelivery
-      && document.getElementById('takeaway-checkout-fulfillment-delivery')?.checked
-      ? 'delivery'
-      : 'pickup';
+    const fulfillment = locked
+      ? (ctx.fulfillmentType === 'delivery' ? 'delivery' : 'pickup')
+      : (allowDelivery
+        && document.getElementById('takeaway-checkout-fulfillment-delivery')?.checked
+        ? 'delivery'
+        : 'pickup');
     const gate = window.LechaimEntryGate;
     const nameEn = typeof gate?.transliterateToEnglish === 'function'
       ? gate.transliterateToEnglish(nameRaw)
@@ -1432,12 +1496,14 @@
       customerNotes: notes,
       customerAddress: address,
       fulfillmentType: fulfillment,
+      deliveryFee: fulfillment === 'delivery' ? getTakeawayDeliveryFee() : null,
       pickupType: asapOn ? 'ASAP' : 'TIME',
       pickupDate: asapOn ? null : pickupDate,
       pickupTime: asapOn ? null : pickupTime,
     });
     closeTakeawayCheckoutModal();
     if (fulfillment === 'delivery') maybeShowDeliveryFeeNotice();
+    renderCart();
     handleSendOrder();
   }
 
@@ -1466,6 +1532,46 @@
     const ctx = window.LechaimOrderContext || {};
     return String(ctx.fulfillmentType || '') === 'delivery'
       && (ctx.orderType === 'takeaway' || isButcherContext());
+  }
+
+  let deliveryMinOrderFocusTrapRelease = null;
+
+  function closeDeliveryMinOrderModal() {
+    const modal = document.getElementById('delivery-min-order-modal');
+    if (!modal) return;
+    if (typeof deliveryMinOrderFocusTrapRelease === 'function') deliveryMinOrderFocusTrapRelease();
+    deliveryMinOrderFocusTrapRelease = null;
+    modal.hidden = true;
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('app-confirm-open');
+  }
+
+  function showDeliveryMinOrderModal() {
+    const modal = document.getElementById('delivery-min-order-modal');
+    const textEl = document.getElementById('delivery-min-order-text');
+    const okBtn = document.getElementById('delivery-min-order-ok');
+    if (!modal) {
+      showOrderFeedback('err', t('deliveryMinOrder'));
+      return;
+    }
+    if (textEl) textEl.textContent = t('deliveryMinOrder');
+    if (okBtn) okBtn.textContent = t('gotIt');
+    modal.hidden = false;
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('app-confirm-open');
+    if (typeof deliveryMinOrderFocusTrapRelease === 'function') deliveryMinOrderFocusTrapRelease();
+    const release = window.LechaimFocusTrap?.activate?.(modal);
+    deliveryMinOrderFocusTrapRelease = typeof release === 'function' ? release : null;
+    okBtn?.focus();
+  }
+
+  function initDeliveryMinOrderModal() {
+    const okBtn = document.getElementById('delivery-min-order-ok');
+    const backdrop = document.getElementById('delivery-min-order-backdrop');
+    if (okBtn?.dataset.bound === '1') return;
+    if (okBtn) okBtn.dataset.bound = '1';
+    okBtn?.addEventListener('click', closeDeliveryMinOrderModal);
+    backdrop?.addEventListener('click', closeDeliveryMinOrderModal);
   }
 
   function closeDeliveryFeeModal() {
@@ -1968,6 +2074,7 @@
     refreshOrderingHoursUi();
     initDineInOrdersClosedWatch();
     initDeliveryFeeModal();
+    initDeliveryMinOrderModal();
     initButcherCheckoutModal();
     initTakeawayCheckoutModal();
     syncButcherModeUi();
@@ -2038,11 +2145,11 @@
       fulfillmentType: !browseOnly && (startType === 'takeaway' || startType === 'butcher')
         ? (options.fulfillmentType === 'delivery' ? 'delivery' : 'pickup')
         : null,
-      deliveryFee: !browseOnly && startType === 'butcher'
+      deliveryFee: !browseOnly && (startType === 'takeaway' || startType === 'butcher')
         ? (options.fulfillmentType === 'delivery'
           ? (Number.isFinite(Number(options.deliveryFee)) && Number(options.deliveryFee) >= 0
             ? Number(options.deliveryFee)
-            : getButcherDeliveryFee())
+            : (startType === 'butcher' ? getButcherDeliveryFee() : getTakeawayDeliveryFee()))
           : null)
         : null,
       pickupType: !browseOnly && (startType === 'takeaway' || startType === 'butcher')
@@ -2126,7 +2233,7 @@
           ? (options.fulfillmentType === 'delivery' ? 'delivery' : 'pickup')
           : (prev.fulfillmentType === 'delivery' ? 'delivery' : 'pickup'))
         : null,
-      deliveryFee: isButcher
+      deliveryFee: (isTakeaway || isButcher)
         ? (options.deliveryFee !== undefined
           ? (Number.isFinite(Number(options.deliveryFee)) && Number(options.deliveryFee) >= 0
             ? Number(options.deliveryFee)
@@ -4281,7 +4388,7 @@
       fulfillmentType: isTakeaway || isButcher
         ? (session.fulfillmentType === 'delivery' ? 'delivery' : 'pickup')
         : null,
-      deliveryFee: isButcher
+      deliveryFee: isTakeaway || isButcher
         ? (session.deliveryFee != null ? Number(session.deliveryFee) : null)
         : null,
       pickupType: isTakeaway
@@ -4312,6 +4419,16 @@
       console.error('[cart] Order engine missing');
       showOrderFeedback('err', t('orderSentFail'));
       return;
+    }
+
+    /* Delivery min order before customer details — products only, excl. €10 fee */
+    if (isTakeawayDeliveryContext()) {
+      const itemsTotal = getCartItemsSubtotal();
+      const minOrder = getDeliveryMinOrder();
+      if (itemsTotal + 1e-9 < minOrder) {
+        showDeliveryMinOrderModal();
+        return;
+      }
     }
 
     /* Butcher / takeaway: collect details at checkout (after browsing the catalog). */
@@ -4561,14 +4678,14 @@
               : 'pickup'
           )
           : null,
-        deliveryFee: isButcherResolved
+        deliveryFee: (isTakeawayResolved || isButcherResolved)
           ? (
             (localSession?.fulfillmentType || ctx.fulfillmentType) === 'delivery'
               ? (
                 Number.isFinite(Number(localSession?.deliveryFee ?? ctx.deliveryFee))
                   && Number(localSession?.deliveryFee ?? ctx.deliveryFee) >= 0
                   ? Number(localSession?.deliveryFee ?? ctx.deliveryFee)
-                  : getButcherDeliveryFee()
+                  : (isButcherResolved ? getButcherDeliveryFee() : getTakeawayDeliveryFee())
               )
               : null
           )
@@ -5475,14 +5592,7 @@
       min += lineTotal;
       max += lineTotal;
     });
-    const ctx = window.LechaimOrderContext || {};
-    if (isButcherContext() && ctx.fulfillmentType === 'delivery') {
-      const fee = Number.isFinite(Number(ctx.deliveryFee)) && Number(ctx.deliveryFee) >= 0
-        ? Number(ctx.deliveryFee)
-        : getButcherDeliveryFee();
-      min += fee;
-      max += fee;
-    }
+    /* Delivery fee is shown under סה״כ — keep range for products only */
     return { min, max };
   }
 
@@ -5494,12 +5604,8 @@
     if (isButcherContext() && cartHasPackLines()) {
       return getCartEstRange().max;
     }
-    return cartLines.reduce((sum, line) => {
-      const item = findItem(line.itemId);
-      if (!item) return sum;
-      const price = getCartLineUnitPrice(line, item);
-      return sum + ((price || 0) * line.qty);
-    }, 0);
+    /* Products only — delivery fee is listed under the total row */
+    return getCartItemsSubtotal();
   }
 
   function renderCartLineHtml(line, variant = 'single') {
@@ -5632,6 +5738,20 @@
         cartTotalPrice.classList.remove('cart-total-price--est');
         cartTotalPrice.textContent = formatPrice(getCartTotal());
         if (cartTotalLabel) cartTotalLabel.textContent = t('total');
+      }
+    }
+    const deliveryFee = !empty ? getActiveDeliveryFee() : 0;
+    if (cartDeliveryFeeRow) {
+      if (deliveryFee > 0) {
+        cartDeliveryFeeRow.hidden = false;
+        if (cartDeliveryFeeLabel) {
+          cartDeliveryFeeLabel.textContent = t('fulfillmentDelivery') || 'משלוח';
+        }
+        if (cartDeliveryFeePrice) {
+          cartDeliveryFeePrice.textContent = formatPrice(deliveryFee);
+        }
+      } else {
+        cartDeliveryFeeRow.hidden = true;
       }
     }
     if (cartSessionTotalPrice) {

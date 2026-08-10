@@ -251,6 +251,7 @@
     const existing = getSession();
     const pickupType = options.pickupType === 'TIME' ? 'TIME' : 'ASAP';
     const fulfillmentType = options.fulfillmentType === 'delivery' ? 'delivery' : 'pickup';
+    const deliveryFeeRaw = Number(options.deliveryFee);
     const payload = {
       sessionId: createSessionId(),
       orderType: ORDER_TYPE.TAKEAWAY,
@@ -267,6 +268,9 @@
       customerAddress: fulfillmentType === 'delivery' && typeof options.customerAddress === 'string'
         ? options.customerAddress.trim()
         : '',
+      deliveryFee: fulfillmentType === 'delivery' && Number.isFinite(deliveryFeeRaw) && deliveryFeeRaw >= 0
+        ? deliveryFeeRaw
+        : null,
       pickupType,
       pickupTime: pickupType === 'TIME' && typeof options.pickupTime === 'string'
         ? options.pickupTime.trim()

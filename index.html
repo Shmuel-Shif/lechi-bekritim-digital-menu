@@ -99,12 +99,22 @@
                 <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 8h12l-1 11H7L6 8z"/><path d="M9 8a3 3 0 0 1 6 0"/></svg>
               </span>
               <span class="entry-gate__btn-text">
-                <span class="entry-gate__btn-label" data-entry-i18n="takeAway">איסוף עצמי / משלוחים</span>
-                <span class="entry-gate__btn-hint" data-entry-i18n="takeAwayHint">איסוף מהמסעדה או משלוח</span>
+                <span class="entry-gate__btn-label" data-entry-i18n="takeAway">איסוף עצמי</span>
+                <span class="entry-gate__btn-hint" data-entry-i18n="takeAwayHint">הזמינו ואספו מהמסעדה</span>
               </span>
               <span class="entry-gate__btn-chevron" aria-hidden="true"></span>
             </button>
-            <button type="button" class="entry-gate__btn entry-gate__btn--butcher entry-gate__reveal entry-gate__reveal--up" data-order-type="butcher" style="--reveal-delay: 600ms">
+            <button type="button" class="entry-gate__btn entry-gate__btn--delivery entry-gate__reveal entry-gate__reveal--up" data-order-type="delivery" id="entry-delivery-btn" style="--reveal-delay: 560ms">
+              <span class="entry-gate__btn-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7h11v10H3z"/><path d="M14 10h4l3 3v4h-7V10z"/><circle cx="6.5" cy="18.5" r="1.5"/><circle cx="17.5" cy="18.5" r="1.5"/></svg>
+              </span>
+              <span class="entry-gate__btn-text">
+                <span class="entry-gate__btn-label" data-entry-i18n="deliveryOrder">משלוח</span>
+                <span class="entry-gate__btn-hint" data-entry-i18n="deliveryOrderHint">משלוח בעלות €10 · מינימום הזמנה €75</span>
+              </span>
+              <span class="entry-gate__btn-chevron" aria-hidden="true"></span>
+            </button>
+            <button type="button" class="entry-gate__btn entry-gate__btn--butcher entry-gate__reveal entry-gate__reveal--up" data-order-type="butcher" style="--reveal-delay: 640ms">
               <span class="entry-gate__btn-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 14c2-4 5-6 8-6s6 2 8 6"/><path d="M6 14v3a2 2 0 002 2h8a2 2 0 002-2v-3"/><path d="M9 8c.5-2 1.5-3 3-3s2.5 1 3 3"/><circle cx="9" cy="15.5" r="0.8" fill="currentColor" stroke="none"/><circle cx="15" cy="15.5" r="0.8" fill="currentColor" stroke="none"/></svg>
               </span>
@@ -114,7 +124,7 @@
               </span>
               <span class="entry-gate__btn-chevron" aria-hidden="true"></span>
             </button>
-            <a href="shabbat.html" class="entry-gate__btn entry-gate__btn--primary entry-gate__reveal entry-gate__reveal--up" id="entry-shabbat-link" style="--reveal-delay: 680ms">
+            <a href="shabbat.html" class="entry-gate__btn entry-gate__btn--primary entry-gate__reveal entry-gate__reveal--up" id="entry-shabbat-link" style="--reveal-delay: 720ms">
               <span class="entry-gate__btn-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 14c0-2 1.5-3 2.5-4S12 7 12 5c0 2 .5 3.5 1.5 5S16 12 16 14"/><path d="M7 18h10M9 18v2M15 18v2"/></svg>
               </span>
@@ -124,11 +134,6 @@
               </span>
               <span class="entry-gate__btn-chevron" aria-hidden="true"></span>
             </a>
-            <!-- Delivery — יופעל בהמשך
-            <button type="button" class="entry-gate__btn entry-gate__btn--soon" data-order-type="delivery" aria-describedby="entry-notice">
-              <span class="entry-gate__btn-label" data-entry-i18n="delivery">משלוח</span>
-            </button>
-            -->
           </div>
 
           <button
@@ -646,6 +651,16 @@
     </div>
   </div>
 
+  <div class="app-confirm" id="delivery-min-order-modal" hidden aria-hidden="true">
+    <button type="button" class="app-confirm__backdrop" id="delivery-min-order-backdrop" aria-label="סגור"></button>
+    <div class="app-confirm__panel" role="dialog" aria-modal="true" aria-labelledby="delivery-min-order-text">
+      <p class="app-confirm__text" id="delivery-min-order-text">מינימום הזמנה למשלוח €75 (לא כולל משלוח)</p>
+      <div class="app-confirm__actions">
+        <button type="button" class="cart-send-btn" id="delivery-min-order-ok" data-i18n="gotIt">הבנתי</button>
+      </div>
+    </div>
+  </div>
+
   <div class="app-confirm" id="butcher-checkout-modal" hidden aria-hidden="true">
     <button type="button" class="app-confirm__backdrop" id="butcher-checkout-backdrop" aria-label="סגור"></button>
     <div class="app-confirm__panel app-confirm__panel--form" role="dialog" aria-modal="true" aria-labelledby="butcher-checkout-title">
@@ -872,6 +887,10 @@
         <div class="cart-total-row" id="cart-pending-total-row">
           <span class="cart-total-label" data-i18n="total">סה״כ</span>
           <span class="cart-total-price" id="cart-total-price">€0</span>
+        </div>
+        <div class="cart-total-row cart-total-row--fee" id="cart-delivery-fee-row" hidden>
+          <span class="cart-total-label" id="cart-delivery-fee-label">משלוח</span>
+          <span class="cart-total-price cart-total-price--fee" id="cart-delivery-fee-price">€10</span>
         </div>
         <div class="cart-session-total" id="cart-session-total">
           <span class="cart-session-total__label" data-i18n="currentTotal">סה״כ עגלה</span>

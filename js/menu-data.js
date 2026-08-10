@@ -123,7 +123,8 @@ const TRANSLATIONS = {
     butcherHeroTitle: 'חנות הבשר של לחיים',
     butcherHeroSubtitle: 'בשר חלק כשר למהדרין • שחיטת ליובאוויטש • כשרות מהודרת',
     butcherHeroDesc: 'אצלנו תוכלו להזמין מגוון נתחי בשר ועוף איכותיים, טריים וכשרים למהדרין.\n\nכל המוצרים נבחרים בקפידה ומסופקים תחת סטנדרטים גבוהים של איכות וכשרות.\n\nשימו לב: כל המוצרים קפואים. ניתן לסמן וי אם ברצונכם מופשר.',
-    deliveryFeeNotice: 'עלות המשלוח היא €10',
+    deliveryFeeNotice: 'עלות המשלוח היא €10 · מינימום הזמנה €75 (לא כולל משלוח)',
+    deliveryMinOrder: 'מינימום הזמנה למשלוח €75 (לא כולל משלוח)',
     takeawayCheckoutTitle: 'פרטי הזמנה',
     takeawayCheckoutHint: 'לשליחת ההזמנה נדרשים פרטי לקוח ומועד',
     fulfillmentType: 'סוג הזמנה',
@@ -302,7 +303,8 @@ const TRANSLATIONS = {
     butcherHeroTitle: 'Lechaim Butcher Shop',
     butcherHeroSubtitle: 'Mehadrin Chalak meat • Lubavitch shechita • Premium kashrut',
     butcherHeroDesc: 'Order a selection of quality meat and chicken cuts — fresh and Mehadrin kosher.\n\nAll products are carefully selected and supplied under high standards of quality and kashrut.\n\nPlease note: all products are frozen. Check the box if you want them thawed.',
-    deliveryFeeNotice: 'Delivery fee is €10',
+    deliveryFeeNotice: 'Delivery fee is €10 · minimum order €75 (excluding delivery)',
+    deliveryMinOrder: 'Minimum delivery order €75 (excluding delivery)',
     takeawayCheckoutTitle: 'Order details',
     takeawayCheckoutHint: 'Customer details and pickup time are required to send the order',
     fulfillmentType: 'Order type',
@@ -922,6 +924,8 @@ const MAX_SIDES_PER_MAIN = 1;
 const BUTCHER_PACK_WEIGHT_MIN_KG = 0.98;
 const BUTCHER_PACK_WEIGHT_MAX_KG = 1.2;
 const BUTCHER_DEFAULT_DELIVERY_FEE = 10;
+const TAKEAWAY_DEFAULT_DELIVERY_FEE = 10;
+const TAKEAWAY_DELIVERY_MIN_ORDER = 75;
 
 const SOCIAL_LINKS = {
   instagram: 'https://www.instagram.com/lechim_crete/',
@@ -943,5 +947,7 @@ window.MAX_SIDES_PER_MAIN = MAX_SIDES_PER_MAIN;
 window.BUTCHER_PACK_WEIGHT_MIN_KG = BUTCHER_PACK_WEIGHT_MIN_KG;
 window.BUTCHER_PACK_WEIGHT_MAX_KG = BUTCHER_PACK_WEIGHT_MAX_KG;
 window.BUTCHER_DEFAULT_DELIVERY_FEE = BUTCHER_DEFAULT_DELIVERY_FEE;
+window.TAKEAWAY_DEFAULT_DELIVERY_FEE = TAKEAWAY_DEFAULT_DELIVERY_FEE;
+window.TAKEAWAY_DELIVERY_MIN_ORDER = TAKEAWAY_DELIVERY_MIN_ORDER;
 window.SOCIAL_LINKS = SOCIAL_LINKS;
 

@@ -313,6 +313,10 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks) {
   box-sizing: border-box;
 }
 
+.entry-gate__actions .entry-gate__btn[hidden] {
+  display: none !important;
+}
+
 .entry-gate__actions a.entry-gate__btn {
   text-decoration: none;
   text-align: center;
@@ -388,6 +392,19 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks) {
   background: #fff;
   border-color: var(--color-gold-dark, #a8864f);
   box-shadow: 0 12px 28px rgba(30, 51, 84, 0.2);
+}
+
+.entry-gate__btn--delivery {
+  background: linear-gradient(135deg, #1a5c3a 0%, #2d8a55 55%, #3fa66a 100%);
+  color: #fff;
+  border-color: rgba(180, 230, 200, 0.35);
+  box-shadow: 0 8px 24px rgba(26, 92, 58, 0.28);
+}
+
+.entry-gate__btn--delivery:hover {
+  background: linear-gradient(135deg, #154d31 0%, #267748 55%, #35965c 100%);
+  border-color: rgba(200, 240, 215, 0.45);
+  box-shadow: 0 12px 28px rgba(26, 92, 58, 0.36);
 }
 
 .entry-gate__btn--soon {
@@ -1022,6 +1039,10 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks) {
   box-shadow: 0 5px 14px rgba(23, 52, 93, 0.16);
 }
 
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn[hidden] {
+  display: none !important;
+}
+
 .entry-gate.is-home .entry-gate__actions .entry-gate__btn:hover {
   transform: translateY(-1px);
   border-color: transparent;
@@ -1073,6 +1094,29 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks) {
 
 .entry-gate.is-home .entry-gate__actions .entry-gate__btn--butcher .entry-gate__btn-hint {
   opacity: 0.9;
+}
+
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn--delivery {
+  background: linear-gradient(135deg, #1a5c3a 0%, #2d8a55 52%, #45b574 100%);
+  color: #fff;
+  border: 1.5px solid rgba(190, 235, 210, 0.3);
+  box-shadow: 0 6px 18px rgba(26, 92, 58, 0.3);
+}
+
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn--delivery:hover {
+  background: linear-gradient(135deg, #154d31 0%, #267748 52%, #3aa464 100%);
+  color: #fff;
+  border-color: rgba(210, 245, 220, 0.42);
+  box-shadow: 0 9px 24px rgba(26, 92, 58, 0.4);
+}
+
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn--delivery .entry-gate__btn-icon,
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn--delivery .entry-gate__btn-chevron {
+  color: #c8f0d6;
+}
+
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn--delivery .entry-gate__btn-hint {
+  opacity: 0.92;
 }
 
 .entry-gate.is-home .entry-gate__actions .entry-gate__btn-icon {

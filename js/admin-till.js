@@ -4,10 +4,6 @@
 (function () {
   'use strict';
 
-  /** Group: כספים מהקופה מזומן */
-  const TILL_WA_GROUP_URL = 'https://chat.whatsapp.com/CZdh0575kLm51knnHwolpg';
-  const TILL_WA_GROUP_CODE = 'CZdh0575kLm51knnHwolpg';
-
   /** Soft reset: counts only from this local day (inclusive). Today (09/08/2026) stays €0. */
   const TILL_COUNT_FROM_YMD = '2026-08-10';
 
@@ -116,10 +112,11 @@
   }
 
   function buildWhatsAppText() {
+    /* Same content as the till card */
     return [
-      `קופה ${formatDisplayDate(cache.date)}`,
-      `מזומן: ${formatMoney(cache.cash)}`,
-      `אשראי: ${formatMoney(cache.credit)}`,
+      formatDisplayDate(cache.date),
+      `מזומן ${formatMoney(cache.cash)}`,
+      `אשראי ${formatMoney(cache.credit)}`,
     ].join('\n');
   }
 
@@ -163,30 +160,32 @@
   }
 
   /**
-   * Opens the till WhatsApp group.
-   * Desktop → group invite link (then continue in WhatsApp Web if needed).
-   * Mobile → WhatsApp Business.
-   * Message is copied so it can be pasted in the group.
+   * Opens WhatsApp with the till summary already filled in
+   * (date + cash + credit — same as the card).
+   * Desktop → WhatsApp Web · Mobile → WhatsApp Business.
+   * Also copies the text so it can be pasted into the till group if needed.
    */
   async function openTillWhatsApp() {
+    const textEnc = encodeURIComponent(buildWhatsAppText());
     await copyTillText();
 
     if (!isMobileDevice()) {
-      openExternalUrl(TILL_WA_GROUP_URL);
+      openExternalUrl(`https://web.whatsapp.com/send?text=${textEnc}`);
       return;
     }
 
     const ua = navigator.userAgent || '';
     if (/Android/i.test(ua)) {
+      const fallback = `https://wa.me/?text=${textEnc}`;
       openExternalUrl(
-        `intent://chat.whatsapp.com/${TILL_WA_GROUP_CODE}`
-        + '#Intent;scheme=https;package=com.whatsapp.w4b;'
-        + `S.browser_fallback_url=${encodeURIComponent(TILL_WA_GROUP_URL)};end`
+        `intent://send/?text=${textEnc}`
+        + '#Intent;scheme=whatsapp;package=com.whatsapp.w4b;'
+        + `S.browser_fallback_url=${encodeURIComponent(fallback)};end`
       );
       return;
     }
 
-    openExternalUrl(TILL_WA_GROUP_URL);
+    openExternalUrl(`https://wa.me/?text=${textEnc}`);
   }
 
   async function loadReport() {

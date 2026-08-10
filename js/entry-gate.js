@@ -32,7 +32,9 @@
       takeAway: 'Takeaway',
       takeAwayWithDelivery: 'Takeaway / Delivery',
       takeAwayHint: 'Order and pick up from the restaurant',
-      takeAwayHintWithDelivery: 'Pickup from the restaurant or delivery',
+      takeAwayHintWithDelivery: 'Pickup from the restaurant or delivery (€10) · min. order €75',
+      deliveryOrder: 'Delivery',
+      deliveryOrderHint: 'Delivery €10 · minimum order €75',
       fulfillmentType: 'Order type',
       fulfillmentPickup: 'Takeaway',
       fulfillmentDelivery: 'Delivery',
@@ -139,7 +141,9 @@
       takeAway: 'איסוף עצמי',
       takeAwayWithDelivery: 'איסוף עצמי / משלוחים',
       takeAwayHint: 'הזמינו ואספו מהמסעדה',
-      takeAwayHintWithDelivery: 'איסוף מהמסעדה או משלוח',
+      takeAwayHintWithDelivery: 'איסוף מהמסעדה או משלוח בעלות €10 · מינימום הזמנה €75',
+      deliveryOrder: 'משלוח',
+      deliveryOrderHint: 'משלוח בעלות €10 · מינימום הזמנה €75',
       fulfillmentType: 'סוג הזמנה',
       fulfillmentPickup: 'איסוף עצמי',
       fulfillmentDelivery: 'משלוח',
@@ -276,6 +280,8 @@
   const fulfillmentDeliveryRow = document.getElementById('entry-fulfillment-delivery-row');
   const takeAwayLabelEl = gate?.querySelector('[data-order-type="takeaway"] [data-entry-i18n="takeAway"]');
   const takeAwayHintEl = gate?.querySelector('[data-order-type="takeaway"] [data-entry-i18n="takeAwayHint"]');
+  const deliveryBtnEl = document.getElementById('entry-delivery-btn')
+    || gate?.querySelector('[data-order-type="delivery"]');
   const shabbatLinkEl = document.getElementById('entry-shabbat-link');
   const shabbatLabelEl = shabbatLinkEl?.querySelector('[data-entry-i18n="shabbatOrders"]');
   const shabbatHintEl = shabbatLinkEl?.querySelector('[data-entry-i18n="shabbatOrdersHint"]');
@@ -325,9 +331,10 @@
     customerNotes: '',
     customerAddress: '',
     fulfillmentType: 'pickup', // 'pickup' | 'delivery'
+    deliveryFee: null,
     pickupType: 'ASAP', // 'ASAP' | 'TIME'
     pickupTime: null,
-    /** Admin flag: when true, hide all delivery wording/options on customer UI */
+    /** Admin flag: when true, hide delivery button on customer UI */
     deliveriesClosed: false,
     /** Admin flag: when false, Shabbat card is disabled on the home page */
     shabbatOrdersEnabled: true,
@@ -363,12 +370,8 @@
       const key = el.getAttribute('data-entry-i18n');
       if (key && COPY.en[key] != null) {
         let text = t(key);
-        /* Delivery wording only when admin has deliveries open */
-        if (key === 'takeAway') {
-          text = state.deliveriesClosed ? t('takeAway') : t('takeAwayWithDelivery');
-        } else if (key === 'takeAwayHint') {
-          text = state.deliveriesClosed ? t('takeAwayHint') : t('takeAwayHintWithDelivery');
-        } else if (key === 'shabbatOrders') {
+        /* Shabbat closed wording only — takeaway/delivery are separate buttons */
+        if (key === 'shabbatOrders') {
           text = state.shabbatOrdersEnabled ? t('shabbatOrders') : t('shabbatOrdersClosed');
         } else if (key === 'shabbatOrdersHint') {
           text = state.shabbatOrdersEnabled ? t('shabbatOrdersHint') : t('shabbatOrdersClosedHint');
@@ -1061,6 +1064,11 @@
       fulfillmentType: isTakeaway
         ? (extra.fulfillmentType ?? state.fulfillmentType ?? fromSession.fulfillmentType ?? 'pickup')
         : null,
+      deliveryFee: isTakeaway
+        ? (extra.deliveryFee !== undefined
+          ? extra.deliveryFee
+          : (state.deliveryFee ?? fromSession.deliveryFee ?? null))
+        : (isButcher ? (fromSession.deliveryFee ?? null) : null),
       pickupType: isTakeaway
         ? (extra.pickupType ?? state.pickupType ?? fromSession.pickupType ?? 'ASAP')
         : null,
@@ -1415,21 +1423,16 @@
   }
 
   function applyDeliveriesMode() {
-    if (takeAwayLabelEl) {
-      takeAwayLabelEl.textContent = state.deliveriesClosed
-        ? t('takeAway')
-        : t('takeAwayWithDelivery');
-    }
-    if (takeAwayHintEl) {
-      takeAwayHintEl.textContent = state.deliveriesClosed
-        ? t('takeAwayHint')
-        : t('takeAwayHintWithDelivery');
+    /* Pickup button stays pickup-only; delivery button is hidden when closed */
+    if (takeAwayLabelEl) takeAwayLabelEl.textContent = t('takeAway');
+    if (takeAwayHintEl) takeAwayHintEl.textContent = t('takeAwayHint');
+    if (deliveryBtnEl) {
+      deliveryBtnEl.hidden = Boolean(state.deliveriesClosed);
+      deliveryBtnEl.setAttribute('aria-hidden', state.deliveriesClosed ? 'true' : 'false');
     }
     syncFulfillmentUi();
     if (promptEl && stepPickup && !stepPickup.hidden) {
-      promptEl.textContent = state.deliveriesClosed
-        ? t('promptPickup')
-        : t('promptPickupWithDelivery');
+      promptEl.textContent = t('promptPickup');
     }
   }
 
@@ -1488,7 +1491,25 @@
     }
     /* Catalog first — name / phone / pickup collected at cart send (like butcher). */
     await refreshDeliveriesClosedFlag();
-    finishTakeaway({});
+    finishTakeaway({ fulfillmentType: 'pickup' });
+  }
+
+  async function goToDelivery() {
+    state.orderType = 'takeaway';
+    state.tableNumber = null;
+    await refreshDeliveriesClosedFlag();
+    if (state.deliveriesClosed) {
+      applyDeliveriesMode();
+      return;
+    }
+    if (!isTakeawayDayOpen()) {
+      showOrderingClosedStep('takeaway');
+      return;
+    }
+    const fee = Number(window.TAKEAWAY_DEFAULT_DELIVERY_FEE)
+      || Number(window.BUTCHER_DEFAULT_DELIVERY_FEE)
+      || 10;
+    finishTakeaway({ fulfillmentType: 'delivery', deliveryFee: fee });
   }
 
   function finishWithTable(table) {
@@ -1521,6 +1542,12 @@
     state.customerAddress = state.fulfillmentType === 'delivery'
       ? (details.customerAddress || '')
       : '';
+    const feeRaw = Number(details.deliveryFee);
+    state.deliveryFee = state.fulfillmentType === 'delivery'
+      ? (Number.isFinite(feeRaw) && feeRaw >= 0
+        ? feeRaw
+        : (Number(window.TAKEAWAY_DEFAULT_DELIVERY_FEE) || Number(window.BUTCHER_DEFAULT_DELIVERY_FEE) || 10))
+      : null;
     state.pickupType = details.pickupType === 'TIME' ? 'TIME' : (details.pickupType === 'ASAP' ? 'ASAP' : null);
     state.pickupTime = state.pickupType === 'TIME' ? (details.pickupTime || null) : null;
     state.pickupDate = state.pickupType === 'TIME' ? (details.pickupDate || null) : null;
@@ -1547,6 +1574,7 @@
         customerNotes: state.customerNotes,
         customerAddress: state.customerAddress,
         fulfillmentType: state.fulfillmentType,
+        deliveryFee: state.deliveryFee,
         pickupType: state.pickupType || 'ASAP',
         pickupTime: state.pickupTime,
         pickupDate: state.pickupDate,
@@ -1562,6 +1590,7 @@
       customerNotes: state.customerNotes,
       customerAddress: state.customerAddress,
       fulfillmentType: state.fulfillmentType,
+      deliveryFee: state.deliveryFee,
       pickupType: state.pickupType || 'ASAP',
       pickupTime: state.pickupTime,
       pickupDate: state.pickupDate,
@@ -2078,10 +2107,6 @@
     const orderBtn = event.target.closest('[data-order-type]');
     if (orderBtn) {
       const type = orderBtn.dataset.orderType;
-      if (type === 'delivery') {
-        showNotice(t('comingSoon'));
-        return;
-      }
       if (type === 'browse') {
         enterBrowseOnly();
         return;
@@ -2122,6 +2147,18 @@
           return;
         }
         goToPickup();
+        return;
+      }
+      if (type === 'delivery') {
+        state.orderType = 'takeaway';
+        if (Session?.hasActiveTakeawaySession()) {
+          (async () => {
+            const resumed = await resumeTakeawaySession(Session.getSession());
+            if (!resumed) goToDelivery();
+          })();
+          return;
+        }
+        goToDelivery();
         return;
       }
       if (type === 'butcher') {
