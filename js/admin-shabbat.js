@@ -49,6 +49,13 @@
   let menuMode = false;
   let menuCategoryId = 'all';
   let menuQuery = '';
+  let pendingQtyProduct = null;
+  let pendingQty = 1;
+  let pendingQtyMode = 'add';
+  let pendingRemoveItemId = null;
+  let pendingRemoveMaxQty = 1;
+  const QTY_MIN = 1;
+  const QTY_MAX = 99;
   let catalogCache = [];
   let newModalTrapRelease = null;
   let shabbatOrdersEnabled = true;
@@ -631,6 +638,202 @@
     await refresh();
   }
 
+  function clampQty(n, max = QTY_MAX) {
+    const v = Math.floor(Number(n) || 0);
+    const hi = Math.max(QTY_MIN, Math.floor(Number(max) || QTY_MAX));
+    if (!Number.isFinite(v)) return QTY_MIN;
+    return Math.min(hi, Math.max(QTY_MIN, v));
+  }
+
+  function qtyModalMax() {
+    return pendingQtyMode === 'remove' ? pendingRemoveMaxQty : QTY_MAX;
+  }
+
+  function renderAdminQtyModal() {
+    const nameEl = document.getElementById('admin-qty-product-name');
+    const valueEl = document.getElementById('admin-qty-value');
+    const decBtn = document.getElementById('admin-qty-dec');
+    const incBtn = document.getElementById('admin-qty-inc');
+    const titleEl = document.getElementById('admin-qty-title');
+    const confirmBtn = document.getElementById('admin-qty-confirm');
+    if (!pendingQtyProduct) return;
+    const isRemove = pendingQtyMode === 'remove';
+    const max = qtyModalMax();
+    let label = pendingQtyProduct.name || pendingQtyProduct.id || '';
+    if (isRemove && pendingRemoveMaxQty > 1) {
+      label = `${label} (יש ${pendingRemoveMaxQty})`;
+    }
+    if (titleEl) titleEl.textContent = isRemove ? 'כמה להסיר?' : 'בחרו כמות';
+    if (confirmBtn) confirmBtn.textContent = isRemove ? 'הסר' : 'הוסף';
+    if (nameEl) nameEl.textContent = label;
+    if (valueEl) valueEl.textContent = String(pendingQty);
+    if (decBtn) decBtn.disabled = pendingQty <= QTY_MIN;
+    if (incBtn) incBtn.disabled = pendingQty >= max;
+  }
+
+  function openAdminQtyModal(product) {
+    const modal = document.getElementById('admin-qty-modal');
+    if (!modal || !product) return;
+    pendingQtyMode = 'add';
+    pendingRemoveItemId = null;
+    pendingRemoveMaxQty = QTY_MAX;
+    pendingQtyProduct = product;
+    pendingQty = QTY_MIN;
+    renderAdminQtyModal();
+    modal.hidden = false;
+    modal.setAttribute('aria-hidden', 'false');
+    requestAnimationFrame(() => document.getElementById('admin-qty-confirm')?.focus());
+  }
+
+  function openAdminRemoveQtyModal(item) {
+    const modal = document.getElementById('admin-qty-modal');
+    if (!modal || !item) return;
+    const have = Math.max(1, Math.floor(Number(item.qty) || 1));
+    pendingQtyMode = 'remove';
+    pendingRemoveItemId = String(item.itemId);
+    pendingRemoveMaxQty = have;
+    pendingQtyProduct = {
+      id: item.productId || item.itemId,
+      name: item.name || 'מנה',
+    };
+    pendingQty = QTY_MIN;
+    renderAdminQtyModal();
+    modal.hidden = false;
+    modal.setAttribute('aria-hidden', 'false');
+    requestAnimationFrame(() => document.getElementById('admin-qty-confirm')?.focus());
+  }
+
+  function closeAdminQtyModal() {
+    const modal = document.getElementById('admin-qty-modal');
+    pendingQtyProduct = null;
+    pendingQty = QTY_MIN;
+    pendingQtyMode = 'add';
+    pendingRemoveItemId = null;
+    pendingRemoveMaxQty = QTY_MAX;
+    if (!modal) return;
+    modal.hidden = true;
+    modal.setAttribute('aria-hidden', 'true');
+    const titleEl = document.getElementById('admin-qty-title');
+    const confirmBtn = document.getElementById('admin-qty-confirm');
+    if (titleEl) titleEl.textContent = 'בחרו כמות';
+    if (confirmBtn) confirmBtn.textContent = 'הוסף';
+  }
+
+  function setAdminQty(next) {
+    if (!pendingQtyProduct) return;
+    pendingQty = clampQty(next, qtyModalMax());
+    renderAdminQtyModal();
+  }
+
+  async function commitAddProduct(product, quantity = 1) {
+    const entry = cache.find((row) => row.sessionId === selectedId);
+    if (!entry || !product) return false;
+
+    const qty = clampQty(quantity);
+    const api = global.LechaimSupabaseOrders;
+    if (!api?.createOrder || !api?.createOrderItems) {
+      showToast('הוספה לא זמינה');
+      return false;
+    }
+
+    const price = Number(product.price) || 0;
+    const printName = global.LechaimPrintEngine?.resolvePrintName?.({
+      productId: product.id,
+      name: product.name,
+      printName: product.printName,
+    }) || product.printName || product.name || '';
+
+    let remoteOrders = entry.orders || [];
+    try {
+      const fresh = await api.getSessionOrders?.(entry.sessionId);
+      if (Array.isArray(fresh)) remoteOrders = fresh;
+    } catch (_) { /* use cached */ }
+
+    const unprinted = remoteOrders
+      .filter((order) => order && order.id && !order.printed_at)
+      .sort((a, b) => (Number(b.order_number) || 0) - (Number(a.order_number) || 0));
+    const stackInto = unprinted[0] && (Number(unprinted[0].order_number) || 0) > 1
+      ? unprinted[0]
+      : null;
+
+    if (stackInto?.id) {
+      const lines = Array.isArray(stackInto.order_items) ? stackInto.order_items : [];
+      const same = lines.find((row) => (
+        String(row.product_id || '') === String(product.id)
+        && !row.parent_item_id
+      ));
+      if (same?.id && typeof api.bumpOrderItemQuantity === 'function') {
+        await api.bumpOrderItemQuantity(same.id, qty);
+        return true;
+      }
+      await api.createOrderItems(stackInto.id, [{
+        productId: product.id,
+        productName: product.name || '',
+        printName,
+        quantity: qty,
+        price,
+        category: 'shabbat',
+        notes: null,
+      }]);
+      if (typeof api.refreshOrderTotal === 'function') {
+        await api.refreshOrderTotal(stackInto.id);
+      }
+      return true;
+    }
+
+    const remoteOrder = await api.createOrder({
+      sessionId: entry.sessionId,
+      total: price * qty,
+      status: 'submitted',
+    });
+    if (!remoteOrder?.id) throw new Error('createOrder failed');
+    await api.createOrderItems(remoteOrder.id, [{
+      productId: product.id,
+      productName: product.name || '',
+      printName,
+      quantity: qty,
+      price,
+      category: 'shabbat',
+      notes: null,
+    }]);
+    return true;
+  }
+
+  async function confirmAdminQtyModal() {
+    if (!pendingQtyProduct) return;
+
+    if (pendingQtyMode === 'remove') {
+      if (removeBusy || !pendingRemoveItemId) return;
+      const itemId = pendingRemoveItemId;
+      const qty = clampQty(pendingQty, pendingRemoveMaxQty);
+      closeAdminQtyModal();
+      await commitRemoveQuantity(itemId, qty);
+      return;
+    }
+
+    if (busy) return;
+    const product = pendingQtyProduct;
+    const qty = clampQty(pendingQty);
+    busy = true;
+    try {
+      const ok = await commitAddProduct(product, qty);
+      if (!ok) {
+        showToast('לא ניתן להוסיף');
+        return;
+      }
+      closeAdminQtyModal();
+      const qtyLabel = qty > 1 ? `${qty}× ` : '';
+      showSuccess(`המוצר נוסף בהצלחה\n${qtyLabel}${product.name}`);
+      await refresh();
+      if (menuMode) renderMenuPicker();
+    } catch (err) {
+      console.error('[admin-shabbat] add product with qty failed', err);
+      showToast('לא ניתן להוסיף');
+    } finally {
+      busy = false;
+    }
+  }
+
   async function handleAddProduct(productId) {
     const entry = cache.find((row) => row.sessionId === selectedId);
     if (!entry || !productId || busy) return;
@@ -644,82 +847,7 @@
       showToast('אין במלאי');
       return;
     }
-    const api = global.LechaimSupabaseOrders;
-    if (!api?.createOrder || !api?.createOrderItems) {
-      showToast('הוספה לא זמינה');
-      return;
-    }
-
-    const price = Number(product.price) || 0;
-    const printName = global.LechaimPrintEngine?.resolvePrintName?.({
-      productId: product.id,
-      name: product.name,
-      printName: product.printName,
-    }) || product.printName || product.name || '';
-
-    busy = true;
-    try {
-      let remoteOrders = entry.orders || [];
-      try {
-        const fresh = await api.getSessionOrders?.(entry.sessionId);
-        if (Array.isArray(fresh)) remoteOrders = fresh;
-      } catch (_) { /* use cached */ }
-
-      const unprinted = remoteOrders
-        .filter((order) => order && order.id && !order.printed_at)
-        .sort((a, b) => (Number(b.order_number) || 0) - (Number(a.order_number) || 0));
-      const stackInto = unprinted[0] && (Number(unprinted[0].order_number) || 0) > 1
-        ? unprinted[0]
-        : null;
-
-      if (stackInto?.id) {
-        const lines = Array.isArray(stackInto.order_items) ? stackInto.order_items : [];
-        const same = lines.find((row) => (
-          String(row.product_id || '') === String(product.id)
-          && !row.parent_item_id
-        ));
-        if (same?.id && typeof api.bumpOrderItemQuantity === 'function') {
-          await api.bumpOrderItemQuantity(same.id, 1);
-        } else {
-          await api.createOrderItems(stackInto.id, [{
-            productId: product.id,
-            productName: product.name || '',
-            printName,
-            quantity: 1,
-            price,
-            category: 'shabbat',
-            notes: null,
-          }]);
-          if (typeof api.refreshOrderTotal === 'function') {
-            await api.refreshOrderTotal(stackInto.id);
-          }
-        }
-      } else {
-        const remoteOrder = await api.createOrder({
-          sessionId: entry.sessionId,
-          total: price,
-          status: 'submitted',
-        });
-        if (!remoteOrder?.id) throw new Error('createOrder failed');
-        await api.createOrderItems(remoteOrder.id, [{
-          productId: product.id,
-          productName: product.name || '',
-          printName,
-          quantity: 1,
-          price,
-          category: 'shabbat',
-          notes: null,
-        }]);
-      }
-      showSuccess(`המוצר נוסף בהצלחה\n${product.name}`);
-      await refresh();
-      if (menuMode) renderMenuPicker();
-    } catch (err) {
-      console.error('[admin-shabbat] add product failed', err);
-      showToast('לא ניתן להוסיף');
-    } finally {
-      busy = false;
-    }
+    openAdminQtyModal(product);
   }
 
   async function handleRemoveItem(itemId) {
@@ -728,6 +856,14 @@
     const entry = cache.find((row) => row.sessionId === selectedId);
     if (!entry) return;
     const item = (entry.items || []).find((row) => String(row.itemId) === id);
+    if (!item) return;
+
+    const have = Math.floor(Number(item.qty) || 0);
+    if (have > 1) {
+      openAdminRemoveQtyModal(item);
+      return;
+    }
+
     const label = item?.name || 'מנה';
     const productId = String(item?.productId || '');
     const isShakeBase = Boolean(global.SHAKE_BASE_IDS?.has?.(productId));
@@ -749,21 +885,61 @@
     const ok = await showConfirm(ask, 'כן, הסר');
     if (!ok) return;
 
+    await commitRemoveQuantity(id, 1);
+  }
+
+  async function commitRemoveQuantity(itemId, removeQty) {
+    const id = String(itemId || '');
+    if (!id || removeBusy) return false;
+    const entry = cache.find((row) => row.sessionId === selectedId);
+    if (!entry) return false;
+    const item = (entry.items || []).find((row) => String(row.itemId) === id);
+    if (!item) return false;
+
+    const have = Math.floor(Number(item.qty) || 0);
+    const qty = Math.min(Math.max(1, Math.floor(Number(removeQty) || 0)), have);
+    if (qty < 1 || have < 1) return false;
+
     const api = global.LechaimSupabaseOrders;
     if (!api?.deleteOrderItem) {
       showToast('מחיקה לא זמינה');
-      return;
+      return false;
     }
+
+    const productId = String(item?.productId || '');
+    const isShakeBase = Boolean(global.SHAKE_BASE_IDS?.has?.(productId));
+    const linkedKids = (entry.items || []).filter(
+      (row) => String(row.linkedToMainItemId || '') === id
+    );
 
     removeBusy = true;
     try {
-      await api.deleteOrderItem(id);
-      showToast(isShakeBase ? 'בסיס השייק הוסר' : 'המנה הוסרה');
+      if (qty >= have) {
+        await api.deleteOrderItem(id);
+      } else {
+        if (typeof api.bumpOrderItemQuantity !== 'function') {
+          showToast('הפחתת כמות לא זמינה');
+          return false;
+        }
+        await api.bumpOrderItemQuantity(id, -qty);
+        for (const kid of linkedKids) {
+          const kidHave = Math.floor(Number(kid.qty) || 0);
+          if (kidHave <= 0) continue;
+          if (kidHave <= qty) {
+            await api.deleteOrderItem(kid.itemId);
+          } else {
+            await api.bumpOrderItemQuantity(kid.itemId, -qty);
+          }
+        }
+      }
+      showToast(isShakeBase ? 'בסיס השייק הוסר' : (qty > 1 ? `${qty} מנות הוסרו` : 'המנה הוסרה'));
       await refresh();
       if (!cache.find((row) => row.sessionId === selectedId)) closeDrawer();
+      return true;
     } catch (err) {
-      console.error('[admin-shabbat] delete item failed', err);
+      console.error('[admin-shabbat] remove quantity failed', err);
       showToast('לא ניתן להסיר את המנה');
+      return false;
     } finally {
       removeBusy = false;
     }
@@ -1009,6 +1185,27 @@
     handleAddProduct(btn.getAttribute('data-shabbat-add-product'));
   });
 
+  document.getElementById('admin-qty-inc')?.addEventListener('click', () => {
+    if (!pendingQtyProduct) return;
+    setAdminQty(pendingQty + 1);
+  });
+  document.getElementById('admin-qty-dec')?.addEventListener('click', () => {
+    if (!pendingQtyProduct) return;
+    setAdminQty(pendingQty - 1);
+  });
+  document.getElementById('admin-qty-confirm')?.addEventListener('click', () => {
+    if (!pendingQtyProduct) return;
+    void confirmAdminQtyModal();
+  });
+  document.getElementById('admin-qty-cancel')?.addEventListener('click', () => {
+    if (!pendingQtyProduct) return;
+    closeAdminQtyModal();
+  });
+  document.getElementById('admin-qty-backdrop')?.addEventListener('click', () => {
+    if (!pendingQtyProduct) return;
+    closeAdminQtyModal();
+  });
+
   menuSearch?.addEventListener('input', () => {
     menuQuery = menuSearch.value || '';
     renderMenuPicker();
@@ -1025,6 +1222,11 @@
 
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
+    const qtyModal = document.getElementById('admin-qty-modal');
+    if (pendingQtyProduct && qtyModal && !qtyModal.hidden) {
+      closeAdminQtyModal();
+      return;
+    }
     if (newModal && !newModal.hidden) {
       closeNewModal();
       return;

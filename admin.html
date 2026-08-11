@@ -68,9 +68,13 @@
           <span class="admin-tab__badge" id="tab-badge-reservations" data-count="0" hidden>0</span>
         </button>
         <button type="button" class="admin-tab" data-tab="history">היסטוריה</button>
-        <button type="button" class="admin-tab" data-tab="takeaway">
-          איסוף עצמי / משלוחים
-          <span class="admin-tab__badge" id="tab-badge-takeaway" data-count="0" hidden>0</span>
+        <button type="button" class="admin-tab" data-tab="pickup">
+          איסוף עצמי
+          <span class="admin-tab__badge" id="tab-badge-pickup" data-count="0" hidden>0</span>
+        </button>
+        <button type="button" class="admin-tab" data-tab="delivery">
+          משלוחים
+          <span class="admin-tab__badge" id="tab-badge-delivery" data-count="0" hidden>0</span>
         </button>
         <button type="button" class="admin-tab" data-tab="butcher">
           חנות בשרים
@@ -81,6 +85,7 @@
           <span class="admin-tab__badge" id="tab-badge-shabbat" data-count="0" hidden>0</span>
         </button>
         <button type="button" class="admin-tab" data-tab="till">קופה</button>
+        <button type="button" class="admin-tab" data-tab="staff-hours">שעות עובדים</button>
         <button type="button" class="admin-tab" data-tab="inventory">מלאי</button>
         <button type="button" class="admin-tab" data-tab="stats">קופונים</button>
         <button type="button" class="admin-tab" data-tab="settings" disabled title="בקרוב">הגדרות</button>
@@ -116,11 +121,11 @@
           <header class="admin-header admin-header--row">
             <div class="admin-header__text">
               <p class="admin-header__eyebrow">ניהול</p>
-              <h1 class="admin-header__title">איסוף עצמי / משלוחים</h1>
-              <p class="admin-header__subtitle">הזמנות איסוף עצמי ומשלוחים פעילות</p>
+              <h1 class="admin-header__title" id="tables-takeaway-title">איסוף עצמי</h1>
+              <p class="admin-header__subtitle" id="tables-takeaway-subtitle">הזמנות איסוף עצמי פעילות</p>
             </div>
             <div class="reservations-header-actions">
-              <button type="button" class="admin-btn admin-btn--ghost" id="takeaway-close-deliveries-btn">סגור משלוחים</button>
+              <button type="button" class="admin-btn admin-btn--ghost" id="takeaway-close-deliveries-btn" hidden>סגור משלוחים</button>
             </div>
           </header>
           <div class="tables-pickup-section">
@@ -133,7 +138,7 @@
             <div class="tables-takeaway__grid" id="tables-takeaway-grid-future"></div>
             <p class="tables-category__empty" id="tables-takeaway-empty-future" hidden>אין הזמנות עתידיות</p>
           </div>
-          <p class="tables-category__empty" id="tables-takeaway-empty">אין הזמנות איסוף עצמי / משלוחים כרגע</p>
+          <p class="tables-category__empty" id="tables-takeaway-empty">אין הזמנות כרגע</p>
         </section>
 
         <section class="tables-category tables-takeaway tables-butcher" id="tables-butcher" hidden>
@@ -335,7 +340,169 @@
 
         <div id="coupon-stats-root" class="coupon-stats"></div>
       </div>
+
+      <!-- Staff hours tab -->
+      <div class="admin-view" id="admin-view-staff-hours" hidden>
+        <header class="admin-header">
+          <div class="admin-header__text">
+            <p class="admin-header__eyebrow">ניהול</p>
+            <h1 class="admin-header__title">שעות עובדים</h1>
+            <p class="admin-header__subtitle">עובדים · כניסה/יציאה · משמרות · סיכום חודשי</p>
+          </div>
+        </header>
+
+        <div class="staff-hours-subtabs" role="tablist" aria-label="שעות עובדים">
+          <button type="button" class="admin-filter is-active" data-staff-panel="clock" role="tab" aria-selected="true">כניסה / יציאה</button>
+          <button type="button" class="admin-filter" data-staff-panel="employees" role="tab" aria-selected="false">עובדים</button>
+          <button type="button" class="admin-filter" data-staff-panel="shifts" role="tab" aria-selected="false">משמרות</button>
+          <button type="button" class="admin-filter" data-staff-panel="summary" role="tab" aria-selected="false">סיכום חודשי</button>
+        </div>
+
+        <p class="admin-error" id="staff-hours-error" role="alert" hidden></p>
+        <p class="admin-toast" id="staff-hours-toast" role="status" aria-live="polite" hidden></p>
+
+        <section class="staff-panel" id="staff-panel-clock" data-staff-panel-view="clock">
+          <article class="staff-clock-card">
+            <h2 class="staff-panel__title">הזנת קוד אישי</h2>
+            <label class="admin-field">
+              <span>קוד עובד</span>
+              <input type="password" id="staff-clock-pin" inputmode="numeric" autocomplete="off" maxlength="12" dir="ltr" placeholder="••••">
+            </label>
+            <div class="staff-clock-card__actions">
+              <button type="button" class="admin-btn admin-btn--primary" id="staff-clock-in">כניסה</button>
+              <button type="button" class="admin-btn admin-btn--soft" id="staff-clock-out">יציאה</button>
+            </div>
+          </article>
+          <div class="staff-open-list" id="staff-open-now"></div>
+        </section>
+
+        <section class="staff-panel" id="staff-panel-employees" data-staff-panel-view="employees" hidden>
+          <div class="staff-panel__toolbar">
+            <h2 class="staff-panel__title">ניהול עובדים</h2>
+            <button type="button" class="admin-btn admin-btn--primary" id="staff-employee-new">עובד חדש</button>
+          </div>
+          <div class="staff-table-wrap" id="staff-employees-table"></div>
+        </section>
+
+        <section class="staff-panel" id="staff-panel-shifts" data-staff-panel-view="shifts" hidden>
+          <div class="staff-panel__toolbar">
+            <h2 class="staff-panel__title">משמרות</h2>
+            <button type="button" class="admin-btn admin-btn--soft" id="staff-shift-new">משמרת חדשה</button>
+          </div>
+          <p class="staff-panel__hint">הזינו קוד אישי — תוצג טבלה מלאה מיום 1 בחודש עד היום. אפשר להוסיף או לערוך בכל יום.</p>
+          <div class="staff-shifts-filters">
+            <label class="admin-field staff-field--inline">
+              <span>חודש</span>
+              <input type="month" id="staff-shifts-month" dir="ltr">
+            </label>
+            <label class="admin-field staff-field--inline">
+              <span>קוד עובד</span>
+              <input type="password" id="staff-shifts-pin" inputmode="numeric" autocomplete="off" maxlength="12" dir="ltr" placeholder="••••">
+            </label>
+            <button type="button" class="admin-btn admin-btn--primary" id="staff-shifts-load">הצג</button>
+            <button type="button" class="admin-btn admin-btn--print" id="staff-shifts-print" hidden>הדפס</button>
+          </div>
+          <p class="staff-viewed-name" id="staff-shifts-viewed" hidden></p>
+          <div class="staff-table-wrap" id="staff-shifts-table"></div>
+        </section>
+
+        <section class="staff-panel" id="staff-panel-summary" data-staff-panel-view="summary" hidden>
+          <div class="staff-panel__toolbar">
+            <h2 class="staff-panel__title">סיכום חודשי</h2>
+          </div>
+          <div class="staff-shifts-filters">
+            <label class="admin-field staff-field--inline">
+              <span>חודש</span>
+              <input type="month" id="staff-summary-month" dir="ltr">
+            </label>
+            <label class="admin-field staff-field--inline">
+              <span>קוד עובד</span>
+              <input type="password" id="staff-summary-pin" inputmode="numeric" autocomplete="off" maxlength="12" dir="ltr" placeholder="••••">
+            </label>
+            <button type="button" class="admin-btn admin-btn--primary" id="staff-summary-load">הצג</button>
+            <button type="button" class="admin-btn admin-btn--print" id="staff-summary-print" hidden>הדפס</button>
+          </div>
+          <p class="staff-summary-range" id="staff-summary-range"></p>
+          <p class="staff-viewed-name" id="staff-summary-viewed" hidden></p>
+          <div class="staff-table-wrap" id="staff-summary-table"></div>
+        </section>
+      </div>
     </section>
+
+    <div class="admin-modal" id="staff-employee-modal" hidden aria-hidden="true">
+      <button type="button" class="admin-modal__backdrop" id="staff-employee-backdrop" aria-label="סגור"></button>
+      <div class="admin-modal__panel reservation-modal__panel" role="dialog" aria-modal="true" aria-labelledby="staff-employee-modal-title">
+        <h2 class="reservation-modal__title" id="staff-employee-modal-title">עובד</h2>
+        <form id="staff-employee-form" class="reservation-form" novalidate>
+          <input type="hidden" id="staff-employee-id">
+          <label class="admin-field">
+            <span>שם באנגלית *</span>
+            <input type="text" id="staff-employee-name" required maxlength="80" dir="ltr" autocomplete="off">
+          </label>
+          <label class="admin-field">
+            <span>תפקיד</span>
+            <input type="text" id="staff-employee-position" maxlength="80" dir="ltr" autocomplete="off">
+          </label>
+          <label class="admin-field">
+            <span>שכר לשעה (€) *</span>
+            <input type="number" id="staff-employee-rate" required min="0" step="0.01" inputmode="decimal" dir="ltr">
+          </label>
+          <label class="admin-field">
+            <span id="staff-employee-pin-label">קוד אישי *</span>
+            <input type="password" id="staff-employee-pin" inputmode="numeric" maxlength="12" dir="ltr" autocomplete="new-password" placeholder="4–12 ספרות">
+          </label>
+          <label class="admin-field">
+            <span>מספר חשבון בנק</span>
+            <input type="text" id="staff-employee-bank-account" maxlength="64" dir="ltr" autocomplete="off">
+          </label>
+          <label class="admin-field">
+            <span>שם הבנק</span>
+            <input type="text" id="staff-employee-bank-name" maxlength="64" dir="ltr" autocomplete="off">
+          </label>
+          <label class="admin-field admin-field--check">
+            <input type="checkbox" id="staff-employee-active" checked>
+            <span>פעיל</span>
+          </label>
+          <p class="admin-error" id="staff-employee-form-error" role="alert" hidden></p>
+          <div class="reservation-modal__actions">
+            <button type="submit" class="admin-btn admin-btn--primary" id="staff-employee-save">שמור</button>
+            <button type="button" class="admin-btn admin-btn--ghost" id="staff-employee-cancel">ביטול</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="admin-modal" id="staff-shift-modal" hidden aria-hidden="true">
+      <button type="button" class="admin-modal__backdrop" id="staff-shift-backdrop" aria-label="סגור"></button>
+      <div class="admin-modal__panel reservation-modal__panel" role="dialog" aria-modal="true" aria-labelledby="staff-shift-modal-title">
+        <h2 class="reservation-modal__title" id="staff-shift-modal-title">עריכת משמרת</h2>
+        <form id="staff-shift-form" class="reservation-form" novalidate>
+          <input type="hidden" id="staff-shift-id">
+          <label class="admin-field">
+            <span>עובד *</span>
+            <select id="staff-shift-employee" required dir="ltr"></select>
+          </label>
+          <label class="admin-field">
+            <span>תאריך *</span>
+            <input type="date" id="staff-shift-date" required dir="ltr">
+          </label>
+          <label class="admin-field">
+            <span>שעת כניסה *</span>
+            <input type="time" id="staff-shift-in" required dir="ltr" step="60">
+          </label>
+          <label class="admin-field">
+            <span>שעת יציאה</span>
+            <input type="time" id="staff-shift-out" dir="ltr" step="60">
+          </label>
+          <p class="staff-shift-hint">השארת יציאה ריקה = משמרת פתוחה</p>
+          <p class="admin-error" id="staff-shift-form-error" role="alert" hidden></p>
+          <div class="reservation-modal__actions">
+            <button type="submit" class="admin-btn admin-btn--primary" id="staff-shift-save">שמור</button>
+            <button type="button" class="admin-btn admin-btn--ghost" id="staff-shift-cancel">ביטול</button>
+          </div>
+        </form>
+      </div>
+    </div>
 
     <!-- Shabbat detail drawer (same actions as takeaway: Approve / Print / Add / Close) -->
     <div class="table-drawer" id="shabbat-drawer" hidden aria-hidden="true">
@@ -608,7 +775,7 @@
           <p class="admin-payment-split__hint" id="admin-payment-split-hint">השלימו את סכום המזומן — האשראי יחושב אוטומטית</p>
           <button type="button" class="admin-btn admin-btn--primary" id="admin-payment-split-confirm">אשר סגירה</button>
         </div>
-        <button type="button" class="admin-btn admin-btn--ghost" id="admin-payment-cancel">ביטול</button>
+        <button type="button" class="admin-btn admin-btn--ghost" id="admin-payment-cancel">סגור</button>
       </div>
     </div>
 
@@ -633,6 +800,7 @@
   <script src="js/order-types.js" defer></script>
   <script src="js/supabase-order-service.js" defer></script>
   <script src="js/menu-data.js" defer></script>
+  <script src="js/opening-hours.js" defer></script>
   <script src="js/shabbat-menu-data.js" defer></script>
   <script src="js/inventory.js" defer></script>
   <script src="js/order-session.js" defer></script>
@@ -646,6 +814,7 @@
   <script src="js/admin-history.js" defer></script>
   <script src="js/admin-coupons.js" defer></script>
   <script src="js/admin-till.js" defer></script>
+  <script src="js/admin-staff-hours.js" defer></script>
   <script src="js/admin.js" defer></script>
   <script src="js/admin-pwa.js" defer></script>
 </body>

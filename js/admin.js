@@ -35,6 +35,7 @@
   const viewInventory = document.getElementById('admin-view-inventory');
   const viewStats = document.getElementById('admin-view-stats');
   const viewTill = document.getElementById('admin-view-till');
+  const viewStaffHours = document.getElementById('admin-view-staff-hours');
   const kitchenCloseBtn = document.getElementById('admin-kitchen-close-btn');
 
   let inventorySubscribed = false;
@@ -124,7 +125,10 @@
     if (tab === 'inventory') currentTab = 'inventory';
     else if (tab === 'stats') currentTab = 'stats';
     else if (tab === 'till') currentTab = 'till';
-    else if (tab === 'takeaway') currentTab = 'takeaway';
+    else if (tab === 'staff-hours') currentTab = 'staff-hours';
+    else if (tab === 'pickup') currentTab = 'pickup';
+    else if (tab === 'delivery') currentTab = 'delivery';
+    else if (tab === 'takeaway') currentTab = 'pickup'; /* legacy */
     else if (tab === 'butcher') currentTab = 'butcher';
     else if (tab === 'shabbat') currentTab = 'shabbat';
     else if (tab === 'reservations') currentTab = 'reservations';
@@ -137,13 +141,15 @@
     });
 
     const onBoard = currentTab === 'tables'
-      || currentTab === 'takeaway'
+      || currentTab === 'pickup'
+      || currentTab === 'delivery'
       || currentTab === 'butcher';
     if (viewTables) viewTables.hidden = !onBoard;
     if (viewShabbat) viewShabbat.hidden = currentTab !== 'shabbat';
     if (viewReservations) viewReservations.hidden = currentTab !== 'reservations';
     if (viewHistory) viewHistory.hidden = currentTab !== 'history';
     if (viewTill) viewTill.hidden = currentTab !== 'till';
+    if (viewStaffHours) viewStaffHours.hidden = currentTab !== 'staff-hours';
     if (viewInventory) viewInventory.hidden = currentTab !== 'inventory';
     if (viewStats) viewStats.hidden = currentTab !== 'stats';
 
@@ -155,9 +161,11 @@
     window.LechaimAdminShabbat?.start?.();
     window.LechaimAdminReservations?.start?.();
     if (onBoard) {
-      const filter = currentTab === 'takeaway'
-        ? 'takeaway'
-        : (currentTab === 'butcher' ? 'butcher' : 'tables');
+      const filter = currentTab === 'pickup'
+        ? 'pickup'
+        : (currentTab === 'delivery'
+          ? 'delivery'
+          : (currentTab === 'butcher' ? 'butcher' : 'tables'));
       window.LechaimAdminTables?.setBoardFilter?.(filter);
     } else {
       window.LechaimAdminTables?.closeDrawer?.();
@@ -175,6 +183,10 @@
 
     if (currentTab === 'stats') {
       window.LechaimAdminCoupons?.start?.();
+    }
+
+    if (currentTab === 'staff-hours') {
+      window.LechaimAdminStaffHours?.start?.();
     }
   }
 
@@ -634,12 +646,15 @@
     const tab = btn.dataset.tab;
     if (
       tab !== 'tables'
+      && tab !== 'pickup'
+      && tab !== 'delivery'
       && tab !== 'takeaway'
       && tab !== 'butcher'
       && tab !== 'shabbat'
       && tab !== 'reservations'
       && tab !== 'history'
       && tab !== 'till'
+      && tab !== 'staff-hours'
       && tab !== 'inventory'
       && tab !== 'stats'
     ) return;

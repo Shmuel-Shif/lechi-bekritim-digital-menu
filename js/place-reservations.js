@@ -3,7 +3,7 @@
  * Isolated from food orders / sessions / admin seat-hold `reservations` table.
  *
  * Capacity (enforced on create via RPC): CAPACITY_SEATS=60, AVG_SIT_MINUTES=75.
- * Customer slots: half-hour 14:00–20:30 (restaurant closes 21:00).
+ * Customer slots: half-hour 14:00–21:00 (restaurant closes 22:00).
  * Capacity holds: pending + confirmed + arrived (cancelled does not hold).
  * Admin meter "תפוסה מאושרת": confirmed + arrived only.
  */
@@ -13,9 +13,10 @@
   const TABLE = 'place_reservation_requests';
   const CAPACITY_SEATS = 60;
   const AVG_SIT_MINUTES = 75;
-  const OPEN_HOUR = 14;
-  const LAST_SLOT_HOUR = 20;
-  const LAST_SLOT_MINUTE = 30;
+  const Hours = () => global.LechaimOpeningHours || null;
+  const OPEN_HOUR = Hours()?.OPEN_HOUR ?? 14;
+  const LAST_SLOT_HOUR = Hours()?.PLACE_RES_LAST_SLOT_HOUR ?? 21;
+  const LAST_SLOT_MINUTE = Hours()?.PLACE_RES_LAST_SLOT_MINUTE ?? 0;
   const SLOT_STEP_MINUTES = 30;
 
   let client = null;
@@ -186,7 +187,7 @@
       e.code = 'CAPACITY_EXCEEDED';
       return e;
     }
-    if (msg.includes('TIME_INVALID')) return new Error('נא לבחור שעה בין 14:00 ל־20:30');
+    if (msg.includes('TIME_INVALID')) return new Error('נא לבחור שעה בין 14:00 ל־21:00');
     if (msg.includes('PHONE_INVALID')) return new Error('נא להזין טלפון תקין');
     if (msg.includes('PARTY_SIZE_INVALID')) {
       return new Error(`נא להזין מספר סועדים (1–${CAPACITY_SEATS})`);
@@ -220,7 +221,7 @@
     }
     if (!reservation_date) throw new Error('נא לבחור תאריך');
     if (!isValidArrivalTime(arrival_time)) {
-      throw new Error('נא לבחור שעה בין 14:00 ל־20:30');
+      throw new Error('נא לבחור שעה בין 14:00 ל־21:00');
     }
 
     const { data, error } = await sb.rpc('create_place_reservation_request', {

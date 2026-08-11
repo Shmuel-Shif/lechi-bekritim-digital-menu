@@ -1038,12 +1038,24 @@
     return (await sendTicket(ticket, 'bar')) === true;
   }
 
+  /**
+   * Print an arbitrary ESC/POS text ticket to kitchen or bar.
+   * Used by isolated admin modules (e.g. staff hours) without touching order flow.
+   */
+  async function printRawTicket(ticket, channel = 'bar') {
+    const text = String(ticket || '').trim();
+    if (!text) return false;
+    const dest = channel === 'kitchen' ? 'kitchen' : 'bar';
+    return (await sendTicket(text, dest)) === true;
+  }
+
   global.LechaimPrintEngine = {
     PRINT_SERVICE_URL,
     printKitchen,
     printBar,
     printOrder,
     printCustomerBill,
+    printRawTicket,
     buildKitchenTicket,
     buildBarTicket,
     buildCustomerBillTicket,

@@ -12,7 +12,10 @@
   const STORAGE_KEY = 'lechaim-active-order';
   const OPEN_ORDERS_KEY = 'lechaim-open-orders';
   const HISTORY_KEY = 'lechaim-order-history';
-  const CART_STORAGE_KEY = 'lechaim-keri-cart';
+  const CART_STORAGE_KEY_FOOD = 'lechaim-keri-cart';
+  const CART_STORAGE_KEY_PICKUP = 'lechaim-cart-pickup';
+  const CART_STORAGE_KEY_DELIVERY = 'lechaim-cart-delivery';
+  const CART_STORAGE_KEY_BUTCHER = 'lechaim-cart-butcher';
 
   const STATUS = Object.freeze({
     ACTIVE: 'active',
@@ -498,8 +501,29 @@
     });
   }
 
-  function clearCustomerCartStorage() {
-    removeKey(CART_STORAGE_KEY);
+  function cartStorageKeyForOrderType(orderType, fulfillmentType) {
+    const raw = String(orderType || '').toLowerCase();
+    if (raw === 'butcher' || raw.includes('butcher')) return CART_STORAGE_KEY_BUTCHER;
+    if (raw === 'takeaway' || raw === 'take-away' || raw === 'take_away' || raw.includes('take')) {
+      const ft = fulfillmentType != null
+        ? fulfillmentType
+        : global.LechaimOrderContext?.fulfillmentType;
+      return String(ft || '') === 'delivery'
+        ? CART_STORAGE_KEY_DELIVERY
+        : CART_STORAGE_KEY_PICKUP;
+    }
+    return CART_STORAGE_KEY_FOOD;
+  }
+
+  function clearCustomerCartStorage(orderType) {
+    const type = orderType
+      || global.LechaimOrderContext?.orderType
+      || global.LechaimOrderSession?.getSession?.()?.orderType
+      || null;
+    const fulfillment = global.LechaimOrderContext?.fulfillmentType
+      || global.LechaimOrderSession?.getSession?.()?.fulfillmentType
+      || null;
+    removeKey(cartStorageKeyForOrderType(type, fulfillment));
   }
 
   /**
@@ -538,7 +562,7 @@
     const matchesSession = session && order.sessionId && session.sessionId === order.sessionId;
     if (matchesSession) {
       global.LechaimOrderSession.clearSession?.();
-      clearCustomerCartStorage();
+      clearCustomerCartStorage(order.orderType);
 
       if (global.LechaimOrderContext) {
         global.LechaimOrderContext = {

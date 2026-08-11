@@ -71,6 +71,7 @@
       receiptPickupAt: 'איסוף שישי {time}',
       orderClosedByAdmin: 'ההזמנה נסגרה במסעדה',
       categories: {
+        kodesh: 'קודש',
         starters: 'ראשונות',
         fish: 'מנות דגים',
         mains: 'עיקריות',
@@ -140,6 +141,7 @@
       receiptPickupAt: 'Friday pickup {time}',
       orderClosedByAdmin: 'The restaurant closed this order',
       categories: {
+        kodesh: 'Kiddush',
         starters: 'Starters',
         fish: 'Fish dishes',
         mains: 'Mains',
@@ -162,16 +164,35 @@
         he: 'איסוף ביום שישי בין השעות 13:00–14:00',
         en: 'Pickup on Friday between 13:00–14:00',
       },
-      {
-        he: 'בשלב זה הארוחה מוגשת ללא מיץ ענבים עקב חוסר במלאי.',
-        en: 'Grape juice is currently unavailable due to stock shortage.',
-      },
-      {
-        he: 'ניתן לערוך קידוש על בירה.',
-        en: 'Kiddush may be recited over beer.',
-      },
     ],
     categories: [
+      {
+        id: 'kodesh',
+        titleKey: 'categories.kodesh',
+        items: [
+          {
+            id: 'shabbat-grape-juice',
+            name: 'מיץ ענבים',
+            nameEn: 'Grape juice',
+            printName: 'Grape Juice 1L',
+            desc: 'בקבוק 1 ליטר',
+            descEn: '1 liter bottle',
+            note: 'בקבוק 1 ליטר',
+            noteEn: '1 liter bottle',
+            price: 7,
+            image: sabatImage('mitz-invim'),
+          },
+          {
+            id: 'shabbat-nerot',
+            name: 'זוג נרות שבת',
+            nameEn: 'Pair of Shabbat candles',
+            printName: 'Shabbat Candles',
+            desc: '',
+            price: 1,
+            image: sabatImage('nerot'),
+          },
+        ],
+      },
       {
         id: 'starters',
         titleKey: 'categories.starters',
@@ -205,6 +226,17 @@
             noteEn: 'per unit',
             image: sabatImage('chala'),
           },
+          {
+            id: 'bread',
+            name: 'לחם',
+            nameEn: 'Bread',
+            printName: 'Lechem',
+            desc: '',
+            price: 2,
+            note: 'ליחידה',
+            noteEn: 'per unit',
+            image: dishImage('lechem'),
+          },
         ],
       },
       {
@@ -218,7 +250,7 @@
             nameEn: 'Salmon in Moroccan sauce',
             printName: 'Salmon Moroccan',
             desc: '',
-            price: 17,
+            price: 15,
             image: sabatImage('salmon'),
           },
           {
@@ -228,7 +260,7 @@
             printName: 'Denis Whole',
             desc: 'מלח פלפל לימון שמן זית',
             descEn: 'Salt, pepper, lemon, olive oil',
-            price: 18,
+            price: 16,
             image: sabatImage('denis-shalem'),
           },
           {
@@ -237,7 +269,7 @@
             nameEn: 'Sea bream in Moroccan sauce',
             printName: 'Denis Moroccan',
             desc: '',
-            price: 18,
+            price: 16,
             image: sabatImage('file-denis'),
           },
         ],
@@ -253,7 +285,7 @@
             nameEn: 'Crispy schnitzel',
             printName: 'Schnitzel',
             desc: '',
-            price: 17,
+            price: 15,
             image: sabatImage('shnizel'),
           },
           {
@@ -262,7 +294,7 @@
             nameEn: 'Mediterranean-spiced pargiyot',
             printName: 'Pargit',
             desc: '',
-            price: 18,
+            price: 16,
             image: sabatImage('pargit'),
           },
           {
@@ -271,7 +303,7 @@
             nameEn: 'Oven-baked drumsticks with caramelized onion',
             printName: 'Kraim',
             desc: '',
-            price: 20,
+            price: 18,
             image: sabatImage('kraim'),
           },
           {
@@ -280,7 +312,7 @@
             nameEn: 'Meat stew with potatoes',
             printName: 'Meat Stew',
             desc: '',
-            price: 26,
+            price: 24,
             image: sabatImage('basar'),
           },
           {
@@ -289,7 +321,7 @@
             nameEn: 'Slow-cooked asado cut',
             printName: 'Asado',
             desc: '',
-            price: 46,
+            price: 44,
             image: sabatImage('asado'),
           },
         ],

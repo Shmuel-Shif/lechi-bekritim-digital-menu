@@ -75,8 +75,13 @@
   /** @type {null|{ code: string, discountPercent: number, discountAmount: number, subtotal: number, total: number }} */
   let pendingBillCoupon = null;
 
-  const CART_STORAGE_KEY = 'lechaim-keri-cart';
-  const TAKEAWAY_LOCK_KEY = 'lechaim-takeaway-order-lock';
+  const CART_STORAGE_KEY_FOOD = 'lechaim-keri-cart'; /* dine-in */
+  const CART_STORAGE_KEY_PICKUP = 'lechaim-cart-pickup';
+  const CART_STORAGE_KEY_DELIVERY = 'lechaim-cart-delivery';
+  const CART_STORAGE_KEY_BUTCHER = 'lechaim-cart-butcher';
+  const TAKEAWAY_LOCK_KEY_LEGACY = 'lechaim-takeaway-order-lock';
+  const TAKEAWAY_LOCK_KEY_PICKUP = 'lechaim-takeaway-order-lock-pickup';
+  const TAKEAWAY_LOCK_KEY_DELIVERY = 'lechaim-takeaway-order-lock-delivery';
 
   let currentLang = 'he';
   let activeCategoryId = null;
@@ -126,16 +131,33 @@
 
   /*
    * ---------------------------------------------------------------------------
-   * Ordering hours (restaurant local time)
-   * Dine-in: Sun–Thu 14:00–23:00; closed Fri–Sat.
-   * Takeaway (in menu): Sun–Thu 14:00–23:00; closed Fri–Sat.
-   * Outside that window: browse catalog only.
+   * Ordering hours — source: js/opening-hours.js (LechaimOpeningHours)
+   * Sun–Thu OPEN..CLOSE exclusive; closed Fri–Sat. 21:59 open, 22:00 closed.
    * ---------------------------------------------------------------------------
    */
+  const Hours = () => window.LechaimOpeningHours || null;
   const ORDERING_HOURS_ENABLED = true;
-  const ORDERING_OPEN_HOUR = 14;
-  const DINE_IN_CLOSE_HOUR = 23; /* exclusive */
-  const TAKEAWAY_CLOSE_HOUR = 23; /* exclusive */
+  const ORDERING_OPEN_HOUR = Hours()?.OPEN_HOUR ?? 14;
+  const DINE_IN_CLOSE_HOUR = Hours()?.CLOSE_HOUR ?? 22;
+  const TAKEAWAY_CLOSE_HOUR = Hours()?.CLOSE_HOUR ?? 22;
+
+  function isWeekendClosed(date = new Date()) {
+    if (typeof Hours()?.isWeekendClosed === 'function') {
+      return Hours().isWeekendClosed(date);
+    }
+    const day = date.getDay();
+    return day === 5 || day === 6;
+  }
+
+  function isWithinOrderingHours(date = new Date()) {
+    if (typeof Hours()?.isWithinOrderingHours === 'function') {
+      return Hours().isWithinOrderingHours(date);
+    }
+    if (isWeekendClosed(date)) return false;
+    const hour = date.getHours();
+    const closeHour = isTakeawayContext() ? TAKEAWAY_CLOSE_HOUR : DINE_IN_CLOSE_HOUR;
+    return hour >= ORDERING_OPEN_HOUR && hour < closeHour;
+  }
 
   /** Admin dine-in close countdown — global deadline; each guest sees remaining time. */
   let dineInCloseAtMs = null;
@@ -151,18 +173,6 @@
   const kitchenCloseBackdrop = $('#kitchen-close-backdrop');
   const kitchenCloseOk = $('#kitchen-close-ok');
   const kitchenCloseText = $('#kitchen-close-text');
-
-  function isWeekendClosed(date = new Date()) {
-    const day = date.getDay(); /* 0=Sun … 5=Fri 6=Sat */
-    return day === 5 || day === 6;
-  }
-
-  function isWithinOrderingHours(date = new Date()) {
-    if (isWeekendClosed(date)) return false;
-    const hour = date.getHours();
-    const closeHour = isTakeawayContext() ? TAKEAWAY_CLOSE_HOUR : DINE_IN_CLOSE_HOUR;
-    return hour >= ORDERING_OPEN_HOUR && hour < closeHour;
-  }
 
   function isDineInContext() {
     if (isTakeawayContext()) return false;
@@ -469,30 +479,82 @@
     return ctx.orderType === 'takeaway' || ctx.orderType === 'take-away';
   }
 
-  function readTakeawayLock() {
-    try {
-      const raw = localStorage.getItem(TAKEAWAY_LOCK_KEY);
-      const parsed = raw ? JSON.parse(raw) : null;
-      if (!parsed || typeof parsed !== 'object') return null;
-      return parsed;
-    } catch {
-      return null;
-    }
+  function normalizeFulfillmentType(value) {
+    return String(value || '') === 'delivery' ? 'delivery' : 'pickup';
   }
 
-  function writeTakeawayLock(payload) {
+  function isTakeawayOrderType(orderType) {
+    const type = String(orderType || '').toLowerCase();
+    return type === 'takeaway' || type === 'take-away' || type === 'take_away';
+  }
+
+  function getTakeawayLockKey(fulfillmentType) {
+    return normalizeFulfillmentType(fulfillmentType) === 'delivery'
+      ? TAKEAWAY_LOCK_KEY_DELIVERY
+      : TAKEAWAY_LOCK_KEY_PICKUP;
+  }
+
+  function activeTakeawayLockKey() {
+    return getTakeawayLockKey(window.LechaimOrderContext?.fulfillmentType);
+  }
+
+  function readTakeawayLock(fulfillmentType) {
+    const key = fulfillmentType != null
+      ? getTakeawayLockKey(fulfillmentType)
+      : activeTakeawayLockKey();
     try {
-      localStorage.setItem(TAKEAWAY_LOCK_KEY, JSON.stringify(payload));
+      const raw = localStorage.getItem(key);
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (parsed && typeof parsed === 'object') return parsed;
+    } catch {
+      /* ignore */
+    }
+    /* One-time migrate legacy shared lock → current fulfillment key */
+    if (fulfillmentType == null || normalizeFulfillmentType(fulfillmentType)
+      === normalizeFulfillmentType(window.LechaimOrderContext?.fulfillmentType)) {
+      try {
+        const legacyRaw = localStorage.getItem(TAKEAWAY_LOCK_KEY_LEGACY);
+        const legacy = legacyRaw ? JSON.parse(legacyRaw) : null;
+        if (legacy && typeof legacy === 'object') {
+          localStorage.setItem(key, JSON.stringify(legacy));
+          localStorage.removeItem(TAKEAWAY_LOCK_KEY_LEGACY);
+          return legacy;
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    return null;
+  }
+
+  function writeTakeawayLock(payload, fulfillmentType) {
+    const key = getTakeawayLockKey(
+      fulfillmentType != null
+        ? fulfillmentType
+        : window.LechaimOrderContext?.fulfillmentType
+    );
+    try {
+      localStorage.setItem(key, JSON.stringify(payload));
+      localStorage.removeItem(TAKEAWAY_LOCK_KEY_LEGACY);
     } catch (err) {
       console.warn('[takeaway-lock] persist failed', err);
     }
   }
 
-  function clearTakeawayLock() {
+  function clearTakeawayLock(fulfillmentType) {
     takeawayReceiptItems = null;
-    try {
-      localStorage.removeItem(TAKEAWAY_LOCK_KEY);
-    } catch (_) { /* ignore */ }
+    const keys = fulfillmentType != null
+      ? [getTakeawayLockKey(fulfillmentType), TAKEAWAY_LOCK_KEY_LEGACY]
+      : [
+        TAKEAWAY_LOCK_KEY_PICKUP,
+        TAKEAWAY_LOCK_KEY_DELIVERY,
+        TAKEAWAY_LOCK_KEY_LEGACY,
+      ];
+    keys.forEach((key) => {
+      try {
+        localStorage.removeItem(key);
+      } catch (_) { /* ignore */ }
+    });
     const ctx = window.LechaimOrderContext;
     if (ctx) ctx.takeawayLocked = false;
     document.body.classList.remove('takeaway-locked');
@@ -509,7 +571,7 @@
     if (lock) {
       if (!sessionId || !lock.sessionId || String(lock.sessionId) !== String(sessionId)) {
         /* Stale lock from a previous takeaway on this phone */
-        clearTakeawayLock();
+        clearTakeawayLock(window.LechaimOrderContext?.fulfillmentType);
         return false;
       }
       return true;
@@ -549,12 +611,16 @@
     const sessionId = window.LechaimOrderContext?.sessionId
       || window.LechaimOrderSession?.getSession?.()?.sessionId
       || null;
+    const fulfillmentType = normalizeFulfillmentType(
+      window.LechaimOrderContext?.fulfillmentType
+    );
     writeTakeawayLock({
       sessionId,
+      fulfillmentType,
       items,
       publicOrderNo: window.LechaimOrderContext?.publicOrderNo ?? null,
       lockedAt: new Date().toISOString(),
-    });
+    }, fulfillmentType);
     window.LechaimOrderContext = {
       ...(window.LechaimOrderContext || {}),
       takeawayLocked: true,
@@ -566,12 +632,15 @@
 
   function restoreTakeawayLockIfNeeded() {
     if (!isTakeawayContext()) return;
-    const lock = readTakeawayLock();
+    const fulfillmentType = normalizeFulfillmentType(
+      window.LechaimOrderContext?.fulfillmentType
+    );
+    const lock = readTakeawayLock(fulfillmentType);
     if (!lock?.items?.length) return;
     const sessionId = window.LechaimOrderContext?.sessionId
       || window.LechaimOrderSession?.getSession?.()?.sessionId;
     if (!sessionId || !lock.sessionId || String(lock.sessionId) !== String(sessionId)) {
-      clearTakeawayLock();
+      clearTakeawayLock(fulfillmentType);
       return;
     }
     takeawayReceiptItems = lock.items;
@@ -742,9 +811,70 @@
     return getResolvedItem(item).price;
   }
 
+  function isButcherOrderType(orderType) {
+    const type = String(orderType || '').toLowerCase();
+    return type === 'butcher' || type === 'butcher_shop' || type === 'butcher-shop' || type.includes('butcher');
+  }
+
+  /** Dine-in / pickup / delivery / butcher — separate localStorage carts. */
+  function getCartStorageKey(orderType, fulfillmentType) {
+    if (isButcherOrderType(orderType)) return CART_STORAGE_KEY_BUTCHER;
+    if (isTakeawayOrderType(orderType)) {
+      return normalizeFulfillmentType(fulfillmentType) === 'delivery'
+        ? CART_STORAGE_KEY_DELIVERY
+        : CART_STORAGE_KEY_PICKUP;
+    }
+    return CART_STORAGE_KEY_FOOD;
+  }
+
+  function activeCartStorageKey() {
+    const ctx = window.LechaimOrderContext || {};
+    return getCartStorageKey(ctx.orderType, ctx.fulfillmentType);
+  }
+
+  function writeCartToKey(storageKey, lines, order) {
+    if (!storageKey) return;
+    try {
+      localStorage.setItem(storageKey, JSON.stringify({
+        lines: Array.isArray(lines) ? lines : [],
+        order: Array.isArray(order) ? order : [],
+      }));
+    } catch (err) {
+      console.warn('[cart] persist failed', storageKey, err);
+    }
+  }
+
+  function readCartFromKey(storageKey) {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      const parsed = raw ? JSON.parse(raw) : {};
+      if (Array.isArray(parsed)) {
+        return { lines: parsed, order: parsed.map((l) => l.lineId) };
+      }
+      return {
+        lines: Array.isArray(parsed.lines) ? parsed.lines : [],
+        order: Array.isArray(parsed.order) ? parsed.order : [],
+      };
+    } catch {
+      return { lines: [], order: [] };
+    }
+  }
+
+  function applyCartState(loaded) {
+    cartLines = loaded?.lines || [];
+    cartLineOrder = loaded?.order || cartLines.map((l) => l.lineId);
+    lastMainLineId = null;
+  }
+
+  function clearActiveCartMemoryAndStorage() {
+    cartLines = [];
+    cartLineOrder = [];
+    lastMainLineId = null;
+    writeCartToKey(activeCartStorageKey(), [], []);
+  }
+
   function isButcherContext() {
-    const type = String(window.LechaimOrderContext?.orderType || '').toLowerCase();
-    return type === 'butcher' || type === 'butcher_shop' || type === 'butcher-shop';
+    return isButcherOrderType(window.LechaimOrderContext?.orderType);
   }
 
   function isSoldByWeight(item) {
@@ -951,12 +1081,20 @@
     return `${m[3]}/${m[2]}/${m[1]}`;
   }
 
+  /** Butcher shop: always open — pickup slots every day, not restaurant hours. */
+  const BUTCHER_PICKUP_OPEN_MINUTES = 8 * 60;
+  const BUTCHER_PICKUP_CLOSE_MINUTES = 22 * 60;
+
+  function toIsoDate(date) {
+    return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+  }
+
   function buildButcherPickupSlots(selectedDate) {
     const slots = [];
-    const openMinutes = 14 * 60;
-    const closeMinutes = 21 * 60;
+    const openMinutes = BUTCHER_PICKUP_OPEN_MINUTES;
+    const closeMinutes = BUTCHER_PICKUP_CLOSE_MINUTES;
     const today = new Date();
-    const todayIso = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
+    const todayIso = toIsoDate(today);
     let cursor = openMinutes;
 
     if (selectedDate && selectedDate === todayIso) {
@@ -974,6 +1112,23 @@
     const timeSelect = document.getElementById('butcher-checkout-time');
     const dateInput = document.getElementById('butcher-checkout-date');
     if (!timeSelect) return;
+
+    /* If today has no remaining slots, roll date forward (shop is always open). */
+    if (dateInput?.value) {
+      const maxIso = dateInput.max || '';
+      let guard = 0;
+      while (
+        guard < 16
+        && buildButcherPickupSlots(dateInput.value).length === 0
+        && (!maxIso || dateInput.value < maxIso)
+      ) {
+        const d = new Date(`${dateInput.value}T12:00:00`);
+        d.setDate(d.getDate() + 1);
+        dateInput.value = toIsoDate(d);
+        guard += 1;
+      }
+    }
+
     const slots = buildButcherPickupSlots(dateInput?.value || '');
     const keep = preferredTime && slots.includes(preferredTime) ? preferredTime : '';
     timeSelect.innerHTML = slots.map((slot) => (
@@ -1064,14 +1219,16 @@
     }
 
     const today = new Date();
-    const todayIso = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
+    const todayIso = toIsoDate(today);
     const max = new Date(today);
     max.setDate(max.getDate() + 14);
-    const maxIso = `${max.getFullYear()}-${pad2(max.getMonth() + 1)}-${pad2(max.getDate())}`;
+    const maxIso = toIsoDate(max);
     if (dateInput) {
       dateInput.min = todayIso;
       dateInput.max = maxIso;
       dateInput.value = String(ctx.pickupDate || todayIso);
+      if (dateInput.value < todayIso) dateInput.value = todayIso;
+      if (dateInput.value > maxIso) dateInput.value = maxIso;
     }
     fillButcherPickupTimeSlots(String(ctx.pickupTime || ''));
     syncButcherCheckoutFulfillmentUi();
@@ -1284,8 +1441,10 @@
 
   function buildTakeawayPickupSlots(selectedDate) {
     const slots = [];
-    const openMinutes = 14 * 60;
-    const closeMinutes = 23 * 60;
+    const openMinutes = (Hours()?.OPEN_HOUR ?? 14) * 60;
+    const closeMinutes = typeof Hours()?.takeawaySlotCloseMinutes === 'function'
+      ? Hours().takeawaySlotCloseMinutes()
+      : (21 * 60 + 45);
     const today = new Date();
     const todayIso = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
     let cursor = openMinutes;
@@ -2204,6 +2363,16 @@
       options.tableNumber !== undefined &&
       Number(nextTable) !== Number(prev.tableNumber);
     const typeChanged = options.orderType != null && options.orderType !== prev.orderType;
+    const nextFulfillment = (isTakeaway || isButcher)
+      ? (options.fulfillmentType !== undefined
+        ? normalizeFulfillmentType(options.fulfillmentType)
+        : normalizeFulfillmentType(prev.fulfillmentType))
+      : null;
+    const fulfillmentChanged = Boolean(
+      (isTakeaway || isButcher)
+      && options.fulfillmentType !== undefined
+      && nextFulfillment !== normalizeFulfillmentType(prev.fulfillmentType)
+    );
     const nextSessionId = options.sessionId !== undefined ? options.sessionId : prev.sessionId;
     const sessionChanged = options.sessionId !== undefined
       && String(options.sessionId || '') !== String(prev.sessionId || '');
@@ -2228,11 +2397,7 @@
       customerAddress: (isTakeaway || isButcher)
         ? (options.customerAddress !== undefined ? options.customerAddress : (prev.customerAddress || ''))
         : null,
-      fulfillmentType: (isTakeaway || isButcher)
-        ? (options.fulfillmentType !== undefined
-          ? (options.fulfillmentType === 'delivery' ? 'delivery' : 'pickup')
-          : (prev.fulfillmentType === 'delivery' ? 'delivery' : 'pickup'))
-        : null,
+      fulfillmentType: nextFulfillment,
       deliveryFee: (isTakeaway || isButcher)
         ? (options.deliveryFee !== undefined
           ? (Number.isFinite(Number(options.deliveryFee)) && Number(options.deliveryFee) >= 0
@@ -2265,15 +2430,26 @@
       clearTakeawayLock();
     }
 
-    if (tableChanged || typeChanged || sessionChanged) {
-      cartLines = [];
-      cartLineOrder = [];
-      lastMainLineId = null;
-      try {
-        localStorage.setItem(CART_STORAGE_KEY, JSON.stringify({ lines: [], order: [] }));
-      } catch (err) {
-        console.warn('[cart] failed to clear cart on table change', err);
+    if (typeChanged || fulfillmentChanged) {
+      /*
+       * Switch cart context without deleting the other cart:
+       * dine-in / pickup / delivery / butcher each keep their own key.
+       */
+      const prevKey = getCartStorageKey(prev.orderType, prev.fulfillmentType);
+      const nextKey = getCartStorageKey(orderType, nextFulfillment);
+      if (prevKey !== nextKey) {
+        if (cartLines.length || cartLineOrder.length) {
+          writeCartToKey(prevKey, cartLines, cartLineOrder);
+        }
+        applyCartState(readCartFromKey(nextKey));
       }
+      /* Brand-new session for this fulfillment → empty cart (keep the other key). */
+      if (sessionChanged) {
+        clearActiveCartMemoryAndStorage();
+      }
+    } else if (tableChanged || sessionChanged) {
+      /* Same order family — clear only the active cart (e.g. new dine-in table). */
+      clearActiveCartMemoryAndStorage();
     }
 
     /* Do not create empty open orders when browsing / switching tables. */
@@ -4004,10 +4180,7 @@
   }
 
   function persistCartStorageOnly() {
-    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify({
-      lines: cartLines,
-      order: cartLineOrder,
-    }));
+    writeCartToKey(activeCartStorageKey(), cartLines, cartLineOrder);
   }
 
   function clearCartAfterSuccessfulSend() {
@@ -4238,9 +4411,7 @@
       window.clearInterval(remoteTotalSyncTimer);
       remoteTotalSyncTimer = null;
     }
-    try {
-      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify({ lines: [], order: [] }));
-    } catch (_) { /* ignore */ }
+    writeCartToKey(activeCartStorageKey(), [], []);
 
     window.LechaimOrderContext = {
       orderType: null,
@@ -4976,7 +5147,7 @@
       cartLines = [];
       cartLineOrder = [];
       lastMainLineId = null;
-      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify({ lines: [], order: [] }));
+      writeCartToKey(activeCartStorageKey(), [], []);
     } catch (err) {
       console.warn('[session-watch] cart clear failed', err);
     }
@@ -5217,19 +5388,7 @@
   }
 
   function loadCart() {
-    try {
-      const raw = localStorage.getItem(CART_STORAGE_KEY);
-      const parsed = raw ? JSON.parse(raw) : {};
-      if (Array.isArray(parsed)) {
-        return { lines: parsed, order: parsed.map((l) => l.lineId) };
-      }
-      return {
-        lines: Array.isArray(parsed.lines) ? parsed.lines : [],
-        order: Array.isArray(parsed.order) ? parsed.order : [],
-      };
-    } catch {
-      return { lines: [], order: [] };
-    }
+    return readCartFromKey(activeCartStorageKey());
   }
 
   function resolveCartProductForOrder(productId, line) {
@@ -5294,10 +5453,7 @@
   }
 
   function saveCart() {
-    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify({
-      lines: cartLines,
-      order: cartLineOrder,
-    }));
+    writeCartToKey(activeCartStorageKey(), cartLines, cartLineOrder);
     /* Stage 7: order is committed on "שלח הזמנה", not on every cart edit. */
   }
 

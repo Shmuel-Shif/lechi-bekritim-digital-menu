@@ -985,10 +985,23 @@ body {
   color: #1a4d6b;
 }
 
+.table-card__badge--pickup {
+  background: rgba(47, 111, 71, 0.14);
+  color: #2f6f47;
+}
+
 .table-card--active .table-card__badge--delivery,
 .table-card--pending_print .table-card__badge--delivery,
 .table-card--preparing .table-card__badge--delivery,
 .table-card--bill_requested .table-card__badge--delivery {
+  background: rgba(255, 255, 255, 0.28);
+  color: #fff;
+}
+
+.table-card--active .table-card__badge--pickup,
+.table-card--pending_print .table-card__badge--pickup,
+.table-card--preparing .table-card__badge--pickup,
+.table-card--bill_requested .table-card__badge--pickup {
   background: rgba(255, 255, 255, 0.28);
   color: #fff;
 }
@@ -1057,6 +1070,14 @@ body {
   font-weight: 800;
   letter-spacing: 0.04em;
   color: #5c4318;
+}
+
+.table-drawer__pickup-badge--delivery {
+  color: #1a4d6b;
+}
+
+.table-drawer__pickup-badge--pickup {
+  color: #2f6f47;
 }
 
 .table-drawer__pickup-grid {
@@ -1477,6 +1498,11 @@ body {
   border-top: 1px solid rgba(21, 38, 64, 0.12);
   font-size: 1.05rem;
   font-weight: 800;
+}
+
+.table-drawer__total-line--delivery {
+  color: var(--color-text-muted);
+  font-weight: 600;
 }
 
 .table-drawer__coupon strong {
@@ -3045,3 +3071,278 @@ body.admin-modal-open {
   color: #8a2f2f;
   font-weight: 600;
 }
+
+/* ---------- Staff hours ---------- */
+.staff-panel__hint {
+  margin: 0 0 0.85rem;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.staff-grid-caption {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+
+.staff-day-label {
+  display: block;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.staff-day-label--repeat {
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.staff-day-dow {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.staff-empty-cell {
+  color: var(--color-text-muted);
+  font-size: 0.88rem;
+}
+
+.staff-table tr.is-empty-day {
+  background: rgba(30, 51, 84, 0.03);
+}
+
+.staff-table tr.is-empty-day:hover {
+  background: rgba(30, 51, 84, 0.06);
+}
+
+.staff-hours-subtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 1rem;
+}
+
+.staff-panel__title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--color-navy);
+}
+
+.staff-panel__subtitle {
+  margin: 0 0 0.65rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-navy);
+}
+
+.staff-panel__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.staff-clock-card {
+  max-width: 420px;
+  margin: 0 auto 1.25rem;
+  padding: 1.15rem 1.2rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  gap: 0.85rem;
+}
+
+.staff-clock-card__actions {
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.staff-clock-card__actions .admin-btn {
+  flex: 1;
+  min-width: 120px;
+}
+
+.staff-open-cards {
+  list-style: none;
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+}
+
+.staff-open-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.85rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(180, 35, 24, 0.25);
+  background: rgba(180, 35, 24, 0.06);
+}
+
+.staff-open-card strong {
+  min-width: 8rem;
+}
+
+.staff-muted {
+  margin: 0.5rem 0;
+  color: var(--color-text-muted);
+}
+
+.staff-shifts-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.staff-field--inline {
+  min-width: 160px;
+}
+
+.staff-table-wrap {
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+}
+
+.staff-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.staff-table th,
+.staff-table td {
+  padding: 0.65rem 0.75rem;
+  text-align: right;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+}
+
+.staff-table th {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  background: rgba(30, 51, 84, 0.04);
+  white-space: nowrap;
+}
+
+.staff-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.staff-table tr.is-open-shift {
+  background: rgba(180, 35, 24, 0.05);
+}
+
+.staff-total-row td {
+  background: rgba(30, 51, 84, 0.07);
+  font-weight: 700;
+}
+
+.staff-badge {
+  display: inline-block;
+  padding: 0.15rem 0.45rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: rgba(30, 51, 84, 0.08);
+  color: var(--color-text-muted);
+}
+
+.staff-badge--ok {
+  background: var(--color-ok-soft);
+  color: var(--color-ok);
+}
+
+.staff-badge--open {
+  background: var(--color-off-soft);
+  color: var(--color-off);
+}
+
+.staff-open-warning {
+  margin-top: 0.35rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  background: #fff4e5;
+  color: #8a4b00;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.staff-btn-sm {
+  padding: 0.3rem 0.55rem;
+  font-size: 0.82rem;
+}
+
+.staff-actions-cell {
+  white-space: nowrap;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
+.staff-shift-hint {
+  margin: -0.25rem 0 0.5rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.admin-field--check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+}
+
+.admin-field--check input {
+  width: auto;
+}
+
+.staff-summary-range {
+  margin: 0 0 0.75rem;
+  font-weight: 700;
+  color: var(--color-navy);
+  direction: ltr;
+  text-align: right;
+}
+
+.staff-viewed-name {
+  margin: 0 0 0.75rem;
+  font-weight: 800;
+  color: var(--color-navy);
+  direction: ltr;
+  text-align: right;
+}
+
+.staff-shifts-filters .admin-btn {
+  align-self: end;
+  margin-bottom: 0.15rem;
+}
+
+@media (max-width: 700px) {
+  .staff-clock-card {
+    max-width: none;
+  }
+
+  .staff-table {
+    font-size: 0.85rem;
+  }
+}
+

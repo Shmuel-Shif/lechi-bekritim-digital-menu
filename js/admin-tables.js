@@ -24,8 +24,11 @@
   const butcherEmptyFuture = document.getElementById('tables-butcher-empty-future');
   const dineInSection = document.getElementById('tables-dinein');
   const tabBadgeTables = document.getElementById('tab-badge-tables');
-  const tabBadgeTakeaway = document.getElementById('tab-badge-takeaway');
+  const tabBadgePickup = document.getElementById('tab-badge-pickup');
+  const tabBadgeDelivery = document.getElementById('tab-badge-delivery');
   const tabBadgeButcher = document.getElementById('tab-badge-butcher');
+  const takeawayTitleEl = document.getElementById('tables-takeaway-title');
+  const takeawaySubtitleEl = document.getElementById('tables-takeaway-subtitle');
   const drawer = document.getElementById('table-drawer');
   const drawerBackdrop = document.getElementById('table-drawer-backdrop');
   const drawerClose = document.getElementById('table-drawer-close');
@@ -87,13 +90,17 @@
   let pendingQtyProduct = null;
   let pendingQtySide = null;
   let pendingQty = 1;
+  /** 'add' | 'remove' — shared #admin-qty-modal */
+  let pendingQtyMode = 'add';
+  let pendingRemoveItemId = null;
+  let pendingRemoveMaxQty = 1;
   const QTY_MIN = 1;
   const QTY_MAX = 99;
   let pendingBillEntry = null;
   let pendingBillCoupon = null;
   let paymentResolver = null;
   let pendingPaymentTotal = 0;
-  let boardFilter = 'tables'; /* 'tables' | 'takeaway' | 'butcher' */
+  let boardFilter = 'tables'; /* 'tables' | 'pickup' | 'delivery' | 'butcher' */
 
   function pickupCaches() {
     return [...(takeawayCache || []), ...(butcherCache || [])];
@@ -339,6 +346,24 @@
     return Boolean(String(order.customerAddress || '').trim());
   }
 
+  /** Existing session.deliveryFee — only when fulfillmentType is delivery. */
+  function getOrderDeliveryFee(order) {
+    if (!order || String(order.fulfillmentType || '') !== 'delivery') return 0;
+    if (order.deliveryFee == null || order.deliveryFee === '') return 10;
+    const fee = Number(order.deliveryFee);
+    return Number.isFinite(fee) && fee >= 0 ? fee : 10;
+  }
+
+  function fulfillmentBadgeLabel(order, orderType) {
+    if (orderType === 'butcher') {
+      return isDeliveryOrder(order) ? '🚚 חנות בשר · משלוח' : 'חנות בשר';
+    }
+    if (orderType === 'takeaway') {
+      return isDeliveryOrder(order) ? '🚚 משלוח' : '🛍️ איסוף עצמי';
+    }
+    return orderTypeLabel(orderType, order);
+  }
+
   function orderTypeLabel(orderType, order) {
     if (orderType === 'butcher') return 'חנות בשר';
     if (orderType === 'takeaway') {
@@ -378,16 +403,31 @@
     ), 0);
   }
 
-  function calcOrderPaidTotal(order) {
+  /** Products (± discount) only — delivery fee is NOT included here. */
+  function calcOrderProductsPayable(order) {
     if (!order) return 0;
     if (order.billTotal != null && Number.isFinite(Number(order.billTotal))) {
-      const fee = Number(order.deliveryFee) || 0;
-      return Math.max(0, Math.round((Number(order.billTotal) + fee) * 100) / 100);
+      return Math.max(0, Number(order.billTotal));
     }
     const sub = calcOrderSubtotal(order);
     const disc = Number(order.discountAmount) || 0;
-    const fee = Number(order.deliveryFee) || 0;
-    return Math.max(0, Math.round((sub - disc + fee) * 100) / 100);
+    return Math.max(0, Math.round((sub - disc) * 100) / 100);
+  }
+
+  /** Products (± discount) + deliveryFee once. */
+  function calcOrderPaidTotal(order) {
+    if (!order) return 0;
+    const products = calcOrderProductsPayable(order);
+    const fee = getOrderDeliveryFee(order);
+    return Math.max(0, Math.round((products + fee) * 100) / 100);
+  }
+
+  function withPayableTotal(entry) {
+    if (!entry) return entry;
+    return {
+      ...entry,
+      total: calcOrderPaidTotal(entry.order),
+    };
   }
 
   function roundMoney(n) {
@@ -690,17 +730,16 @@
       if (!isPickupBoard && !synthetic.items.length && !(Number(synthetic._sessionTotal) > 0)) return;
 
       if (isPickupBoard) {
-        const payable = synthetic.billTotal != null ? synthetic.billTotal : synthetic._sessionTotal;
-        const entry = {
+        const entry = withPayableTotal({
           tableNumber: null,
           uiStatus: resolveEntryUiStatus(synthetic),
           orderType: synthetic.orderType,
           order: synthetic,
-          total: payable,
+          total: 0,
           itemCount: synthetic.items.reduce((sum, item) => sum + (Number(item.qty) || 0), 0),
           openedAt: synthetic.createdAt,
           updatedAt: synthetic.updatedAt,
-        };
+        });
         if (synthetic.orderType === 'butcher') butcher.push(entry);
         else takeaway.push(entry);
         return;
@@ -716,22 +755,19 @@
       const match = dineInByTable.get(n) || null;
       let uiStatus = 'free';
       if (match) uiStatus = resolveEntryUiStatus(match);
-      const payable = match
-        ? (match.billTotal != null ? match.billTotal : match._sessionTotal)
-        : 0;
-
-      board.push({
+      const entry = withPayableTotal({
         tableNumber: n,
         uiStatus,
         orderType: match?.orderType || 'dinein',
         order: match,
-        total: payable,
+        total: 0,
         itemCount: match
           ? match.items.reduce((sum, item) => sum + (Number(item.qty) || 0), 0)
           : 0,
         openedAt: match?.createdAt || null,
         updatedAt: match?.updatedAt || null,
       });
+      board.push(entry);
     }
 
     return { board, takeaway, butcher, shabbatOrderIds };
@@ -785,10 +821,36 @@
   }
 
   function setBoardFilter(filter) {
-    if (filter === 'takeaway') boardFilter = 'takeaway';
+    if (filter === 'pickup' || filter === 'takeaway') boardFilter = 'pickup';
+    else if (filter === 'delivery') boardFilter = 'delivery';
     else if (filter === 'butcher') boardFilter = 'butcher';
     else boardFilter = 'tables';
     paintBoard(boardCache, takeawayCache, butcherCache);
+  }
+
+  function isTakeawayDeliveryEntry(entry) {
+    return isDeliveryOrder(entry?.order);
+  }
+
+  function filterTakeawayByBoard(rows) {
+    const list = Array.isArray(rows) ? rows : [];
+    if (boardFilter === 'delivery') {
+      return list.filter(isTakeawayDeliveryEntry);
+    }
+    if (boardFilter === 'pickup') {
+      return list.filter((entry) => !isTakeawayDeliveryEntry(entry));
+    }
+    return list;
+  }
+
+  function splitTakeawayCounts(rows) {
+    let pickup = 0;
+    let delivery = 0;
+    (rows || []).forEach((entry) => {
+      if (isTakeawayDeliveryEntry(entry)) delivery += 1;
+      else pickup += 1;
+    });
+    return { pickup, delivery };
   }
 
   function todayIsoLocal() {
@@ -852,19 +914,37 @@
     if (!gridEl) return;
 
     const occupiedTables = (board || []).filter((row) => row && row.uiStatus && row.uiStatus !== 'free').length;
-    const takeawayCount = (takeaway || []).length;
+    const takeawayCounts = splitTakeawayCounts(takeaway);
     const butcherCount = (butcher || []).length;
     setCategoryBadge(tabBadgeTables, occupiedTables);
-    setCategoryBadge(tabBadgeTakeaway, takeawayCount);
+    setCategoryBadge(tabBadgePickup, takeawayCounts.pickup);
+    setCategoryBadge(tabBadgeDelivery, takeawayCounts.delivery);
     setCategoryBadge(tabBadgeButcher, butcherCount);
 
-    const showTakeaway = boardFilter === 'takeaway';
+    const showPickupBoard = boardFilter === 'pickup' || boardFilter === 'delivery';
     const showButcher = boardFilter === 'butcher';
-    if (dineInSection) dineInSection.hidden = showTakeaway || showButcher;
-    if (takeawaySection) takeawaySection.hidden = !showTakeaway;
+    if (dineInSection) dineInSection.hidden = showPickupBoard || showButcher;
+    if (takeawaySection) takeawaySection.hidden = !showPickupBoard;
     if (butcherSection) butcherSection.hidden = !showButcher;
 
-    if (!showTakeaway && !showButcher) {
+    if (takeawayTitleEl) {
+      takeawayTitleEl.textContent = boardFilter === 'delivery' ? 'משלוחים' : 'איסוף עצמי';
+    }
+    if (takeawaySubtitleEl) {
+      takeawaySubtitleEl.textContent = boardFilter === 'delivery'
+        ? 'הזמנות משלוח פעילות'
+        : 'הזמנות איסוף עצמי פעילות';
+    }
+    if (takeawayEmpty) {
+      takeawayEmpty.textContent = boardFilter === 'delivery'
+        ? 'אין הזמנות משלוח כרגע'
+        : 'אין הזמנות איסוף עצמי כרגע';
+    }
+    if (closeDeliveriesBtn) {
+      closeDeliveriesBtn.hidden = boardFilter !== 'delivery';
+    }
+
+    if (!showPickupBoard && !showButcher) {
       gridEl.innerHTML = board.map(renderCard).join('');
     }
 
@@ -874,7 +954,7 @@
       takeawayEmptyToday,
       takeawayEmptyFuture,
       takeawayEmpty,
-      takeaway
+      filterTakeawayByBoard(takeaway)
     );
     paintSplitPickupBoard(
       butcherGridToday,
@@ -897,9 +977,9 @@
     if (loadPromise) return loadPromise;
     loadPromise = (async () => {
       const data = await loadBoardData();
-      boardCache = data.board;
-      takeawayCache = data.takeaway;
-      butcherCache = data.butcher || [];
+      boardCache = (data.board || []).map(withPayableTotal);
+      takeawayCache = (data.takeaway || []).map(withPayableTotal);
+      butcherCache = (data.butcher || []).map(withPayableTotal);
       dataSource = data.source;
       if (!data.stale) {
         syncKnownOrderIdsAfterBoardLoad(boardCache, pickupCaches(), data.shabbatOrderIds);
@@ -948,12 +1028,10 @@
     const isPickup = entry.orderType === 'takeaway' || entry.orderType === 'butcher';
     const isDelivery = isDeliveryOrder(entry.order)
       && (entry.orderType === 'takeaway' || entry.orderType === 'butcher');
-    const badgeText = entry.orderType === 'butcher'
-      ? (isDelivery ? 'חנות בשר · משלוח' : 'חנות בשר')
-      : (isDelivery ? 'משלוח' : 'איסוף עצמי');
+    const badgeText = fulfillmentBadgeLabel(entry.order, entry.orderType);
     const pickupBlock = isPickup
       ? `
-        <span class="table-card__badge${entry.orderType === 'butcher' ? ' table-card__badge--butcher' : ''}${isDelivery ? ' table-card__badge--delivery' : ''}">${escapeHtml(badgeText)}</span>
+        <span class="table-card__badge${entry.orderType === 'butcher' ? ' table-card__badge--butcher' : ''}${isDelivery ? ' table-card__badge--delivery' : ''}${!isDelivery && entry.orderType === 'takeaway' ? ' table-card__badge--pickup' : ''}">${escapeHtml(badgeText)}</span>
         <span class="table-card__customer">${escapeHtml(entry.order?.customerName || '—')}</span>
         <span class="table-card__phone" dir="ltr">${escapeHtml(entry.order?.customerPhone || '—')}</span>
         ${(entry.orderType === 'takeaway' || entry.orderType === 'butcher') && entry.order?.customerAddress
@@ -1129,10 +1207,12 @@
 
     if (drawerTitle) {
       if (entry.orderType === 'butcher') {
-        drawerTitle.textContent = 'חנות בשר';
+        drawerTitle.textContent = isDeliveryOrder(order)
+          ? '🚚 חנות בשר · משלוח'
+          : 'חנות בשר';
       } else if (entry.orderType === 'takeaway') {
         const no = order.publicOrderNo != null ? ` #${order.publicOrderNo}` : '';
-        drawerTitle.textContent = `${isDeliveryOrder(order) ? 'משלוח' : 'איסוף עצמי'}${no}`;
+        drawerTitle.textContent = `${isDeliveryOrder(order) ? '🚚 משלוח' : '🛍️ איסוף עצמי'}${no}`;
       } else {
         drawerTitle.textContent = `שולחן ${entry.tableNumber}`;
       }
@@ -1166,8 +1246,8 @@
         const fee = Number(order.deliveryFee);
         drawerMeta.innerHTML = `
           <div class="table-drawer__pickup">
-            <div class="table-drawer__pickup-badge table-drawer__pickup-badge--butcher">חנות בשר${
-              delivery ? ' · משלוח' : ''
+            <div class="table-drawer__pickup-badge table-drawer__pickup-badge--butcher">${
+              delivery ? '🚚 חנות בשר · משלוח' : 'חנות בשר'
             }</div>
             <div class="table-drawer__pickup-grid">
               <div class="table-drawer__pickup-row">
@@ -1220,7 +1300,9 @@
         })();
         drawerMeta.innerHTML = `
           <div class="table-drawer__pickup">
-            <div class="table-drawer__pickup-badge">${delivery ? 'משלוח' : 'איסוף עצמי'}${
+            <div class="table-drawer__pickup-badge${delivery ? ' table-drawer__pickup-badge--delivery' : ' table-drawer__pickup-badge--pickup'}">${
+              delivery ? '🚚 משלוח' : '🛍️ איסוף עצמי'
+            }${
               order.publicOrderNo != null
                 ? ` · #${escapeHtml(String(order.publicOrderNo))}`
                 : ''
@@ -1286,10 +1368,12 @@
 
     if (drawerTotal) {
       const order = entry.order;
+      const products = calcOrderProductsPayable(order);
+      const fee = getOrderDeliveryFee(order);
+      const payable = calcOrderPaidTotal(order);
+      const showDeliveryLine = fee > 0;
+
       if (order?.couponCode && order.subtotal != null && order.discountAmount != null) {
-        const payable = order.billTotal != null
-          ? order.billTotal
-          : Math.max(0, Number(order.subtotal) - Number(order.discountAmount));
         drawerTotal.innerHTML = `
           <div class="table-drawer__coupon">
             <span>קופון</span>
@@ -1297,10 +1381,20 @@
           </div>
           <div class="table-drawer__total-line"><span>לפני הנחה</span><strong>${escapeHtml(formatMoney(order.subtotal))}</strong></div>
           <div class="table-drawer__total-line"><span>הנחה (${escapeHtml(String(order.discountPercent))}%)</span><strong>−${escapeHtml(formatMoney(order.discountAmount))}</strong></div>
+          <div class="table-drawer__total-line"><span>מוצרים</span><strong>${escapeHtml(formatMoney(products))}</strong></div>
+          ${showDeliveryLine
+            ? `<div class="table-drawer__total-line table-drawer__total-line--delivery"><span>משלוח</span><strong>${escapeHtml(formatMoney(fee))}</strong></div>`
+            : ''}
+          <div class="table-drawer__total-line table-drawer__total-line--pay"><span>סה״כ לתשלום</span><strong>${escapeHtml(formatMoney(payable))}</strong></div>
+        `;
+      } else if (showDeliveryLine) {
+        drawerTotal.innerHTML = `
+          <div class="table-drawer__total-line"><span>מוצרים</span><strong>${escapeHtml(formatMoney(products))}</strong></div>
+          <div class="table-drawer__total-line table-drawer__total-line--delivery"><span>משלוח</span><strong>${escapeHtml(formatMoney(fee))}</strong></div>
           <div class="table-drawer__total-line table-drawer__total-line--pay"><span>סה״כ לתשלום</span><strong>${escapeHtml(formatMoney(payable))}</strong></div>
         `;
       } else {
-        drawerTotal.innerHTML = `<span>סה״כ לתשלום</span><strong>${escapeHtml(formatMoney(entry.total))}</strong>`;
+        drawerTotal.innerHTML = `<span>סה״כ לתשלום</span><strong>${escapeHtml(formatMoney(payable))}</strong>`;
       }
     }
 
@@ -1570,6 +1664,15 @@
     if (!entry?.order) return;
 
     const item = (entry.order.items || []).find((row) => String(row.itemId) === id);
+    if (!item) return;
+
+    const have = Math.floor(Number(item.qty) || 0);
+    /* More than one unit → ask how many to remove (same qty modal as add). */
+    if (have > 1) {
+      openAdminRemoveQtyModal(item);
+      return;
+    }
+
     const label = item?.name || item?.productId || 'מנה';
     const isShakeBase = isShakeBaseProduct(item?.productId);
     const isShakeParent = isFruitShakeProduct(item?.productId)
@@ -1592,19 +1695,57 @@
     });
     if (!ok) return;
 
+    await commitRemoveQuantity(id, 1);
+  }
+
+  async function commitRemoveQuantity(itemId, removeQty) {
+    const id = String(itemId || '');
+    if (!id || removeItemBusy) return false;
+
+    const entry = getSelectedEntry();
+    if (!entry?.order) return false;
+
+    const item = (entry.order.items || []).find((row) => String(row.itemId) === id);
+    if (!item) return false;
+
+    const have = Math.floor(Number(item.qty) || 0);
+    const qty = Math.min(Math.max(1, Math.floor(Number(removeQty) || 0)), have);
+    if (qty < 1 || have < 1) return false;
+
     const api = OrdersApi();
     if (!api?.deleteOrderItem) {
       showToast('מחיקה לא זמינה');
-      return;
+      return false;
     }
+
+    const isShakeBase = isShakeBaseProduct(item?.productId);
+    const linkedKids = (entry.order.items || []).filter(
+      (row) => String(row.linkedToMainItemId || '') === id
+    );
 
     removeItemBusy = true;
     suppressCustomerNotify(8000);
     try {
-      await api.deleteOrderItem(id);
-      showToast(isShakeBase ? 'בסיס השייק הוסר' : 'המנה הוסרה');
+      if (qty >= have) {
+        await api.deleteOrderItem(id);
+      } else {
+        if (typeof api.bumpOrderItemQuantity !== 'function') {
+          showToast('הפחתת כמות לא זמינה');
+          return false;
+        }
+        await api.bumpOrderItemQuantity(id, -qty);
+        for (const kid of linkedKids) {
+          const kidHave = Math.floor(Number(kid.qty) || 0);
+          if (kidHave <= 0) continue;
+          if (kidHave <= qty) {
+            await api.deleteOrderItem(kid.itemId);
+          } else {
+            await api.bumpOrderItemQuantity(kid.itemId, -qty);
+          }
+        }
+      }
+      showToast(isShakeBase ? 'בסיס השייק הוסר' : (qty > 1 ? `${qty} מנות הוסרו` : 'המנה הוסרה'));
       await refreshBoardData();
-      /* If no pending waves left, stop the repeating chime immediately */
       updatePendingReminder(boardCache, pickupCaches());
       const next = getSelectedEntry();
       if (next?.order) {
@@ -1612,9 +1753,11 @@
       } else {
         closeDrawer();
       }
+      return true;
     } catch (err) {
-      console.error('[admin-tables] deleteOrderItem failed', err);
+      console.error('[admin-tables] remove quantity failed', err);
       showToast('לא ניתן להסיר את המנה');
+      return false;
     } finally {
       removeItemBusy = false;
     }
@@ -2115,10 +2258,15 @@
     modal.setAttribute('aria-hidden', 'false');
   }
 
-  function clampQty(n) {
+  function clampQty(n, max = QTY_MAX) {
     const v = Math.floor(Number(n) || 0);
+    const hi = Math.max(QTY_MIN, Math.floor(Number(max) || QTY_MAX));
     if (!Number.isFinite(v)) return QTY_MIN;
-    return Math.min(QTY_MAX, Math.max(QTY_MIN, v));
+    return Math.min(hi, Math.max(QTY_MIN, v));
+  }
+
+  function qtyModalMax() {
+    return pendingQtyMode === 'remove' ? pendingRemoveMaxQty : QTY_MAX;
   }
 
   function renderAdminQtyModal() {
@@ -2126,21 +2274,52 @@
     const valueEl = document.getElementById('admin-qty-value');
     const decBtn = document.getElementById('admin-qty-dec');
     const incBtn = document.getElementById('admin-qty-inc');
+    const titleEl = document.getElementById('admin-qty-title');
+    const confirmBtn = document.getElementById('admin-qty-confirm');
     if (!pendingQtyProduct) return;
 
+    const isRemove = pendingQtyMode === 'remove';
+    const max = qtyModalMax();
     let label = pendingQtyProduct.name || pendingQtyProduct.id || '';
     if (pendingQtySide?.name) label = `${label} + ${pendingQtySide.name}`;
+    if (isRemove && pendingRemoveMaxQty > 1) {
+      label = `${label} (יש ${pendingRemoveMaxQty})`;
+    }
+    if (titleEl) titleEl.textContent = isRemove ? 'כמה להסיר?' : 'בחרו כמות';
+    if (confirmBtn) confirmBtn.textContent = isRemove ? 'הסר' : 'הוסף';
     if (nameEl) nameEl.textContent = label;
     if (valueEl) valueEl.textContent = String(pendingQty);
     if (decBtn) decBtn.disabled = pendingQty <= QTY_MIN;
-    if (incBtn) incBtn.disabled = pendingQty >= QTY_MAX;
+    if (incBtn) incBtn.disabled = pendingQty >= max;
   }
 
   function openAdminQtyModal(product, linkedSideProduct = null) {
     const modal = document.getElementById('admin-qty-modal');
     if (!modal || !product) return;
+    pendingQtyMode = 'add';
+    pendingRemoveItemId = null;
+    pendingRemoveMaxQty = QTY_MAX;
     pendingQtyProduct = product;
     pendingQtySide = linkedSideProduct || null;
+    pendingQty = QTY_MIN;
+    renderAdminQtyModal();
+    modal.hidden = false;
+    modal.setAttribute('aria-hidden', 'false');
+    requestAnimationFrame(() => document.getElementById('admin-qty-confirm')?.focus());
+  }
+
+  function openAdminRemoveQtyModal(item) {
+    const modal = document.getElementById('admin-qty-modal');
+    if (!modal || !item) return;
+    const have = Math.max(1, Math.floor(Number(item.qty) || 1));
+    pendingQtyMode = 'remove';
+    pendingRemoveItemId = String(item.itemId);
+    pendingRemoveMaxQty = have;
+    pendingQtyProduct = {
+      id: item.productId || item.itemId,
+      name: item.name || item.productId || 'מנה',
+    };
+    pendingQtySide = null;
     pendingQty = QTY_MIN;
     renderAdminQtyModal();
     modal.hidden = false;
@@ -2153,13 +2332,20 @@
     pendingQtyProduct = null;
     pendingQtySide = null;
     pendingQty = QTY_MIN;
+    pendingQtyMode = 'add';
+    pendingRemoveItemId = null;
+    pendingRemoveMaxQty = QTY_MAX;
     if (!modal) return;
     modal.hidden = true;
     modal.setAttribute('aria-hidden', 'true');
+    const titleEl = document.getElementById('admin-qty-title');
+    const confirmBtn = document.getElementById('admin-qty-confirm');
+    if (titleEl) titleEl.textContent = 'בחרו כמות';
+    if (confirmBtn) confirmBtn.textContent = 'הוסף';
   }
 
   function setAdminQty(next) {
-    pendingQty = clampQty(next);
+    pendingQty = clampQty(next, qtyModalMax());
     renderAdminQtyModal();
   }
 
@@ -2304,7 +2490,18 @@
   }
 
   async function confirmAdminQtyModal() {
-    if (!pendingQtyProduct || addProductBusy) return;
+    if (!pendingQtyProduct) return;
+
+    if (pendingQtyMode === 'remove') {
+      if (removeItemBusy || !pendingRemoveItemId) return;
+      const itemId = pendingRemoveItemId;
+      const qty = clampQty(pendingQty, pendingRemoveMaxQty);
+      closeAdminQtyModal();
+      await commitRemoveQuantity(itemId, qty);
+      return;
+    }
+
+    if (addProductBusy) return;
     const product = pendingQtyProduct;
     const side = pendingQtySide;
     const qty = clampQty(pendingQty);
@@ -2864,10 +3061,10 @@
       confirmPaymentSplit();
     });
     document.getElementById('admin-payment-cancel')?.addEventListener('click', () => {
-      void requestPaymentCancel();
+      closePaymentModal(null);
     });
     document.getElementById('admin-payment-backdrop')?.addEventListener('click', () => {
-      void requestPaymentCancel();
+      closePaymentModal(null);
     });
     couponInput?.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {
@@ -2895,11 +3092,26 @@
     const qtyConfirm = document.getElementById('admin-qty-confirm');
     const qtyCancel = document.getElementById('admin-qty-cancel');
     const qtyBackdrop = document.getElementById('admin-qty-backdrop');
-    qtyInc?.addEventListener('click', () => setAdminQty(pendingQty + 1));
-    qtyDec?.addEventListener('click', () => setAdminQty(pendingQty - 1));
-    qtyConfirm?.addEventListener('click', () => { confirmAdminQtyModal(); });
-    qtyCancel?.addEventListener('click', closeAdminQtyModal);
-    qtyBackdrop?.addEventListener('click', closeAdminQtyModal);
+    qtyInc?.addEventListener('click', () => {
+      if (!pendingQtyProduct) return;
+      setAdminQty(pendingQty + 1);
+    });
+    qtyDec?.addEventListener('click', () => {
+      if (!pendingQtyProduct) return;
+      setAdminQty(pendingQty - 1);
+    });
+    qtyConfirm?.addEventListener('click', () => {
+      if (!pendingQtyProduct) return;
+      confirmAdminQtyModal();
+    });
+    qtyCancel?.addEventListener('click', () => {
+      if (!pendingQtyProduct) return;
+      closeAdminQtyModal();
+    });
+    qtyBackdrop?.addEventListener('click', () => {
+      if (!pendingQtyProduct) return;
+      closeAdminQtyModal();
+    });
 
     drawerItems?.addEventListener('click', (event) => {
       const btn = event.target.closest('[data-remove-item-id]');
@@ -2938,7 +3150,7 @@
         return;
       }
       const qtyModal = document.getElementById('admin-qty-modal');
-      if (qtyModal && !qtyModal.hidden) {
+      if (qtyModal && !qtyModal.hidden && pendingQtyProduct) {
         closeAdminQtyModal();
         return;
       }

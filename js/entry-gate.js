@@ -91,7 +91,7 @@
       pickupTimeRequired: 'Please select a pickup time',
       pickupNoSlots: 'No pickup times left today — choose ASAP',
       pickupClosedTitle: 'Not available right now.',
-      pickupClosedText: 'Takeaway orders can be placed Sunday–Thursday.\nBetween 14:00 – 23:00.',
+      pickupClosedText: 'Takeaway orders can be placed Sunday–Thursday.\nBetween 14:00 – 22:00.',
       pickupClosedBrowse: 'View the menu',
       dineInClosedTitle: 'Not available right now.',
       dineInClosedText: 'Dine-in is available during restaurant opening hours.',
@@ -112,7 +112,7 @@
       placeResPhoneRequired: 'Please enter a valid phone number',
       placeResPartyRequired: 'Please enter number of guests (1–60)',
       placeResDateRequired: 'Please choose a date',
-      placeResTimeRequired: 'Please choose a time between 14:00 and 20:30',
+      placeResTimeRequired: 'Please choose a time between 14:00 and 21:00',
       placeResSubmitFailed: 'Could not send the request. Please try again.',
       placeResCapacityTitle: 'No availability',
       placeResCapacityText: 'There are not enough seats available at the time you selected.\nPlease choose another time.',
@@ -200,7 +200,7 @@
       pickupTimeRequired: 'נא לבחור שעת איסוף',
       pickupNoSlots: 'אין שעות פנויות היום — בחרו בהקדם האפשרי',
       pickupClosedTitle: 'לא זמין כרגע.',
-      pickupClosedText: 'ניתן לבצע הזמנות לאיסוף עצמי בימי א - ה\nבין השעות 14:00 - 23:00.',
+      pickupClosedText: 'ניתן לבצע הזמנות לאיסוף עצמי בימי א - ה\nבין השעות 14:00 - 22:00.',
       pickupClosedBrowse: 'לצפייה בתפריט',
       dineInClosedTitle: 'לא זמין כרגע.',
       dineInClosedText: 'ניתן לבצע ישיבה במקום בשעות פעילות המסעדה.',
@@ -221,7 +221,7 @@
       placeResPhoneRequired: 'נא להזין מספר טלפון תקין',
       placeResPartyRequired: 'נא להזין מספר סועדים (1–60)',
       placeResDateRequired: 'נא לבחור תאריך',
-      placeResTimeRequired: 'נא לבחור שעה בין 14:00 ל־20:30',
+      placeResTimeRequired: 'נא לבחור שעה בין 14:00 ל־21:00',
       placeResSubmitFailed: 'שליחת הבקשה נכשלה. נסו שוב.',
       placeResCapacityTitle: 'אין מקום פנוי',
       placeResCapacityText: 'אין מספיק מקומות פנויים בשעה שבחרתם.\nאנא בחרו שעה אחרת.',
@@ -813,16 +813,20 @@
     }
   }
 
-  /* Set true to enforce takeaway day + clock hours */
+  /* Set true to enforce takeaway day + clock hours — source: LechaimOpeningHours */
   const TAKEAWAY_DAY_HOURS_ENABLED = true;
-  const TAKEAWAY_OPEN_HOUR = 14;
-  const TAKEAWAY_CLOSE_HOUR = 23; /* exclusive */
+  const Hours = () => window.LechaimOpeningHours || null;
+  const TAKEAWAY_OPEN_HOUR = Hours()?.OPEN_HOUR ?? 14;
+  const TAKEAWAY_CLOSE_HOUR = Hours()?.CLOSE_HOUR ?? 22; /* exclusive */
 
   /**
-   * Takeaway only: Sun–Thu 14:00–23:00; closed Fri–Sat and outside hours.
+   * Takeaway only: Sun–Thu OPEN..CLOSE exclusive; closed Fri–Sat and outside hours.
    */
   function isTakeawayDayOpen() {
     if (!TAKEAWAY_DAY_HOURS_ENABLED) return true;
+    if (typeof Hours()?.isWithinOrderingHours === 'function') {
+      return Hours().isWithinOrderingHours();
+    }
     const now = new Date();
     const day = now.getDay(); /* 0=Sun … 5=Fri 6=Sat */
     if (day === 5 || day === 6) return false;
@@ -832,12 +836,15 @@
 
   /* Set true to enforce dine-in day + clock hours at entry */
   const DINE_IN_DAY_HOURS_ENABLED = true;
-  const DINE_IN_OPEN_HOUR = 14;
-  const DINE_IN_CLOSE_HOUR = 23; /* exclusive */
+  const DINE_IN_OPEN_HOUR = Hours()?.OPEN_HOUR ?? 14;
+  const DINE_IN_CLOSE_HOUR = Hours()?.CLOSE_HOUR ?? 22; /* exclusive */
 
-  /** Dine-in: Sun–Thu 14:00–23:00; closed Fri–Sat and outside hours. */
+  /** Dine-in: Sun–Thu OPEN..CLOSE exclusive; closed Fri–Sat and outside hours. */
   function isDineInOrderingOpen() {
     if (!DINE_IN_DAY_HOURS_ENABLED) return true;
+    if (typeof Hours()?.isWithinOrderingHours === 'function') {
+      return Hours().isWithinOrderingHours();
+    }
     const now = new Date();
     const day = now.getDay();
     if (day === 5 || day === 6) return false;
@@ -1318,8 +1325,10 @@
 
   function buildPickupSlots() {
     const slots = [];
-    const openMinutes = 15 * 60;
-    const closeMinutes = 23 * 60;
+    const openMinutes = (Hours()?.OPEN_HOUR ?? 14) * 60;
+    const closeMinutes = typeof Hours()?.takeawaySlotCloseMinutes === 'function'
+      ? Hours().takeawaySlotCloseMinutes()
+      : (21 * 60 + 45);
     const now = new Date();
     let startMinutes = now.getHours() * 60 + now.getMinutes();
     startMinutes = Math.ceil((startMinutes + 1) / 15) * 15;
@@ -1556,15 +1565,14 @@
       btn.classList.remove('is-selected');
     });
 
-    /* Wipe previous takeaway on this phone so "ההזמנה שלי" cannot show an old order. */
-    try {
-      localStorage.removeItem('lechaim-takeaway-order-lock');
-    } catch (_) { /* ignore */ }
+    /* Replacing local takeaway session — clear all pickup/delivery locks on this phone. */
+    clearTakeawayLockStorage();
     try {
       window.LechaimOrderEngine?.closeTakeaway?.();
     } catch (err) {
       console.warn('[entry-gate] close previous takeaway failed', err);
     }
+    clearPersistedCartStorage('takeaway', state.fulfillmentType);
 
     if (Session) {
       Session.startTakeaway({
@@ -1810,9 +1818,20 @@
     }
   }
 
-  function clearPersistedCartStorage() {
+  function cartStorageKeyForOrderType(orderType, fulfillmentType) {
+    if (isButcherSessionType(orderType)) return 'lechaim-cart-butcher';
+    if (isTakeawaySessionType(orderType)) {
+      return String(fulfillmentType || '') === 'delivery'
+        ? 'lechaim-cart-delivery'
+        : 'lechaim-cart-pickup';
+    }
+    return 'lechaim-keri-cart';
+  }
+
+  function clearPersistedCartStorage(orderType, fulfillmentType) {
     try {
-      localStorage.setItem('lechaim-keri-cart', JSON.stringify({ lines: [], order: [] }));
+      const key = cartStorageKeyForOrderType(orderType, fulfillmentType);
+      localStorage.setItem(key, JSON.stringify({ lines: [], order: [] }));
     } catch (_) { /* ignore */ }
   }
 
@@ -1824,6 +1843,32 @@
   function isTakeawaySessionType(orderType) {
     const raw = String(orderType || '').toLowerCase();
     return raw === 'takeaway' || raw === 'take-away' || raw.includes('take');
+  }
+
+  function sessionFulfillmentType(session) {
+    return String(session?.fulfillmentType || '') === 'delivery' ? 'delivery' : 'pickup';
+  }
+
+  function takeawayLockKeys(fulfillmentType) {
+    if (fulfillmentType === 'delivery') {
+      return ['lechaim-takeaway-order-lock-delivery', 'lechaim-takeaway-order-lock'];
+    }
+    if (fulfillmentType === 'pickup') {
+      return ['lechaim-takeaway-order-lock-pickup', 'lechaim-takeaway-order-lock'];
+    }
+    return [
+      'lechaim-takeaway-order-lock-pickup',
+      'lechaim-takeaway-order-lock-delivery',
+      'lechaim-takeaway-order-lock',
+    ];
+  }
+
+  function clearTakeawayLockStorage(fulfillmentType) {
+    takeawayLockKeys(fulfillmentType).forEach((key) => {
+      try {
+        localStorage.removeItem(key);
+      } catch (_) { /* ignore */ }
+    });
   }
 
   async function discardClosedLocalSession(session) {
@@ -1838,7 +1883,7 @@
       if (session.tableNumber != null && window.LechaimOrderEngine?.closeTable) {
         window.LechaimOrderEngine.closeTable(session.tableNumber);
       } else if (isTakeawaySessionType(session.orderType)) {
-        clearTakeawayLockStorage();
+        clearTakeawayLockStorage(sessionFulfillmentType(session));
         window.LechaimOrderEngine?.closeTakeaway?.()
           || window.LechaimOrderEngine?.clearOrder?.();
       } else if (isButcherSessionType(session.orderType)) {
@@ -1847,13 +1892,7 @@
     } catch (err) {
       console.warn('[entry-gate] local order clear failed', err);
     }
-    clearPersistedCartStorage();
-  }
-
-  function clearTakeawayLockStorage() {
-    try {
-      localStorage.removeItem('lechaim-takeaway-order-lock');
-    } catch (_) { /* ignore */ }
+    clearPersistedCartStorage(session.orderType, sessionFulfillmentType(session));
   }
 
   async function resumeTakeawaySession(session) {
@@ -1871,8 +1910,18 @@
     state.customerName = session.customerName || '';
     state.customerPhone = session.customerPhone || '';
     state.customerNotes = session.customerNotes || '';
+    state.fulfillmentType = sessionFulfillmentType(session);
+    state.customerAddress = state.fulfillmentType === 'delivery'
+      ? (session.customerAddress || '')
+      : '';
+    state.deliveryFee = state.fulfillmentType === 'delivery'
+      ? (session.deliveryFee != null
+        ? Number(session.deliveryFee)
+        : (Number(window.TAKEAWAY_DEFAULT_DELIVERY_FEE) || 10))
+      : null;
     state.pickupType = session.pickupType === 'TIME' ? 'TIME' : 'ASAP';
     state.pickupTime = state.pickupType === 'TIME' ? (session.pickupTime || null) : null;
+    state.pickupDate = state.pickupType === 'TIME' ? (session.pickupDate || null) : null;
     if (session.lang === 'he' || session.lang === 'en') {
       state.lang = session.lang;
     }
@@ -1886,17 +1935,21 @@
       customerName: state.customerName,
       customerPhone: state.customerPhone,
       customerNotes: state.customerNotes,
+      customerAddress: state.customerAddress,
+      fulfillmentType: state.fulfillmentType,
+      deliveryFee: state.deliveryFee,
       pickupType: state.pickupType,
       pickupTime: state.pickupTime,
+      pickupDate: state.pickupDate,
       publicOrderNo: session.publicOrderNo != null ? Number(session.publicOrderNo) : null,
     }));
     return true;
   }
 
-  /** Persisted main-menu cart qty (dine-in / takeaway). */
-  function readPersistedCartCount() {
+  /** Persisted cart qty for the given session family (pickup / delivery / butcher / dine-in). */
+  function readPersistedCartCount(orderType, fulfillmentType) {
     try {
-      const raw = localStorage.getItem('lechaim-keri-cart');
+      const raw = localStorage.getItem(cartStorageKeyForOrderType(orderType, fulfillmentType));
       const parsed = raw ? JSON.parse(raw) : null;
       const lines = Array.isArray(parsed) ? parsed : (parsed?.lines || []);
       return lines.reduce((sum, line) => sum + (Number(line?.qty) || 0), 0);
@@ -1905,14 +1958,16 @@
     }
   }
 
-  function hasTakeawayOrderLock() {
-    try {
-      const raw = localStorage.getItem('lechaim-takeaway-order-lock');
-      const lock = raw ? JSON.parse(raw) : null;
-      return Boolean(lock && lock.sessionId);
-    } catch {
-      return false;
-    }
+  function hasTakeawayOrderLock(fulfillmentType) {
+    return takeawayLockKeys(fulfillmentType).some((key) => {
+      try {
+        const raw = localStorage.getItem(key);
+        const lock = raw ? JSON.parse(raw) : null;
+        return Boolean(lock && lock.sessionId);
+      } catch {
+        return false;
+      }
+    });
   }
 
   function hasEngineOrderItemsForSession(session) {
@@ -1944,8 +1999,9 @@
    * or engine items. Empty cart + no active order → back to first entry buttons.
    */
   function shouldKeepSessionOnRefresh(session) {
-    if (readPersistedCartCount() > 0) return true;
-    if (hasTakeawayOrderLock()) return true;
+    const fulfillment = sessionFulfillmentType(session);
+    if (readPersistedCartCount(session?.orderType, fulfillment) > 0) return true;
+    if (isTakeawaySessionType(session?.orderType) && hasTakeawayOrderLock(fulfillment)) return true;
     if (hasEngineOrderItemsForSession(session)) return true;
     return false;
   }
@@ -1960,7 +2016,7 @@
     }
     try {
       if (isTakeawaySessionType(session.orderType)) {
-        clearTakeawayLockStorage();
+        clearTakeawayLockStorage(sessionFulfillmentType(session));
         window.LechaimOrderEngine?.closeTakeaway?.();
       } else if (isButcherSessionType(session.orderType)) {
         window.LechaimOrderEngine?.clearOrder?.();
@@ -1970,7 +2026,7 @@
     } catch (err) {
       console.warn('[entry-gate] idle local order clear failed', err);
     }
-    clearPersistedCartStorage();
+    clearPersistedCartStorage(session.orderType, sessionFulfillmentType(session));
   }
 
   async function resumeButcherSession(session) {
@@ -2138,11 +2194,16 @@
       }
       if (type === 'takeaway') {
         state.orderType = 'takeaway';
-        /* Open takeaway session → resume same order (no second order from this phone). */
+        /* Resume only a matching pickup session — delivery stays separate. */
         if (Session?.hasActiveTakeawaySession()) {
           (async () => {
-            const resumed = await resumeTakeawaySession(Session.getSession());
-            if (!resumed) goToPickup();
+            const session = Session.getSession();
+            if (sessionFulfillmentType(session) === 'pickup') {
+              const resumed = await resumeTakeawaySession(session);
+              if (!resumed) goToPickup();
+              return;
+            }
+            goToPickup();
           })();
           return;
         }
@@ -2151,10 +2212,16 @@
       }
       if (type === 'delivery') {
         state.orderType = 'takeaway';
+        /* Resume only a matching delivery session — pickup stays separate. */
         if (Session?.hasActiveTakeawaySession()) {
           (async () => {
-            const resumed = await resumeTakeawaySession(Session.getSession());
-            if (!resumed) goToDelivery();
+            const session = Session.getSession();
+            if (sessionFulfillmentType(session) === 'delivery') {
+              const resumed = await resumeTakeawaySession(session);
+              if (!resumed) goToDelivery();
+              return;
+            }
+            goToDelivery();
           })();
           return;
         }
