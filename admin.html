@@ -314,8 +314,24 @@
 
         <div class="admin-toolbar">
           <label class="admin-search">
-            <span class="visually-hidden">חיפוש</span>
-            <input type="search" id="admin-search" placeholder="חיפוש לפי שם או קטגוריה…" autocomplete="off">
+            <span class="visually-hidden">חיפוש מנות במלאי</span>
+            <input
+              type="text"
+              id="admin-inventory-filter"
+              name="lechaim-inventory-filter-v2"
+              placeholder="חיפוש לפי שם או קטגוריה…"
+              value=""
+              autocomplete="off"
+              autocapitalize="off"
+              autocorrect="off"
+              spellcheck="false"
+              inputmode="search"
+              data-lpignore="true"
+              data-1p-ignore="true"
+              data-bwignore="true"
+              data-form-type="other"
+              readonly
+            >
           </label>
           <div class="admin-filters" role="group" aria-label="סינון מלאי">
             <button type="button" class="admin-filter is-active" data-filter="all">הכל</button>

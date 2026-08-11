@@ -415,6 +415,10 @@ const DISH_I18N = {
       name: 'Grilled Chicken Steak',
       desc: 'Juicy chicken cut with Mediterranean seasoning.',
     },
+    'staik-antarkot': {
+      name: 'Premium Entrecote Steak',
+      desc: 'Premium entrecote steak 300g, grilled medium, served with green chimichurri on the side, chili pepper and fire-roasted tomato.',
+    },
     'whole-fish': {
       name: 'Whole Baked Sea Bream',
       desc: 'Fresh sea bream baked with herbs and olive oil.',
@@ -647,6 +651,14 @@ const MENU_DATA = {
           description: 'נתח פרגית עסיסי בתיבול ים־תיכוני.',
           price: 26,
           image: dishImage('chicken-steak'),
+        },
+        {
+          id: 'staik-antarkot',
+          name: 'סטייק אנטריקוט פרימיום',
+          printName: 'Steak Entrecote',
+          description: 'סטייק אנטריקוט פרימיום 300 גרם, צלוי למידת עשייה מדיום, מוגש עם צ\'ימיצ\'ורי ירוק בצד, פלפל חריף ועגבנייה צלויה על האש.',
+          price: 52,
+          image: dishImage('staik-antarkot'),
         },
         {
           id: 'whole-fish',
@@ -911,7 +923,7 @@ const SHAKE_BASE_ITEMS = [
   { id: 'shake-base-orange', name: 'תפוזים', printName: 'Tapuzim', description: '', price: 0, image: '' },
 ];
 
-const MAIN_COURSE_IDS = new Set(['schnitzel', 'chicken-steak', 'whole-fish', 'denis-fillet', 'salmon']);
+const MAIN_COURSE_IDS = new Set(['schnitzel', 'chicken-steak', 'staik-antarkot', 'whole-fish', 'denis-fillet', 'salmon']);
 const HOT_SIDE_IDS = new Set(['fries-side', 'rice', 'green-beans', 'puree']);
 const SHAKE_BASE_IDS = new Set(['shake-base-soy', 'shake-base-water', 'shake-base-orange']);
 const FRUIT_SHAKE_ID = 'fruit-shake';

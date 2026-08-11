@@ -21,7 +21,7 @@
   const emailInput = document.getElementById('admin-email');
   const passwordInput = document.getElementById('admin-password');
   const loginSubmit = document.getElementById('admin-login-submit');
-  const searchInput = document.getElementById('admin-search');
+  const searchInput = document.getElementById('admin-inventory-filter');
   const filtersEl = document.querySelector('.admin-filters');
   const scopesEl = document.querySelector('.admin-inventory-scopes');
   const statTotal = document.getElementById('stat-total');
@@ -514,12 +514,14 @@
 
     try {
       await LechaimInventory.load();
+      resetInventorySearch();
       refreshCatalogCache();
       updateStats();
       await refreshKitchenCloseFlag();
 
       if (currentTab === 'inventory') {
         renderList();
+        startInventorySearchWatch();
       }
 
       window.setTimeout(() => {
@@ -611,10 +613,67 @@
     }
   });
 
+  function resetInventorySearch() {
+    currentQuery = '';
+    if (!searchInput) return;
+    searchInput.value = '';
+    searchInput.defaultValue = '';
+    searchInput.setAttribute('value', '');
+  }
+
+  function unlockInventorySearch() {
+    if (!searchInput) return;
+    searchInput.removeAttribute('readonly');
+  }
+
+  function clearInventorySearchAutofill() {
+    if (!searchInput) return;
+    const value = String(searchInput.value || '').trim();
+    if (!value) {
+      currentQuery = '';
+      return;
+    }
+    /* Email / login leftovers from browser form memory */
+    if (/@/.test(value) || /lechaim\.gr/i.test(value) || /^admin$/i.test(value)) {
+      resetInventorySearch();
+    }
+  }
+
+  searchInput?.addEventListener('focus', unlockInventorySearch);
+  searchInput?.addEventListener('touchstart', unlockInventorySearch, { passive: true });
+  searchInput?.addEventListener('pointerdown', unlockInventorySearch);
+
   searchInput?.addEventListener('input', () => {
     currentQuery = searchInput.value || '';
     renderList();
   });
+
+  /* Keep wiping autofill while the inventory view is open */
+  let inventorySearchWatch = null;
+  function startInventorySearchWatch() {
+    stopInventorySearchWatch();
+    let ticks = 0;
+    inventorySearchWatch = window.setInterval(() => {
+      ticks += 1;
+      const before = searchInput?.value || '';
+      clearInventorySearchAutofill();
+      if ((searchInput?.value || '') !== before) {
+        currentQuery = searchInput?.value || '';
+        renderList();
+      }
+      if (ticks >= 20) stopInventorySearchWatch();
+    }, 200);
+  }
+  function stopInventorySearchWatch() {
+    if (inventorySearchWatch) {
+      window.clearInterval(inventorySearchWatch);
+      inventorySearchWatch = null;
+    }
+  }
+
+  window.setTimeout(() => {
+    resetInventorySearch();
+  }, 0);
 
   scopesEl?.addEventListener('click', (event) => {
     const btn = event.target.closest('[data-inventory-scope]');
@@ -660,9 +719,13 @@
     ) return;
     setTab(tab);
     if (tab === 'inventory') {
+      resetInventorySearch();
       if (statusEl) statusEl.textContent = 'טוען מלאי…';
       renderList();
+      startInventorySearchWatch();
       refreshKitchenCloseFlag();
+    } else {
+      stopInventorySearchWatch();
     }
   });
 
