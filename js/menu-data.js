@@ -141,7 +141,7 @@ const TRANSLATIONS = {
     receiptButcherDeliveryFee: 'עלות משלוח: {price}',
     currency: '€',
     langToggleAria: 'החלפת שפה – עברית / English',
-    mainsNote: 'כל המנות העיקריות מוגשות עם תוספת אחת חמה (למעט שיפודי קבב, מוקפץ עוף והמבורגר וצ\'יפס).',
+    mainsNote: 'כל המנות העיקריות מוגשות עם תוספת אחת חמה.',
     mainsSidesTitle: 'תוספות לבחירה',
     mainsSidesList: "צ'יפס פריך | אורז לבן | שעועית ירוקה | פירה",
     sidesIncluded: 'כלול',
@@ -171,6 +171,7 @@ const TRANSLATIONS = {
     followUs: 'עקבו אחרינו',
     categories: {
       starters: 'ראשונות ונשנושים',
+      specials: 'הספיישלים של לחיים',
       mains: 'מנות עיקריות',
       hotSides: 'תוספות חמות לבחירה',
       salads: 'סלטים',
@@ -321,7 +322,7 @@ const TRANSLATIONS = {
     receiptButcherDeliveryFee: 'Delivery fee: {price}',
     currency: '€',
     langToggleAria: 'Switch language – Hebrew / English',
-    mainsNote: 'All main courses are served with one hot side (except kebab skewers, stir-fried chicken, and hamburger & fries).',
+    mainsNote: 'All main courses are served with one hot side.',
     mainsSidesTitle: 'Sides to choose from',
     mainsSidesList: 'Crispy fries | White rice | Green beans | Mashed potatoes',
     sidesIncluded: 'Included',
@@ -351,6 +352,7 @@ const TRANSLATIONS = {
     followUs: 'Follow us',
     categories: {
       starters: 'Starters & Snacks',
+      specials: "Lechaim's Specials",
       mains: 'Main Courses',
       hotSides: 'Hot Sides to Choose',
       salads: 'Salads',
@@ -630,6 +632,20 @@ const MENU_DATA = {
       ],
     },
     {
+      id: 'specials',
+      titleKey: 'categories.specials',
+      items: [
+        {
+          id: 'staik-antarkot',
+          name: 'סטייק אנטריקוט פרימיום',
+          printName: 'Entrecote',
+          description: 'סטייק אנטריקוט פרימיום 300 גרם, צלוי למידת עשייה מדיום, מוגש עם צ\'ימיצ\'ורי ירוק בצד, פלפל חריף ועגבנייה צלויה על האש.',
+          price: 52,
+          image: dishImage('staik-antarkot'),
+        },
+      ],
+    },
+    {
       id: 'mains',
       titleKey: 'categories.mains',
       descriptionKey: 'mainsNote',
@@ -647,18 +663,10 @@ const MENU_DATA = {
         {
           id: 'chicken-steak',
           name: 'סטייק פרגית בגריל',
-          printName: 'Steak Pargit',
+          printName: 'Pargit',
           description: 'נתח פרגית עסיסי בתיבול ים־תיכוני.',
           price: 26,
           image: dishImage('chicken-steak'),
-        },
-        {
-          id: 'staik-antarkot',
-          name: 'סטייק אנטריקוט פרימיום',
-          printName: 'Steak Entrecote',
-          description: 'סטייק אנטריקוט פרימיום 300 גרם, צלוי למידת עשייה מדיום, מוגש עם צ\'ימיצ\'ורי ירוק בצד, פלפל חריף ועגבנייה צלויה על האש.',
-          price: 52,
-          image: dishImage('staik-antarkot'),
         },
         {
           id: 'whole-fish',
@@ -923,7 +931,7 @@ const SHAKE_BASE_ITEMS = [
   { id: 'shake-base-orange', name: 'תפוזים', printName: 'Tapuzim', description: '', price: 0, image: '' },
 ];
 
-const MAIN_COURSE_IDS = new Set(['schnitzel', 'chicken-steak', 'staik-antarkot', 'whole-fish', 'denis-fillet', 'salmon']);
+const MAIN_COURSE_IDS = new Set(['schnitzel', 'chicken-steak', 'whole-fish', 'denis-fillet', 'salmon']);
 const HOT_SIDE_IDS = new Set(['fries-side', 'rice', 'green-beans', 'puree']);
 const SHAKE_BASE_IDS = new Set(['shake-base-soy', 'shake-base-water', 'shake-base-orange']);
 const FRUIT_SHAKE_ID = 'fruit-shake';

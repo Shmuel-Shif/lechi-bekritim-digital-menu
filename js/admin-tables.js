@@ -3054,12 +3054,16 @@
     document.getElementById('admin-payment-split')?.addEventListener('click', () => {
       showPaymentSplitPanel();
     });
+    document.getElementById('admin-payment-void')?.addEventListener('click', () => {
+      closePaymentModal(buildPaymentResult('void', 0, 0, 0));
+    });
     document.getElementById('admin-payment-cash-input')?.addEventListener('input', () => {
       syncPaymentSplitFields(true);
     });
     document.getElementById('admin-payment-split-confirm')?.addEventListener('click', () => {
       confirmPaymentSplit();
     });
+    /* Cancel / backdrop only dismiss the modal — table stays open until a payment action */
     document.getElementById('admin-payment-cancel')?.addEventListener('click', () => {
       closePaymentModal(null);
     });

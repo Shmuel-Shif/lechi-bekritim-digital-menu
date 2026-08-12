@@ -2929,6 +2929,19 @@ body.admin-modal-open {
   grid-column: 1 / -1;
 }
 
+.admin-payment-modal__choice--void {
+  grid-column: 1 / -1;
+  border: 1px dashed var(--color-border-strong, #c5c0b6);
+}
+
+.admin-payment-modal__hint {
+  margin: 0.35rem 0 0.75rem;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+  text-align: center;
+}
+
 .admin-payment-split {
   display: grid;
   gap: 0.55rem;

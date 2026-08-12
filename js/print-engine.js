@@ -221,6 +221,12 @@
     return lines;
   }
 
+  /** Always bar — fruit platter prints with drinks, not kitchen. */
+  const BAR_ONLY_PRODUCT_IDS = new Set([
+    'fruit-plate',
+    'shabbat-fruit-plate',
+  ]);
+
   function collectDrinkProductIds() {
     const ids = new Set();
     const categories = global.MENU_DATA?.categories;
@@ -244,6 +250,7 @@
   function isBarItem(item, drinkIds) {
     if (!item?.productId) return false;
     const pid = String(item.productId);
+    if (BAR_ONLY_PRODUCT_IDS.has(pid)) return true;
     if (drinkIds.has(pid)) return true;
     /* Shake bases are drink options — always bar with the fruit shake */
     if (global.SHAKE_BASE_IDS?.has?.(pid)) return true;

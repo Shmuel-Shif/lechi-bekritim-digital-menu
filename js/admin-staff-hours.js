@@ -637,7 +637,8 @@
             <td class="staff-actions-cell">
               <button type="button" class="admin-btn admin-btn--ghost staff-btn-sm" data-edit-shift="${escapeHtml(shift.id)}">ערוך</button>
               ${idx === dayShifts.length - 1
-                ? `<button type="button" class="admin-btn admin-btn--soft staff-btn-sm" data-add-shift-day="${escapeHtml(ymd)}">+ עוד</button>`
+                ? `<button type="button" class="admin-btn admin-btn--soft staff-btn-sm" data-add-shift-day="${escapeHtml(ymd)}">+ עוד</button>
+                   <button type="button" class="admin-btn admin-btn--danger staff-btn-sm" data-reset-shift-day="${escapeHtml(ymd)}">אפס יום</button>`
                 : ''}
             </td>
           </tr>
@@ -1122,6 +1123,46 @@
     }
   }
 
+  async function resetShiftDay(ymd) {
+    if (!ymd || !shiftsViewEmployee?.id || busy) return;
+    const dayShifts = shiftsCache.filter((shift) => athensParts(shift.clock_in)?.ymd === ymd);
+    if (!dayShifts.length) {
+      showToast('אין משמרות לאיפוס ביום זה');
+      return;
+    }
+    const label = formatDateAthens(dayShifts[0].clock_in);
+    const ok = await showConfirm(
+      `לאפס את ${label}?\nכל המשמרות של ${shiftsViewEmployee.name_en} ביום זה יימחקו.`,
+      'אפס יום'
+    );
+    if (!ok) return;
+
+    const sb = getClient();
+    if (!sb) {
+      showError('Supabase לא מחובר');
+      return;
+    }
+
+    busy = true;
+    showError('');
+    try {
+      const ids = dayShifts.map((s) => s.id).filter(Boolean);
+      const { error } = await sb
+        .from('staff_shifts')
+        .delete()
+        .in('id', ids);
+      if (error) throw error;
+      showToast(`היום ${label} אופס`);
+      await loadShiftsForMonth(shiftsMonth?.value || currentMonthValue(), shiftsViewEmployee.id);
+      renderShifts();
+    } catch (err) {
+      console.error('[staff-hours] reset day', err);
+      showError(err?.message || 'לא ניתן לאפס את היום');
+    } finally {
+      busy = false;
+    }
+  }
+
   async function saveShift(event) {
     event.preventDefault();
     if (busy) return;
@@ -1321,6 +1362,11 @@
       if (editBtn) {
         const shift = shiftsCache.find((row) => row.id === editBtn.getAttribute('data-edit-shift'));
         if (shift) openShiftModal(shift);
+        return;
+      }
+      const resetBtn = event.target.closest('[data-reset-shift-day]');
+      if (resetBtn) {
+        void resetShiftDay(resetBtn.getAttribute('data-reset-shift-day') || '');
         return;
       }
       const addBtn = event.target.closest('[data-add-shift-day]');

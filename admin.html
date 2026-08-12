@@ -778,6 +778,7 @@
           <button type="button" class="admin-btn admin-btn--primary admin-payment-modal__choice" id="admin-payment-cash" data-payment="cash">מזומן</button>
           <button type="button" class="admin-btn admin-btn--soft admin-payment-modal__choice" id="admin-payment-credit" data-payment="credit">אשראי</button>
           <button type="button" class="admin-btn admin-btn--soft admin-payment-modal__choice admin-payment-modal__choice--split" id="admin-payment-split" data-payment="split">מפוצל</button>
+          <button type="button" class="admin-btn admin-btn--ghost admin-payment-modal__choice admin-payment-modal__choice--void" id="admin-payment-void" data-payment="void">סגור הזמנה</button>
         </div>
         <div class="admin-payment-split" id="admin-payment-split-panel" hidden>
           <label class="admin-payment-split__field">
@@ -791,7 +792,8 @@
           <p class="admin-payment-split__hint" id="admin-payment-split-hint">השלימו את סכום המזומן — האשראי יחושב אוטומטית</p>
           <button type="button" class="admin-btn admin-btn--primary" id="admin-payment-split-confirm">אשר סגירה</button>
         </div>
-        <button type="button" class="admin-btn admin-btn--ghost" id="admin-payment-cancel">סגור</button>
+        <p class="admin-payment-modal__hint">בחרו אמצעי תשלום או «סגור הזמנה» — ביטול מחזיר לכרטיס בלי לסגור</p>
+        <button type="button" class="admin-btn admin-btn--ghost" id="admin-payment-cancel">ביטול</button>
       </div>
     </div>
 
