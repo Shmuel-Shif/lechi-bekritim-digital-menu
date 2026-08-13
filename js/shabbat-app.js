@@ -119,18 +119,20 @@
     return escapeHtml(str).replace(/'/g, '&#39;');
   }
 
-  /* Set true to enforce Sun–Wed / Thu until 12:00 / Fri–Sat closed */
+  /* Set true to enforce Sun–Wed / Thu until 20:00 / Fri–Sat closed */
   const SHABBAT_HOURS_ENABLED = true;
+  /** Thursday last hour exclusive → 19:59 open, 20:00 closed. */
+  const SHABBAT_THU_CLOSE_HOUR = 20;
 
   /**
-   * Sun–Wed open all day; Thu open until 12:00; Fri–Sat closed.
+   * Sun–Wed open all day; Thu open until 20:00; Fri–Sat closed.
    */
   function isShabbatOrderingOpen(now = new Date()) {
     if (!SHABBAT_HOURS_ENABLED) return true;
     const day = now.getDay(); /* 0=Sun … 5=Fri 6=Sat */
     if (day === 5 || day === 6) return false;
     if (day === 4) {
-      return now.getHours() < 12;
+      return now.getHours() < SHABBAT_THU_CLOSE_HOUR;
     }
     return true; /* Sun–Wed */
   }

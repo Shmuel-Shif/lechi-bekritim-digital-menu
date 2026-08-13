@@ -112,6 +112,7 @@
       placeResPhoneRequired: 'Please enter a valid phone number',
       placeResPartyRequired: 'Please enter number of guests (1–60)',
       placeResDateRequired: 'Please choose a date',
+      placeResWeekendClosed: 'The restaurant is closed on Friday and Saturday — please choose another date',
       placeResTimeRequired: 'Please choose a time between 14:00 and 21:00',
       placeResSubmitFailed: 'Could not send the request. Please try again.',
       placeResCapacityTitle: 'No availability',
@@ -221,6 +222,7 @@
       placeResPhoneRequired: 'נא להזין מספר טלפון תקין',
       placeResPartyRequired: 'נא להזין מספר סועדים (1–60)',
       placeResDateRequired: 'נא לבחור תאריך',
+      placeResWeekendClosed: 'לא ניתן להזמין מקום בשישי ובשבת — המסעדה סגורה',
       placeResTimeRequired: 'נא לבחור שעה בין 14:00 ל־21:00',
       placeResSubmitFailed: 'שליחת הבקשה נכשלה. נסו שוב.',
       placeResCapacityTitle: 'אין מקום פנוי',
@@ -619,6 +621,26 @@
     }
   }
 
+  function defaultPlaceResDate() {
+    const api = window.LechaimPlaceReservations;
+    const today = todayDateStr();
+    if (typeof api?.nextOpenPlaceResDate === 'function') {
+      return api.nextOpenPlaceResDate(today);
+    }
+    return today;
+  }
+
+  function isPlaceResWeekendDate(dateStr) {
+    const api = window.LechaimPlaceReservations;
+    if (typeof api?.isPlaceResWeekend === 'function') {
+      return api.isPlaceResWeekend(dateStr);
+    }
+    const m = String(dateStr || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return false;
+    const day = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getDay();
+    return day === 5 || day === 6;
+  }
+
   async function refreshPlaceResAvailableSlots() {
     if (!placeResTime) return;
     const token = ++placeResSlotsToken;
@@ -628,6 +650,12 @@
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr) || !api?.getUnavailableSlots) {
       fillPlaceResTimeSlots([]);
+      return;
+    }
+
+    if (isPlaceResWeekendDate(dateStr)) {
+      fillPlaceResTimeSlots(api.buildArrivalSlots?.() || []);
+      showPlaceResError(t('placeResWeekendClosed'));
       return;
     }
 
@@ -658,7 +686,7 @@
     showPlaceResError('');
     if (placeResDate) {
       placeResDate.min = todayDateStr();
-      placeResDate.value = todayDateStr();
+      placeResDate.value = defaultPlaceResDate();
     }
     fillPlaceResTimeSlots([]);
     refreshPlaceResAvailableSlots();
@@ -770,6 +798,11 @@
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(reservationDate)) {
       showPlaceResError(t('placeResDateRequired'));
+      placeResDate?.focus();
+      return;
+    }
+    if (isPlaceResWeekendDate(reservationDate)) {
+      showPlaceResError(t('placeResWeekendClosed'));
       placeResDate?.focus();
       return;
     }

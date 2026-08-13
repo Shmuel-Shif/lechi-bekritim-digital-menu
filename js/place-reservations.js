@@ -79,6 +79,34 @@
     return '';
   }
 
+  function parseYmdLocal(ymd) {
+    const m = String(ymd || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return null;
+    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  }
+
+  /** Restaurant closed Fri–Sat — no place reservations those days. */
+  function isPlaceResWeekend(ymd) {
+    const d = parseYmdLocal(ymd);
+    if (!d || Number.isNaN(d.getTime())) return false;
+    if (typeof Hours()?.isWeekendClosed === 'function') {
+      return Hours().isWeekendClosed(d);
+    }
+    const day = d.getDay();
+    return day === 5 || day === 6;
+  }
+
+  function nextOpenPlaceResDate(fromYmd) {
+    const start = parseYmdLocal(fromYmd) || new Date();
+    const d = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    for (let i = 0; i < 8; i += 1) {
+      const ymd = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+      if (!isPlaceResWeekend(ymd)) return ymd;
+      d.setDate(d.getDate() + 1);
+    }
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  }
+
   function timeToMinutes(value) {
     const s = String(value || '').trim();
     const m = s.match(/^(\d{1,2}):(\d{2})/);
@@ -171,6 +199,7 @@
    * Counts pending + confirmed + arrived (soft holds).
    */
   async function getUnavailableSlots(dateStr, partySize) {
+    if (isPlaceResWeekend(dateStr)) return buildArrivalSlots().slice();
     const sizeRaw = Math.floor(Number(partySize));
     const size = Number.isFinite(sizeRaw) && sizeRaw >= 1 ? sizeRaw : 1;
     const occupancy = await getOccupancyForDate(dateStr);
@@ -193,6 +222,7 @@
       return new Error(`נא להזין מספר סועדים (1–${CAPACITY_SEATS})`);
     }
     if (msg.includes('NAME_REQUIRED')) return new Error('נא להזין שם מלא');
+    if (msg.includes('DATE_WEEKEND')) return new Error('לא ניתן להזמין מקום בשישי ובשבת — המסעדה סגורה');
     if (msg.includes('DATE_REQUIRED')) return new Error('נא לבחור תאריך');
     if (msg.includes('TIME_REQUIRED')) return new Error('נא לבחור שעה');
     return new Error(msg || 'שליחת הבקשה נכשלה');
@@ -220,6 +250,9 @@
       throw new Error(`נא להזין מספר סועדים (1–${CAPACITY_SEATS})`);
     }
     if (!reservation_date) throw new Error('נא לבחור תאריך');
+    if (isPlaceResWeekend(reservation_date)) {
+      throw new Error('לא ניתן להזמין מקום בשישי ובשבת — המסעדה סגורה');
+    }
     if (!isValidArrivalTime(arrival_time)) {
       throw new Error('נא לבחור שעה בין 14:00 ל־21:00');
     }
@@ -387,6 +420,9 @@
     if (!customer_name) throw new Error('נא להזין שם לקוח');
     if (!customer_phone) throw new Error('נא להזין טלפון');
     if (!reservation_date) throw new Error('תאריך לא תקין');
+    if (isPlaceResWeekend(reservation_date)) {
+      throw new Error('לא ניתן להזמין מקום בשישי ובשבת — המסעדה סגורה');
+    }
     /* Admin may use 15-min slots beyond the public half-hour list */
     if (timeToMinutes(arrival_time) == null) throw new Error('שעת הגעה לא תקינה');
     if (!Number.isFinite(party_size) || party_size < 1 || party_size > CAPACITY_SEATS) {
@@ -448,6 +484,8 @@
     peakOccupancy,
     buildArrivalSlots,
     isValidArrivalTime,
+    isPlaceResWeekend,
+    nextOpenPlaceResDate,
     CAPACITY_SEATS,
     AVG_SIT_MINUTES,
     OPEN_HOUR,
