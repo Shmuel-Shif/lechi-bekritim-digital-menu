@@ -141,6 +141,7 @@ const TRANSLATIONS = {
     receiptButcherDeliveryFee: 'עלות משלוח: {price}',
     currency: '€',
     langToggleAria: 'החלפת שפה – עברית / English',
+    nonAlcoholicLabel: 'בלי אלכוהול',
     mainsNote: 'כל המנות העיקריות מוגשות עם תוספת אחת חמה.',
     mainsSidesTitle: 'תוספות לבחירה',
     mainsSidesList: "צ'יפס פריך | אורז לבן | שעועית ירוקה | פירה",
@@ -158,6 +159,9 @@ const TRANSLATIONS = {
     chooseShakeBaseTitle: 'מה אתם מעדיפים?',
     chooseShakeBaseSubtitle: 'בחרו בסיס לשייק: {name}',
     shakeBaseLabel: 'בסיס',
+    chooseLimonanaAlcoholTitle: 'עם אלכוהול?',
+    chooseLimonanaAlcoholSubtitle: '{name}',
+    limonanaAlcoholLabel: 'אלכוהול',
     chooseDrinkTitle: 'בחרו שתייה',
     chooseDrinkSubtitle: 'שתייה כלולה במנה: {name}',
     drinkIncludedLabel: 'שתייה',
@@ -175,9 +179,10 @@ const TRANSLATIONS = {
       mains: 'מנות עיקריות',
       hotSides: 'תוספות חמות לבחירה',
       salads: 'סלטים',
-      desserts: 'קינוחים',
+      cocktails: 'קוקטיילים',
       coldDrinks: 'שתייה קלה',
       hotDrinks: 'שתייה חמה',
+      desserts: 'קינוחים',
       butcher: 'בשרים',
       poultry: 'עופות',
       shakeBases: 'בסיסי שייק פירות',
@@ -322,6 +327,7 @@ const TRANSLATIONS = {
     receiptButcherDeliveryFee: 'Delivery fee: {price}',
     currency: '€',
     langToggleAria: 'Switch language – Hebrew / English',
+    nonAlcoholicLabel: 'non-alcoholic',
     mainsNote: 'All main courses are served with one hot side.',
     mainsSidesTitle: 'Sides to choose from',
     mainsSidesList: 'Crispy fries | White rice | Green beans | Mashed potatoes',
@@ -339,6 +345,9 @@ const TRANSLATIONS = {
     chooseShakeBaseTitle: 'What do you prefer?',
     chooseShakeBaseSubtitle: 'Choose a base for: {name}',
     shakeBaseLabel: 'Base',
+    chooseLimonanaAlcoholTitle: 'With alcohol?',
+    chooseLimonanaAlcoholSubtitle: '{name}',
+    limonanaAlcoholLabel: 'Alcohol',
     chooseDrinkTitle: 'Choose a drink',
     chooseDrinkSubtitle: 'Drink included with: {name}',
     drinkIncludedLabel: 'Drink',
@@ -356,9 +365,10 @@ const TRANSLATIONS = {
       mains: 'Main Courses',
       hotSides: 'Hot Sides to Choose',
       salads: 'Salads',
-      desserts: 'Desserts',
+      cocktails: 'Cocktails',
       coldDrinks: 'Soft Drinks',
       hotDrinks: 'Hot Drinks',
+      desserts: 'Desserts',
       butcher: 'Meats',
       poultry: 'Poultry',
       shakeBases: 'Fruit shake bases',
@@ -508,15 +518,34 @@ const DISH_I18N = {
     water: { name: 'Mineral Water', desc: '' },
     'fruit-shake': {
       name: 'Refreshing Fruit Shake',
-      desc: 'Water / orange / soy base (depending on available fruits).',
+      desc: 'Non-alcoholic. Water / orange / soy base (depending on available fruits).',
     },
     limonana: {
       name: 'Large Limonana',
-      desc: '',
+      desc: 'Regular €10 · with alcohol €15',
     },
+    'keter-david': {
+      name: 'Keter David',
+      desc: 'Vodka, strawberries and fresh kiwi, balanced with a touch of lemon. A fruity, refreshing and elegant cocktail with a gentle acidity.',
+    },
+    'gan-eden': {
+      name: 'Gan Eden',
+      desc: 'Tequila and fresh watermelon with a touch of lemon. A light, refreshing and fruity cocktail with a distinctly summery taste.',
+    },
+    'eretz-zavat': {
+      name: 'Eretz Zavat Chalav U\'Dvash',
+      desc: 'Vodka, pineapple and fresh nectarine with lemon. A rich tropical mix, sweet and balanced with fruity freshness.',
+    },
+    'kerem-yisrael': {
+      name: 'Kerem Yisrael',
+      desc: 'Jameson, apple and fresh grapes with a touch of lemon. A deep, balanced cocktail combining natural sweetness with a gentle acidity and the aroma of fresh fruit.',
+    },
+    'vodka-redbull': { name: 'Vodka Red Bull', desc: '' },
     'shake-base-soy': { name: 'Soy', desc: '' },
     'shake-base-water': { name: 'Water', desc: '' },
     'shake-base-orange': { name: 'Orange', desc: '' },
+    'limonana-alcohol-yes': { name: 'Yes', desc: '' },
+    'limonana-alcohol-no': { name: 'No', desc: '' },
     espresso: {
       name: 'Espresso',
       desc: '',
@@ -769,16 +798,65 @@ const MENU_DATA = {
       ],
     },
     {
-      id: 'desserts',
-      titleKey: 'categories.desserts',
+      id: 'cocktails',
+      titleKey: 'categories.cocktails',
       items: [
         {
-          id: 'fruit-plate',
-          name: 'פלטת פירות העונה',
-          printName: 'Paletet Perot',
-          description: 'מבחר פירות טריים, מרעננים וחתוכים.',
-          price: 18,
-          image: dishImage('fruit-plate'),
+          id: 'fruit-shake',
+          name: 'שייק פירות מרענן',
+          printName: 'Shake Perot',
+          description: 'בלי אלכוהול. על בסיס מים / תפוזים / סויה (בהתאם לפירות הזמינים).',
+          price: 10,
+          image: dishImage('fruit-shake'),
+          nonAlcoholic: true,
+        },
+        {
+          id: 'limonana',
+          name: 'לימונענע גרוס',
+          printName: 'Limonana Gros',
+          description: 'רגיל €10 · עם אלכוהול €15',
+          price: 10,
+          image: dishImage('limonana'),
+        },
+        {
+          id: 'keter-david',
+          name: 'כתר דוד',
+          printName: 'Keter David',
+          description: 'וודקה, תותים וקיווי טרי, מאוזנים בנגיעת לימון. קוקטייל פירותי, רענן ואלגנטי עם חמיצות עדינה.',
+          price: 14,
+          image: dishImage('keter-david'),
+        },
+        {
+          id: 'gan-eden',
+          name: 'גן עדן',
+          printName: 'Gan Eden',
+          description: 'טקילה ואבטיח טרי עם נגיעה של לימון. קוקטייל קליל, מרענן ופירותי עם טעם קיצי במיוחד.',
+          price: 14,
+          image: dishImage('gan-eden'),
+        },
+        {
+          id: 'eretz-zavat',
+          name: 'ארץ זבת חלב ודבש',
+          printName: 'Eretz Zavat',
+          description: 'וודקה, אננס ונקטרינה טרייה עם לימון. שילוב טרופי עשיר, מתוק ומאוזן עם רעננות פירותית.',
+          price: 15,
+          image: dishImage('eretz-zavat'),
+        },
+        {
+          id: 'kerem-yisrael',
+          name: 'כרם ישראל',
+          printName: 'Kerem Yisrael',
+          description: 'ג\'יימסון, תפוח וענבים טריים עם נגיעת לימון. קוקטייל עמוק ומאוזן, המשלב מתיקות טבעית עם חמיצות עדינה וניחוח של פירות טריים.',
+          price: 15,
+          image: dishImage('kerem-israel'),
+        },
+        {
+          id: 'vodka-redbull',
+          name: 'וודקה רדבול',
+          printName: 'Vodka Redbull',
+          description: '',
+          price: 9,
+          image: dishImage('vodka-redbull'),
         },
       ],
     },
@@ -795,22 +873,6 @@ const MENU_DATA = {
         { id: 'corona', name: 'בירה קורונה', printName: 'Bira Corona', description: '', price: 4, image: dishImage('corona') },
         { id: 'soda', name: 'סודה', printName: 'Soda', description: '', price: 3, image: dishImage('soda') },
         { id: 'water', name: 'מים מינרליים', printName: 'Mayim', description: '', price: 3, image: dishImage('water') },
-        {
-          id: 'fruit-shake',
-          name: 'שייק פירות מרענן',
-          printName: 'Shake Perot',
-          description: 'על בסיס מים / תפוזים / סויה (בהתאם לפירות הזמינים).',
-          price: 8,
-          image: dishImage('fruit-shake'),
-        },
-        {
-          id: 'limonana',
-          name: 'לימונענע גרוס',
-          printName: 'Limonana Gros',
-          description: '',
-          price: 10,
-          image: dishImage('limonana'),
-        },
       ],
     },
     {
@@ -835,6 +897,20 @@ const MENU_DATA = {
         },
         { id: 'black-coffee', name: 'קפה שחור', printName: 'Cafe Shachor', description: '', price: 5, image: dishImage('black-coffee') },
         { id: 'mint-tea', name: 'תה חם עם נענע', printName: 'Te Im Nana', description: '', price: 5, image: dishImage('mint-tea') },
+      ],
+    },
+    {
+      id: 'desserts',
+      titleKey: 'categories.desserts',
+      items: [
+        {
+          id: 'fruit-plate',
+          name: 'פלטת פירות העונה',
+          printName: 'Paletet Perot',
+          description: 'מבחר פירות טריים, מרעננים וחתוכים.',
+          price: 18,
+          image: dishImage('fruit-plate'),
+        },
       ],
     },
     {
@@ -947,6 +1023,13 @@ const MAIN_COURSE_IDS = new Set(['schnitzel', 'chicken-steak', 'whole-fish', 'de
 const HOT_SIDE_IDS = new Set(['fries-side', 'rice', 'green-beans', 'puree']);
 const SHAKE_BASE_IDS = new Set(['shake-base-soy', 'shake-base-water', 'shake-base-orange']);
 const FRUIT_SHAKE_ID = 'fruit-shake';
+const LIMONANA_ID = 'limonana';
+/** Alcohol yes/no for Limonana Gros — picker only, prints as + Yes / + No. */
+const LIMONANA_ALCOHOL_ITEMS = [
+  { id: 'limonana-alcohol-yes', name: 'כן', printName: 'Yes', description: '', price: 5, image: '' },
+  { id: 'limonana-alcohol-no', name: 'לא', printName: 'No', description: '', price: 0, image: '' },
+];
+const LIMONANA_ALCOHOL_IDS = new Set(['limonana-alcohol-yes', 'limonana-alcohol-no']);
 const HAMBURGER_MEAL_ID = 'hamburger-fries';
 /** Soft drinks only with hamburger meal (no beer, coffee, tea, limonana, or fruit-shake). */
 const HAMBURGER_DRINK_IDS = new Set([
@@ -967,12 +1050,15 @@ const SOCIAL_LINKS = {
 window.MENU_DATA = MENU_DATA;
 window.HOT_SIDE_ITEMS = HOT_SIDE_ITEMS;
 window.SHAKE_BASE_ITEMS = SHAKE_BASE_ITEMS;
+window.LIMONANA_ALCOHOL_ITEMS = LIMONANA_ALCOHOL_ITEMS;
 window.TRANSLATIONS = TRANSLATIONS;
 window.DISH_I18N = DISH_I18N;
 window.MAIN_COURSE_IDS = MAIN_COURSE_IDS;
 window.HOT_SIDE_IDS = HOT_SIDE_IDS;
 window.SHAKE_BASE_IDS = SHAKE_BASE_IDS;
 window.FRUIT_SHAKE_ID = FRUIT_SHAKE_ID;
+window.LIMONANA_ID = LIMONANA_ID;
+window.LIMONANA_ALCOHOL_IDS = LIMONANA_ALCOHOL_IDS;
 window.HAMBURGER_MEAL_ID = HAMBURGER_MEAL_ID;
 window.HAMBURGER_DRINK_IDS = HAMBURGER_DRINK_IDS;
 window.MAX_SIDES_PER_MAIN = MAX_SIDES_PER_MAIN;

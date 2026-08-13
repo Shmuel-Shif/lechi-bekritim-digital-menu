@@ -11,11 +11,11 @@
   <link rel="stylesheet" href="css/main.css">
   <link rel="stylesheet" href="css/theme-lechaim.css">
   <link rel="stylesheet" href="css/entry-gate.css">
-  <link rel="stylesheet" href="css/shabbat.css">
+  <link rel="stylesheet" href="css/shabbat.css?v=27">
   <link rel="icon" href="assets/logo/logo.webp" type="image/webp">
 </head>
 <body class="shabbat-page">
-  <!-- Customer details (full page — same pattern as takeaway entry step) -->
+  <!-- Customer details (checkout modal after the menu) -->
   <div class="entry-gate" id="shabbat-entry-gate" role="dialog" aria-modal="true" aria-labelledby="shabbat-entry-title" hidden>
     <div class="entry-gate__chrome">
       <img
@@ -64,10 +64,10 @@
           </label>
           <p class="entry-pickup__error" id="shabbat-pickup-error" role="alert" hidden></p>
           <button type="submit" class="entry-gate__btn entry-gate__btn--primary" id="shabbat-pickup-submit">
-            <span class="entry-gate__btn-label" data-i18n="continueToMenu">המשך לתפריט</span>
+            <span class="entry-gate__btn-label" data-i18n="sendOrder">שלח הזמנה</span>
           </button>
         </form>
-        <a href="index.html" class="entry-gate__back" id="shabbat-entry-back" data-i18n="backHome">חזרה</a>
+        <button type="button" class="entry-gate__back" id="shabbat-entry-back" data-i18n="backHome">חזרה</button>
       </div>
     </div>
   </div>
@@ -104,7 +104,7 @@
   <section class="shabbat-closed" id="shabbat-closed" hidden>
     <div class="shabbat-closed__panel">
       <p class="shabbat-closed__title" id="shabbat-closed-title" data-i18n="closedTitle">ההזמנות לשבת סגורות</p>
-      <p class="shabbat-closed__text" id="shabbat-closed-text" data-i18n="closedText">ניתן להזמין שוב החל ביום ראשון.<br>ימים א׳–ד׳ · יום ה׳ עד 20:00</p>
+      <p class="shabbat-closed__text" id="shabbat-closed-text" data-i18n="closedText">ניתן להזמין שוב החל מיום ראשון.</p>
       <button type="button" class="entry-gate__btn entry-gate__btn--primary" id="shabbat-browse-menu" data-i18n="closedBrowse">
         לצפייה בתפריט
       </button>
@@ -264,9 +264,9 @@
   <script src="js/supabase-config.js" defer></script>
   <script src="js/order-types.js" defer></script>
   <script src="js/supabase-order-service.js" defer></script>
-  <script src="js/shabbat-menu-data.js" defer></script>
+  <script src="js/shabbat-menu-data.js?v=28" defer></script>
   <script src="js/inventory.js" defer></script>
   <script src="js/a11y-focus-trap.js" defer></script>
-  <script src="js/shabbat-app.js" defer></script>
+  <script src="js/shabbat-app.js?v=27" defer></script>
 </body>
 </html>

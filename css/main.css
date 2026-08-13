@@ -1063,6 +1063,13 @@ button {
   line-height: 1.25;
 }
 
+.food-na-badge {
+  display: inline;
+  font-weight: 800;
+  color: #c62828;
+  letter-spacing: 0.01em;
+}
+
 .food-price {
   font-family: var(--font-body);
   font-weight: 700;
@@ -1586,6 +1593,13 @@ body.modal-open {
   overflow: hidden;
   text-align: center;
   width: 100%;
+}
+
+.sides-picker-price {
+  font-family: var(--font-hebrew);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-navy, #1e3354);
 }
 
 .sides-picker-check {

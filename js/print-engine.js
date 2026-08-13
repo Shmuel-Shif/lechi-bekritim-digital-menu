@@ -233,7 +233,7 @@
     if (!Array.isArray(categories)) return ids;
 
     categories.forEach((cat) => {
-      if (cat?.id !== 'coldDrinks' && cat?.id !== 'hotDrinks') return;
+      if (cat?.id !== 'coldDrinks' && cat?.id !== 'hotDrinks' && cat?.id !== 'cocktails') return;
       (cat.items || []).forEach((item) => {
         if (item?.id) ids.add(String(item.id));
       });
@@ -254,6 +254,7 @@
     if (drinkIds.has(pid)) return true;
     /* Shake bases are drink options — always bar with the fruit shake */
     if (global.SHAKE_BASE_IDS?.has?.(pid)) return true;
+    if (global.LIMONANA_ALCOHOL_IDS?.has?.(pid)) return true;
     return false;
   }
 
@@ -356,6 +357,12 @@
       if (found) return found;
     }
 
+    const limonanaAlcohol = global.LIMONANA_ALCOHOL_ITEMS;
+    if (Array.isArray(limonanaAlcohol)) {
+      const found = limonanaAlcohol.find((entry) => entry && String(entry.id) === id);
+      if (found) return found;
+    }
+
     const shabbatCats = global.SHABBAT_MENU_DATA?.categories;
     if (Array.isArray(shabbatCats)) {
       for (let c = 0; c < shabbatCats.length; c += 1) {
@@ -414,6 +421,11 @@
     const shakeBases = global.SHAKE_BASE_ITEMS;
     if (Array.isArray(shakeBases)) {
       shakeBases.forEach((item) => check(item, 'SHAKE_BASE_ITEMS'));
+    }
+
+    const limonanaAlcohol = global.LIMONANA_ALCOHOL_ITEMS;
+    if (Array.isArray(limonanaAlcohol)) {
+      limonanaAlcohol.forEach((item) => check(item, 'LIMONANA_ALCOHOL_ITEMS'));
     }
 
     if (missing.length) {
@@ -493,6 +505,10 @@
     const shakeCatIdx = hotSideCatIdx + 1;
     (Array.isArray(global.SHAKE_BASE_ITEMS) ? global.SHAKE_BASE_ITEMS : []).forEach((item) => {
       push(item?.id, shakeCatIdx);
+    });
+    const limonanaCatIdx = shakeCatIdx + 1;
+    (Array.isArray(global.LIMONANA_ALCOHOL_ITEMS) ? global.LIMONANA_ALCOHOL_ITEMS : []).forEach((item) => {
+      push(item?.id, limonanaCatIdx);
     });
 
     return order;

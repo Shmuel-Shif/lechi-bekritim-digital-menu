@@ -68,7 +68,8 @@
 
   let openModalItemId = null;
   let adminShabbatOrdersEnabled = true;
-  let closedReason = 'schedule'; /* 'schedule' | 'admin' */
+
+  /* Ordering is open unless Admin closes Shabbat orders. */
 
   const focusTrapReleases = {
     cart: null,
@@ -119,26 +120,8 @@
     return escapeHtml(str).replace(/'/g, '&#39;');
   }
 
-  /* Set true to enforce Sun–Wed / Thu until 20:00 / Fri–Sat closed */
-  const SHABBAT_HOURS_ENABLED = true;
-  /** Thursday last hour exclusive → 19:59 open, 20:00 closed. */
-  const SHABBAT_THU_CLOSE_HOUR = 20;
-
-  /**
-   * Sun–Wed open all day; Thu open until 20:00; Fri–Sat closed.
-   */
-  function isShabbatOrderingOpen(now = new Date()) {
-    if (!SHABBAT_HOURS_ENABLED) return true;
-    const day = now.getDay(); /* 0=Sun … 5=Fri 6=Sat */
-    if (day === 5 || day === 6) return false;
-    if (day === 4) {
-      return now.getHours() < SHABBAT_THU_CLOSE_HOUR;
-    }
-    return true; /* Sun–Wed */
-  }
-
-  function isShabbatCustomerOrderingOpen(now = new Date()) {
-    return adminShabbatOrdersEnabled !== false && isShabbatOrderingOpen(now);
+  function isShabbatCustomerOrderingOpen() {
+    return adminShabbatOrdersEnabled !== false;
   }
 
   async function refreshAdminShabbatOrdersFlag() {
@@ -158,13 +141,8 @@
   function applyClosedCopy() {
     const titleEl = $('#shabbat-closed-title');
     const textEl = $('#shabbat-closed-text');
-    if (closedReason === 'admin') {
-      if (titleEl) titleEl.setAttribute('data-i18n', 'adminClosedTitle');
-      if (textEl) textEl.setAttribute('data-i18n', 'adminClosedText');
-    } else {
-      if (titleEl) titleEl.setAttribute('data-i18n', 'closedTitle');
-      if (textEl) textEl.setAttribute('data-i18n', 'closedText');
-    }
+    if (titleEl) titleEl.setAttribute('data-i18n', 'closedTitle');
+    if (textEl) textEl.setAttribute('data-i18n', 'closedText');
   }
 
   function applyI18n() {
@@ -994,8 +972,8 @@
     closeCart();
     closeOrderReceipt();
     if (closedEl) closedEl.hidden = true;
-    if (appEl) appEl.hidden = true;
-    if (cartToggle) cartToggle.hidden = true;
+    if (appEl) appEl.hidden = false;
+    if (cartToggle) cartToggle.hidden = browseOnly;
     if (pickupError) {
       pickupError.hidden = true;
       pickupError.textContent = '';
@@ -1008,12 +986,19 @@
       if (pickupNotes) pickupNotes.value = customerDetails.customerNotes || '';
     }
     const submitLabel = entryGate.querySelector('#shabbat-pickup-submit .entry-gate__btn-label');
-    if (submitLabel) submitLabel.textContent = t('continueToMenu');
+    if (submitLabel) submitLabel.textContent = t('sendOrder');
     entryGate.hidden = false;
     entryGate.setAttribute('aria-hidden', 'false');
     document.body.classList.add('shabbat-details-pending');
     setFocusTrap('details', entryGate);
     pickupName?.focus();
+  }
+
+  function closeDetailsToMenu() {
+    hideDetailsPage();
+    if (appEl) appEl.hidden = false;
+    if (cartToggle) cartToggle.hidden = browseOnly;
+    if (!browseOnly && getCartCount() > 0) openCart();
   }
 
   function hideDetailsPage() {
@@ -1203,7 +1188,7 @@
     };
   }
 
-  /** Full-page gate: save customer details, then open Shabbat menu. */
+  /** Checkout modal: save customer details, then send the order. */
   function handlePickupSubmit(event) {
     event?.preventDefault?.();
     const details = validatePickupForm();
@@ -1211,13 +1196,12 @@
     saveCustomerDetails(details);
     markEnteredMenu();
     hideDetailsPage();
-    showMenuUi();
+    void sendShabbatOrderFromCart();
   }
 
   async function sendShabbatOrderFromCart() {
     if (sending || !cart.length) return;
     if (!customerDetails?.customerName || !customerDetails?.customerPhone) {
-      showFeedback(false, t('missingCustomer'));
       showDetailsPage();
       return;
     }
@@ -1284,35 +1268,12 @@
       return;
     }
 
-    /*
-     * After the customer reached the menu: empty cart on refresh → home buttons.
-     * First visit (details page only) keeps the Shabbat entry flow.
-     */
-    if (hasEnteredMenu() && getCartCount() <= 0) {
-      clearShabbatLocalState();
-      window.location.replace('index.html');
-      return;
-    }
-
-    if (getCartCount() > 0 && customerDetails) {
-      markEnteredMenu();
-      showMenuUi();
-      return;
-    }
-
-    if (getCartCount() > 0 && !customerDetails) {
-      showDetailsPage();
-      return;
-    }
-
-    if (appEl) appEl.hidden = true;
-    if (cartToggle) cartToggle.hidden = true;
-    showDetailsPage();
+    markEnteredMenu();
+    showMenuUi();
   }
 
-  function bootClosedUi(reason = 'schedule') {
+  function bootClosedUi() {
     browseOnly = false;
-    closedReason = reason === 'admin' ? 'admin' : 'schedule';
     hideDetailsPage();
     if (appEl) appEl.hidden = true;
     if (cartToggle) cartToggle.hidden = true;
@@ -1327,13 +1288,13 @@
     if (next !== 'he' && next !== 'en') return;
     lang = next;
     applyI18n();
-    if (browseOnly || (isShabbatCustomerOrderingOpen() && (customerDetails || isOrderLocked()))) {
+    if (browseOnly || (appEl && !appEl.hidden)) {
       renderMenu();
       if (!browseOnly) renderCart();
     }
     if (orderReceipt && !orderReceipt.hidden) showOrderReceipt(getReceiptItems());
     const submitLabel = entryGate?.querySelector('#shabbat-pickup-submit .entry-gate__btn-label');
-    if (submitLabel && entryGate && !entryGate.hidden) submitLabel.textContent = t('continueToMenu');
+    if (submitLabel && entryGate && !entryGate.hidden) submitLabel.textContent = t('sendOrder');
     updateCartToggleMode();
   }
 
@@ -1341,9 +1302,7 @@
     await refreshAdminShabbatOrdersFlag();
 
     if (!adminShabbatOrdersEnabled) {
-      bootClosedUi('admin');
-    } else if (!isShabbatOrderingOpen()) {
-      bootClosedUi('schedule');
+      bootClosedUi();
     } else {
       await bootOpenUi();
     }
@@ -1358,11 +1317,7 @@
         if (next === adminShabbatOrdersEnabled) return;
         adminShabbatOrdersEnabled = next;
         if (!next) {
-          bootClosedUi('admin');
-          return;
-        }
-        if (!isShabbatOrderingOpen()) {
-          bootClosedUi('schedule');
+          bootClosedUi();
           return;
         }
         /* Re-open without full reload when admin turns ordering back on */
@@ -1441,6 +1396,10 @@
 
     document.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape') return;
+      if (entryGate && !entryGate.hidden) {
+        closeDetailsToMenu();
+        return;
+      }
       if (foodModal && !foodModal.hidden) {
         closeFoodModal();
         return;
@@ -1455,6 +1414,10 @@
     });
 
     pickupForm?.addEventListener('submit', handlePickupSubmit);
+    $('#shabbat-entry-back')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      closeDetailsToMenu();
+    });
   }
 
   if (document.readyState === 'loading') {

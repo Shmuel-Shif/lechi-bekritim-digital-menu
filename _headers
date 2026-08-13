@@ -1,6 +1,12 @@
 # Cache headers for static hosts that support `_headers` (Cloudflare Pages, Netlify).
 # GitHub Pages ignores this file; use a CDN/proxy in front if you need custom cache there.
 
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/
+  Cache-Control: public, max-age=0, must-revalidate
+
 /assets/*
   Cache-Control: public, max-age=2592000, stale-while-revalidate=86400
 

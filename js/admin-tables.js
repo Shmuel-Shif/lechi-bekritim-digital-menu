@@ -1118,8 +1118,16 @@
     return Boolean(window.SHAKE_BASE_IDS?.has?.(String(productId || '')));
   }
 
+  function isLimonanaAlcoholProduct(productId) {
+    return Boolean(window.LIMONANA_ALCOHOL_IDS?.has?.(String(productId || '')));
+  }
+
   function isFruitShakeProduct(productId) {
     return String(productId || '') === String(window.FRUIT_SHAKE_ID || 'fruit-shake');
+  }
+
+  function isLimonanaProduct(productId) {
+    return String(productId || '') === String(window.LIMONANA_ID || 'limonana');
   }
 
   function renderDrawerItemLine(item, options = {}) {
@@ -1127,7 +1135,9 @@
     const lateClass = item.isLateAdd ? ' table-drawer__item--late' : '';
     const sideClass = isSide ? ' table-drawer__item--side' : '';
     const nameLate = item.isLateAdd ? ' table-drawer__name--late' : '';
-    const sideBadge = isShakeBaseProduct(item.productId) ? 'בסיס' : 'תוספת';
+    const sideBadge = isShakeBaseProduct(item.productId)
+      ? 'בסיס'
+      : (isLimonanaAlcoholProduct(item.productId) ? 'אלכוהול' : 'תוספת');
     const isPack = String(item.unitType || '') === 'pack';
     const thawRaw = Number(item.thawCount);
     const thawLabel = isPack && Number.isFinite(thawRaw)
@@ -1675,19 +1685,28 @@
 
     const label = item?.name || item?.productId || 'מנה';
     const isShakeBase = isShakeBaseProduct(item?.productId);
+    const isLimonanaAlcohol = isLimonanaAlcoholProduct(item?.productId);
     const isShakeParent = isFruitShakeProduct(item?.productId)
       && !(item?.linkedToMainItemId);
-    const linkedKids = isShakeParent
+    const isLimonanaParent = isLimonanaProduct(item?.productId)
+      && !(item?.linkedToMainItemId);
+    const linkedKids = (isShakeParent || isLimonanaParent)
       ? (entry.order.items || []).filter((row) => String(row.linkedToMainItemId || '') === id)
       : [];
 
     let ask = `האם אתה בטוח שברצונך להסיר את "${label}" מההזמנה?`;
     if (isShakeBase) {
       ask = `להסיר את בסיס השייק "${label}" מההזמנה?`;
+    } else if (isLimonanaAlcohol) {
+      ask = `להסיר את בחירת האלכוהול "${label}" מההזמנה?`;
     } else if (isShakeParent) {
       ask = linkedKids.length
         ? `להסיר את שייק הפירות ואת הבסיס שנבחר (${linkedKids.map((k) => k.name).filter(Boolean).join(', ') || 'בסיס'})?`
         : `להסיר את שייק הפירות מההזמנה?`;
+    } else if (isLimonanaParent) {
+      ask = linkedKids.length
+        ? `להסיר את הלימונענע ואת בחירת האלכוהול (${linkedKids.map((k) => k.name).filter(Boolean).join(', ') || 'כן/לא'})?`
+        : `להסיר את הלימונענע מההזמנה?`;
     }
 
     const ok = await showConfirmModal(ask, {
@@ -2105,6 +2124,18 @@
         available: window.LechaimInventory?.isAvailable?.(shake.id) !== false,
       };
     }
+    const limonanaAlcohol = (window.LIMONANA_ALCOHOL_ITEMS || []).find((item) => item.id === productId);
+    if (limonanaAlcohol) {
+      return {
+        id: limonanaAlcohol.id,
+        name: limonanaAlcohol.name,
+        printName: limonanaAlcohol.printName,
+        price: Number(limonanaAlcohol.price) || 0,
+        image: limonanaAlcohol.image || '',
+        categoryId: 'limonanaAlcohol',
+        available: true,
+      };
+    }
     return null;
   }
 
@@ -2125,6 +2156,10 @@
     return productId === (window.FRUIT_SHAKE_ID || 'fruit-shake');
   }
 
+  function isAdminLimonana(productId) {
+    return productId === (window.LIMONANA_ID || 'limonana');
+  }
+
   function isAdminHamburgerMeal(productId) {
     return productId === (window.HAMBURGER_MEAL_ID || 'hamburger-fries');
   }
@@ -2132,7 +2167,8 @@
   function productNeedsOptionPicker(productId) {
     return isAdminMainCourse(productId)
       || isAdminFruitShake(productId)
-      || isAdminHamburgerMeal(productId);
+      || isAdminHamburgerMeal(productId)
+      || isAdminLimonana(productId);
   }
 
   function getAdminPickerOptions(parentProductId) {
@@ -2149,6 +2185,19 @@
           price: 0,
           printName: item.printName,
           categoryId: 'shakeBases',
+        }));
+    }
+
+    if (isAdminLimonana(parentProductId)) {
+      return (window.LIMONANA_ALCOHOL_ITEMS || [])
+        .filter((item) => item?.id)
+        .map((item) => ({
+          id: item.id,
+          name: item.name,
+          image: item.image || '',
+          price: Number(item.price) || 0,
+          printName: item.printName,
+          categoryId: 'limonanaAlcohol',
         }));
     }
 
@@ -2181,6 +2230,13 @@
       return {
         title: 'מה אתם מעדיפים?',
         subtitle: `בחרו בסיס לשייק: ${name}`,
+        requireSelection: true,
+      };
+    }
+    if (isAdminLimonana(product?.id)) {
+      return {
+        title: 'עם אלכוהול?',
+        subtitle: name,
         requireSelection: true,
       };
     }
@@ -2230,6 +2286,12 @@
       const img = opt.image
         ? `<img class="admin-option-picker__thumb" src="${escapeAttr(opt.image)}" alt="" width="52" height="52" loading="lazy" decoding="async">`
         : '';
+      const limonanaTotal = isAdminLimonana(pendingOptionMain.id)
+        ? (Number(pendingOptionMain.price) || 0) + (Number(opt.price) || 0)
+        : null;
+      const priceHtml = limonanaTotal != null
+        ? `<span>€${limonanaTotal}</span>`
+        : '';
       return `
         <button
           type="button"
@@ -2239,6 +2301,7 @@
         >
           ${img}
           <span>${escapeHtml(opt.name || opt.id)}</span>
+          ${priceHtml}
         </button>
       `;
     }).join('');

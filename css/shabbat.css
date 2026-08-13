@@ -108,7 +108,7 @@ body.shabbat-page {
   font-weight: 700;
 }
 
-/* Full-page details step (mirrors takeaway entry-gate, not a modal) */
+/* Checkout details overlay on top of the Shabbat menu */
 body.shabbat-details-pending {
   overflow: hidden;
 }
@@ -134,6 +134,10 @@ body.shabbat-details-pending > *:not(#shabbat-entry-gate) {
   display: inline-block;
   text-decoration: none;
   margin-top: 0.35rem;
+  background: none;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
 }
 
 .header-action--home {

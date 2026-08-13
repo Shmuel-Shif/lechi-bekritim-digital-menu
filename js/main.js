@@ -738,17 +738,17 @@
     headerFoto('fries.webp'),
     headerFoto('fruit-plate.webp'),
     headerFoto('3.webp'),
-    headerFoto('fruit-shake.webp'),
+    headerFoto('keter-david.webp'),
     headerFoto('hummus-egg.webp'),
     headerFoto('amburger.webp'),
     headerFoto('denis.webp'),
     headerFoto('4.webp'),
-    headerFoto('salmon.webp'),
+    headerFoto('asado.webp'),
     headerFoto('2.webp'),
     headerFoto('schnitzel.webp'),
-    headerFoto('puree.webp'),
+    headerFoto('staik-antarkot.webp'),
     headerFoto('fanta.webp'),
-    headerFoto('sprite.webp'),
+    headerFoto('kerem-israel.webp'),
   ];
 
   const HERO_SLIDES_BUTCHER = [
@@ -797,6 +797,16 @@
       return DISH_I18N.en[item.id].name;
     }
     return resolved.name;
+  }
+
+  function isNonAlcoholicItem(item) {
+    return Boolean(getResolvedItem(item)?.nonAlcoholic);
+  }
+
+  function formatDishNameHtml(item) {
+    const nameHtml = escapeHtml(getItemName(item));
+    if (!isNonAlcoholicItem(item)) return nameHtml;
+    return `${nameHtml} <span class="food-na-badge">(${escapeHtml(t('nonAlcoholicLabel'))})</span>`;
   }
 
   function getItemDesc(item) {
@@ -1934,6 +1944,10 @@
     return window.SHAKE_BASE_ITEMS || [];
   }
 
+  function getLimonanaAlcoholItems() {
+    return window.LIMONANA_ALCOHOL_ITEMS || [];
+  }
+
   function getHamburgerDrinkItems() {
     const ids = window.HAMBURGER_DRINK_IDS;
     if (!ids || typeof ids.forEach !== 'function') return [];
@@ -1952,7 +1966,9 @@
     }
     const hot = HOT_SIDE_ITEMS.find((item) => item.id === itemId);
     if (hot) return hot;
-    return getShakeBaseItems().find((item) => item.id === itemId) || null;
+    return getShakeBaseItems().find((item) => item.id === itemId)
+      || getLimonanaAlcoholItems().find((item) => item.id === itemId)
+      || null;
   }
 
   function getSideQtyForMain(mainLineId, sideItemId) {
@@ -1963,8 +1979,8 @@
   }
 
   function addSideToMainLine(mainLineId, sideItemId) {
-    /* Shake bases are always available options (not inventory SKUs). */
-    if (!isShakeBase(sideItemId) && !isProductAvailable(sideItemId)) {
+    /* Shake bases / limonana alcohol are always available options (not inventory SKUs). */
+    if (!isShakeBase(sideItemId) && !isLimonanaAlcoholOption(sideItemId) && !isProductAvailable(sideItemId)) {
       showCartToast(t('outOfStock'));
       return false;
     }
@@ -2036,6 +2052,10 @@
     return itemId === (window.FRUIT_SHAKE_ID || 'fruit-shake');
   }
 
+  function isLimonana(itemId) {
+    return itemId === (window.LIMONANA_ID || 'limonana');
+  }
+
   function isHamburgerMeal(itemId) {
     return itemId === (window.HAMBURGER_MEAL_ID || 'hamburger-fries');
   }
@@ -2044,22 +2064,31 @@
     return Boolean(window.SHAKE_BASE_IDS?.has?.(itemId));
   }
 
+  function isLimonanaAlcoholOption(itemId) {
+    return Boolean(window.LIMONANA_ALCOHOL_IDS?.has?.(itemId));
+  }
+
   function isHamburgerDrinkOption(itemId) {
     return Boolean(window.HAMBURGER_DRINK_IDS?.has?.(itemId));
   }
 
-  /** Linked option under a parent line (hot side, shake base, or meal drink). */
+  /** Linked option under a parent line (hot side, shake base, meal drink, or limonana alcohol). */
   function isLinkedOption(itemId) {
-    return isHotSide(itemId) || isShakeBase(itemId);
+    return isHotSide(itemId) || isShakeBase(itemId) || isLimonanaAlcoholOption(itemId);
   }
 
   function isParentWithOptions(itemId) {
-    return isMainCourse(itemId) || isFruitShake(itemId) || isHamburgerMeal(itemId);
+    return isMainCourse(itemId) || isFruitShake(itemId) || isHamburgerMeal(itemId) || isLimonana(itemId);
+  }
+
+  function isRequiredPickParent(itemId) {
+    return isFruitShake(itemId) || isHamburgerMeal(itemId) || isLimonana(itemId);
   }
 
   function getPickerOptionsForParent(parentItemId) {
     if (isFruitShake(parentItemId)) return getShakeBaseItems();
     if (isHamburgerMeal(parentItemId)) return getHamburgerDrinkItems();
+    if (isLimonana(parentItemId)) return getLimonanaAlcoholItems();
     return getHotSideItems();
   }
 
@@ -3031,7 +3060,7 @@
         <div class="food-content">
           <div class="food-text">
             <div class="food-text-body">
-              <h3 class="food-name">${escapeHtml(getItemName(item))}</h3>
+              <h3 class="food-name">${formatDishNameHtml(item)}</h3>
               ${descHtml}
               <div class="food-meta">
                 ${priceHtml}
@@ -3290,7 +3319,7 @@
         <article class="food-modal-card">
           ${imageHtml}
           <div class="food-modal-info">
-            <h2 id="food-modal-title" class="food-modal-title">${escapeHtml(getItemName(item))}</h2>
+            <h2 id="food-modal-title" class="food-modal-title">${formatDishNameHtml(item)}</h2>
             ${desc ? `<p class="food-modal-desc">${escapeHtml(desc)}</p>` : ''}
             ${priceHtml}
           </div>
@@ -3376,12 +3405,18 @@
 
     const shakeMode = isFruitShake(mainLine.itemId);
     const drinkMode = isHamburgerMeal(mainLine.itemId);
+    const limonanaMode = isLimonana(mainLine.itemId);
+    const compactPicker = shakeMode || drinkMode || limonanaMode;
     const titleKey = shakeMode
       ? 'chooseShakeBaseTitle'
-      : (drinkMode ? 'chooseDrinkTitle' : 'chooseSidesTitle');
+      : (drinkMode
+        ? 'chooseDrinkTitle'
+        : (limonanaMode ? 'chooseLimonanaAlcoholTitle' : 'chooseSidesTitle'));
     const subtitleKey = shakeMode
       ? 'chooseShakeBaseSubtitle'
-      : (drinkMode ? 'chooseDrinkSubtitle' : 'chooseSidesSubtitle');
+      : (drinkMode
+        ? 'chooseDrinkSubtitle'
+        : (limonanaMode ? 'chooseLimonanaAlcoholSubtitle' : 'chooseSidesSubtitle'));
     const selectedCount = countSidesForMain(openSidesMainLineId);
     const cellsHtml = getPickerOptionsForParent(mainLine.itemId).map((side) => {
       const qty = getSideQtyForMain(openSidesMainLineId, side.id);
@@ -3414,20 +3449,21 @@
         >
           ${imageHtml}
           <span class="sides-picker-name">${escapeHtml(getItemName(side))}</span>
+          ${limonanaMode ? `<span class="sides-picker-price">${escapeHtml(formatPrice((getItemPrice(mainItem) || 0) + (Number(side.price) || 0)))}</span>` : ''}
           <span class="sides-picker-check" aria-hidden="true"></span>
         </button>
       `;
     }).join('');
 
-    const continueDisabled = (shakeMode || drinkMode) && selectedCount < 1;
+    const continueDisabled = compactPicker && selectedCount < 1;
     sidesModalBody.innerHTML = `
-      <div class="sides-modal-content${shakeMode || drinkMode ? ' sides-modal-content--shake' : ''}">
+      <div class="sides-modal-content${compactPicker ? ' sides-modal-content--shake' : ''}">
         <header class="sides-modal-header">
           <h2 id="sides-modal-title" class="sides-modal-title">${escapeHtml(t(titleKey))}</h2>
           <p class="sides-modal-subtitle">${escapeHtml(tReplace(subtitleKey, { name: getItemName(mainItem) }))}</p>
           <p class="sides-modal-count" aria-live="polite">${escapeHtml(tReplace('sidesSelected', { count: String(selectedCount) }))}</p>
         </header>
-        <div class="sides-picker-table${shakeMode || drinkMode ? ' sides-picker-table--shake' : ''}" role="group" aria-label="${escapeAttr(t(titleKey))}">
+        <div class="sides-picker-table${compactPicker ? ' sides-picker-table--shake' : ''}" role="group" aria-label="${escapeAttr(t(titleKey))}">
           ${cellsHtml}
         </div>
         <footer class="sides-modal-footer">
@@ -3475,8 +3511,7 @@
 
     const parentLineId = openSidesMainLineId;
     const parentLine = parentLineId ? findCartLine(parentLineId) : null;
-    const mustPickOption = parentLine
-      && (isFruitShake(parentLine.itemId) || isHamburgerMeal(parentLine.itemId));
+    const mustPickOption = parentLine && isRequiredPickParent(parentLine.itemId);
     const hasPick = parentLineId ? countSidesForMain(parentLineId) > 0 : true;
 
     openSidesMainLineId = null;
@@ -4671,8 +4706,7 @@
               /* Merge drinks/starters/butcher qty; keep mains separate. */
               allowMerge: !linkedToMainItemId
                 && !isMainCourse(line.itemId)
-                && !isFruitShake(line.itemId)
-                && !isHamburgerMeal(line.itemId),
+                && !isRequiredPickParent(line.itemId),
               linkedToMainItemId,
             }
           );
@@ -5473,7 +5507,7 @@
 
     let newMainLineId = null;
 
-    if (isMainCourse(itemId) || isFruitShake(itemId) || isHamburgerMeal(itemId)) {
+    if (isMainCourse(itemId) || isRequiredPickParent(itemId)) {
       const lineId = createCartLineId();
       cartLines.push({ lineId, itemId, qty: 1, linkedToMainLineId: null });
       moveCartLineToTop(lineId);
@@ -5504,8 +5538,8 @@
         });
         moveCartLineToTop(lineId);
       }
-    } else if (isShakeBase(itemId)) {
-      /* Shake bases are only added via the fruit-shake picker. */
+    } else if (isShakeBase(itemId) || isLimonanaAlcoholOption(itemId)) {
+      /* Shake bases / limonana alcohol are only added via the picker. */
       return;
     } else if (isSoldByPack(catalogItem) || isSoldByPack(itemId)) {
       const existing = cartLines.find(
@@ -5534,8 +5568,7 @@
         (l) => l.itemId === itemId
           && !l.linkedToMainLineId
           && !isMainCourse(l.itemId)
-          && !isFruitShake(l.itemId)
-          && !isHamburgerMeal(l.itemId)
+          && !isRequiredPickParent(l.itemId)
       );
 
       if (existing) {
@@ -5556,7 +5589,7 @@
 
     saveCart();
     renderCart();
-    if (!isHotSide(itemId) && !isShakeBase(itemId)) {
+    if (!isHotSide(itemId) && !isShakeBase(itemId) && !isLimonanaAlcoholOption(itemId)) {
       refreshFoodCards(itemId);
       updateOpenFoodModal();
     }
@@ -5616,6 +5649,11 @@
       line.qty = newQty;
     } else {
       line.qty = newQty;
+      if (isLimonana(line.itemId)) {
+        getSideLinesForMain(lineId).forEach((side) => {
+          side.qty = newQty;
+        });
+      }
     }
     clampPackThawCount(line);
 
@@ -5707,7 +5745,7 @@
     if (!line?.linkedToMainLineId) return false;
     const parent = findCartLine(line.linkedToMainLineId);
     if (!parent) return false;
-    return isFruitShake(parent.itemId) || isHamburgerMeal(parent.itemId) || isMainCourse(parent.itemId);
+    return isRequiredPickParent(parent.itemId) || isMainCourse(parent.itemId);
   }
 
   function getCartLineUnitPrice(line, item) {
@@ -5777,7 +5815,9 @@
         ? `<p class="cart-item-meta">${escapeHtml(t('shakeBaseLabel'))}</p>`
         : (isHamburgerMeal(mainItem.id)
           ? `<p class="cart-item-meta">${escapeHtml(t('drinkIncludedLabel'))}</p>`
-          : `<p class="cart-item-meta">${escapeHtml(tReplace('sideForMain', { name: getItemName(mainItem) }))}</p>`);
+          : (isLimonana(mainItem.id)
+            ? `<p class="cart-item-meta">${escapeHtml(t('limonanaAlcoholLabel'))}</p>`
+            : `<p class="cart-item-meta">${escapeHtml(tReplace('sideForMain', { name: getItemName(mainItem) }))}</p>`));
     } else if (isParentWithOptions(line.itemId)) {
       const sideNames = getSideLinesForMain(line.lineId)
         .map((s) => {
@@ -5815,7 +5855,9 @@
       ? t('shakeBaseLabel')
       : (mainItem && isHamburgerMeal(mainItem.id)
         ? t('drinkIncludedLabel')
-        : t('sideLabel'));
+        : (mainItem && isLimonana(mainItem.id)
+          ? t('limonanaAlcoholLabel')
+          : t('sideLabel')));
     const unitHtml = variant === 'child'
       ? `<p class="cart-item-badge">${escapeHtml(childBadge)}</p>`
       : (byPack
