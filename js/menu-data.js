@@ -179,7 +179,7 @@ const TRANSLATIONS = {
       mains: 'מנות עיקריות',
       hotSides: 'תוספות חמות לבחירה',
       salads: 'סלטים',
-      cocktails: 'קוקטיילים',
+      cocktails: 'שייקים/קוקטיילים',
       coldDrinks: 'שתייה קלה',
       hotDrinks: 'שתייה חמה',
       desserts: 'קינוחים',
@@ -365,7 +365,7 @@ const TRANSLATIONS = {
       mains: 'Main Courses',
       hotSides: 'Hot Sides to Choose',
       salads: 'Salads',
-      cocktails: 'Cocktails',
+      cocktails: 'Shakes / Cocktails',
       coldDrinks: 'Soft Drinks',
       hotDrinks: 'Hot Drinks',
       desserts: 'Desserts',
@@ -516,6 +516,7 @@ const DISH_I18N = {
     corona: { name: 'Corona', desc: '' },
     soda: { name: 'Soda', desc: '' },
     water: { name: 'Mineral Water', desc: '' },
+    'orange-juice': { name: 'Freshly Squeezed Orange Juice', desc: '' },
     'fruit-shake': {
       name: 'Refreshing Fruit Shake',
       desc: 'Non-alcoholic. Water / orange / soy base (depending on available fruits).',
@@ -801,6 +802,15 @@ const MENU_DATA = {
       id: 'cocktails',
       titleKey: 'categories.cocktails',
       items: [
+        {
+          id: 'orange-juice',
+          name: 'מיץ תפוזים סחוט טבעי',
+          printName: 'Mitz Tapuzim',
+          description: '',
+          price: 7,
+          image: dishImage('orange-juice'),
+          nonAlcoholic: true,
+        },
         {
           id: 'fruit-shake',
           name: 'שייק פירות מרענן',

@@ -770,9 +770,9 @@
     const keys = key.split('.');
     function lookup(lang) {
       let value = TRANSLATIONS[lang];
-      keys.forEach((k) => {
-        value = value?.[k];
-      });
+    keys.forEach((k) => {
+      value = value?.[k];
+    });
       return value;
     }
     return lookup(currentLang) ?? lookup('en') ?? lookup('he') ?? key;
@@ -2971,9 +2971,9 @@
           <div class="food-pack-qty">
             ${byPack ? `<p class="food-pack-qty__label">${escapeHtml(t('packQtyControlLabel'))}</p>` : ''}
             <div class="food-qty-control">
-              <button type="button" class="food-qty-btn" data-action="dec-qty" data-item-id="${escapeAttr(item.id)}" aria-label="${escapeAttr(t('decrease'))}">−</button>
-              <span class="food-qty-value" aria-live="polite">${qty}</span>
-              <button type="button" class="food-qty-btn" data-action="inc-qty" data-item-id="${escapeAttr(item.id)}" aria-label="${escapeAttr(t('increase'))}">+</button>
+          <button type="button" class="food-qty-btn" data-action="dec-qty" data-item-id="${escapeAttr(item.id)}" aria-label="${escapeAttr(t('decrease'))}">−</button>
+          <span class="food-qty-value" aria-live="polite">${qty}</span>
+          <button type="button" class="food-qty-btn" data-action="inc-qty" data-item-id="${escapeAttr(item.id)}" aria-label="${escapeAttr(t('increase'))}">+</button>
             </div>
           </div>
           ${renderPackThawControls(item)}
@@ -3134,8 +3134,8 @@
 
   function refreshFoodCardById(itemId, options = {}) {
     if (!itemId) return;
-    const item = findItem(itemId);
-    if (!item) return;
+      const item = findItem(itemId);
+      if (!item) return;
 
     $$(`.food-card[data-item-id="${CSS.escape(itemId)}"]`).forEach((article) => {
       if (options.full) rebuildFoodCard(article, item);
@@ -3259,11 +3259,11 @@
         <div class="food-modal-actions" data-stop-modal="true">
           <div class="food-pack-qty">
             ${byPack ? `<p class="food-pack-qty__label">${escapeHtml(t('packQtyControlLabel'))}</p>` : ''}
-            <div class="food-qty-control food-qty-control--modal">
-              <button type="button" class="food-qty-btn" data-action="dec-qty" data-item-id="${escapeAttr(item.id)}" aria-label="${escapeAttr(t('decrease'))}">−</button>
-              <span class="food-qty-value" aria-live="polite">${qty}</span>
-              <button type="button" class="food-qty-btn" data-action="inc-qty" data-item-id="${escapeAttr(item.id)}" aria-label="${escapeAttr(t('increase'))}">+</button>
-            </div>
+          <div class="food-qty-control food-qty-control--modal">
+            <button type="button" class="food-qty-btn" data-action="dec-qty" data-item-id="${escapeAttr(item.id)}" aria-label="${escapeAttr(t('decrease'))}">−</button>
+            <span class="food-qty-value" aria-live="polite">${qty}</span>
+            <button type="button" class="food-qty-btn" data-action="inc-qty" data-item-id="${escapeAttr(item.id)}" aria-label="${escapeAttr(t('increase'))}">+</button>
+          </div>
           </div>
           ${renderPackThawControls(item, { modal: true })}
         </div>
@@ -3352,7 +3352,7 @@
 
     const card = foodModalBody?.querySelector('.food-modal-card');
     if (!card) {
-      openFoodModalById(openModalItemId);
+    openFoodModalById(openModalItemId);
       return;
     }
 
@@ -5549,7 +5549,7 @@
         existing.qty += 1;
         existing.thawCount = Math.min(Number(existing.thawCount) || 0, existing.qty);
         moveCartLineToTop(existing.lineId);
-      } else {
+    } else {
         const lineId = createCartLineId();
         cartLines.push({
           lineId,
@@ -5591,7 +5591,7 @@
     renderCart();
     if (!isHotSide(itemId) && !isShakeBase(itemId) && !isLimonanaAlcoholOption(itemId)) {
       refreshFoodCards(itemId);
-      updateOpenFoodModal();
+    updateOpenFoodModal();
     }
 
     if (newMainLineId) {
@@ -5631,7 +5631,7 @@
       renderCart();
       if (!wasLinkedOption) {
         refreshFoodCards(itemId);
-        updateOpenFoodModal();
+      updateOpenFoodModal();
       }
 
       if (wasLinkedOption && mainLineId && findCartLine(mainLineId)) {
@@ -5653,7 +5653,7 @@
         getSideLinesForMain(lineId).forEach((side) => {
           side.qty = newQty;
         });
-      }
+    }
     }
     clampPackThawCount(line);
 
@@ -5901,7 +5901,7 @@
             ${unitHtml}
           </div>
           ${controlsHtml}
-        </div>
+          </div>
         ${totalHtml}
       </article>
     `;
