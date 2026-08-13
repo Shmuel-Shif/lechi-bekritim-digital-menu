@@ -227,13 +227,14 @@
     'shabbat-fruit-plate',
   ]);
 
-  function collectDrinkProductIds() {
+  function collectCategoryProductIds(categoryIds) {
+    const wanted = new Set(categoryIds);
     const ids = new Set();
     const categories = global.MENU_DATA?.categories;
     if (!Array.isArray(categories)) return ids;
 
     categories.forEach((cat) => {
-      if (cat?.id !== 'coldDrinks' && cat?.id !== 'hotDrinks' && cat?.id !== 'cocktails') return;
+      if (!wanted.has(cat?.id)) return;
       (cat.items || []).forEach((item) => {
         if (item?.id) ids.add(String(item.id));
       });
@@ -247,12 +248,36 @@
     return ids;
   }
 
+  function collectDrinkProductIds() {
+    return collectCategoryProductIds(['coldDrinks', 'hotDrinks', 'cocktails']);
+  }
+
+  function collectCocktailProductIds() {
+    const ids = collectCategoryProductIds(['cocktails']);
+    (global.SHAKE_BASE_ITEMS || []).forEach((item) => {
+      if (item?.id) ids.add(String(item.id));
+    });
+    (global.LIMONANA_ALCOHOL_ITEMS || []).forEach((item) => {
+      if (item?.id) ids.add(String(item.id));
+    });
+    return ids;
+  }
+
   function isBarItem(item, drinkIds) {
     if (!item?.productId) return false;
     const pid = String(item.productId);
     if (BAR_ONLY_PRODUCT_IDS.has(pid)) return true;
     if (drinkIds.has(pid)) return true;
     /* Shake bases are drink options — always bar with the fruit shake */
+    if (global.SHAKE_BASE_IDS?.has?.(pid)) return true;
+    if (global.LIMONANA_ALCOHOL_IDS?.has?.(pid)) return true;
+    return false;
+  }
+
+  function isCocktailBarItem(item, cocktailIds) {
+    if (!item?.productId) return false;
+    const pid = String(item.productId);
+    if (cocktailIds.has(pid)) return true;
     if (global.SHAKE_BASE_IDS?.has?.(pid)) return true;
     if (global.LIMONANA_ALCOHOL_IDS?.has?.(pid)) return true;
     return false;
@@ -280,8 +305,11 @@
   function splitPrintableItems(order) {
     const printable = getPrintableItems(order);
     const drinkIds = collectDrinkProductIds();
+    const cocktailIds = collectCocktailProductIds();
     const kitchen = [];
     const bar = [];
+    const barDrinks = [];
+    const barCocktails = [];
 
     const byId = new Map();
     printable.forEach((item) => {
@@ -303,12 +331,31 @@
       return isBarItem(item, drinkIds) ? 'bar' : 'kitchen';
     }
 
+    function barGroupFor(item, seen = new Set()) {
+      if (!item) return 'drinks';
+      const id = item.itemId != null ? String(item.itemId) : '';
+      if (id) {
+        if (seen.has(id)) return isCocktailBarItem(item, cocktailIds) ? 'cocktails' : 'drinks';
+        seen.add(id);
+      }
+      if (item.linkedToMainItemId) {
+        const parent = byId.get(String(item.linkedToMainItemId));
+        if (parent) return barGroupFor(parent, seen);
+      }
+      return isCocktailBarItem(item, cocktailIds) ? 'cocktails' : 'drinks';
+    }
+
     printable.forEach((item) => {
-      if (channelFor(item) === 'bar') bar.push(item);
-      else kitchen.push(item);
+      if (channelFor(item) === 'bar') {
+        bar.push(item);
+        if (barGroupFor(item) === 'cocktails') barCocktails.push(item);
+        else barDrinks.push(item);
+      } else {
+        kitchen.push(item);
+      }
     });
 
-    return { kitchen, bar, all: printable };
+    return { kitchen, bar, barDrinks, barCocktails, all: printable };
   }
 
   function formatItemName(item) {
@@ -751,6 +798,20 @@
     return buildTicket(resolved, 'BAR', bar, ticketSeq);
   }
 
+  function buildBarDrinksTicket(order, ticketSeq) {
+    const resolved = resolveOrder(order);
+    if (!resolved) return '';
+    const { barDrinks } = splitPrintableItems(resolved);
+    return buildTicket(resolved, 'BAR', barDrinks, ticketSeq);
+  }
+
+  function buildBarCocktailsTicket(order, ticketSeq) {
+    const resolved = resolveOrder(order);
+    if (!resolved) return '';
+    const { barCocktails } = splitPrintableItems(resolved);
+    return buildTicket(resolved, 'BAR', barCocktails, ticketSeq);
+  }
+
   async function printKitchen(order, ticketSeq) {
     const resolved = resolveOrder(order);
     const seq = ticketSeq != null ? ticketSeq : allocateTicketSequence(resolved);
@@ -762,9 +823,16 @@
   async function printBar(order, ticketSeq) {
     const resolved = resolveOrder(order);
     const seq = ticketSeq != null ? ticketSeq : allocateTicketSequence(resolved);
-    const ticket = buildBarTicket(resolved, seq);
-    if (!ticket) return true;
-    return (await sendTicket(ticket, 'bar')) === true;
+    const drinksTicket = buildBarDrinksTicket(resolved, seq);
+    const cocktailsTicket = buildBarCocktailsTicket(resolved, seq);
+
+    if (drinksTicket) {
+      if ((await sendTicket(drinksTicket, 'bar')) !== true) return false;
+    }
+    if (cocktailsTicket) {
+      if ((await sendTicket(cocktailsTicket, 'bar')) !== true) return false;
+    }
+    return true;
   }
 
   /**
