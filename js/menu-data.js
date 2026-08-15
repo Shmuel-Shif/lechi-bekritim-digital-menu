@@ -433,11 +433,11 @@ const DISH_I18N = {
     },
     'staik-antarkot': {
       name: 'Premium Entrecote Steak',
-      desc: 'Premium entrecote steak 300g, grilled medium, served with green chimichurri on the side, chili pepper, fire-roasted tomato, and sweet potato cream.',
+      desc: 'Premium entrecote steak 300g, grilled medium, served with grilled vegetables, chimichurri and sweet potato cream.',
     },
     asado: {
       name: 'Fall-off-the-bone Asado',
-      desc: 'Slow-cooked asado, 700–800g, until the meat is tender and falls off the bone, served with green chimichurri on the side, chili pepper and red onion.',
+      desc: 'Slow-cooked asado, 600–700g, until the meat is tender and falls off the bone, served with grilled vegetables, chimichurri and sweet potato cream.',
     },
     'whole-fish': {
       name: 'Whole Baked Sea Bream',
@@ -686,7 +686,7 @@ const MENU_DATA = {
           id: 'staik-antarkot',
           name: 'סטייק אנטריקוט פרימיום',
           printName: 'Entrecote',
-          description: 'סטייק אנטריקוט פרימיום 300 גרם, צלוי למידת עשייה מדיום, מוגש עם צ\'ימיצ\'ורי ירוק בצד, פלפל חריף ועגבנייה צלויה על האש, וקרם בטטה.',
+          description: 'סטייק אנטריקוט פרימיום 300 גרם, צלוי למידת עשייה מדיום, מוגש עם ירקות על האש, צ\'ימיצ\'ורי וקרם בטטה.',
           price: 52,
           image: dishImage('staik-antarkot'),
         },
@@ -694,8 +694,8 @@ const MENU_DATA = {
           id: 'asado',
           name: 'אסאדו מתפרק מהעצם',
           printName: 'Asado',
-          description: 'אסאדו בבישול ארוך, במשקל 700–800 גרם, עד שהבשר רך ומתפרק מהעצם, מוגש עם צ\'ימיצ\'ורי ירוק בצד, פלפל חריף ובצל סגול.',
-          price: 83,
+          description: 'אסאדו בבישול ארוך, במשקל 600–700 גרם, עד שהבשר רך ומתפרק מהעצם, מוגש עם ירקות על האש, צ\'ימיצ\'ורי וקרם בטטה.',
+          price: 78,
           image: dishImage('asado'),
         },
       ],
