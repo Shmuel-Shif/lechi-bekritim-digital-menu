@@ -221,7 +221,7 @@
     return lines;
   }
 
-  /** Always bar — fruit platter prints with drinks, not kitchen. */
+  /** Always bar — fruit platter prints with cocktails, not kitchen. */
   const BAR_ONLY_PRODUCT_IDS = new Set([
     'fruit-plate',
     'shabbat-fruit-plate',
@@ -253,7 +253,8 @@
   }
 
   function collectCocktailProductIds() {
-    const ids = collectCategoryProductIds(['cocktails']);
+    const ids = collectCategoryProductIds(['cocktails', 'hotDrinks']);
+    BAR_ONLY_PRODUCT_IDS.forEach((id) => ids.add(id));
     (global.SHAKE_BASE_ITEMS || []).forEach((item) => {
       if (item?.id) ids.add(String(item.id));
     });
@@ -277,6 +278,7 @@
   function isCocktailBarItem(item, cocktailIds) {
     if (!item?.productId) return false;
     const pid = String(item.productId);
+    if (BAR_ONLY_PRODUCT_IDS.has(pid)) return true;
     if (cocktailIds.has(pid)) return true;
     if (global.SHAKE_BASE_IDS?.has?.(pid)) return true;
     if (global.LIMONANA_ALCOHOL_IDS?.has?.(pid)) return true;

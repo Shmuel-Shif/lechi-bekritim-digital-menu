@@ -395,6 +395,10 @@ const DISH_I18N = {
       name: 'Opening Salad Platter',
       desc: 'Selection of refreshing house salads with warm bread (recommended for the table center).',
     },
+    'hatzil-patuach': {
+      name: 'Open Eggplant for the Table Center',
+      desc: 'Open Baladi eggplant with tahini on top and cilantro.',
+    },
     hummus: {
       name: 'House Hummus',
       desc: 'Creamy handmade hummus, served with olive oil, cumin and bread.',
@@ -590,6 +594,15 @@ const MENU_DATA = {
           description: 'מבחר סלטי הבית המרעננים לצד לחם חם (מומלץ למרכז שולחן).',
           price: 15,
           image: dishImage('salad-plate'),
+        },
+        {
+          id: 'hatzil-patuach',
+          name: 'חציל פתוח למרכז שולחן',
+          printName: 'Hatzil',
+          description: 'חציל בלאדי פתוח עם טחינה מעל וכוסברה.',
+          price: 15,
+          image: dishImage('hatzil-patuach'),
+          dineInOnly: true,
         },
         {
           id: 'hummus',

@@ -743,6 +743,7 @@
     headerFoto('amburger.webp'),
     headerFoto('denis.webp'),
     headerFoto('4.webp'),
+    headerFoto('5.webp'),
     headerFoto('asado.webp'),
     headerFoto('2.webp'),
     headerFoto('schnitzel.webp'),
@@ -2604,6 +2605,7 @@
   /** Customer menu: hide out-of-stock dishes entirely (admin toggle brings them back in place). */
   function isMenuItemVisible(item) {
     if (!item || item.adminOnly) return false;
+    if (item.dineInOnly && (isTakeawayContext() || isButcherContext())) return false;
     return isProductAvailable(item.id);
   }
 
@@ -5499,6 +5501,7 @@
 
     const catalogItem = findItem(itemId);
     if (catalogItem?.adminOnly) return;
+    if (catalogItem?.dineInOnly && (isTakeawayContext() || isButcherContext())) return;
 
     if (!isProductAvailable(itemId)) {
       showCartToast(t('outOfStock'));

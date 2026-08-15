@@ -257,6 +257,7 @@
         categoryTitle: getCategoryTitle(categoryTitleKey, categoryId),
         available: isAvailable(resolved.id),
         adminOnly: Boolean(item.adminOnly),
+        dineInOnly: Boolean(item.dineInOnly),
         scope: isButcher ? 'butcher' : 'weekday',
         base: {
           name: item.name,

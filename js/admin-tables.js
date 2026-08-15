@@ -1983,7 +1983,12 @@
 
     if (!menuList) return;
 
+    const entry = getSelectedEntry();
+    const isDineInOrder = entry?.orderType === 'dinein'
+      || entry?.orderType === 'dine-in'
+      || entry?.orderType === 'dine_in';
     const visible = catalog.filter((item) => {
+      if (item.dineInOnly && !isDineInOrder) return false;
       if (menuCategoryId !== 'all' && item.categoryId !== menuCategoryId) return false;
       if (!query) return true;
       const hay = `${item.name || ''} ${item.categoryTitle || ''}`.toLowerCase();
