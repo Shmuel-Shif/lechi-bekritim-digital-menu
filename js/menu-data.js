@@ -604,7 +604,6 @@ const MENU_DATA = {
           description: 'חציל בלאדי פתוח עם טחינה מעל וכוסברה.',
           price: 15,
           image: dishImage('hatzil-patuach'),
-          dineInOnly: true,
         },
         {
           id: 'hummus',
