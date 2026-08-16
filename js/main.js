@@ -52,6 +52,9 @@
   const orderReceiptOrderNo = $('#order-receipt-order-no');
   const orderReceiptRemember = $('#order-receipt-remember');
   const orderReceiptMeta = $('#order-receipt-meta');
+  const orderReceiptPrep = $('#order-receipt-prep');
+  const orderReceiptPrepTime = $('#order-receipt-prep-time');
+  const orderReceiptPrepThanks = $('#order-receipt-prep-thanks');
   const orderReceiptBody = $('#order-receipt-body');
   const orderReceiptTotal = $('#order-receipt-total');
   const orderReceiptTotalLabel = $('#order-receipt-total-label');
@@ -2421,25 +2424,58 @@
     return false;
   }
 
+  const RECOMMENDED_POPUP_LAST_KEY = 'lechaim-recommended-popup-last';
+  const SKIP_RECOMMENDED_POPUP_CATEGORIES = new Set(['hotSides', 'shakeBases']);
+
+  function collectRecommendedPopupIds() {
+    const ids = [];
+    const seen = new Set();
+    getVisibleCategories().forEach((cat) => {
+      if (SKIP_RECOMMENDED_POPUP_CATEGORIES.has(cat.id)) return;
+      const lists = [cat.items || []];
+      (cat.subsections || []).forEach((sub) => lists.push(sub.items || []));
+      lists.forEach((list) => {
+        list.forEach((item) => {
+          if (!item?.id || seen.has(item.id)) return;
+          if (item.adminOnly) return;
+          if (!isMenuItemVisible(item)) return;
+          if (!isProductRecommended(item.id)) return;
+          seen.add(item.id);
+          ids.push(item.id);
+        });
+      });
+    });
+    return ids;
+  }
+
+  function pickNextRecommendedPopupId(candidates) {
+    if (!candidates.length) return null;
+    let last = '';
+    try {
+      last = String(sessionStorage.getItem(RECOMMENDED_POPUP_LAST_KEY) || '');
+    } catch (_) { /* ignore */ }
+    const lastIndex = candidates.indexOf(last);
+    const next = candidates[(lastIndex + 1) % candidates.length];
+    try {
+      sessionStorage.setItem(RECOMMENDED_POPUP_LAST_KEY, next);
+    } catch (_) { /* ignore */ }
+    return next;
+  }
+
   async function maybeShowRecommendedToday() {
     stopRecommendedTodayWait();
     recommendedTodayShownForEntry = false;
     if (isButcherContext()) return;
 
-    const api = window.LechaimSupabaseOrders;
-    if (typeof api?.getRecommendedTodayProductId !== 'function') return;
-
-    let productId = null;
     try {
       if (typeof window.LechaimInventory?.load === 'function') {
         await window.LechaimInventory.load();
       }
-      productId = await api.getRecommendedTodayProductId();
     } catch (err) {
-      console.warn('[recommended-today] load failed', err);
-      return;
+      console.warn('[recommended-today] inventory load failed', err);
     }
 
+    const productId = pickNextRecommendedPopupId(collectRecommendedPopupIds());
     if (!productId) return;
     const item = findItem(productId);
     if (!item || !isMenuItemVisible(item)) return;
@@ -4502,6 +4538,13 @@
     if (orderReceiptEyebrow) orderReceiptEyebrow.textContent = t('receiptEyebrow');
     if (orderReceiptTitle) {
       orderReceiptTitle.textContent = viewing ? t('myOrderView') : t('receiptTitle');
+    }
+    if (orderReceiptPrep) {
+      orderReceiptPrep.hidden = isButcher;
+      if (!isButcher) {
+        if (orderReceiptPrepTime) orderReceiptPrepTime.textContent = t('receiptPrepTime');
+        if (orderReceiptPrepThanks) orderReceiptPrepThanks.textContent = t('receiptPrepThanks');
+      }
     }
     if (orderReceiptTotalLabel) orderReceiptTotalLabel.textContent = t('receiptTotal');
     if (orderReceiptContinue) {

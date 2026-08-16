@@ -15,14 +15,6 @@
   /** Exclusive end hour for is-open checks. */
   const CLOSE_HOUR = 22;
 
-  /**
-   * Temporary test override — restaurant is outside Sun–Thu 14:00–22:00.
-   * Set back to false after checking dine-in notes.
-   */
-  const FORCE_OPEN_FOR_TEST = true;
-
-  /** Last selectable takeaway / delivery pickup slot (inclusive). */
-
   /** Last selectable takeaway / delivery pickup slot (inclusive). */
   const TAKEAWAY_LAST_SLOT_HOUR = 21;
   const TAKEAWAY_LAST_SLOT_MINUTE = 45;
@@ -36,13 +28,11 @@
   const ADMIN_PLACE_RES_LAST_SLOT_MINUTE = 0;
 
   function isWeekendClosed(date = new Date()) {
-    if (FORCE_OPEN_FOR_TEST) return false;
     const day = date.getDay(); /* 0=Sun … 5=Fri 6=Sat */
     return day === 5 || day === 6;
   }
 
   function isWithinOrderingHours(date = new Date()) {
-    if (FORCE_OPEN_FOR_TEST) return true;
     if (isWeekendClosed(date)) return false;
     const hour = date.getHours();
     return hour >= OPEN_HOUR && hour < CLOSE_HOUR;

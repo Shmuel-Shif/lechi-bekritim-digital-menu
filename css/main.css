@@ -2784,6 +2784,33 @@ body.app-confirm-open {
   color: var(--color-text-muted, #5b6570);
 }
 
+.order-receipt__prep {
+  text-align: center;
+  padding: 0.7rem 0.85rem;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f7efe2 0%, #fff 72%);
+  border: 1px solid var(--color-gold-light, #e4d4b4);
+}
+
+.order-receipt__prep[hidden] {
+  display: none !important;
+}
+
+.order-receipt__prep-time {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.4;
+  color: var(--color-navy, #152640);
+}
+
+.order-receipt__prep-thanks {
+  margin: 0.2rem 0 0;
+  font-size: 0.86rem;
+  line-height: 1.4;
+  color: var(--color-navy, #152640);
+}
+
 .order-receipt__body {
   border-top: 1px dashed rgba(21, 38, 64, 0.16);
   border-bottom: 1px dashed rgba(21, 38, 64, 0.16);

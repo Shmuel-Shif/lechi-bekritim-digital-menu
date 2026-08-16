@@ -46,11 +46,6 @@
   let currentTab = 'tables';
   let dineInCloseAtMs = null;
   let kitchenCloseAdminTick = null;
-  let recommendedTodayId = '';
-  let flagsSubscribed = false;
-  const todayPickEl = document.getElementById('admin-today-pick');
-  const todaySelectEl = document.getElementById('admin-recommended-today');
-  const SKIP_TODAY_CATEGORIES = new Set(['hotSides', 'shakeBases']);
 
   function showError(el, message) {
     if (!el) return;
@@ -215,65 +210,6 @@
     return `€${price}`;
   }
 
-  function canBeRecommendedToday(item) {
-    if (!item?.id || item.adminOnly) return false;
-    if (SKIP_TODAY_CATEGORIES.has(item.categoryId)) return false;
-    return true;
-  }
-
-  function weekdayDishesForTodayPick() {
-    return LechaimInventory.getCatalog({ scope: 'weekday' }).filter(canBeRecommendedToday);
-  }
-
-  function fillRecommendedTodaySelect() {
-    if (!todaySelectEl) return;
-    const dishes = weekdayDishesForTodayPick();
-    const groups = groupCatalog(dishes);
-    const current = recommendedTodayId || '';
-    let html = '<option value="">ללא — לא להציג</option>';
-    groups.forEach((group) => {
-      html += `<optgroup label="${escapeAttr(group.title)}">`;
-      group.items.forEach((item) => {
-        html += `<option value="${escapeAttr(item.id)}">${escapeHtml(item.name)}</option>`;
-      });
-      html += '</optgroup>';
-    });
-    todaySelectEl.innerHTML = html;
-    todaySelectEl.value = current;
-    if (current && todaySelectEl.value !== current) {
-      todaySelectEl.value = '';
-    }
-  }
-
-  function syncTodayPickVisibility() {
-    if (todayPickEl) todayPickEl.hidden = currentInventoryScope !== 'weekday';
-  }
-
-  async function loadRecommendedToday() {
-    const api = window.LechaimSupabaseOrders;
-    if (typeof api?.getRecommendedTodayProductId !== 'function') return;
-    try {
-      recommendedTodayId = (await api.getRecommendedTodayProductId()) || '';
-    } catch (err) {
-      console.warn('[admin] recommended today load failed', err);
-    }
-    fillRecommendedTodaySelect();
-  }
-
-  async function saveRecommendedToday(productId) {
-    const api = window.LechaimSupabaseOrders;
-    if (typeof api?.setRecommendedTodayProductId !== 'function') {
-      throw new Error('חסר API לשמירת מומלץ היום');
-    }
-    const next = await api.setRecommendedTodayProductId(productId || null);
-    recommendedTodayId = next || '';
-    fillRecommendedTodaySelect();
-    if (currentTab === 'inventory' && currentInventoryScope === 'weekday') {
-      renderList();
-    }
-    return recommendedTodayId;
-  }
-
   function refreshCatalogCache() {
     catalogCache = LechaimInventory.getCatalog({ scope: currentInventoryScope });
     if (!catalogCache.length) {
@@ -346,9 +282,6 @@
     const recOn = typeof LechaimInventory.isRecommended === 'function'
       ? LechaimInventory.isRecommended(item.id)
       : Boolean(item.recommended);
-    const todayOn = currentInventoryScope === 'weekday'
-      && canBeRecommendedToday(item)
-      && recommendedTodayId === item.id;
     const name = item.name || '';
     const image = item.image || '';
     const priceLabel = formatPrice(item.price);
@@ -358,11 +291,10 @@
       : `<div class="admin-card__img admin-card__img--empty">אין תמונה</div>`;
 
     return `
-      <article class="admin-card${available ? '' : ' is-unavailable'}${recOn ? ' is-recommended' : ''}${todayOn ? ' is-today' : ''}" data-product-id="${escapeAttr(item.id)}">
+      <article class="admin-card${available ? '' : ' is-unavailable'}${recOn ? ' is-recommended' : ''}" data-product-id="${escapeAttr(item.id)}">
         <div class="admin-card__media">
           ${thumb}
           ${recOn ? '<span class="admin-card__ribbon">מומלץ</span>' : ''}
-          ${todayOn ? '<span class="admin-card__today">היום</span>' : ''}
           <span class="admin-card__badge ${available ? 'is-on' : 'is-off'}">${available ? 'יש במלאי' : 'אין במלאי'}</span>
         </div>
         <div class="admin-card__body">
@@ -388,16 +320,6 @@
           >
             ${recOn ? 'מומלץ' : 'סמן כמומלץ'}
           </button>
-          ${currentInventoryScope === 'weekday' && canBeRecommendedToday(item) ? `
-          <button
-            type="button"
-            class="admin-btn admin-btn--today ${todayOn ? 'is-on' : 'is-off'}"
-            data-action="toggle-today"
-            data-product-id="${escapeAttr(item.id)}"
-            aria-pressed="${todayOn ? 'true' : 'false'}"
-          >
-            ${todayOn ? 'מומלץ היום' : 'בחר כמומלץ היום'}
-          </button>` : ''}
         </div>
       </article>
     `;
@@ -408,8 +330,6 @@
 
     refreshCatalogCache();
     updateStats();
-    syncTodayPickVisibility();
-    fillRecommendedTodaySelect();
 
     const visible = getVisibleCatalog();
     const groups = groupCatalog(visible);
@@ -516,25 +436,6 @@
       showToast(next ? 'עודכן: מומלץ' : 'עודכן: הוסרה ההמלצה');
     } catch (err) {
       console.error('[admin] recommended toggle failed', err);
-      showError(panelError, err?.message || String(err));
-      button.disabled = false;
-    }
-  }
-
-  async function handleToggleToday(button) {
-    const productId = button.dataset.productId;
-    if (!productId) return;
-
-    const currentlyOn = button.getAttribute('aria-pressed') === 'true';
-    const nextId = currentlyOn ? '' : productId;
-    button.disabled = true;
-    showError(panelError, '');
-
-    try {
-      await saveRecommendedToday(nextId);
-      showToast(nextId ? 'עודכן: מומלץ היום' : 'עודכן: בוטל מומלץ היום');
-    } catch (err) {
-      console.error('[admin] recommended today failed', err);
       showError(panelError, err?.message || String(err));
       button.disabled = false;
     }
@@ -650,7 +551,6 @@
       refreshCatalogCache();
       updateStats();
       await refreshKitchenCloseFlag();
-      await loadRecommendedToday();
 
       if (LechaimInventory.areRecommendedEnabled?.() === false) {
         showError(
@@ -684,20 +584,6 @@
           const productId = typeof payload === 'string' ? payload : payload?.productId;
           if (productId) updateCard(productId);
           else renderList();
-        });
-      }
-
-      if (!flagsSubscribed && typeof window.LechaimSupabaseOrders?.subscribeRestaurantFlags === 'function') {
-        flagsSubscribed = true;
-        window.LechaimSupabaseOrders.subscribeRestaurantFlags((evt) => {
-          if (evt?.flagKey !== 'recommended_today') return;
-          const next = evt.flagValue ? String(evt.flagText || '').trim() : '';
-          if (next === recommendedTodayId) return;
-          recommendedTodayId = next;
-          fillRecommendedTodaySelect();
-          if (currentTab === 'inventory' && currentInventoryScope === 'weekday') {
-            renderList();
-          }
         });
       }
     } catch (err) {
@@ -829,22 +715,6 @@
     resetInventorySearch();
   }, 0);
 
-  todaySelectEl?.addEventListener('change', async () => {
-    const nextId = String(todaySelectEl.value || '').trim();
-    showError(panelError, '');
-    todaySelectEl.disabled = true;
-    try {
-      await saveRecommendedToday(nextId);
-      showToast(nextId ? 'עודכן: מומלץ היום' : 'עודכן: בוטל מומלץ היום');
-    } catch (err) {
-      console.error('[admin] recommended today select failed', err);
-      showError(panelError, err?.message || String(err));
-      fillRecommendedTodaySelect();
-    } finally {
-      todaySelectEl.disabled = false;
-    }
-  });
-
   scopesEl?.addEventListener('click', (event) => {
     const btn = event.target.closest('[data-inventory-scope]');
     if (!btn) return;
@@ -908,11 +778,6 @@
     const recBtn = event.target.closest('[data-action="toggle-recommended"]');
     if (recBtn) {
       handleToggleRecommended(recBtn);
-      return;
-    }
-    const todayBtn = event.target.closest('[data-action="toggle-today"]');
-    if (todayBtn) {
-      handleToggleToday(todayBtn);
     }
   });
 

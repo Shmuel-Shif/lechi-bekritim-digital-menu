@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/main.css?v=44">
+  <link rel="stylesheet" href="css/main.css?v=45">
   <link rel="stylesheet" href="css/theme-lechaim.css">
   <link rel="stylesheet" href="css/entry-gate.css?v=3">
   <link rel="icon" href="assets/logo/logo.webp" type="image/webp">
@@ -110,7 +110,7 @@
               </span>
               <span class="entry-gate__btn-text">
                 <span class="entry-gate__btn-label" data-entry-i18n="deliveryOrder">משלוח</span>
-                <span class="entry-gate__btn-hint" data-entry-i18n="deliveryOrderHint">משלוח בעלות €10 · מינימום הזמנה €75</span>
+                <span class="entry-gate__btn-hint" data-entry-i18n="deliveryOrderHint">משלוח בעלות €10 · זמן משלוח כשעה וחצי · מינימום הזמנה €75</span>
               </span>
               <span class="entry-gate__btn-chevron" aria-hidden="true"></span>
             </button>
@@ -903,7 +903,7 @@
           <span class="cart-total-price cart-total-price--fee" id="cart-delivery-fee-price">€10</span>
         </div>
         <div class="cart-session-total" id="cart-session-total">
-          <span class="cart-session-total__label" data-i18n="currentTotal">סה״כ עגלה</span>
+          <span class="cart-session-total__label" data-i18n="currentTotal">סה״כ הזמנה</span>
           <span class="cart-session-total__price" id="cart-session-total-price">€0.00</span>
         </div>
         <div class="cart-actions">
@@ -966,6 +966,10 @@
         <p class="order-receipt__remember" id="order-receipt-remember" hidden></p>
         <p class="order-receipt__meta" id="order-receipt-meta"></p>
       </header>
+      <div class="order-receipt__prep" id="order-receipt-prep">
+        <p class="order-receipt__prep-time" id="order-receipt-prep-time" data-i18n="receiptPrepTime">⏱️ זמן הכנה משוער: כ־20 דקות</p>
+        <p class="order-receipt__prep-thanks" id="order-receipt-prep-thanks" data-i18n="receiptPrepThanks">תודה רבה על הסבלנות ❤️</p>
+      </div>
       <div class="order-receipt__body" id="order-receipt-body"></div>
       <div class="order-receipt__total">
         <span id="order-receipt-total-label">סה״כ</span>
@@ -1013,15 +1017,15 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
   <script src="js/order-types.js" defer></script>
-  <script src="js/supabase-order-service.js?v=2" defer></script>
-  <script src="js/menu-data.js?v=52" defer></script>
-  <script src="js/opening-hours.js?v=test-open" defer></script>
+  <script src="js/supabase-order-service.js?v=3" defer></script>
+  <script src="js/menu-data.js?v=55" defer></script>
+  <script src="js/opening-hours.js?v=2" defer></script>
   <script src="js/inventory.js?v=42" defer></script>
   <script src="js/order-session.js?v=2" defer></script>
   <script src="js/order-engine.js" defer></script>
   <script src="js/a11y-focus-trap.js" defer></script>
-  <script src="js/main.js?v=44" defer></script>
+  <script src="js/main.js?v=46" defer></script>
   <script src="js/place-reservations.js" defer></script>
-  <script src="js/entry-gate.js?v=29" defer></script>
+  <script src="js/entry-gate.js?v=30" defer></script>
 </body>
 </html>
