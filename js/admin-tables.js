@@ -1021,6 +1021,11 @@
     return [...map.values()];
   }
 
+  function formatDineInNotesLabel(order) {
+    const text = String(order?.customerNotes || '').trim();
+    return text ? `הערות: ${text}` : 'אין הערות';
+  }
+
   function renderCard(entry) {
     const free = entry.uiStatus === 'free';
     const coupon = entry.order?.couponCode;
@@ -1363,6 +1368,13 @@
         `;
       } else {
         drawerMeta.innerHTML = `
+          <div class="table-drawer__pickup">
+            <div class="table-drawer__pickup-grid">
+              <div class="table-drawer__pickup-row">
+                <strong class="table-drawer__customer-notes" dir="auto">${escapeHtml(formatDineInNotesLabel(order))}</strong>
+              </div>
+            </div>
+          </div>
           <div class="table-drawer__meta-row">
             <div class="table-drawer__meta-item"><span>שעת פתיחה</span><strong>${escapeHtml(formatClock(entry.openedAt))}</strong></div>
             <div class="table-drawer__meta-item"><span>משך</span><strong>${escapeHtml(formatElapsed(entry.openedAt))}</strong></div>

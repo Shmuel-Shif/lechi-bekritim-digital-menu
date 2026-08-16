@@ -1767,6 +1767,49 @@
     return Boolean(enabled);
   }
 
+  /**
+   * Product id for the "מומלץ היום" popup on menu entry, or null if none.
+   * @returns {Promise<string|null>}
+   */
+  async function getRecommendedTodayProductId() {
+    const sb = getClient();
+    const { data, error } = await sb
+      .from('restaurant_flags')
+      .select('flag_value, flag_text')
+      .eq('flag_key', 'recommended_today')
+      .maybeSingle();
+    throwIfError(error, 'getRecommendedTodayProductId');
+    if (!data?.flag_value) return null;
+    const id = String(data.flag_text || '').trim();
+    return id || null;
+  }
+
+  /**
+   * Admin: set or clear the dish that pops up when customers enter the menu.
+   * @param {string|null} productId
+   * @returns {Promise<string|null>}
+   */
+  async function setRecommendedTodayProductId(productId) {
+    const sb = getClient();
+    const { data: authData } = await sb.auth.getSession();
+    if (!authData?.session) {
+      throw new Error(
+        'setRecommendedTodayProductId: must be signed in as admin (RLS blocks anon write)'
+      );
+    }
+    const id = String(productId || '').trim();
+    const { error } = await sb
+      .from('restaurant_flags')
+      .upsert({
+        flag_key: 'recommended_today',
+        flag_value: Boolean(id),
+        flag_text: id || null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'flag_key' });
+    throwIfError(error, 'setRecommendedTodayProductId');
+    return id || null;
+  }
+
   let flagsChannel = null;
   const flagsListeners = new Set();
 
@@ -1852,6 +1895,8 @@
     setDeliveriesClosed,
     getShabbatOrdersEnabled,
     setShabbatOrdersEnabled,
+    getRecommendedTodayProductId,
+    setRecommendedTodayProductId,
     subscribeRestaurantFlags,
     subscribeToOrders,
   };

@@ -1002,6 +1002,8 @@
   let deliveryFeeShownThisVisit = false;
   let butcherCheckoutFocusTrapRelease = null;
   let butcherCheckoutBound = false;
+  let dineInNotesFocusTrapRelease = null;
+  let dineInNotesBound = false;
 
   function hasButcherCustomerDetails() {
     const ctx = window.LechaimOrderContext || {};
@@ -1698,6 +1700,107 @@
       ?.addEventListener('change', syncTakeawayCheckoutFulfillmentUi);
   }
 
+  function hasDineInNotesConfirmed() {
+    if (window.LechaimOrderContext?.dineInNotesConfirmed) return true;
+    return Boolean(window.LechaimOrderSession?.getSession?.()?.dineInNotesConfirmed);
+  }
+
+  function applyDineInOrderNotes(notes) {
+    const text = String(notes || '').trim();
+    updateOrderContext({
+      customerNotes: text,
+      dineInNotesConfirmed: true,
+    });
+    try {
+      window.LechaimOrderSession?.patchSession?.({
+        customerNotes: text,
+        dineInNotesConfirmed: true,
+      });
+    } catch (err) {
+      console.warn('[dine-in notes] failed to persist local session notes', err);
+    }
+  }
+
+  function clearDineInNotesDraft() {
+    const input = document.getElementById('dinein-notes-input');
+    if (input) input.value = '';
+    if (!isDineInContext()) return;
+    updateOrderContext({
+      customerNotes: '',
+      dineInNotesConfirmed: false,
+    });
+    try {
+      window.LechaimOrderSession?.patchSession?.({
+        customerNotes: '',
+        dineInNotesConfirmed: false,
+      });
+    } catch (err) {
+      console.warn('[dine-in notes] failed to reset notes draft', err);
+    }
+  }
+
+  function clearDineInNotesConfirmation() {
+    clearDineInNotesDraft();
+  }
+
+  function closeDineInNotesModal() {
+    const modal = document.getElementById('dinein-notes-modal');
+    if (!modal) return;
+    if (typeof dineInNotesFocusTrapRelease === 'function') dineInNotesFocusTrapRelease();
+    dineInNotesFocusTrapRelease = null;
+    modal.hidden = true;
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('app-confirm-open');
+  }
+
+  function openDineInNotesModal() {
+    const modal = document.getElementById('dinein-notes-modal');
+    if (!modal) {
+      applyDineInOrderNotes('');
+      handleSendOrder();
+      return;
+    }
+
+    const input = document.getElementById('dinein-notes-input');
+    const title = document.getElementById('dinein-notes-title');
+    const hint = document.getElementById('dinein-notes-hint');
+    const submit = document.getElementById('dinein-notes-submit');
+    const cancel = document.getElementById('dinein-notes-cancel');
+    if (title) title.textContent = t('dineInNotesTitle');
+    if (hint) hint.textContent = t('dineInNotesHint');
+    if (submit) submit.textContent = t('dineInNotesSubmit');
+    if (cancel) cancel.textContent = t('clearCartCancel');
+    if (input) input.value = '';
+
+    modal.hidden = false;
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('app-confirm-open');
+    if (typeof dineInNotesFocusTrapRelease === 'function') dineInNotesFocusTrapRelease();
+    const release = window.LechaimFocusTrap?.activate?.(modal);
+    dineInNotesFocusTrapRelease = typeof release === 'function' ? release : null;
+    input?.focus();
+  }
+
+  function confirmDineInNotesAndSend(notes) {
+    applyDineInOrderNotes(notes);
+    closeDineInNotesModal();
+    handleSendOrder();
+  }
+
+  function initDineInNotesModal() {
+    if (dineInNotesBound) return;
+    dineInNotesBound = true;
+    const form = document.getElementById('dinein-notes-form');
+    if (!form) return;
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const notes = String(document.getElementById('dinein-notes-input')?.value || '').trim();
+      confirmDineInNotesAndSend(notes);
+    });
+    document.getElementById('dinein-notes-cancel')?.addEventListener('click', closeDineInNotesModal);
+    document.getElementById('dinein-notes-backdrop')?.addEventListener('click', closeDineInNotesModal);
+  }
+
   function isDeliveryContext() {
     const ctx = window.LechaimOrderContext || {};
     return String(ctx.fulfillmentType || '') === 'delivery'
@@ -2266,6 +2369,7 @@
     initDeliveryMinOrderModal();
     initButcherCheckoutModal();
     initTakeawayCheckoutModal();
+    initDineInNotesModal();
     syncButcherModeUi();
     maybeShowDeliveryFeeNotice();
   }
@@ -2298,6 +2402,68 @@
     window.setTimeout(goTop, 0);
   }
 
+  let recommendedTodayShownForEntry = false;
+  let recommendedTodayWaitTimer = null;
+  let recommendedTodayPollTimer = null;
+
+  function stopRecommendedTodayWait() {
+    window.clearTimeout(recommendedTodayWaitTimer);
+    recommendedTodayWaitTimer = null;
+    window.clearInterval(recommendedTodayPollTimer);
+    recommendedTodayPollTimer = null;
+  }
+
+  function isBlockingPromoModalOpen() {
+    if (document.body.classList.contains('app-confirm-open')) return true;
+    if (kitchenCloseModal && !kitchenCloseModal.hidden) return true;
+    const notes = document.getElementById('dinein-notes-modal');
+    if (notes && !notes.hidden) return true;
+    return false;
+  }
+
+  async function maybeShowRecommendedToday() {
+    stopRecommendedTodayWait();
+    recommendedTodayShownForEntry = false;
+    if (isButcherContext()) return;
+
+    const api = window.LechaimSupabaseOrders;
+    if (typeof api?.getRecommendedTodayProductId !== 'function') return;
+
+    let productId = null;
+    try {
+      if (typeof window.LechaimInventory?.load === 'function') {
+        await window.LechaimInventory.load();
+      }
+      productId = await api.getRecommendedTodayProductId();
+    } catch (err) {
+      console.warn('[recommended-today] load failed', err);
+      return;
+    }
+
+    if (!productId) return;
+    const item = findItem(productId);
+    if (!item || !isMenuItemVisible(item)) return;
+
+    const tryOpen = () => {
+      if (recommendedTodayShownForEntry) return true;
+      if (isBlockingPromoModalOpen()) return false;
+      if (foodModal && !foodModal.hidden) return false;
+      recommendedTodayShownForEntry = true;
+      openFoodModalById(productId, { recommendedToday: true });
+      return true;
+    };
+
+    recommendedTodayWaitTimer = window.setTimeout(() => {
+      if (tryOpen()) return;
+      const startedAt = Date.now();
+      recommendedTodayPollTimer = window.setInterval(() => {
+        if (tryOpen() || Date.now() - startedAt > 25000) {
+          stopRecommendedTodayWait();
+        }
+      }, 400);
+    }, 650);
+  }
+
   /**
    * Called by entry-gate.js after order type / language / table selection.
    * Keeps menu, cart, and inventory logic unchanged.
@@ -2327,7 +2493,12 @@
       status: browseOnly ? null : (options.status || null),
       customerName: !browseOnly && startHasCustomer ? (options.customerName || '') : null,
       customerPhone: !browseOnly && startHasCustomer ? (options.customerPhone || '') : null,
-      customerNotes: !browseOnly && startHasCustomer ? (options.customerNotes || '') : null,
+      customerNotes: !browseOnly && (startHasCustomer || startType === 'dine-in')
+        ? (options.customerNotes || '')
+        : null,
+      dineInNotesConfirmed: !browseOnly && startType === 'dine-in'
+        ? Boolean(options.dineInNotesConfirmed)
+        : false,
       customerAddress: !browseOnly && (startType === 'takeaway' || startType === 'butcher')
         ? (options.customerAddress || '')
         : null,
@@ -2364,6 +2535,7 @@
     /* Every dine-in menu entry while countdown/closed is active → customer modal */
     maybeShowKitchenModalForDineInEntry({ force: true });
     if (isDineInCountdownActive()) startKitchenCloseTicker();
+    maybeShowRecommendedToday();
 
     if (browseOnly) return;
 
@@ -2421,9 +2593,18 @@
       customerPhone: hasCustomer
         ? (options.customerPhone !== undefined ? options.customerPhone : prev.customerPhone)
         : null,
-      customerNotes: hasCustomer
-        ? (options.customerNotes !== undefined ? options.customerNotes : prev.customerNotes)
+      customerNotes: (hasCustomer || (!isTakeaway && !isButcher))
+        ? (tableChanged && !hasCustomer
+          ? ''
+          : (options.customerNotes !== undefined ? options.customerNotes : (prev.customerNotes || '')))
         : null,
+      dineInNotesConfirmed: (!isTakeaway && !isButcher)
+        ? (tableChanged
+          ? false
+          : (options.dineInNotesConfirmed !== undefined
+            ? Boolean(options.dineInNotesConfirmed)
+            : Boolean(prev.dineInNotesConfirmed)))
+        : false,
       customerAddress: (isTakeaway || isButcher)
         ? (options.customerAddress !== undefined ? options.customerAddress : (prev.customerAddress || ''))
         : null,
@@ -2591,6 +2772,7 @@
     start: startApp,
     updateOrderContext,
     isOrderingAllowed,
+    maybeShowRecommendedToday,
     notifyTableLocked() {
       showOrderFeedback('err', t('tableChangeLocked'));
     },
@@ -3325,7 +3507,7 @@
     openFoodModalById(card.dataset.itemId);
   }
 
-  function openFoodModalById(itemId) {
+  function openFoodModalById(itemId, options = {}) {
     const item = findItem(itemId);
     if (!item) return;
     if (!isProductAvailable(item.id)) {
@@ -3338,6 +3520,8 @@
     const desc = getItemDesc(item);
     const imageSrc = getItemImage(item);
     const price = getItemPrice(item);
+    const spotlight = Boolean(options.recommendedToday);
+    foodModal.classList.toggle('food-modal--today', spotlight);
     const imageHtml = imageSrc
       ? `<div class="food-modal-hero">
            <img
@@ -3349,18 +3533,23 @@
              decoding="async"
              onerror="this.closest('.food-modal-hero')?.remove();"
            >
+           ${spotlight ? `<p class="food-modal-kicker">${escapeHtml(t('recommendedToday'))}</p>` : ''}
          </div>`
       : '';
 
     const priceHtml = price != null
       ? `<p class="food-modal-price">${formatDishPrice(price)}</p>`
       : '';
+    const kickerHtml = spotlight && !imageSrc
+      ? `<p class="food-modal-kicker">${escapeHtml(t('recommendedToday'))}</p>`
+      : '';
 
     foodModalBody.innerHTML = `
       <div class="food-modal-content" data-item-id="${escapeAttr(itemId)}">
-        <article class="food-modal-card">
+        <article class="food-modal-card${spotlight ? ' food-modal-card--today' : ''}">
           ${imageHtml}
           <div class="food-modal-info">
+            ${kickerHtml}
             <h2 id="food-modal-title" class="food-modal-title">${formatDishNameHtml(item)}</h2>
             ${desc ? `<p class="food-modal-desc">${escapeHtml(desc)}</p>` : ''}
             ${priceHtml}
@@ -3412,7 +3601,7 @@
 
     openModalItemId = null;
     clearFocusTrap('food');
-    foodModal.classList.remove('is-open');
+    foodModal.classList.remove('is-open', 'food-modal--today');
     foodModal.setAttribute('aria-hidden', 'true');
     if (!openSidesMainLineId) {
       document.body.classList.remove('modal-open');
@@ -3920,6 +4109,11 @@
       }
       if (appConfirm && !appConfirm.hidden) {
         closeAppConfirm();
+        return;
+      }
+      const dineInNotesModal = document.getElementById('dinein-notes-modal');
+      if (dineInNotesModal && !dineInNotesModal.hidden) {
+        closeDineInNotesModal();
         return;
       }
       if (sidesModal && !sidesModal.hidden) {
@@ -4606,7 +4800,11 @@
         pickupDate: ctx.pickupDate || null,
       });
     } else if (orderType === 'dinein' && Session.isValidTable?.(ctx.tableNumber)) {
-      session = Session.startDineIn(Number(ctx.tableNumber), { lang });
+      session = Session.startDineIn(Number(ctx.tableNumber), {
+        lang,
+        customerNotes: ctx.customerNotes || '',
+        dineInNotesConfirmed: Boolean(ctx.dineInNotesConfirmed),
+      });
     } else {
       return null;
     }
@@ -4631,7 +4829,10 @@
       lang: session.lang || currentLang,
       customerName: isTakeaway || isButcher ? (session.customerName || '') : null,
       customerPhone: isTakeaway || isButcher ? (session.customerPhone || '') : null,
-      customerNotes: isTakeaway || isButcher ? (session.customerNotes || '') : null,
+      customerNotes: session.customerNotes || '',
+      dineInNotesConfirmed: !isTakeaway && !isButcher
+        ? Boolean(session.dineInNotesConfirmed)
+        : false,
       customerAddress: isTakeaway || isButcher ? (session.customerAddress || '') : null,
       fulfillmentType: isTakeaway || isButcher
         ? (session.fulfillmentType === 'delivery' ? 'delivery' : 'pickup')
@@ -4686,6 +4887,10 @@
     }
     if (isTakeawayContext() && !hasTakeawayCustomerDetails()) {
       openTakeawayCheckoutModal();
+      return;
+    }
+    if (isDineInContext() && !hasDineInNotesConfirmed()) {
+      openDineInNotesModal();
       return;
     }
 
@@ -4792,6 +4997,7 @@
 
       clearCartAfterSuccessfulSend();
       lockTakeawayAfterSend(waveItems);
+      clearDineInNotesConfirmation();
       showOrderReceipt(waveItems);
       initRemoteSessionClosedWatcher();
       syncRemoteSessionTotal().catch(() => {});
@@ -4873,6 +5079,9 @@
     const isButcherEarly = normalizedEarly === 'butcher';
     if (map[localId]) {
       await ensurePublicOrderNoRemembered(map[localId], isTakeawayEarly);
+      if (normalizedEarly === 'dine_in') {
+        await syncDineInSessionNotes(map[localId]);
+      }
       return map[localId];
     }
 
@@ -4896,6 +5105,7 @@
       if (existing?.session_id) {
         map[localId] = existing.session_id;
         writeSupabaseSessionMap(map);
+        await syncDineInSessionNotes(existing.session_id);
         return existing.session_id;
       }
     }
@@ -4914,7 +5124,9 @@
           : null,
         notes: hasCustomer
           ? (localSession?.customerNotes || ctx.customerNotes || null)
-          : null,
+          : (orderType === 'dine_in'
+            ? (String(localSession?.customerNotes || ctx.customerNotes || '').trim() || null)
+            : null),
         customerAddress: (isTakeawayResolved || isButcherResolved)
           ? (localSession?.customerAddress || ctx.customerAddress || null)
           : null,
@@ -4958,6 +5170,7 @@
         if (existing?.session_id) {
           map[localId] = existing.session_id;
           writeSupabaseSessionMap(map);
+          await syncDineInSessionNotes(existing.session_id);
           return existing.session_id;
         }
       }
@@ -4972,6 +5185,20 @@
     writeSupabaseSessionMap(map);
     rememberPublicOrderNo(created.public_order_no);
     return created.session_id;
+  }
+
+  async function syncDineInSessionNotes(remoteSessionId) {
+    if (!remoteSessionId) return;
+    const ctx = window.LechaimOrderContext || {};
+    const session = window.LechaimOrderSession?.getSession?.();
+    const type = String(ctx.orderType || session?.orderType || '').toLowerCase();
+    if (type !== 'dine-in' && type !== 'dinein' && type !== 'dine_in') return;
+    if (!ctx.dineInNotesConfirmed && !session?.dineInNotesConfirmed) return;
+    const api = window.LechaimSupabaseOrders;
+    if (typeof api?.updateSessionStatus !== 'function') return;
+    const notes = String(ctx.customerNotes || session?.customerNotes || '').trim();
+    if (!notes) return;
+    await api.updateSessionStatus(remoteSessionId, { notes });
   }
 
   function rememberPublicOrderNo(value) {

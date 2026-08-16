@@ -1097,7 +1097,12 @@
         : null,
       customerNotes: hasCustomer
         ? (extra.customerNotes ?? state.customerNotes ?? fromSession.customerNotes ?? '')
-        : null,
+        : (orderType === 'dine-in'
+          ? (extra.customerNotes ?? fromSession.customerNotes ?? '')
+          : null),
+      dineInNotesConfirmed: orderType === 'dine-in'
+        ? Boolean(extra.dineInNotesConfirmed ?? fromSession.dineInNotesConfirmed)
+        : false,
       customerAddress: isTakeaway
         ? (extra.customerAddress ?? state.customerAddress ?? fromSession.customerAddress ?? '')
         : null,
@@ -1137,6 +1142,9 @@
 
     if (typeof window.LechaimMenu?.updateOrderContext === 'function') {
       window.LechaimMenu.updateOrderContext(context);
+    }
+    if (typeof window.LechaimMenu?.maybeShowRecommendedToday === 'function') {
+      window.LechaimMenu.maybeShowRecommendedToday();
     }
   }
 

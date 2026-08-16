@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=2">
+  <link rel="stylesheet" href="css/admin.css?v=4">
   <link rel="icon" href="assets/logo/logo.webp" type="image/webp">
 </head>
 <body>
@@ -287,7 +287,7 @@
           <div class="admin-header__text">
             <p class="admin-header__eyebrow">ניהול</p>
             <h1 class="admin-header__title">ניהול מלאי</h1>
-            <p class="admin-header__subtitle">בחרו סוג מלאי · מלאי: יש / אין · מומלץ: סרט על כרטיס המנה</p>
+            <p class="admin-header__subtitle">בחרו סוג מלאי · מלאי: יש / אין · מומלץ: סרט על כרטיס · מומלץ היום: קופץ בכניסה לתפריט</p>
           </div>
         </header>
 
@@ -295,6 +295,19 @@
           <button type="button" class="admin-filter" data-inventory-scope="shabbat" role="tab" aria-selected="false">מלאי של שבת</button>
           <button type="button" class="admin-filter is-active" data-inventory-scope="weekday" role="tab" aria-selected="true">מלאי יום חול</button>
           <button type="button" class="admin-filter" data-inventory-scope="butcher" role="tab" aria-selected="false">מלאי חנות בשרים</button>
+        </div>
+
+        <div class="admin-today-pick" id="admin-today-pick">
+          <div class="admin-today-pick__text">
+            <strong>מומלץ היום</strong>
+            <span>המנה שנבחרה קופצת כמודל בכניסה לתפריט (ישיבה במקום / טייקאווי)</span>
+          </div>
+          <label class="admin-today-pick__field">
+            <span class="visually-hidden">בחירת מנת מומלץ היום</span>
+            <select id="admin-recommended-today">
+              <option value="">ללא — לא להציג</option>
+            </select>
+          </label>
         </div>
 
         <div class="admin-stats" id="admin-stats" aria-live="polite">
@@ -816,16 +829,16 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
   <script src="js/order-types.js" defer></script>
-  <script src="js/supabase-order-service.js" defer></script>
-  <script src="js/menu-data.js?v=48" defer></script>
-  <script src="js/opening-hours.js" defer></script>
+  <script src="js/supabase-order-service.js?v=2" defer></script>
+  <script src="js/menu-data.js?v=52" defer></script>
+  <script src="js/opening-hours.js?v=test-open" defer></script>
   <script src="js/shabbat-menu-data.js" defer></script>
   <script src="js/inventory.js?v=42" defer></script>
-  <script src="js/order-session.js" defer></script>
+  <script src="js/order-session.js?v=2" defer></script>
   <script src="js/order-engine.js" defer></script>
   <script src="js/print-engine.js?v=30" defer></script>
   <script src="js/a11y-focus-trap.js" defer></script>
-  <script src="js/admin-tables.js?v=41" defer></script>
+  <script src="js/admin-tables.js?v=44" defer></script>
   <script src="js/admin-shabbat.js" defer></script>
   <script src="js/place-reservations.js" defer></script>
   <script src="js/admin-reservations.js" defer></script>
@@ -833,7 +846,7 @@
   <script src="js/admin-coupons.js" defer></script>
   <script src="js/admin-till.js" defer></script>
   <script src="js/admin-staff-hours.js" defer></script>
-  <script src="js/admin.js?v=42" defer></script>
+  <script src="js/admin.js?v=43" defer></script>
   <script src="js/admin-pwa.js" defer></script>
 </body>
 </html>

@@ -1148,12 +1148,15 @@ button {
 .food-modal-actions {
   padding: var(--space-md) var(--space-lg) var(--space-lg);
   display: flex;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
 }
 
 .food-modal-actions .food-qty-control {
-  width: 100%;
+  width: min(100%, 220px);
   justify-content: center;
+  margin-inline: auto;
 }
 
 .food-note {
@@ -1338,6 +1341,43 @@ body.modal-open {
   display: block;
 }
 
+.food-modal-card--today {
+  border-color: #c4a06a;
+  box-shadow: 0 0 0 1px rgba(196, 160, 106, 0.35), var(--shadow-lg);
+}
+
+.food-modal-kicker {
+  margin: 0 0 0.4rem;
+  color: #a8864f;
+  font-family: var(--font-hebrew);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+.food-modal.food-modal--today .food-modal-hero {
+  position: relative;
+}
+
+.food-modal.food-modal--today .food-modal-kicker {
+  position: absolute;
+  top: 0.75rem;
+  left: 50%;
+  z-index: 4;
+  margin: 0;
+  padding: 0.42rem 1.1rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #e4c89a 0%, #c4a06a 55%, #a8864f 100%);
+  color: #152640;
+  font-size: clamp(0.95rem, 3.6vw, 1.2rem);
+  letter-spacing: 0.12em;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0 6px 18px rgba(21, 38, 64, 0.32);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
 .food-modal-info {
   padding: 1rem 1rem 0.75rem;
   text-align: center;
@@ -1375,13 +1415,21 @@ body.modal-open {
   border-top: 1px solid var(--color-border);
   background: var(--color-cream);
   display: flex;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
+}
+
+.food-modal-actions .food-pack-qty {
+  width: 100%;
+  justify-items: center;
 }
 
 .food-modal-actions .food-qty-control {
   width: min(100%, 220px);
   justify-content: center;
   padding: 0.25rem;
+  margin-inline: auto;
 }
 
 .food-modal-add {

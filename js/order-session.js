@@ -123,6 +123,7 @@
       customerName: typeof session.customerName === 'string' ? session.customerName : '',
       customerPhone: typeof session.customerPhone === 'string' ? session.customerPhone : '',
       customerNotes: typeof session.customerNotes === 'string' ? session.customerNotes : '',
+      dineInNotesConfirmed: session.dineInNotesConfirmed === true,
       customerAddress: typeof session.customerAddress === 'string' ? session.customerAddress : '',
       fulfillmentType: session.fulfillmentType === 'delivery' ? 'delivery' : (session.fulfillmentType === 'pickup' ? 'pickup' : null),
       deliveryFee: Number.isFinite(Number(session.deliveryFee)) && Number(session.deliveryFee) >= 0
@@ -236,6 +237,12 @@
       lang: options.lang === 'he' || options.lang === 'en'
         ? options.lang
         : (existing?.lang || null),
+      customerNotes: sameTable && typeof existing.customerNotes === 'string'
+        ? existing.customerNotes
+        : (typeof options.customerNotes === 'string' ? options.customerNotes : ''),
+      dineInNotesConfirmed: sameTable
+        ? Boolean(existing.dineInNotesConfirmed)
+        : Boolean(options.dineInNotesConfirmed),
     });
 
     writeRaw(session);
@@ -335,6 +342,9 @@
     if (typeof patch.customerName === 'string') next.customerName = patch.customerName;
     if (typeof patch.customerPhone === 'string') next.customerPhone = patch.customerPhone;
     if (typeof patch.customerNotes === 'string') next.customerNotes = patch.customerNotes;
+    if (patch.dineInNotesConfirmed !== undefined) {
+      next.dineInNotesConfirmed = Boolean(patch.dineInNotesConfirmed);
+    }
     if (typeof patch.customerAddress === 'string') next.customerAddress = patch.customerAddress;
     if (patch.fulfillmentType === 'delivery' || patch.fulfillmentType === 'pickup') {
       next.fulfillmentType = patch.fulfillmentType;
@@ -408,6 +418,7 @@
       customerName: session.customerName || '',
       customerPhone: session.customerPhone || '',
       customerNotes: session.customerNotes || '',
+      dineInNotesConfirmed: Boolean(session.dineInNotesConfirmed),
       customerAddress: session.customerAddress || '',
       fulfillmentType: session.fulfillmentType || 'pickup',
       deliveryFee: session.deliveryFee != null ? Number(session.deliveryFee) : null,
