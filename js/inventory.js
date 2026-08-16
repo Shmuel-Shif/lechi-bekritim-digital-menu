@@ -2,7 +2,7 @@
  * LECHAIM — Inventory + menu overrides (Supabase)
  *
  * Catalog source of truth: MENU_DATA + HOT_SIDE_ITEMS (never duplicated).
- * Availability: table `inventory` (product_id, available)
+ * Availability: table `inventory` (product_id, available, recommended)
  * Content overrides: table `menu_overrides` (product_id, name, description, price, image)
  *
  * Future hooks are stubbed for: add/delete dish, reorder, promos, tags, hours, i18n.
@@ -14,8 +14,10 @@
   const TABLE_OVERRIDES = 'menu_overrides';
   const COL_PRODUCT_ID = 'product_id';
   const COL_AVAILABLE = 'available';
+  const COL_RECOMMENDED = 'recommended';
 
   const availability = new Map();
+  const recommended = new Map();
   const overrides = new Map();
   const listeners = new Set();
 
@@ -25,6 +27,7 @@
   let loadPromise = null;
   let loaded = false;
   let overridesEnabled = true;
+  let recommendedEnabled = true;
 
   function getConfig() {
     return global.LECHAIM_SUPABASE_CONFIG || {};
@@ -85,6 +88,16 @@
     return prev === available ? null : id;
   }
 
+  function applyRecommendedRow(row) {
+    if (!row || row[COL_PRODUCT_ID] == null) return null;
+    if (!Object.prototype.hasOwnProperty.call(row, COL_RECOMMENDED)) return null;
+    const id = String(row[COL_PRODUCT_ID]);
+    const value = row[COL_RECOMMENDED] === true;
+    const prev = recommended.has(id) ? recommended.get(id) : false;
+    recommended.set(id, value);
+    return prev === value ? null : id;
+  }
+
   function normalizeOverride(row) {
     if (!row || row[COL_PRODUCT_ID] == null) return null;
     return {
@@ -108,6 +121,13 @@
     const id = String(productId);
     if (!availability.has(id)) return true;
     return availability.get(id) !== false;
+  }
+
+  function isRecommended(productId) {
+    if (productId == null) return false;
+    const id = String(productId);
+    if (!recommended.has(id)) return false;
+    return recommended.get(id) === true;
   }
 
   function getOverride(productId) {
@@ -209,6 +229,7 @@
           categoryTitleKey: cat.titleKey || cat.id,
           categoryTitle,
           available: isAvailable(resolved.id),
+          recommended: isRecommended(resolved.id),
           adminOnly: Boolean(item.adminOnly),
           scope: 'shabbat',
           base: {
@@ -256,6 +277,7 @@
         categoryTitleKey,
         categoryTitle: getCategoryTitle(categoryTitleKey, categoryId),
         available: isAvailable(resolved.id),
+        recommended: isRecommended(resolved.id),
         adminOnly: Boolean(item.adminOnly),
         dineInOnly: Boolean(item.dineInOnly),
         scope: isButcher ? 'butcher' : 'weekday',
@@ -321,14 +343,29 @@
     const sb = getClient();
     if (!sb) return;
 
-    const { data, error } = await sb
+    const withRec = await sb
       .from(TABLE_INVENTORY)
-      .select(`${COL_PRODUCT_ID}, ${COL_AVAILABLE}`);
+      .select(`${COL_PRODUCT_ID}, ${COL_AVAILABLE}, ${COL_RECOMMENDED}`);
 
-    if (error) throw error;
+    let rows = withRec.data;
+    if (withRec.error) {
+      recommendedEnabled = false;
+      console.warn('[inventory] recommended column unavailable:', withRec.error.message);
+      const fallback = await sb
+        .from(TABLE_INVENTORY)
+        .select(`${COL_PRODUCT_ID}, ${COL_AVAILABLE}`);
+      if (fallback.error) throw fallback.error;
+      rows = fallback.data;
+    } else {
+      recommendedEnabled = true;
+    }
 
     availability.clear();
-    (data || []).forEach((row) => applyAvailabilityRow(row));
+    recommended.clear();
+    (rows || []).forEach((row) => {
+      applyAvailabilityRow(row);
+      applyRecommendedRow(row);
+    });
   }
 
   async function fetchOverrides() {
@@ -447,11 +484,15 @@
           if (payload.eventType === 'DELETE' && payload.old?.[COL_PRODUCT_ID] != null) {
             const id = String(payload.old[COL_PRODUCT_ID]);
             availability.delete(id);
+            recommended.delete(id);
             notifyProduct(id, 'availability');
             return;
           }
-          const changedId = applyAvailabilityRow(payload.new || payload.old);
-          if (changedId) notifyProduct(changedId, 'availability');
+          const row = payload.new || payload.old;
+          const availChanged = applyAvailabilityRow(row);
+          const recChanged = applyRecommendedRow(row);
+          if (availChanged) notifyProduct(availChanged, 'availability');
+          else if (recChanged) notifyProduct(recChanged, 'recommended');
         }
       );
     }
@@ -554,6 +595,65 @@
     availability.set(id, saved);
     notifyProduct(id, 'availability');
     console.log('[inventory] PROOF inventory row saved', selectRes.data);
+    return saved;
+  }
+
+  async function setRecommended(productId, value) {
+    const sb = getClient();
+    if (!sb) throw new Error('Supabase is not configured');
+    if (!recommendedEnabled) {
+      throw new Error(
+        'עמודת recommended חסרה בטבלת inventory.\n' +
+        'הרצו את supabase-inventory-recommended.sql ב-Supabase SQL Editor, ואז רעננו את האדמין.'
+      );
+    }
+
+    const sessionRes = await sb.auth.getSession();
+    if (sessionRes.error) throwSupabaseError(sessionRes.error, 'auth.getSession before inventory recommended upsert');
+    const session = sessionRes.data?.session;
+    if (!session) throw new Error('No active session. Sign in again before updating inventory.');
+    await syncRealtimeAuth(session);
+
+    const id = String(productId);
+    const next = value === true;
+
+    const upsertRes = await sb.from(TABLE_INVENTORY).upsert(
+      { [COL_PRODUCT_ID]: id, [COL_RECOMMENDED]: next },
+      { onConflict: COL_PRODUCT_ID }
+    );
+
+    if (upsertRes.error) {
+      throwSupabaseError(upsertRes.error, `inventory.upsert product_id=${id} recommended=${next}`);
+    }
+
+    const selectRes = await sb
+      .from(TABLE_INVENTORY)
+      .select(`${COL_PRODUCT_ID}, ${COL_RECOMMENDED}`)
+      .eq(COL_PRODUCT_ID, id)
+      .maybeSingle();
+
+    if (selectRes.error) {
+      throwSupabaseError(selectRes.error, `inventory.select after recommended upsert product_id=${id}`);
+    }
+
+    if (!selectRes.data) {
+      throw new Error(
+        `inventory SELECT after recommended upsert returned no row for product_id=${id}. ` +
+        `Upsert may have been blocked by RLS. Check policies for authenticated INSERT/UPDATE.`
+      );
+    }
+
+    const saved = selectRes.data[COL_RECOMMENDED] === true;
+    if (saved !== next) {
+      throw new Error(
+        `inventory recommended proof mismatch for product_id=${id}. ` +
+        `Expected recommended=${next}, SELECT returned ${JSON.stringify(selectRes.data)}`
+      );
+    }
+
+    recommended.set(id, saved);
+    notifyProduct(id, 'recommended');
+    console.log('[inventory] PROOF recommended saved', selectRes.data);
     return saved;
   }
 
@@ -698,6 +798,7 @@
     getCatalog,
     getStats,
     isAvailable,
+    isRecommended,
     getAvailabilityMap: () => {
       const out = {};
       availability.forEach((value, key) => {
@@ -710,8 +811,10 @@
     load,
     subscribe,
     setAvailable,
+    setRecommended,
     saveContent,
     areOverridesEnabled: () => overridesEnabled,
+    areRecommendedEnabled: () => recommendedEnabled,
     /* Future */
     addProduct,
     deleteProduct,

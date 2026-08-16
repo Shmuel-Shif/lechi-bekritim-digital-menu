@@ -12,6 +12,9 @@ create table if not exists public.inventory (
 alter table public.inventory
   alter column available set default true;
 
+alter table public.inventory
+  add column if not exists recommended boolean not null default false;
+
 -- 1) Ensure menu_overrides schema
 create table if not exists public.menu_overrides (
   product_id text primary key,

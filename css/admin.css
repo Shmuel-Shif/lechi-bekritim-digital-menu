@@ -562,6 +562,52 @@ body {
   color: #fff;
 }
 
+.admin-card__ribbon {
+  position: absolute;
+  top: 0.72rem;
+  left: -1.65rem;
+  z-index: 2;
+  width: 6.4rem;
+  padding: 0.18rem 0;
+  background: linear-gradient(180deg, #d4b88a 0%, #c4a06a 55%, #a8864f 100%);
+  color: #152640;
+  font-size: 0.52rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-align: center;
+  transform: rotate(-45deg);
+  box-shadow: 0 2px 8px rgba(21, 38, 64, 0.28);
+  pointer-events: none;
+}
+
+.admin-btn--recommend {
+  width: 100%;
+  min-height: 28px;
+  margin-top: 0.12rem;
+  padding: 0.25rem 0.3rem;
+  font-size: 0.68rem;
+  border: 1px solid transparent;
+}
+
+.admin-btn--recommend.is-on {
+  background: #c4a06a;
+  color: #152640;
+}
+
+.admin-btn--recommend.is-on:hover:not(:disabled) {
+  background: #d4b88a;
+}
+
+.admin-btn--recommend.is-off {
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--color-navy);
+  border-color: var(--color-cream-dark);
+}
+
+.admin-btn--recommend.is-off:hover:not(:disabled) {
+  background: var(--color-cream);
+}
+
 .admin-card__body {
   display: grid;
   gap: 0.2rem;

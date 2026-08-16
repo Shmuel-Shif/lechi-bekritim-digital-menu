@@ -2602,6 +2602,35 @@
     return LechaimInventory.isAvailable(itemId);
   }
 
+  function isProductRecommended(itemId) {
+    if (!window.LechaimInventory?.isRecommended) return false;
+    return LechaimInventory.isRecommended(itemId) === true;
+  }
+
+  function recommendedRibbonHtml() {
+    return `<span class="food-ribbon">${escapeHtml(t('recommended'))}</span>`;
+  }
+
+  function syncFoodCardRecommended(article, itemId) {
+    if (!article) return;
+    const on = isProductRecommended(itemId);
+    article.classList.toggle('food-card--recommended', on);
+    const existing = article.querySelector('.food-ribbon');
+    if (on && !existing) {
+      article.insertAdjacentHTML('afterbegin', recommendedRibbonHtml());
+    } else if (!on && existing) {
+      existing.remove();
+    } else if (on && existing) {
+      existing.textContent = t('recommended');
+    }
+  }
+
+  function syncAllRecommendedBadges() {
+    $$('.food-card[data-item-id]').forEach((article) => {
+      syncFoodCardRecommended(article, article.dataset.itemId);
+    });
+  }
+
   /** Customer menu: hide out-of-stock dishes entirely (admin toggle brings them back in place). */
   function isMenuItemVisible(item) {
     if (!item || item.adminOnly) return false;
@@ -2741,6 +2770,12 @@
           }
           return;
         }
+        if (change === 'recommended') {
+          $$(`.food-card[data-item-id="${CSS.escape(productId)}"]`).forEach((article) => {
+            syncFoodCardRecommended(article, productId);
+          });
+          return;
+        }
         refreshFoodCardById(productId, { full: true });
         if (openModalItemId === productId) openFoodModalById(productId);
         if (isHotSide(productId)) refreshSidesModal();
@@ -2748,6 +2783,7 @@
       }
 
       syncAllMenuItemVisibility();
+      syncAllRecommendedBadges();
       updateOpenFoodModal();
       refreshSidesModal();
     };
@@ -2755,6 +2791,7 @@
     LechaimInventory.load()
       .then(() => {
         syncAllMenuItemVisibility();
+        syncAllRecommendedBadges();
         updateOpenFoodModal();
         refreshSidesModal();
       })
@@ -3047,18 +3084,21 @@
       : '';
 
     const qty = getCartQtyForItem(item.id);
+    const recommended = isProductRecommended(item.id);
     const cardClass = [
       'food-card',
       byWeight ? 'food-card--by-weight' : '',
       byPack ? 'food-card--by-pack' : '',
       hasImage ? '' : 'food-card--no-image',
       qty > 0 ? 'food-card--in-cart' : '',
+      recommended ? 'food-card--recommended' : '',
     ].filter(Boolean).join(' ');
 
     return {
       cardClass,
       itemId: item.id,
       innerHtml: `
+        ${recommended ? recommendedRibbonHtml() : ''}
         <div class="food-content">
           <div class="food-text">
             <div class="food-text-body">

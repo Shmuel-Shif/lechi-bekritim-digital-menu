@@ -968,6 +968,7 @@ button {
    FOOD CARDS
    ============================================ */
 .food-card {
+  position: relative;
   background: var(--color-bg-card);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -976,6 +977,26 @@ button {
   display: flex;
   flex-direction: column;
   height: 100%;
+}
+
+.food-ribbon {
+  position: absolute;
+  top: 0.85rem;
+  left: -1.85rem;
+  z-index: 3;
+  width: 7.2rem;
+  padding: 0.28rem 0;
+  background: linear-gradient(180deg, #d4b88a 0%, #c4a06a 52%, #a8864f 100%);
+  color: #152640;
+  font-family: var(--font-hebrew);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-align: center;
+  transform: rotate(-45deg);
+  box-shadow: 0 3px 10px rgba(21, 38, 64, 0.28);
+  pointer-events: none;
 }
 
 .food-card:hover {

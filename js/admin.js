@@ -279,6 +279,9 @@
 
   function renderCard(item) {
     const available = LechaimInventory.isAvailable(item.id);
+    const recOn = typeof LechaimInventory.isRecommended === 'function'
+      ? LechaimInventory.isRecommended(item.id)
+      : Boolean(item.recommended);
     const name = item.name || '';
     const image = item.image || '';
     const priceLabel = formatPrice(item.price);
@@ -288,9 +291,10 @@
       : `<div class="admin-card__img admin-card__img--empty">אין תמונה</div>`;
 
     return `
-      <article class="admin-card${available ? '' : ' is-unavailable'}" data-product-id="${escapeAttr(item.id)}">
+      <article class="admin-card${available ? '' : ' is-unavailable'}${recOn ? ' is-recommended' : ''}" data-product-id="${escapeAttr(item.id)}">
         <div class="admin-card__media">
           ${thumb}
+          ${recOn ? '<span class="admin-card__ribbon">מומלץ</span>' : ''}
           <span class="admin-card__badge ${available ? 'is-on' : 'is-off'}">${available ? 'יש במלאי' : 'אין במלאי'}</span>
         </div>
         <div class="admin-card__body">
@@ -306,6 +310,15 @@
             aria-pressed="${available ? 'true' : 'false'}"
           >
             ${available ? 'יש במלאי' : 'אין במלאי'}
+          </button>
+          <button
+            type="button"
+            class="admin-btn admin-btn--recommend ${recOn ? 'is-on' : 'is-off'}"
+            data-action="toggle-recommended"
+            data-product-id="${escapeAttr(item.id)}"
+            aria-pressed="${recOn ? 'true' : 'false'}"
+          >
+            ${recOn ? 'מומלץ' : 'סמן כמומלץ'}
           </button>
         </div>
       </article>
@@ -403,6 +416,26 @@
       showToast(next ? 'עודכן: יש במלאי' : 'עודכן: אין במלאי');
     } catch (err) {
       console.error('[admin] toggle failed', err);
+      showError(panelError, err?.message || String(err));
+      button.disabled = false;
+    }
+  }
+
+  async function handleToggleRecommended(button) {
+    const productId = button.dataset.productId;
+    if (!productId) return;
+
+    const currentlyOn = button.getAttribute('aria-pressed') === 'true';
+    const next = !currentlyOn;
+    button.disabled = true;
+    showError(panelError, '');
+
+    try {
+      await LechaimInventory.setRecommended(productId, next);
+      updateCard(productId);
+      showToast(next ? 'עודכן: מומלץ' : 'עודכן: הוסרה ההמלצה');
+    } catch (err) {
+      console.error('[admin] recommended toggle failed', err);
       showError(panelError, err?.message || String(err));
       button.disabled = false;
     }
@@ -518,6 +551,13 @@
       refreshCatalogCache();
       updateStats();
       await refreshKitchenCloseFlag();
+
+      if (LechaimInventory.areRecommendedEnabled?.() === false) {
+        showError(
+          panelError,
+          'כדי לסמן מנות מומלצות: הריצו את supabase-inventory-recommended.sql ב-Supabase SQL Editor, ואז רעננו את האדמין.'
+        );
+      }
 
       if (currentTab === 'inventory') {
         renderList();
@@ -733,6 +773,11 @@
     const stockBtn = event.target.closest('[data-action="toggle-stock"]');
     if (stockBtn) {
       handleToggle(stockBtn);
+      return;
+    }
+    const recBtn = event.target.closest('[data-action="toggle-recommended"]');
+    if (recBtn) {
+      handleToggleRecommended(recBtn);
     }
   });
 

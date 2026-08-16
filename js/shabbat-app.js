@@ -768,18 +768,24 @@
                     >
                   </div>`
                 : '';
+              const recommended = Boolean(window.LechaimInventory?.isRecommended?.(item.id));
               const cardClass = [
                 'food-card',
                 'is-visible',
                 hasImage ? '' : 'food-card--no-image',
                 qty > 0 ? 'food-card--in-cart' : '',
+                recommended ? 'food-card--recommended' : '',
               ].filter(Boolean).join(' ');
               const cardAttrs = ` tabindex="0" role="button" aria-label="${escapeAttr(name)}"`;
+              const ribbon = recommended
+                ? `<span class="food-ribbon">${escapeHtml(t('recommended'))}</span>`
+                : '';
               return `
                 <article
                   class="${cardClass}"
                   data-item-id="${escapeAttr(item.id)}"${cardAttrs}
                 >
+                  ${ribbon}
                   <div class="food-content">
                     <div class="food-text">
                       <div class="food-text-body">
