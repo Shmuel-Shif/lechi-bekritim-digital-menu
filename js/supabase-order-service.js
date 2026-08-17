@@ -1767,6 +1767,113 @@
     return Boolean(enabled);
   }
 
+  function resolveShopOverrideRow(data) {
+    const hours = global.LechaimOpeningHours;
+    const resolve = hours?.resolveOverrideState || hours?.resolveForceOpenState;
+    if (typeof resolve === 'function') {
+      return resolve(data?.flag_value, data?.flag_text);
+    }
+    return {
+      active: Boolean(data?.flag_value),
+      untilMs: 0,
+      stale: false,
+    };
+  }
+
+  async function readShopOverrideFlag(flagKey, label) {
+    const sb = getClient();
+    const { data, error } = await sb
+      .from('restaurant_flags')
+      .select('flag_value, flag_text')
+      .eq('flag_key', flagKey)
+      .maybeSingle();
+    throwIfError(error, label);
+    const resolved = resolveShopOverrideRow(data);
+    return {
+      ...resolved,
+      flagText: data?.flag_text == null ? null : String(data.flag_text),
+    };
+  }
+
+  async function writeShopOverrideFlag(flagKey, enabled, label) {
+    const sb = getClient();
+    const { data: authData } = await sb.auth.getSession();
+    if (!authData?.session) {
+      throw new Error(`${label}: must be signed in as admin (RLS blocks anon write)`);
+    }
+    const hours = global.LechaimOpeningHours;
+    let flagText = null;
+    let untilMs = 0;
+    if (enabled) {
+      untilMs = typeof hours?.overrideExpiryMs === 'function'
+        ? hours.overrideExpiryMs()
+        : (typeof hours?.forceOpenExpiryMs === 'function' ? hours.forceOpenExpiryMs() : 0);
+      flagText = untilMs ? new Date(untilMs).toISOString() : null;
+    }
+    const { error } = await sb
+      .from('restaurant_flags')
+      .upsert({
+        flag_key: flagKey,
+        flag_value: Boolean(enabled),
+        flag_text: flagText,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'flag_key' });
+    throwIfError(error, label);
+    return {
+      active: Boolean(enabled),
+      untilMs: enabled ? untilMs : 0,
+      flagText,
+    };
+  }
+
+  async function getShopForceOpenState() {
+    return readShopOverrideFlag('shop_force_open', 'getShopForceOpenState');
+  }
+
+  async function getShopForceCloseState() {
+    return readShopOverrideFlag('shop_force_close', 'getShopForceCloseState');
+  }
+
+  /**
+   * When true, dine-in / takeaway ignore the 14:00–22:00 schedule (until auto-expiry).
+   * @returns {Promise<boolean>}
+   */
+  async function getShopForceOpen() {
+    const state = await getShopForceOpenState();
+    return state.active;
+  }
+
+  /**
+   * Admin: open shop ignoring hours until 22:00 (or midnight if after 22:00).
+   * Clears force-close when opening.
+   */
+  async function setShopForceOpen(forceOpen) {
+    const result = await writeShopOverrideFlag(
+      'shop_force_open',
+      Boolean(forceOpen),
+      'setShopForceOpen'
+    );
+    if (forceOpen) {
+      await writeShopOverrideFlag('shop_force_close', false, 'setShopForceOpen');
+    }
+    return result;
+  }
+
+  /**
+   * Admin: close shop ignoring hours until 22:00. Clears force-open when closing.
+   */
+  async function setShopForceClose(forceClose) {
+    const result = await writeShopOverrideFlag(
+      'shop_force_close',
+      Boolean(forceClose),
+      'setShopForceClose'
+    );
+    if (forceClose) {
+      await writeShopOverrideFlag('shop_force_open', false, 'setShopForceClose');
+    }
+    return result;
+  }
+
   let flagsChannel = null;
   const flagsListeners = new Set();
 
@@ -1852,6 +1959,11 @@
     setDeliveriesClosed,
     getShabbatOrdersEnabled,
     setShabbatOrdersEnabled,
+    getShopForceOpen,
+    getShopForceOpenState,
+    getShopForceCloseState,
+    setShopForceOpen,
+    setShopForceClose,
     subscribeRestaurantFlags,
     subscribeToOrders,
   };

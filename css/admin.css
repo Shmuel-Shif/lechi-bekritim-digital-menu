@@ -2332,6 +2332,30 @@ body.admin-modal-open {
   gap: 1rem;
 }
 
+.admin-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.admin-btn--kitchen-beep {
+  background: #1e3354;
+  color: #f7efe2;
+  border: 1px solid #c4a06a;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.admin-btn--kitchen-beep:hover:not(:disabled) {
+  background: #2d4a73;
+}
+
+.admin-btn--kitchen-beep:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
 .reservations-header-actions {
   display: flex;
   flex-wrap: wrap;

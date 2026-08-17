@@ -6,7 +6,7 @@
 
 'use strict';
 
-const { sendToPrinter } = require('./printer');
+const { sendToPrinter, sendKitchenBeep } = require('./printer');
 
 let jobSeq = 0;
 
@@ -76,6 +76,35 @@ function enqueue(printer, ticket, printerConfig) {
   };
 }
 
+function enqueueBeep(printerConfig) {
+  const lane = getLane('kitchen');
+  const jobId = createJobId();
+  lane.queue.push({
+    jobId,
+    printer: 'kitchen',
+    kind: 'beep',
+    ticket: '',
+    printerConfig: printerConfig || null,
+    createdAt: new Date().toISOString(),
+  });
+  console.log(`[queue] enqueued beep ${jobId} (position ${lane.queue.length})`);
+  pump('kitchen');
+  return {
+    success: true,
+    queued: true,
+    jobId,
+    printer: 'kitchen',
+  };
+}
+
+function clearQueuedBeeps() {
+  const lane = getLane('kitchen');
+  const before = lane.queue.length;
+  lane.queue = lane.queue.filter((job) => job.kind !== 'beep');
+  const removed = before - lane.queue.length;
+  if (removed) console.log(`[queue] cleared ${removed} queued kitchen beep(s)`);
+}
+
 function pump(printer) {
   const lane = getLane(printer);
   if (lane.running) return;
@@ -86,12 +115,19 @@ function pump(printer) {
 
   Promise.resolve()
     .then(() => {
+      if (job.kind === 'beep') {
+        console.log(`[queue] beep ${job.jobId} → kitchen (${lane.queue.length} waiting)`);
+        return sendKitchenBeep(job.printerConfig);
+      }
       console.log(`[queue] printing ${job.jobId} → ${job.printer} (${lane.queue.length} waiting)`);
       return sendToPrinter(job.printer, job.ticket, job.printerConfig);
     })
     .then((result) => {
       if (result && result.success === true) {
         console.log(`[queue] done ${job.jobId} → ${job.printer}`);
+        if (job.printer === 'kitchen' && job.kind !== 'beep') {
+          require('./kitchen-alert').onKitchenPrinted();
+        }
       } else {
         console.error(`[queue] failed ${job.jobId} → ${job.printer}`, result);
       }
@@ -107,5 +143,7 @@ function pump(printer) {
 
 module.exports = {
   enqueue,
+  enqueueBeep,
+  clearQueuedBeeps,
   getStatus,
 };

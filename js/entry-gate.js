@@ -1502,6 +1502,64 @@
     applyDeliveriesMode();
   }
 
+  async function refreshShopForceOpenFlag() {
+    const api = window.LechaimSupabaseOrders;
+    const hours = Hours();
+    if (typeof hours?.isWithinOrderingHours !== 'function') return;
+    if (!api?.isConfigured?.()) {
+      applyShopHoursFromFlags(false, null, false, null);
+      return;
+    }
+    try {
+      const [openState, closeState] = await Promise.all([
+        typeof api.getShopForceOpenState === 'function'
+          ? api.getShopForceOpenState()
+          : Promise.resolve({ active: false, flagText: null }),
+        typeof api.getShopForceCloseState === 'function'
+          ? api.getShopForceCloseState()
+          : Promise.resolve({ active: false, flagText: null }),
+      ]);
+      applyShopHoursFromFlags(
+        openState.active,
+        openState.flagText,
+        closeState.active,
+        closeState.flagText
+      );
+    } catch (err) {
+      console.warn('[entry-gate] shop hours load failed', err);
+      applyShopHoursFromFlags(false, null, false, null);
+    }
+  }
+
+  function applyShopHoursFromFlags(openValue, openText, closeValue, closeText) {
+    const hours = Hours();
+    hours?.applyForceOpenFromFlag?.(openValue, openText);
+    hours?.applyForceCloseFromFlag?.(closeValue, closeText);
+    routeShopHoursUi();
+  }
+
+  function routeShopHoursUi() {
+    const open = Hours()?.isWithinOrderingHours?.() === true;
+    if (open) {
+      if (stepPickupClosed && !stepPickupClosed.hidden) {
+        if (gate.dataset.mode === 'dine-in-only') goToTable();
+        else goToOrderType();
+      }
+      return;
+    }
+
+    if (!document.body.classList.contains('entry-pending')) return;
+    const onTable = stepTable && !stepTable.hidden;
+    const onPickup = stepPickup && !stepPickup.hidden;
+    if (gate.dataset.mode === 'dine-in-only' || onTable || state.orderType === 'dine-in') {
+      if (!isDineInOrderingOpen()) showOrderingClosedStep('dine-in');
+      return;
+    }
+    if (onPickup || state.orderType === 'takeaway') {
+      if (!isTakeawayDayOpen()) showOrderingClosedStep('takeaway');
+    }
+  }
+
   function resetPickupForm() {
     if (pickupForm) pickupForm.reset();
     if (fulfillmentPickup) fulfillmentPickup.checked = true;
@@ -2376,6 +2434,7 @@
   async function bootRestaurantFlags() {
     await refreshDeliveriesClosedFlag();
     await refreshShabbatOrdersEnabledFlag();
+    await refreshShopForceOpenFlag();
     const api = window.LechaimSupabaseOrders;
     if (api?.subscribeRestaurantFlags) {
       api.subscribeRestaurantFlags((evt) => {
@@ -2387,9 +2446,28 @@
         if (evt?.flagKey === 'shabbat_orders_enabled') {
           state.shabbatOrdersEnabled = Boolean(evt.flagValue);
           applyShabbatOrdersMode();
+          return;
+        }
+        if (evt?.flagKey === 'shop_force_open') {
+          Hours()?.applyForceOpenFromFlag?.(evt.flagValue, evt.flagText);
+          routeShopHoursUi();
+          return;
+        }
+        if (evt?.flagKey === 'shop_force_close') {
+          Hours()?.applyForceCloseFromFlag?.(evt.flagValue, evt.flagText);
+          routeShopHoursUi();
         }
       });
     }
+    Hours()?.onScheduleChange?.(routeShopHoursUi);
+    Hours()?.onForceOpenExpired?.(() => {
+      Hours()?.applyForceOpenFromFlag?.(false, null);
+      routeShopHoursUi();
+    });
+    Hours()?.onForceCloseExpired?.(() => {
+      Hours()?.applyForceCloseFromFlag?.(false, null);
+      routeShopHoursUi();
+    });
   }
 
   (async function bootEntryGate() {

@@ -14,6 +14,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { enqueue, getStatus } = require('./queue');
+const kitchenAlert = require('./kitchen-alert');
 
 const PORT = 3001;
 const HOST = '127.0.0.1';
@@ -50,6 +51,7 @@ function sendJson(res, statusCode, payload) {
 let config;
 try {
   config = loadConfig();
+  kitchenAlert.setKitchenConfig(config.printers?.kitchen || null);
 } catch (err) {
   console.error('[print-service] failed to load config.json', err);
   process.exit(1);
@@ -83,6 +85,12 @@ const server = http.createServer(async (req, res) => {
       success: true,
       queue: getStatus(),
     });
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/kitchen-alert/beep') {
+    try { await readBody(req); } catch (_) { /* ignore */ }
+    sendJson(res, 200, kitchenAlert.beepOnce());
     return;
   }
 
@@ -137,6 +145,7 @@ server.listen(PORT, HOST, () => {
   console.log(`LECHAIM Print Service listening on http://${HOST}:${PORT}`);
   console.log('POST /print  → enqueue (FIFO per printer)');
   console.log('GET  /queue  → queue status');
+  console.log('POST /kitchen-alert/beep  → one-shot kitchen beep');
   console.log('Printers (config only — not connected yet):');
   console.log(`  kitchen → ${config.printers.kitchen.ip}:${config.printers.kitchen.port}`);
   console.log(`  bar     → ${config.printers.bar.ip}:${config.printers.bar.port}`);

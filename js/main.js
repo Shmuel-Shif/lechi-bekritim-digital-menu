@@ -477,6 +477,52 @@
     }
   }
 
+  async function initShopForceOpenWatch() {
+    const hours = Hours();
+    const api = window.LechaimSupabaseOrders;
+    if (typeof hours?.isWithinOrderingHours !== 'function') return;
+
+    function applyShopHours(openValue, openText, closeValue, closeText) {
+      hours.applyForceOpenFromFlag?.(openValue, openText);
+      hours.applyForceCloseFromFlag?.(closeValue, closeText);
+      refreshOrderingHoursUi();
+    }
+
+    if (api?.isConfigured?.() && typeof api.getShopForceOpenState === 'function') {
+      try {
+        const [openState, closeState] = await Promise.all([
+          api.getShopForceOpenState(),
+          typeof api.getShopForceCloseState === 'function'
+            ? api.getShopForceCloseState()
+            : Promise.resolve({ active: false, flagText: null }),
+        ]);
+        applyShopHours(openState.active, openState.flagText, closeState.active, closeState.flagText);
+      } catch (err) {
+        console.warn('[shop-hours] load failed', err);
+      }
+    }
+    refreshOrderingHoursUi();
+    hours.onScheduleChange?.(refreshOrderingHoursUi);
+    hours.onForceOpenExpired?.(refreshOrderingHoursUi);
+    hours.onForceCloseExpired?.(refreshOrderingHoursUi);
+
+    try {
+      api?.subscribeRestaurantFlags?.((evt) => {
+        if (evt?.flagKey === 'shop_force_open') {
+          hours.applyForceOpenFromFlag?.(evt.flagValue, evt.flagText);
+          refreshOrderingHoursUi();
+          return;
+        }
+        if (evt?.flagKey === 'shop_force_close') {
+          hours.applyForceCloseFromFlag?.(evt.flagValue, evt.flagText);
+          refreshOrderingHoursUi();
+        }
+      });
+    } catch (err) {
+      console.warn('[shop-hours] subscribe failed', err);
+    }
+  }
+
   function isTakeawayContext() {
     const ctx = window.LechaimOrderContext || {};
     return ctx.orderType === 'takeaway' || ctx.orderType === 'take-away';
@@ -2368,6 +2414,7 @@
     hideOrderFeedback();
     refreshOrderingHoursUi();
     initDineInOrdersClosedWatch();
+    initShopForceOpenWatch();
     initDeliveryFeeModal();
     initDeliveryMinOrderModal();
     initButcherCheckoutModal();

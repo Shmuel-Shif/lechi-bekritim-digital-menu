@@ -134,6 +134,75 @@ function sendToPrinter(printerName, ticket, printerConfig) {
   });
 }
 
+/** ESC B 03 02 — kitchen buzzer (tested on NG THERMAL-2201). No cut, no ticket. */
+const BEEP_COMMAND = Buffer.from([0x1B, 0x42, 0x03, 0x02]);
+
+/**
+ * Send raw bytes to a printer. Does not append a cut.
+ * @param {{ ip?: string, port?: number } | null} printerConfig
+ * @param {Buffer} payload
+ * @param {string} label
+ * @returns {Promise<{ success: true } | { success: false, error: string }>}
+ */
+function sendRawBytes(printerConfig, payload, label) {
+  const ip = printerConfig?.ip ? String(printerConfig.ip) : '';
+  const port = Number(printerConfig?.port) || 9100;
+
+  if (!ip) {
+    return Promise.resolve({ success: false, error: 'Missing printer IP' });
+  }
+
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    let settled = false;
+
+    function finish(result) {
+      if (settled) return;
+      settled = true;
+      try {
+        socket.removeAllListeners();
+        socket.destroy();
+      } catch (err) {
+        console.warn('[printer] socket cleanup warning', err?.message || err);
+      }
+      resolve(result);
+    }
+
+    socket.setTimeout(CONNECT_TIMEOUT_MS);
+
+    socket.once('connect', () => {
+      socket.write(payload, (writeErr) => {
+        if (writeErr) {
+          console.error(`[printer] ${label} write failed`, writeErr.message || writeErr);
+          finish({ success: false, error: writeErr.message || 'Write failed' });
+          return;
+        }
+        socket.end(() => {
+          finish({ success: true });
+        });
+      });
+    });
+
+    socket.once('timeout', () => {
+      console.error(`[printer] ${label} timeout → ${ip}:${port}`);
+      finish({ success: false, error: `Connection timeout (${ip}:${port})` });
+    });
+
+    socket.once('error', (err) => {
+      console.error(`[printer] ${label} error → ${ip}:${port}`, err.message || err);
+      finish({ success: false, error: err.message || 'Connection error' });
+    });
+
+    socket.connect(port, ip);
+  });
+}
+
+function sendKitchenBeep(printerConfig) {
+  console.log('[printer] kitchen beep ESC B 03 02');
+  return sendRawBytes(printerConfig, BEEP_COMMAND, 'Kitchen beep');
+}
+
 module.exports = {
   sendToPrinter,
+  sendKitchenBeep,
 };

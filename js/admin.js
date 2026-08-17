@@ -37,6 +37,9 @@
   const viewTill = document.getElementById('admin-view-till');
   const viewStaffHours = document.getElementById('admin-view-staff-hours');
   const kitchenCloseBtn = document.getElementById('admin-kitchen-close-btn');
+  const shopHoursBtn = document.getElementById('admin-shop-hours-btn');
+  const kitchenBeepBtn = document.getElementById('admin-kitchen-beep-btn');
+  const PRINT_SERVICE_ORIGIN = 'http://127.0.0.1:3001';
 
   let inventorySubscribed = false;
   let currentFilter = 'all';
@@ -46,6 +49,12 @@
   let currentTab = 'tables';
   let dineInCloseAtMs = null;
   let kitchenCloseAdminTick = null;
+  let shopForceOpen = false;
+  let shopForceClose = false;
+  let shopHoursExpireUnsub = null;
+  let shopHoursCloseExpireUnsub = null;
+  let shopHoursScheduleUnsub = null;
+  let shopHoursFlagsUnsub = null;
 
   function showError(el, message) {
     if (!el) return;
@@ -455,6 +464,194 @@
     }
   }
 
+  async function handleKitchenBeepClick() {
+    if (!kitchenBeepBtn || kitchenBeepBtn.disabled) return;
+    kitchenBeepBtn.disabled = true;
+    showError(panelError, '');
+    try {
+      const res = await fetch(`${PRINT_SERVICE_ORIGIN}/kitchen-alert/beep`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.success !== true) {
+        showError(panelError, 'הצפצוף נכשל — בדקו ששירות ההדפסה רץ');
+      }
+    } catch (_) {
+      showError(panelError, 'שירות ההדפסה לא זמין — לא ניתן לצפצף');
+    } finally {
+      kitchenBeepBtn.disabled = false;
+    }
+  }
+
+  function updateShopHoursButton() {
+    if (!shopHoursBtn) return;
+    const open = window.LechaimOpeningHours?.isWithinOrderingHours?.() === true;
+    if (open) {
+      shopHoursBtn.textContent = 'סגור חנות';
+      shopHoursBtn.classList.add('admin-btn--danger');
+      shopHoursBtn.classList.remove('admin-btn--primary');
+    } else {
+      shopHoursBtn.textContent = 'פתח חנות';
+      shopHoursBtn.classList.add('admin-btn--primary');
+      shopHoursBtn.classList.remove('admin-btn--danger');
+    }
+  }
+
+  function applyShopHoursFlags(openState, closeState) {
+    const hours = window.LechaimOpeningHours;
+    shopForceOpen = Boolean(openState?.active);
+    shopForceClose = Boolean(closeState?.active);
+    hours?.applyForceOpenFromFlag?.(openState?.active, openState?.flagText);
+    hours?.applyForceCloseFromFlag?.(closeState?.active, closeState?.flagText);
+    updateShopHoursButton();
+  }
+
+  async function persistShopForceOpenClosed() {
+    const api = window.LechaimSupabaseOrders;
+    if (typeof api?.setShopForceOpen !== 'function') return;
+    try {
+      await api.setShopForceOpen(false);
+      shopForceOpen = false;
+    } catch (err) {
+      console.warn('[admin] shop force-open auto-close persist failed', err);
+    }
+  }
+
+  async function persistShopForceCloseCleared() {
+    const api = window.LechaimSupabaseOrders;
+    if (typeof api?.setShopForceClose !== 'function') return;
+    try {
+      await api.setShopForceClose(false);
+      shopForceClose = false;
+    } catch (err) {
+      console.warn('[admin] shop force-close auto-clear persist failed', err);
+    }
+  }
+
+  function bindShopHoursSchedule() {
+    const hours = window.LechaimOpeningHours;
+    if (!shopHoursExpireUnsub && typeof hours?.onForceOpenExpired === 'function') {
+      shopHoursExpireUnsub = hours.onForceOpenExpired(() => {
+        if (shopForceOpen) {
+          shopForceOpen = false;
+          void persistShopForceOpenClosed();
+        }
+        updateShopHoursButton();
+      });
+    }
+    if (!shopHoursCloseExpireUnsub && typeof hours?.onForceCloseExpired === 'function') {
+      shopHoursCloseExpireUnsub = hours.onForceCloseExpired(() => {
+        if (shopForceClose) {
+          shopForceClose = false;
+          void persistShopForceCloseCleared();
+        }
+        updateShopHoursButton();
+      });
+    }
+    if (!shopHoursScheduleUnsub && typeof hours?.onScheduleChange === 'function') {
+      shopHoursScheduleUnsub = hours.onScheduleChange(() => {
+        updateShopHoursButton();
+      });
+    }
+    if (!shopHoursFlagsUnsub) {
+      const api = window.LechaimSupabaseOrders;
+      if (typeof api?.subscribeRestaurantFlags === 'function') {
+        shopHoursFlagsUnsub = api.subscribeRestaurantFlags((evt) => {
+          if (evt?.flagKey === 'shop_force_open') {
+            hours?.applyForceOpenFromFlag?.(evt.flagValue, evt.flagText);
+            shopForceOpen = Boolean(hours?.isForceOpen?.());
+            updateShopHoursButton();
+          } else if (evt?.flagKey === 'shop_force_close') {
+            hours?.applyForceCloseFromFlag?.(evt.flagValue, evt.flagText);
+            shopForceClose = Boolean(hours?.isForceClose?.());
+            updateShopHoursButton();
+          }
+        });
+      }
+    }
+  }
+
+  async function refreshShopForceOpenFlag() {
+    const api = window.LechaimSupabaseOrders;
+    bindShopHoursSchedule();
+    if (!api?.isConfigured?.() || typeof api.getShopForceOpenState !== 'function') {
+      applyShopHoursFlags({ active: false }, { active: false });
+      return;
+    }
+    try {
+      const [openState, closeState] = await Promise.all([
+        api.getShopForceOpenState(),
+        typeof api.getShopForceCloseState === 'function'
+          ? api.getShopForceCloseState()
+          : Promise.resolve({ active: false, stale: false, flagText: null }),
+      ]);
+      if (openState.stale) await persistShopForceOpenClosed();
+      if (closeState.stale) await persistShopForceCloseCleared();
+      applyShopHoursFlags(
+        openState.stale ? { active: false } : openState,
+        closeState.stale ? { active: false } : closeState
+      );
+    } catch (err) {
+      console.warn('[admin] shop hours load failed', err);
+      updateShopHoursButton();
+    }
+  }
+
+  async function handleShopHoursClick() {
+    const api = window.LechaimSupabaseOrders;
+    const hours = window.LechaimOpeningHours;
+    if (typeof api?.setShopForceOpen !== 'function') {
+      showError(panelError, 'מתג החנות לא זמין');
+      return;
+    }
+    const currentlyOpen = hours?.isWithinOrderingHours?.() === true;
+    const naturallyOpen = hours?.isNaturallyOpen?.() === true;
+    const untilMs = typeof hours?.overrideExpiryMs === 'function'
+      ? hours.overrideExpiryMs()
+      : (typeof hours?.forceOpenExpiryMs === 'function' ? hours.forceOpenExpiryMs() : 0);
+    const untilLabel = untilMs && typeof hours?.formatClockFromMs === 'function'
+      ? hours.formatClockFromMs(untilMs)
+      : '22:00';
+
+    const ok = window.confirm(
+      currentlyOpen
+        ? (naturallyOpen
+          ? `לסגור את החנות עכשיו?\nישיבה במקום ואיסוף עצמי ייסגרו.\nאם לא תלחצו פתח חנות, ב־${untilLabel} היא תחזור לשעות הפעילות.`
+          : 'להחזיר את החנות לשעות הפעילות?\nמחוץ לשעות היא תיסגר.')
+        : `לפתוח את החנות עכשיו?\nישיבה במקום ואיסוף עצמי יהיו פתוחים גם מחוץ ל־14:00–22:00.\nאם לא תלחצו סגור חנות, ב־${untilLabel} היא תחזור לשעות הפעילות.`
+    );
+    if (!ok) return;
+    if (shopHoursBtn) shopHoursBtn.disabled = true;
+    showError(panelError, '');
+    try {
+      if (currentlyOpen) {
+        if (naturallyOpen && typeof api.setShopForceClose === 'function') {
+          const closeState = await api.setShopForceClose(true);
+          applyShopHoursFlags({ active: false }, closeState);
+        } else {
+          await api.setShopForceOpen(false);
+          applyShopHoursFlags({ active: false }, { active: shopForceClose });
+        }
+        showToast('החנות סגורה');
+      } else if (!naturallyOpen) {
+        const openState = await api.setShopForceOpen(true);
+        applyShopHoursFlags(openState, { active: false });
+        showToast('החנות פתוחה עד השעה ' + untilLabel);
+      } else {
+        const closeState = await api.setShopForceClose(false);
+        applyShopHoursFlags({ active: shopForceOpen }, closeState);
+        showToast('החנות פתוחה לפי שעות הפעילות');
+      }
+    } catch (err) {
+      console.error('[admin] shop hours toggle failed', err);
+      showError(panelError, err?.message || 'עדכון שעות החנות נכשל');
+    } finally {
+      if (shopHoursBtn) shopHoursBtn.disabled = false;
+    }
+  }
+
   function updateKitchenCloseButton() {
     if (!kitchenCloseBtn) return;
     if (!dineInCloseAtMs) {
@@ -551,6 +748,7 @@
       refreshCatalogCache();
       updateStats();
       await refreshKitchenCloseFlag();
+      await refreshShopForceOpenFlag();
 
       if (LechaimInventory.areRecommendedEnabled?.() === false) {
         showError(
@@ -783,6 +981,14 @@
 
   kitchenCloseBtn?.addEventListener('click', () => {
     handleKitchenCloseClick();
+  });
+
+  shopHoursBtn?.addEventListener('click', () => {
+    handleShopHoursClick();
+  });
+
+  kitchenBeepBtn?.addEventListener('click', () => {
+    handleKitchenBeepClick();
   });
 
   successOk?.addEventListener('click', closeAdminModal);
