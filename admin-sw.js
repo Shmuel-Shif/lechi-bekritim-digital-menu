@@ -1,5 +1,5 @@
 ה/* LECHAIM Admin — Service Worker (PWA installability) */
-const CACHE = 'lechaim-admin-v40';
+const CACHE = 'lechaim-admin-v45';
 const PRECACHE = [
   './admin.html',
   './admin.webmanifest',
@@ -59,17 +59,14 @@ self.addEventListener('fetch', (event) => {
   }
 
   event.respondWith(
-    caches.match(req).then((cached) => {
-      const network = fetch(req)
-        .then((res) => {
-          if (res && res.ok) {
-            const copy = res.clone();
-            caches.open(CACHE).then((cache) => cache.put(req, copy));
-          }
-          return res;
-        })
-        .catch(() => cached);
-      return cached || network;
-    })
+    fetch(req)
+      .then((res) => {
+        if (res && res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then((cache) => cache.put(req, copy));
+        }
+        return res;
+      })
+      .catch(() => caches.match(req))
   );
 });

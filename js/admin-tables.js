@@ -87,6 +87,8 @@
   let confirmResolver = null;
   let pendingOptionMain = null;
   let pendingOptionSideId = null;
+  let pendingOptionDonenessId = null;
+  let pendingOptionStep = 'options';
   let pendingQtyProduct = null;
   let pendingQtySide = null;
   let pendingQty = 1;
@@ -1845,7 +1847,43 @@
   /**
    * Kitchen/bar ticket: only blue (late-add / unprinted wave) items when present.
    * If nothing is pending (reprint), fall back to the full order.
+   * Always keep linked children/parents of those lines (hamburger drink + doneness).
    */
+  function withLinkedCompanions(sourceItems, liveItems) {
+    const live = Array.isArray(liveItems) ? liveItems : [];
+    const out = [];
+    const ids = new Set();
+
+    function add(row) {
+      const id = String(row?.itemId || '');
+      if (!id || ids.has(id)) return false;
+      ids.add(id);
+      out.push(row);
+      return true;
+    }
+
+    (Array.isArray(sourceItems) ? sourceItems : []).forEach(add);
+
+    let grew = true;
+    while (grew) {
+      grew = false;
+      live.forEach((row) => {
+        const id = String(row?.itemId || '');
+        if (!id || ids.has(id) || Number(row?.qty) <= 0) return;
+        const parentId = row.linkedToMainItemId ? String(row.linkedToMainItemId) : '';
+        if (parentId && ids.has(parentId)) {
+          if (add(row)) grew = true;
+          return;
+        }
+        if (!parentId && out.some((item) => String(item.linkedToMainItemId || '') === id)) {
+          if (add(row)) grew = true;
+        }
+      });
+    }
+
+    return out;
+  }
+
   function mapEntryToPrintOrder(entry) {
     const order = entry?.order;
     if (!order) return null;
@@ -1853,7 +1891,10 @@
     const liveItems = (order.items || []).filter((row) => Number(row.qty) > 0);
     const lateItems = liveItems.filter((row) => row && row.isLateAdd);
     /* Blue = new since last print → print only those. Else full reprint. */
-    const sourceItems = lateItems.length ? lateItems : liveItems;
+    const sourceItems = withLinkedCompanions(
+      lateItems.length ? lateItems : liveItems,
+      liveItems
+    );
 
     const items = sourceItems
       .map((row) => ({
@@ -2153,6 +2194,18 @@
         available: true,
       };
     }
+    const doneness = (window.DONENESS_ITEMS || []).find((item) => item.id === productId);
+    if (doneness) {
+      return {
+        id: doneness.id,
+        name: doneness.name,
+        printName: doneness.printName,
+        price: 0,
+        image: doneness.image || '',
+        categoryId: 'doneness',
+        available: true,
+      };
+    }
     return null;
   }
 
@@ -2181,16 +2234,100 @@
     return productId === (window.HAMBURGER_MEAL_ID || 'hamburger-fries');
   }
 
+  function isAdminEntrecoteSteak(productId) {
+    return productId === (window.ENTRECOTE_STEAK_ID || 'staik-antarkot');
+  }
+
+  function isAdminDonenessParent(productId) {
+    return isAdminEntrecoteSteak(productId) || isAdminHamburgerMeal(productId);
+  }
+
   function productNeedsOptionPicker(productId) {
     return isAdminMainCourse(productId)
       || isAdminFruitShake(productId)
       || isAdminHamburgerMeal(productId)
-      || isAdminLimonana(productId);
+      || isAdminLimonana(productId)
+      || isAdminEntrecoteSteak(productId);
   }
 
-  function getAdminPickerOptions(parentProductId) {
+  function getAdminDonenessOptions() {
+    const source = (Array.isArray(window.DONENESS_ITEMS) && window.DONENESS_ITEMS.length)
+      ? window.DONENESS_ITEMS
+      : [
+        { id: 'doneness-rare', name: 'רייר', printName: 'Rare' },
+        { id: 'doneness-medium-rare', name: 'מדיום רייר', printName: 'Medium Rare' },
+        { id: 'doneness-medium', name: 'מדיום', printName: 'Medium' },
+        { id: 'doneness-medium-well', name: 'מדיום וול', printName: 'Medium Well' },
+        { id: 'doneness-well-done', name: 'וול דאן', printName: 'Well Done' },
+      ];
+    return source
+      .filter((item) => item?.id)
+      .map((item) => ({
+        id: item.id,
+        name: item.name,
+        image: item.image || '',
+        price: 0,
+        printName: item.printName || '',
+        categoryId: 'doneness',
+      }));
+  }
+
+  function asLinkedSides(value) {
+    if (!value) return [];
+    return (Array.isArray(value) ? value : [value]).filter(Boolean);
+  }
+
+  function getAdminHamburgerDrinkOptions() {
     const inv = window.LechaimInventory;
     const available = (id) => inv?.isAvailable?.(id) !== false;
+    const catalog = catalogCache.length ? catalogCache : loadCatalog();
+    const ids = window.HAMBURGER_DRINK_IDS;
+    const out = [];
+    if (!ids || typeof ids.forEach !== 'function') return out;
+
+    function fromMenuData(id) {
+      const categories = window.MENU_DATA?.categories;
+      if (!Array.isArray(categories)) return null;
+      for (let c = 0; c < categories.length; c += 1) {
+        const cat = categories[c];
+        const pools = [cat.items || []];
+        (cat.subsections || []).forEach((sub) => pools.push(sub.items || []));
+        for (let p = 0; p < pools.length; p += 1) {
+          const found = pools[p].find((row) => row && String(row.id) === String(id));
+          if (found) {
+            return {
+              id: found.id,
+              name: found.name,
+              image: found.image || '',
+              price: 0,
+              printName: found.printName,
+              categoryId: cat.id || 'coldDrinks',
+            };
+          }
+        }
+      }
+      return null;
+    }
+
+    ids.forEach((id) => {
+      if (!available(id)) return;
+      const item = catalog.find((row) => row.id === id) || fromMenuData(id);
+      if (item) out.push(item);
+    });
+    return out;
+  }
+
+  function getAdminPickerOptions(parentProductId, step = pendingOptionStep) {
+    const inv = window.LechaimInventory;
+    const available = (id) => inv?.isAvailable?.(id) !== false;
+
+    if (isAdminHamburgerMeal(parentProductId) && step === 'drink') {
+      return getAdminHamburgerDrinkOptions();
+    }
+
+    if (isAdminDonenessParent(parentProductId) && step !== 'drink') {
+      return getAdminDonenessOptions();
+    }
 
     if (isAdminFruitShake(parentProductId)) {
       return (window.SHAKE_BASE_ITEMS || [])
@@ -2219,14 +2356,7 @@
     }
 
     if (isAdminHamburgerMeal(parentProductId)) {
-      const catalog = catalogCache.length ? catalogCache : loadCatalog();
-      const out = [];
-      (window.HAMBURGER_DRINK_IDS || []).forEach?.((id) => {
-        if (!available(id)) return;
-        const item = catalog.find((row) => row.id === id);
-        if (item) out.push(item);
-      });
-      return out;
+      return getAdminHamburgerDrinkOptions();
     }
 
     return (window.HOT_SIDE_ITEMS || [])
@@ -2257,6 +2387,22 @@
         requireSelection: true,
       };
     }
+    if (isAdminHamburgerMeal(product?.id) && pendingOptionStep === 'drink') {
+      return {
+        title: 'בחרו שתייה',
+        subtitle: `שתייה לארוחה: ${name}`,
+        requireSelection: true,
+        confirmLabel: 'המשך',
+      };
+    }
+    if (isAdminDonenessParent(product?.id)) {
+      return {
+        title: 'איזו מידת עשייה תרצו?',
+        subtitle: name,
+        requireSelection: true,
+        confirmLabel: isAdminHamburgerMeal(product?.id) ? 'המשך לשתייה' : 'המשך',
+      };
+    }
     if (isAdminHamburgerMeal(product?.id)) {
       return {
         title: 'בחרו שתייה',
@@ -2275,6 +2421,8 @@
     const modal = document.getElementById('admin-option-picker-modal');
     pendingOptionMain = null;
     pendingOptionSideId = null;
+    pendingOptionDonenessId = null;
+    pendingOptionStep = 'options';
     if (!modal) return;
     modal.hidden = true;
     modal.setAttribute('aria-hidden', 'true');
@@ -2290,8 +2438,15 @@
     const copy = getAdminOptionPickerCopy(pendingOptionMain);
     if (titleEl) titleEl.textContent = copy.title;
     if (subtitleEl) subtitleEl.textContent = copy.subtitle;
+    if (confirmBtn) confirmBtn.textContent = copy.confirmLabel || 'המשך';
 
-    const options = getAdminPickerOptions(pendingOptionMain.id);
+    const donenessStep = pendingOptionStep === 'doneness'
+      || (isAdminDonenessParent(pendingOptionMain.id) && pendingOptionStep !== 'drink');
+    const options = getAdminPickerOptions(
+      pendingOptionMain.id,
+      donenessStep ? 'doneness' : pendingOptionStep
+    );
+    grid.classList.toggle('admin-option-picker__grid--doneness', donenessStep);
     if (!options.length) {
       grid.innerHTML = '<p class="table-drawer__empty">אין אפשרויות זמינות במלאי</p>';
       if (confirmBtn) confirmBtn.disabled = true;
@@ -2303,6 +2458,9 @@
       const img = opt.image
         ? `<img class="admin-option-picker__thumb" src="${escapeAttr(opt.image)}" alt="" width="52" height="52" loading="lazy" decoding="async">`
         : '';
+      const printHtml = donenessStep && opt.printName
+        ? `<span class="admin-option-picker__print">${escapeHtml(opt.printName)}</span>`
+        : '';
       const limonanaTotal = isAdminLimonana(pendingOptionMain.id)
         ? (Number(pendingOptionMain.price) || 0) + (Number(opt.price) || 0)
         : null;
@@ -2312,12 +2470,13 @@
       return `
         <button
           type="button"
-          class="admin-option-picker__cell${selected ? ' is-selected' : ''}"
+          class="admin-option-picker__cell${selected ? ' is-selected' : ''}${donenessStep ? ' admin-option-picker__cell--doneness' : ''}"
           data-option-id="${escapeAttr(opt.id)}"
           aria-pressed="${selected ? 'true' : 'false'}"
         >
           ${img}
           <span>${escapeHtml(opt.name || opt.id)}</span>
+          ${printHtml}
           ${priceHtml}
         </button>
       `;
@@ -2333,6 +2492,8 @@
     if (!modal || !product) return;
     pendingOptionMain = product;
     pendingOptionSideId = null;
+    pendingOptionDonenessId = null;
+    pendingOptionStep = isAdminDonenessParent(product.id) ? 'doneness' : 'options';
     renderAdminOptionPicker();
     modal.hidden = false;
     modal.setAttribute('aria-hidden', 'false');
@@ -2361,7 +2522,8 @@
     const isRemove = pendingQtyMode === 'remove';
     const max = qtyModalMax();
     let label = pendingQtyProduct.name || pendingQtyProduct.id || '';
-    if (pendingQtySide?.name) label = `${label} + ${pendingQtySide.name}`;
+    const sideNames = asLinkedSides(pendingQtySide).map((s) => s.name).filter(Boolean);
+    if (sideNames.length) label = `${label} + ${sideNames.join(' + ')}`;
     if (isRemove && pendingRemoveMaxQty > 1) {
       label = `${label} (יש ${pendingRemoveMaxQty})`;
     }
@@ -2429,7 +2591,17 @@
     renderAdminQtyModal();
   }
 
-  async function appendLinkedSideToOrder(api, orderId, parentRemoteId, sideProduct, quantity = 1) {
+  function linkedOptionUnitPrice(sideProduct, parentProduct) {
+    if (!sideProduct) return 0;
+    const pid = sideProduct.id;
+    if (window.DONENESS_IDS?.has?.(pid)) return 0;
+    if (window.HOT_SIDE_IDS?.has?.(pid)) return 0;
+    if (window.SHAKE_BASE_IDS?.has?.(pid)) return 0;
+    if (window.HAMBURGER_DRINK_IDS?.has?.(pid) && isAdminHamburgerMeal(parentProduct?.id)) return 0;
+    return Number(sideProduct.price) || 0;
+  }
+
+  async function appendLinkedSideToOrder(api, orderId, parentRemoteId, sideProduct, quantity = 1, parentProduct = null) {
     if (!api || !orderId || !parentRemoteId || !sideProduct) return;
     const qty = clampQty(quantity);
     await api.createOrderItems(orderId, [{
@@ -2437,14 +2609,11 @@
       productName: sideProduct.name || '',
       printName: resolvePrintNameForProduct(sideProduct),
       quantity: qty,
-      price: Number(sideProduct.price) || 0,
+      price: linkedOptionUnitPrice(sideProduct, parentProduct),
       category: sideProduct.categoryId || null,
       notes: null,
       parentItemId: parentRemoteId,
     }]);
-    if (typeof api.refreshOrderTotal === 'function') {
-      await api.refreshOrderTotal(orderId);
-    }
   }
 
   async function commitAddProduct(product, linkedSideProduct = null, quantity = 1) {
@@ -2454,7 +2623,8 @@
     const qty = clampQty(quantity);
     const price = Number(product.price) || 0;
     const printName = resolvePrintNameForProduct(product);
-    const sidePrice = linkedSideProduct ? (Number(linkedSideProduct.price) || 0) : 0;
+    const sides = asLinkedSides(linkedSideProduct);
+    const sidePrice = sides.reduce((sum, side) => sum + linkedOptionUnitPrice(side, product), 0);
 
     if (dataSource === 'supabase' && entry.order._supabaseSessionId && OrdersApi()?.isConfigured?.()) {
       suppressCustomerNotify();
@@ -2473,7 +2643,7 @@
       if (stackInto?.id) {
         orderId = stackInto.id;
         const lines = Array.isArray(stackInto.order_items) ? stackInto.order_items : [];
-        const same = !linkedSideProduct
+        const same = !sides.length
           ? lines.find((row) => (
             String(row.product_id || '') === String(product.id)
             && !row.parent_item_id
@@ -2519,25 +2689,32 @@
         parentRemoteId = created?.[0]?.id || null;
       }
 
-      if (linkedSideProduct) {
+      if (sides.length) {
         if (!parentRemoteId) throw new Error('missing parent item id for linked side');
-        await appendLinkedSideToOrder(api, orderId, parentRemoteId, linkedSideProduct, qty);
+        for (const side of sides) {
+          await appendLinkedSideToOrder(api, orderId, parentRemoteId, side, qty, product);
+        }
+        if (typeof api.refreshOrderTotal === 'function') {
+          await api.refreshOrderTotal(orderId);
+        }
       }
       return true;
     }
 
     const engine = Engine();
     const updated = engine?.addProductToOrder?.(entry.order.orderId, product, qty, '', {
-      allowMerge: !linkedSideProduct,
+      allowMerge: !sides.length,
     });
     if (!updated) return false;
-    if (linkedSideProduct) {
+    if (sides.length) {
       const parentItemId = updated._lastAddedItemId;
-      const withSide = engine.addProductToOrder(entry.order.orderId, linkedSideProduct, qty, '', {
-        linkedToMainItemId: parentItemId,
-        allowMerge: false,
-      });
-      if (!withSide) return false;
+      for (const side of sides) {
+        const withSide = engine.addProductToOrder(entry.order.orderId, side, qty, '', {
+          linkedToMainItemId: parentItemId,
+          allowMerge: false,
+        });
+        if (!withSide) return false;
+      }
     }
     return true;
   }
@@ -2557,6 +2734,12 @@
     }
 
     if (productNeedsOptionPicker(product.id)) {
+      /* Hamburger / entrecote always open doneness first — do not pre-check
+         drinks/sides with a stale picker step or the modal never appears. */
+      if (isAdminDonenessParent(product.id)) {
+        openAdminOptionPicker(product);
+        return;
+      }
       const options = getAdminPickerOptions(product.id);
       if (!options.length) {
         showToast('אין אפשרויות זמינות במלאי');
@@ -2595,8 +2778,8 @@
       }
       closeAdminQtyModal();
       const qtyLabel = qty > 1 ? `${qty}× ` : '';
-      const sideLabel = side?.name ? `\n+ ${side.name}` : '';
-      showSuccessModal(`המוצר נוסף בהצלחה\n${qtyLabel}${product.name}${sideLabel}`);
+      const sideLabel = asLinkedSides(side).map((s) => s.name).filter(Boolean).join(' + ');
+      showSuccessModal(`המוצר נוסף בהצלחה\n${qtyLabel}${product.name}${sideLabel ? `\n+ ${sideLabel}` : ''}`);
       await refreshBoardData();
       if (menuMode) renderMenuPicker();
     } catch (err) {
@@ -2610,13 +2793,30 @@
   function confirmAdminOptionPicker() {
     if (!pendingOptionMain || !pendingOptionSideId || addProductBusy) return;
     const main = pendingOptionMain;
-    const side = findCatalogProduct(pendingOptionSideId);
-    if (!side) {
+
+    if (isAdminDonenessParent(main.id) && pendingOptionStep === 'doneness') {
+      if (isAdminHamburgerMeal(main.id)) {
+        pendingOptionDonenessId = pendingOptionSideId;
+        pendingOptionSideId = null;
+        pendingOptionStep = 'drink';
+        renderAdminOptionPicker();
+        return;
+      }
+    }
+
+    const sides = [];
+    if (pendingOptionDonenessId) {
+      const doneness = findCatalogProduct(pendingOptionDonenessId);
+      if (doneness) sides.push(doneness);
+    }
+    const last = findCatalogProduct(pendingOptionSideId);
+    if (!last) {
       showToast('התוספת לא נמצאה');
       return;
     }
+    sides.push(last);
     closeAdminOptionPicker();
-    openAdminQtyModal(main, side);
+    openAdminQtyModal(main, sides.length > 1 ? sides : sides[0]);
   }
 
   async function handlePrintCustomerBill(entry, coupon = null) {

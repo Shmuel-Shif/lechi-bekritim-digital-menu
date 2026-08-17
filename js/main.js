@@ -123,6 +123,7 @@
   let isSendingOrder = false;
   let openModalItemId = null;
   let openSidesMainLineId = null;
+  let sidesPickerStep = 'options';
   let sidesModalLastFocused = null;
 
   let cartLines = [];
@@ -2112,6 +2113,10 @@
     return out;
   }
 
+  function getDonenessItems() {
+    return window.DONENESS_ITEMS || [];
+  }
+
   function findItem(itemId) {
     for (const category of MENU_DATA.categories) {
       const item = getCategoryItems(category).find((i) => i.id === itemId);
@@ -2121,6 +2126,7 @@
     if (hot) return hot;
     return getShakeBaseItems().find((item) => item.id === itemId)
       || getLimonanaAlcoholItems().find((item) => item.id === itemId)
+      || getDonenessItems().find((item) => item.id === itemId)
       || null;
   }
 
@@ -2132,20 +2138,28 @@
   }
 
   function addSideToMainLine(mainLineId, sideItemId) {
-    /* Shake bases / limonana alcohol are always available options (not inventory SKUs). */
-    if (!isShakeBase(sideItemId) && !isLimonanaAlcoholOption(sideItemId) && !isProductAvailable(sideItemId)) {
+    /* Shake bases / limonana alcohol / doneness are always available options (not inventory SKUs). */
+    if (
+      !isShakeBase(sideItemId)
+      && !isLimonanaAlcoholOption(sideItemId)
+      && !isDonenessOption(sideItemId)
+      && !isProductAvailable(sideItemId)
+    ) {
       showCartToast(t('outOfStock'));
       return false;
     }
 
+    const kind = optionKind(sideItemId);
     const otherSides = cartLines.filter(
-      (l) => l.linkedToMainLineId === mainLineId && l.itemId !== sideItemId
+      (l) => l.linkedToMainLineId === mainLineId
+        && l.itemId !== sideItemId
+        && optionKind(l.itemId) === kind
     );
     otherSides.forEach((line) => {
       removeCartLine(line.lineId);
     });
 
-    if (!canAddSideToMain(mainLineId)) {
+    if (!canAddSideToMain(mainLineId, 1, sideItemId)) {
       showCartToast(t('maxSidesPerMain'));
       return false;
     }
@@ -2213,6 +2227,18 @@
     return itemId === (window.HAMBURGER_MEAL_ID || 'hamburger-fries');
   }
 
+  function isEntrecoteSteak(itemId) {
+    return itemId === (window.ENTRECOTE_STEAK_ID || 'staik-antarkot');
+  }
+
+  function isDonenessParent(itemId) {
+    return isEntrecoteSteak(itemId) || isHamburgerMeal(itemId);
+  }
+
+  function isDonenessOption(itemId) {
+    return Boolean(window.DONENESS_IDS?.has?.(itemId));
+  }
+
   function isShakeBase(itemId) {
     return Boolean(window.SHAKE_BASE_IDS?.has?.(itemId));
   }
@@ -2225,24 +2251,56 @@
     return Boolean(window.HAMBURGER_DRINK_IDS?.has?.(itemId));
   }
 
-  /** Linked option under a parent line (hot side, shake base, meal drink, or limonana alcohol). */
+  function optionKind(itemId) {
+    if (isDonenessOption(itemId)) return 'doneness';
+    if (isHamburgerDrinkOption(itemId)) return 'drink';
+    if (isShakeBase(itemId)) return 'shake-base';
+    if (isLimonanaAlcoholOption(itemId)) return 'limonana-alcohol';
+    if (isHotSide(itemId)) return 'hot-side';
+    return 'other';
+  }
+
+  /** Linked option under a parent line (hot side, shake base, meal drink, doneness, or limonana alcohol). */
   function isLinkedOption(itemId) {
-    return isHotSide(itemId) || isShakeBase(itemId) || isLimonanaAlcoholOption(itemId);
+    return isHotSide(itemId) || isShakeBase(itemId) || isLimonanaAlcoholOption(itemId) || isDonenessOption(itemId);
   }
 
   function isParentWithOptions(itemId) {
-    return isMainCourse(itemId) || isFruitShake(itemId) || isHamburgerMeal(itemId) || isLimonana(itemId);
+    return isMainCourse(itemId) || isFruitShake(itemId) || isHamburgerMeal(itemId) || isLimonana(itemId) || isEntrecoteSteak(itemId);
   }
 
   function isRequiredPickParent(itemId) {
-    return isFruitShake(itemId) || isHamburgerMeal(itemId) || isLimonana(itemId);
+    return isFruitShake(itemId) || isHamburgerMeal(itemId) || isLimonana(itemId) || isEntrecoteSteak(itemId);
   }
 
-  function getPickerOptionsForParent(parentItemId) {
+  function getPickerOptionsForParent(parentItemId, step = sidesPickerStep) {
+    if (isHamburgerMeal(parentItemId) && step === 'drink') return getHamburgerDrinkItems();
+    if (isDonenessParent(parentItemId)) return getDonenessItems();
     if (isFruitShake(parentItemId)) return getShakeBaseItems();
     if (isHamburgerMeal(parentItemId)) return getHamburgerDrinkItems();
     if (isLimonana(parentItemId)) return getLimonanaAlcoholItems();
     return getHotSideItems();
+  }
+
+  function countSidesForMainOfKind(mainLineId, kind) {
+    return getSideLinesForMain(mainLineId)
+      .filter((l) => optionKind(l.itemId) === kind)
+      .reduce((sum, l) => sum + l.qty, 0);
+  }
+
+  function parentHasRequiredPicks(parentLine) {
+    if (!parentLine) return true;
+    if (isHamburgerMeal(parentLine.itemId)) {
+      return countSidesForMainOfKind(parentLine.lineId, 'doneness') > 0
+        && countSidesForMainOfKind(parentLine.lineId, 'drink') > 0;
+    }
+    if (isEntrecoteSteak(parentLine.itemId)) {
+      return countSidesForMainOfKind(parentLine.lineId, 'doneness') > 0;
+    }
+    if (isRequiredPickParent(parentLine.itemId)) {
+      return countSidesForMain(parentLine.lineId) > 0;
+    }
+    return true;
   }
 
   function createCartLineId() {
@@ -2272,8 +2330,11 @@
     return getSideLinesForMain(mainLineId).reduce((sum, l) => sum + l.qty, 0);
   }
 
-  function canAddSideToMain(mainLineId, addQty = 1) {
+  function canAddSideToMain(mainLineId, addQty = 1, sideItemId = null) {
     if (!mainLineId) return false;
+    if (sideItemId) {
+      return countSidesForMainOfKind(mainLineId, optionKind(sideItemId)) + addQty <= 1;
+    }
     return countSidesForMain(mainLineId) + addQty <= MAX_SIDES_PER_MAIN;
   }
 
@@ -3718,24 +3779,35 @@
     }
 
     const shakeMode = isFruitShake(mainLine.itemId);
-    const drinkMode = isHamburgerMeal(mainLine.itemId);
+    const drinkMode = isHamburgerMeal(mainLine.itemId) && sidesPickerStep === 'drink';
+    const donenessMode = isDonenessParent(mainLine.itemId) && sidesPickerStep !== 'drink';
     const limonanaMode = isLimonana(mainLine.itemId);
-    const compactPicker = shakeMode || drinkMode || limonanaMode;
-    const titleKey = shakeMode
-      ? 'chooseShakeBaseTitle'
-      : (drinkMode
-        ? 'chooseDrinkTitle'
-        : (limonanaMode ? 'chooseLimonanaAlcoholTitle' : 'chooseSidesTitle'));
-    const subtitleKey = shakeMode
-      ? 'chooseShakeBaseSubtitle'
-      : (drinkMode
-        ? 'chooseDrinkSubtitle'
-        : (limonanaMode ? 'chooseLimonanaAlcoholSubtitle' : 'chooseSidesSubtitle'));
-    const selectedCount = countSidesForMain(openSidesMainLineId);
-    const cellsHtml = getPickerOptionsForParent(mainLine.itemId).map((side) => {
+    const compactPicker = shakeMode || drinkMode || limonanaMode || donenessMode;
+    const titleKey = donenessMode
+      ? 'chooseDonenessTitle'
+      : (shakeMode
+        ? 'chooseShakeBaseTitle'
+        : (drinkMode
+          ? 'chooseDrinkTitle'
+          : (limonanaMode ? 'chooseLimonanaAlcoholTitle' : 'chooseSidesTitle')));
+    const subtitleKey = donenessMode
+      ? 'chooseDonenessSubtitle'
+      : (shakeMode
+        ? 'chooseShakeBaseSubtitle'
+        : (drinkMode
+          ? 'chooseDrinkSubtitle'
+          : (limonanaMode ? 'chooseLimonanaAlcoholSubtitle' : 'chooseSidesSubtitle')));
+    const pickerKind = donenessMode
+      ? 'doneness'
+      : (drinkMode ? 'drink' : (shakeMode ? 'shake-base' : (limonanaMode ? 'limonana-alcohol' : 'hot-side')));
+    const selectedCount = countSidesForMainOfKind(openSidesMainLineId, pickerKind);
+    const cellsHtml = getPickerOptionsForParent(mainLine.itemId, sidesPickerStep).map((side) => {
       const qty = getSideQtyForMain(openSidesMainLineId, side.id);
       const selected = qty > 0;
-      const available = isProductAvailable(side.id);
+      const available = isDonenessOption(side.id)
+        || isShakeBase(side.id)
+        || isLimonanaAlcoholOption(side.id)
+        || isProductAvailable(side.id);
       if (!available && !selected) return '';
       const hasImage = Boolean(getItemImage(side));
       const imageHtml = hasImage
@@ -3806,6 +3878,18 @@
     lastMainLineId = mainLineId;
     sidesModalLastFocused = document.activeElement;
 
+    const parentLine = findCartLine(mainLineId);
+    if (parentLine && isHamburgerMeal(parentLine.itemId)) {
+      sidesPickerStep = countSidesForMainOfKind(mainLineId, 'doneness') > 0
+        && countSidesForMainOfKind(mainLineId, 'drink') < 1
+        ? 'drink'
+        : 'doneness';
+    } else if (parentLine && isEntrecoteSteak(parentLine.itemId)) {
+      sidesPickerStep = 'doneness';
+    } else {
+      sidesPickerStep = 'options';
+    }
+
     closeFoodModal();
     renderSidesModal();
 
@@ -3826,7 +3910,7 @@
     const parentLineId = openSidesMainLineId;
     const parentLine = parentLineId ? findCartLine(parentLineId) : null;
     const mustPickOption = parentLine && isRequiredPickParent(parentLine.itemId);
-    const hasPick = parentLineId ? countSidesForMain(parentLineId) > 0 : true;
+    const hasPick = parentHasRequiredPicks(parentLine);
 
     openSidesMainLineId = null;
     clearFocusTrap('sides');
@@ -3874,6 +3958,13 @@
       }
 
       if (action === 'sides-continue') {
+        const mainLine = findCartLine(openSidesMainLineId);
+        if (mainLine && isHamburgerMeal(mainLine.itemId) && sidesPickerStep === 'doneness') {
+          if (countSidesForMainOfKind(openSidesMainLineId, 'doneness') < 1) return;
+          sidesPickerStep = 'drink';
+          renderSidesModal();
+          return;
+        }
         closeSidesModal();
       }
     });
@@ -5020,7 +5111,10 @@
         let currentOrder = order;
         for (const line of sortedLines) {
           const product = resolveCartProductForOrder(line.itemId, line);
-          if (!product) continue;
+          if (!product) {
+            console.warn('[cart] skip unknown product', line.itemId);
+            continue;
+          }
 
           const linkedToMainItemId = line.linkedToMainLineId
             ? (cartLineToOrderItemId.get(line.linkedToMainLineId) || null)
@@ -5139,6 +5233,10 @@
     const hotSides = window.HOT_SIDE_ITEMS;
     if (Array.isArray(hotSides) && hotSides.some((entry) => entry && String(entry.id) === id)) {
       return 'hotSides';
+    }
+    const doneness = window.DONENESS_ITEMS;
+    if (Array.isArray(doneness) && doneness.some((entry) => entry && String(entry.id) === id)) {
+      return 'doneness';
     }
     return null;
   }
@@ -5393,7 +5491,15 @@
       await api.createOrderItems(
         orderId,
         sides.map((item) => {
-          const parentRemoteId = localToRemote.get(String(item.linkedToMainItemId)) || null;
+          let parentRemoteId = localToRemote.get(String(item.linkedToMainItemId)) || null;
+          if (!parentRemoteId) {
+            const mealId = String(window.HAMBURGER_MEAL_ID || 'hamburger-fries');
+            const isMealDrink = Boolean(window.HAMBURGER_DRINK_IDS?.has?.(String(item.productId || '')));
+            const burger = isMealDrink
+              ? mains.find((row) => String(row.productId || '') === mealId)
+              : null;
+            if (burger?.itemId) parentRemoteId = localToRemote.get(String(burger.itemId)) || null;
+          }
           return toPayload(item, parentRemoteId);
         })
       );
@@ -5785,7 +5891,10 @@
   }
 
   function resolveCartProductForOrder(productId, line) {
-    const item = findItem(productId);
+    const item = findItem(productId)
+      || (isHamburgerDrinkOption(productId)
+        ? { id: productId, name: productId, price: 0, printName: productId }
+        : null);
     if (!item) return null;
     const resolved = getResolvedItem(item);
     const baseName = resolved?.name || item.name || '';
@@ -5820,7 +5929,7 @@
     }
     let price = resolved?.price != null ? resolved.price : (item.price != null ? item.price : 0);
     if (line?.linkedToMainLineId && isIncludedMealOption(line)) {
-      if (isHotSide(line.itemId) || isShakeBase(line.itemId) || isHamburgerDrinkOption(line.itemId)) {
+      if (isHotSide(line.itemId) || isShakeBase(line.itemId) || isHamburgerDrinkOption(line.itemId) || isDonenessOption(line.itemId)) {
         price = 0;
       }
     }
@@ -5898,8 +6007,8 @@
         });
         moveCartLineToTop(lineId);
       }
-    } else if (isShakeBase(itemId) || isLimonanaAlcoholOption(itemId)) {
-      /* Shake bases / limonana alcohol are only added via the picker. */
+    } else if (isShakeBase(itemId) || isLimonanaAlcoholOption(itemId) || isDonenessOption(itemId)) {
+      /* Shake bases / limonana alcohol / doneness are only added via the picker. */
       return;
     } else if (isSoldByPack(catalogItem) || isSoldByPack(itemId)) {
       const existing = cartLines.find(
@@ -5949,7 +6058,7 @@
 
     saveCart();
     renderCart();
-    if (!isHotSide(itemId) && !isShakeBase(itemId) && !isLimonanaAlcoholOption(itemId)) {
+    if (!isHotSide(itemId) && !isShakeBase(itemId) && !isLimonanaAlcoholOption(itemId) && !isDonenessOption(itemId)) {
       refreshFoodCards(itemId);
     updateOpenFoodModal();
     }
@@ -6002,7 +6111,7 @@
     }
 
     if (delta > 0 && line.linkedToMainLineId) {
-      if (!canAddSideToMain(line.linkedToMainLineId)) {
+      if (!canAddSideToMain(line.linkedToMainLineId, 1, line.itemId)) {
         showCartToast(t('maxSidesPerMain'));
         return;
       }
@@ -6111,7 +6220,7 @@
   function getCartLineUnitPrice(line, item) {
     /* Hot sides / meal drinks / shake bases included with parent — €0 */
     if (line?.linkedToMainLineId && isIncludedMealOption(line)) {
-      if (isHotSide(line.itemId) || isShakeBase(line.itemId) || isHamburgerDrinkOption(line.itemId)) {
+      if (isHotSide(line.itemId) || isShakeBase(line.itemId) || isHamburgerDrinkOption(line.itemId) || isDonenessOption(line.itemId)) {
         return 0;
       }
     }
@@ -6171,13 +6280,15 @@
 
     let metaHtml = '';
     if (line.linkedToMainLineId && mainItem && variant !== 'child') {
-      metaHtml = isFruitShake(mainItem.id)
-        ? `<p class="cart-item-meta">${escapeHtml(t('shakeBaseLabel'))}</p>`
-        : (isHamburgerMeal(mainItem.id)
-          ? `<p class="cart-item-meta">${escapeHtml(t('drinkIncludedLabel'))}</p>`
-          : (isLimonana(mainItem.id)
-            ? `<p class="cart-item-meta">${escapeHtml(t('limonanaAlcoholLabel'))}</p>`
-            : `<p class="cart-item-meta">${escapeHtml(tReplace('sideForMain', { name: getItemName(mainItem) }))}</p>`));
+      metaHtml = isDonenessOption(line.itemId)
+        ? `<p class="cart-item-meta">${escapeHtml(t('donenessLabel'))}</p>`
+        : (isFruitShake(mainItem.id)
+          ? `<p class="cart-item-meta">${escapeHtml(t('shakeBaseLabel'))}</p>`
+          : (isHamburgerMeal(mainItem.id)
+            ? `<p class="cart-item-meta">${escapeHtml(t('drinkIncludedLabel'))}</p>`
+            : (isLimonana(mainItem.id)
+              ? `<p class="cart-item-meta">${escapeHtml(t('limonanaAlcoholLabel'))}</p>`
+              : `<p class="cart-item-meta">${escapeHtml(tReplace('sideForMain', { name: getItemName(mainItem) }))}</p>`)));
     } else if (isParentWithOptions(line.itemId)) {
       const sideNames = getSideLinesForMain(line.lineId)
         .map((s) => {
@@ -6211,13 +6322,15 @@
          </div>`
       : '';
 
-    const childBadge = mainItem && isFruitShake(mainItem.id)
-      ? t('shakeBaseLabel')
-      : (mainItem && isHamburgerMeal(mainItem.id)
-        ? t('drinkIncludedLabel')
-        : (mainItem && isLimonana(mainItem.id)
-          ? t('limonanaAlcoholLabel')
-          : t('sideLabel')));
+    const childBadge = isDonenessOption(line.itemId)
+      ? t('donenessLabel')
+      : (mainItem && isFruitShake(mainItem.id)
+        ? t('shakeBaseLabel')
+        : (mainItem && isHamburgerMeal(mainItem.id)
+          ? t('drinkIncludedLabel')
+          : (mainItem && isLimonana(mainItem.id)
+            ? t('limonanaAlcoholLabel')
+            : t('sideLabel'))));
     const unitHtml = variant === 'child'
       ? `<p class="cart-item-badge">${escapeHtml(childBadge)}</p>`
       : (byPack

@@ -304,6 +304,43 @@
     return items.filter((item) => item && item.printed !== true && Number(item.qty) > 0);
   }
 
+  function hamburgerMealId() {
+    return String(global.HAMBURGER_MEAL_ID || 'hamburger-fries');
+  }
+
+  function hamburgerDrinkIdSet() {
+    const raw = global.HAMBURGER_DRINK_IDS;
+    if (raw && typeof raw.has === 'function') return raw;
+    if (Array.isArray(raw)) return new Set(raw.map(String));
+    return new Set(['coke', 'coke-zero', 'fanta', 'sprite', 'red-bull', 'soda', 'water']);
+  }
+
+  function isHamburgerMealItem(item) {
+    return String(item?.productId || '') === hamburgerMealId();
+  }
+
+  function isDonenessProduct(productId) {
+    return Boolean(global.DONENESS_IDS?.has?.(String(productId || '')));
+  }
+
+  /**
+   * Drink that belongs on the BAR ticket with Hamburger Chips.
+   * Any non-doneness child of the meal counts — a product-id mismatch must not
+   * swallow the drink onto kitchen or drop the bar job.
+   */
+  function isHamburgerMealDrinkItem(item, parentById, drinkIds) {
+    if (!item) return false;
+    const pid = String(item.productId || '');
+    if (isDonenessProduct(pid)) return false;
+    const parent = item.linkedToMainItemId
+      ? parentById.get(String(item.linkedToMainItemId))
+      : null;
+    if (parent && isHamburgerMealItem(parent)) return true;
+    if (!item.linkedToMainItemId) return false;
+    if (hamburgerDrinkIdSet().has(pid)) return true;
+    return Boolean(drinkIds && drinkIds.has(pid));
+  }
+
   function splitPrintableItems(order) {
     const printable = getPrintableItems(order);
     const drinkIds = collectDrinkProductIds();
@@ -314,13 +351,53 @@
     const barCocktails = [];
 
     const byId = new Map();
-    printable.forEach((item) => {
+    function remember(item) {
       if (item?.itemId) byId.set(String(item.itemId), item);
-    });
+    }
+    printable.forEach(remember);
+    (order?.items || []).forEach(remember);
 
-    /* Linked sides/bases follow their parent ticket (kitchen vs bar). */
+    function pushBar(item, group) {
+      if (!item || bar.includes(item)) return;
+      bar.push(item);
+      if (group === 'cocktails') barCocktails.push(item);
+      else barDrinks.push(item);
+    }
+
+    function removeFromKitchen(item) {
+      const idx = kitchen.indexOf(item);
+      if (idx >= 0) kitchen.splice(idx, 1);
+    }
+
+    function drinksLinkedToBurger(burger) {
+      const bid = String(burger?.itemId || '');
+      if (!bid) return [];
+      const seen = new Set();
+      const out = [];
+      const pools = [printable];
+      if (Array.isArray(order?.items)) pools.push(order.items);
+      pools.forEach((list) => {
+        list.forEach((row) => {
+          if (!row || Number(row.qty) <= 0) return;
+          if (String(row.linkedToMainItemId || '') !== bid) return;
+          if (isDonenessProduct(row.productId)) return;
+          const id = row.itemId != null ? String(row.itemId) : `pid:${row.productId}`;
+          if (seen.has(id)) return;
+          seen.add(id);
+          out.push(row);
+        });
+      });
+      return out;
+    }
+
+    /* Linked sides follow parent, except hamburger drinks (bar) and doneness (kitchen). */
     function channelFor(item, seen = new Set()) {
       if (!item) return 'kitchen';
+      const pid = String(item.productId || '');
+      if (isDonenessProduct(pid)) return 'kitchen';
+      if (isHamburgerMealDrinkItem(item, byId, drinkIds) || hamburgerDrinkIdSet().has(pid)) {
+        return 'bar';
+      }
       const id = item.itemId != null ? String(item.itemId) : '';
       if (id) {
         if (seen.has(id)) return isBarItem(item, drinkIds) ? 'bar' : 'kitchen';
@@ -333,29 +410,36 @@
       return isBarItem(item, drinkIds) ? 'bar' : 'kitchen';
     }
 
-    function barGroupFor(item, seen = new Set()) {
+    function barGroupFor(item) {
       if (!item) return 'drinks';
-      const id = item.itemId != null ? String(item.itemId) : '';
-      if (id) {
-        if (seen.has(id)) return isCocktailBarItem(item, cocktailIds) ? 'cocktails' : 'drinks';
-        seen.add(id);
-      }
-      if (item.linkedToMainItemId) {
-        const parent = byId.get(String(item.linkedToMainItemId));
-        if (parent) return barGroupFor(parent, seen);
+      if (isHamburgerMealDrinkItem(item, byId, drinkIds) || hamburgerDrinkIdSet().has(String(item.productId || ''))) {
+        return 'drinks';
       }
       return isCocktailBarItem(item, cocktailIds) ? 'cocktails' : 'drinks';
     }
 
     printable.forEach((item) => {
-      if (channelFor(item) === 'bar') {
-        bar.push(item);
-        if (barGroupFor(item) === 'cocktails') barCocktails.push(item);
-        else barDrinks.push(item);
-      } else {
-        kitchen.push(item);
-      }
+      if (channelFor(item) === 'bar') pushBar(item, barGroupFor(item));
+      else kitchen.push(item);
     });
+
+    /* Meal drink must ride the bar ticket with the burger name, never kitchen. */
+    const burgers = printable.filter((item) => isHamburgerMealItem(item) && !item.linkedToMainItemId);
+    burgers.forEach((burger) => {
+      const drinks = drinksLinkedToBurger(burger);
+      drinks.forEach((drink) => {
+        removeFromKitchen(drink);
+        pushBar(drink, 'drinks');
+      });
+      if (drinks.length) pushBar(burger, 'drinks');
+    });
+
+    if (burgers.length && !barDrinks.length) {
+      console.warn(
+        '[LechaimPrintEngine] hamburger meal has no bar drink in this wave',
+        burgers.map((row) => row.itemId)
+      );
+    }
 
     return { kitchen, bar, barDrinks, barCocktails, all: printable };
   }
@@ -409,6 +493,12 @@
     const limonanaAlcohol = global.LIMONANA_ALCOHOL_ITEMS;
     if (Array.isArray(limonanaAlcohol)) {
       const found = limonanaAlcohol.find((entry) => entry && String(entry.id) === id);
+      if (found) return found;
+    }
+
+    const doneness = global.DONENESS_ITEMS;
+    if (Array.isArray(doneness)) {
+      const found = doneness.find((entry) => entry && String(entry.id) === id);
       if (found) return found;
     }
 
@@ -475,6 +565,11 @@
     const limonanaAlcohol = global.LIMONANA_ALCOHOL_ITEMS;
     if (Array.isArray(limonanaAlcohol)) {
       limonanaAlcohol.forEach((item) => check(item, 'LIMONANA_ALCOHOL_ITEMS'));
+    }
+
+    const doneness = global.DONENESS_ITEMS;
+    if (Array.isArray(doneness)) {
+      doneness.forEach((item) => check(item, 'DONENESS_ITEMS'));
     }
 
     if (missing.length) {
@@ -559,6 +654,10 @@
     (Array.isArray(global.LIMONANA_ALCOHOL_ITEMS) ? global.LIMONANA_ALCOHOL_ITEMS : []).forEach((item) => {
       push(item?.id, limonanaCatIdx);
     });
+    const donenessCatIdx = limonanaCatIdx + 1;
+    (Array.isArray(global.DONENESS_ITEMS) ? global.DONENESS_ITEMS : []).forEach((item) => {
+      push(item?.id, donenessCatIdx);
+    });
 
     return order;
   }
@@ -601,9 +700,14 @@
 
       const mainId = String(item.itemId);
       const linkedSides = sidesByMainId.get(mainId) || [];
-      /* One hot side per main — take the first linked side only */
-      const side = linkedSides[0] || null;
       linkedSides.forEach((s) => consumedSideIds.add(String(s.itemId)));
+      const sideProductId = linkedSides
+        .map((s) => String(s.productId || ''))
+        .sort()
+        .join('+');
+      const sideNames = linkedSides
+        .map((s) => resolvePrintName(s))
+        .filter(Boolean);
 
       blocks.push({
         seq: seq++,
@@ -614,8 +718,8 @@
         thawCount: item.thawCount == null && item.thaw_count == null
           ? null
           : Number(item.thawCount ?? item.thaw_count),
-        sideProductId: side ? String(side.productId || '') : '',
-        sideName: side ? resolvePrintName(side) : '',
+        sideProductId,
+        sideNames,
       });
     });
 
@@ -640,7 +744,7 @@
           ? null
           : Number(item.thawCount ?? item.thaw_count),
         sideProductId: '',
-        sideName: '',
+        sideNames: [],
       });
     });
 
@@ -667,7 +771,7 @@
         qty: block.qty,
         unitType: block.unitType || null,
         thawCount: block.thawCount,
-        sideName: block.sideName,
+        sideNames: Array.isArray(block.sideNames) ? block.sideNames : [],
       });
     });
 
@@ -693,14 +797,15 @@
         lines.push(`Thaw: ${Math.max(0, Math.floor(Number(block.thawCount)))}`);
       }
 
-      /* Side under main: also ~2x, slightly less emphasis + indent */
-      if (block.sideName) {
+      /* Sides under main: also ~2x, slightly less emphasis + indent */
+      (Array.isArray(block.sideNames) ? block.sideNames : []).forEach((sideName) => {
+        if (!sideName) return;
         lines.push('');
         lines.push(
           `${POS.fontA}${POS.size2x}` +
-          `  + ${block.sideName}`
+          `  + ${sideName}`
         );
-      }
+      });
     });
 
     return lines;
@@ -955,7 +1060,7 @@
     list.forEach((item) => {
       if (item.linkedToMainItemId) return;
       const mainId = String(item.itemId);
-      const side = (sidesByMainId.get(mainId) || [])[0] || null;
+      const linkedSides = sidesByMainId.get(mainId) || [];
       const qty = Number(item.qty) || 0;
       const unit = Number(item.price) || 0;
       blocks.push({
@@ -963,8 +1068,8 @@
         productId: String(item.productId || ''),
         name: resolvePrintName(item),
         qty,
-        sideProductId: side ? String(side.productId || '') : '',
-        sideName: side ? resolvePrintName(side) : '',
+        sideProductId: linkedSides.map((s) => String(s.productId || '')).sort().join('+'),
+        sideNames: linkedSides.map((s) => resolvePrintName(s)).filter(Boolean),
         lineTotal: unit * qty,
       });
     });
@@ -982,7 +1087,7 @@
         name: resolvePrintName(item),
         qty,
         sideProductId: '',
-        sideName: '',
+        sideNames: [],
         lineTotal: (Number(item.price) || 0) * qty,
       });
     });
@@ -1070,9 +1175,10 @@
           W
         )
       );
-      if (block.sideName) {
-        body.push(`  + ${block.sideName}`);
-      }
+      (Array.isArray(block.sideNames) ? block.sideNames : []).forEach((sideName) => {
+        if (!sideName) return;
+        body.push(`  + ${sideName}`);
+      });
     });
 
     const totalsBlock = hasDiscount

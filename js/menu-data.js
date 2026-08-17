@@ -38,8 +38,8 @@ const TRANSLATIONS = {
     receiptContinue: 'הוסף פריטים להזמנה קיימת',
     receiptNewOrder: 'הזמנה חדשה',
     receiptClose: 'סגור',
-    orderingClosedBanner: 'ההזמנות פתוחות א׳–ה׳ בין 14:00 ל־22:00. שישי–שבת סגור. כרגע ניתן לצפות בתפריט בלבד.',
-    orderingClosedToast: 'לא ניתן להזמין כרגע — פתוח א׳–ה׳ 14:00–22:00',
+    orderingClosedBanner: 'ההזמנות פתוחות א׳–ה׳ בין 14:00 ל־21:00. שישי–שבת סגור. כרגע ניתן לצפות בתפריט בלבד.',
+    orderingClosedToast: 'לא ניתן להזמין כרגע — פתוח א׳–ה׳ 14:00–21:00',
     orderingClosedAction: 'לא ניתן להוסיף לעגלה כרגע',
     kitchenClosedModal: 'המטבח סגור כרגע. לא ניתן להוסיף מנות.',
     kitchenCountdownModal: 'היי, המטבח נסגר בעוד {time}. תרצו להזמין משהו?',
@@ -169,6 +169,9 @@ const TRANSLATIONS = {
     chooseLimonanaAlcoholTitle: 'עם אלכוהול?',
     chooseLimonanaAlcoholSubtitle: '{name}',
     limonanaAlcoholLabel: 'אלכוהול',
+    chooseDonenessTitle: 'איזו מידת עשייה תרצו?',
+    chooseDonenessSubtitle: '{name}',
+    donenessLabel: 'מידת עשייה',
     chooseDrinkTitle: 'בחרו שתייה',
     chooseDrinkSubtitle: 'שתייה כלולה במנה: {name}',
     drinkIncludedLabel: 'שתייה',
@@ -231,8 +234,8 @@ const TRANSLATIONS = {
     receiptContinue: 'Add items to existing order',
     receiptNewOrder: 'New order',
     receiptClose: 'Close',
-    orderingClosedBanner: 'Ordering is open Sun–Thu 14:00–22:00. Closed Fri–Sat. You can browse the menu only right now.',
-    orderingClosedToast: 'Ordering is closed — open Sun–Thu 14:00–22:00',
+    orderingClosedBanner: 'Ordering is open Sun–Thu 14:00–21:00. Closed Fri–Sat. You can browse the menu only right now.',
+    orderingClosedToast: 'Ordering is closed — open Sun–Thu 14:00–21:00',
     orderingClosedAction: 'Ordering is unavailable right now',
     kitchenClosedModal: 'The kitchen is closed right now. You cannot add dishes.',
     kitchenCountdownModal: 'Hi, the kitchen is closing in {time}. Would you like to order something?',
@@ -362,6 +365,9 @@ const TRANSLATIONS = {
     chooseLimonanaAlcoholTitle: 'With alcohol?',
     chooseLimonanaAlcoholSubtitle: '{name}',
     limonanaAlcoholLabel: 'Alcohol',
+    chooseDonenessTitle: 'How would you like it cooked?',
+    chooseDonenessSubtitle: '{name}',
+    donenessLabel: 'Doneness',
     chooseDrinkTitle: 'Choose a drink',
     chooseDrinkSubtitle: 'Drink included with: {name}',
     drinkIncludedLabel: 'Drink',
@@ -447,11 +453,11 @@ const DISH_I18N = {
     },
     'staik-antarkot': {
       name: 'Premium Entrecote Steak',
-      desc: 'Premium entrecote steak 300g, grilled medium, served with grilled vegetables, chimichurri and sweet potato cream.',
+      desc: 'Premium entrecote steak 300g, served with grilled vegetables, chimichurri and sweet potato cream. Choose your doneness.',
     },
     asado: {
       name: 'Fall-off-the-bone Asado',
-      desc: 'Slow-cooked asado, 600–700g, until the meat is tender and falls off the bone, served with grilled vegetables, chimichurri and sweet potato cream.',
+      desc: 'A dish for 3–4 people. Slow-cooked asado, 600–700g, until the meat is tender and falls off the bone, served with grilled vegetables, chimichurri and sweet potato cream.',
     },
     'whole-fish': {
       name: 'Whole Baked Sea Bream',
@@ -475,8 +481,13 @@ const DISH_I18N = {
     },
     'hamburger-fries': {
       name: 'Hamburger & Fries',
-      desc: 'Hamburger patty in a bun with tomato, lettuce and sauces on the side, including fries and a drink of your choice.',
+      desc: 'Hamburger patty in a bun with tomato, lettuce and sauces on the side, including fries and a drink of your choice. Choose doneness and a drink.',
     },
+    'doneness-rare': { name: 'Rare', desc: '' },
+    'doneness-medium-rare': { name: 'Medium Rare', desc: '' },
+    'doneness-medium': { name: 'Medium', desc: '' },
+    'doneness-medium-well': { name: 'Medium Well', desc: '' },
+    'doneness-well-done': { name: 'Well Done', desc: '' },
     'chicken-salad': {
       name: 'Chicken Salad',
       desc: 'Chicken pieces on a fresh vegetable salad.',
@@ -699,7 +710,7 @@ const MENU_DATA = {
           id: 'staik-antarkot',
           name: 'סטייק אנטריקוט פרימיום',
           printName: 'Entrecote',
-          description: 'סטייק אנטריקוט פרימיום 300 גרם, צלוי למידת עשייה מדיום, מוגש עם ירקות על האש, צ\'ימיצ\'ורי וקרם בטטה.',
+          description: 'סטייק אנטריקוט פרימיום 300 גרם, מוגש עם ירקות על האש, צ\'ימיצ\'ורי וקרם בטטה. בחרו מידת עשייה.',
           price: 52,
           image: dishImage('staik-antarkot'),
         },
@@ -707,7 +718,7 @@ const MENU_DATA = {
           id: 'asado',
           name: 'אסאדו מתפרק מהעצם',
           printName: 'Asado',
-          description: 'אסאדו בבישול ארוך, במשקל 600–700 גרם, עד שהבשר רך ומתפרק מהעצם, מוגש עם ירקות על האש, צ\'ימיצ\'ורי וקרם בטטה.',
+          description: 'מנה ל־3–4 אנשים. אסאדו בבישול ארוך, במשקל 600–700 גרם, עד שהבשר רך ומתפרק מהעצם, מוגש עם ירקות על האש, צ\'ימיצ\'ורי וקרם בטטה.',
           price: 68,
           image: dishImage('asado'),
         },
@@ -780,7 +791,7 @@ const MENU_DATA = {
           id: 'hamburger-fries',
           name: 'המבורגר וצ\'יפס',
           printName: 'Hamburger Chips',
-          description: 'קציצת המבורגר בלחמנייה עם עגבנייה חסה ורטבים בצד כולל צ\'יפס ושתייה לבחירה',
+          description: 'קציצת המבורגר בלחמנייה עם עגבנייה חסה ורטבים בצד כולל צ\'יפס ושתייה לבחירה. בחרו מידת עשייה ושתייה.',
           price: 25,
           image: 'assets/images/dishes/amburger.webp',
         },
@@ -1067,10 +1078,19 @@ const LIMONANA_ALCOHOL_ITEMS = [
 ];
 const LIMONANA_ALCOHOL_IDS = new Set(['limonana-alcohol-yes', 'limonana-alcohol-no']);
 const HAMBURGER_MEAL_ID = 'hamburger-fries';
+const ENTRECOTE_STEAK_ID = 'staik-antarkot';
 /** Soft drinks only with hamburger meal (no beer, coffee, tea, limonana, or fruit-shake). */
 const HAMBURGER_DRINK_IDS = new Set([
   'coke', 'coke-zero', 'fanta', 'sprite', 'red-bull', 'soda', 'water',
 ]);
+const DONENESS_ITEMS = [
+  { id: 'doneness-rare', name: 'רייר', printName: 'Rare', description: '', price: 0, image: '' },
+  { id: 'doneness-medium-rare', name: 'מדיום רייר', printName: 'Medium Rare', description: '', price: 0, image: '' },
+  { id: 'doneness-medium', name: 'מדיום', printName: 'Medium', description: '', price: 0, image: '' },
+  { id: 'doneness-medium-well', name: 'מדיום וול', printName: 'Medium Well', description: '', price: 0, image: '' },
+  { id: 'doneness-well-done', name: 'וול דאן', printName: 'Well Done', description: '', price: 0, image: '' },
+];
+const DONENESS_IDS = new Set(DONENESS_ITEMS.map((item) => item.id));
 const MAX_SIDES_PER_MAIN = 1;
 const BUTCHER_PACK_WEIGHT_MIN_KG = 0.98;
 const BUTCHER_PACK_WEIGHT_MAX_KG = 1.2;
@@ -1096,7 +1116,10 @@ window.FRUIT_SHAKE_ID = FRUIT_SHAKE_ID;
 window.LIMONANA_ID = LIMONANA_ID;
 window.LIMONANA_ALCOHOL_IDS = LIMONANA_ALCOHOL_IDS;
 window.HAMBURGER_MEAL_ID = HAMBURGER_MEAL_ID;
+window.ENTRECOTE_STEAK_ID = ENTRECOTE_STEAK_ID;
 window.HAMBURGER_DRINK_IDS = HAMBURGER_DRINK_IDS;
+window.DONENESS_ITEMS = DONENESS_ITEMS;
+window.DONENESS_IDS = DONENESS_IDS;
 window.MAX_SIDES_PER_MAIN = MAX_SIDES_PER_MAIN;
 window.BUTCHER_PACK_WEIGHT_MIN_KG = BUTCHER_PACK_WEIGHT_MIN_KG;
 window.BUTCHER_PACK_WEIGHT_MAX_KG = BUTCHER_PACK_WEIGHT_MAX_KG;

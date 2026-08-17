@@ -315,7 +315,7 @@
     const openMinutes = (hours?.OPEN_HOUR ?? 14) * 60;
     const closeMinutes = typeof hours?.adminPlaceResSlotCloseMinutes === 'function'
       ? hours.adminPlaceResSlotCloseMinutes()
-      : (22 * 60);
+      : (21 * 60);
     for (let m = openMinutes; m <= closeMinutes; m += 15) {
       const hh = Math.floor(m / 60);
       const mm = m % 60;

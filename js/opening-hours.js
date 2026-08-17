@@ -17,8 +17,10 @@
   'use strict';
 
   const OPEN_HOUR = 14;
-  /** Exclusive end hour for is-open checks. */
+  /** Exclusive end hour for is-open checks. Shop auto-closes at 22:00. */
   const CLOSE_HOUR = 22;
+  /** Public / printed hours (last seating). Auto-close stays at CLOSE_HOUR. */
+  const DISPLAY_CLOSE_HOUR = 21;
 
   /** Last selectable takeaway / delivery pickup slot (inclusive). */
   const TAKEAWAY_LAST_SLOT_HOUR = 21;
@@ -29,7 +31,7 @@
   const PLACE_RES_LAST_SLOT_MINUTE = 0;
 
   /** Last admin place-reservation arrival slot (inclusive). */
-  const ADMIN_PLACE_RES_LAST_SLOT_HOUR = 22;
+  const ADMIN_PLACE_RES_LAST_SLOT_HOUR = 21;
   const ADMIN_PLACE_RES_LAST_SLOT_MINUTE = 0;
 
   let forceOpen = false;
@@ -242,9 +244,9 @@
     return ADMIN_PLACE_RES_LAST_SLOT_HOUR * 60 + ADMIN_PLACE_RES_LAST_SLOT_MINUTE;
   }
 
-  /** Display range e.g. "14:00–22:00" (close shown as wall-clock close, not exclusive). */
+  /** Display range e.g. "14:00–21:00" (public hours; auto-close is still CLOSE_HOUR). */
   function hoursRangeLabel(sep = '–') {
-    return `${pad2(OPEN_HOUR)}:00${sep}${pad2(CLOSE_HOUR)}:00`;
+    return `${pad2(OPEN_HOUR)}:00${sep}${pad2(DISPLAY_CLOSE_HOUR)}:00`;
   }
 
   armScheduleTimer();
@@ -252,6 +254,7 @@
   global.LechaimOpeningHours = Object.freeze({
     OPEN_HOUR,
     CLOSE_HOUR,
+    DISPLAY_CLOSE_HOUR,
     TAKEAWAY_LAST_SLOT_HOUR,
     TAKEAWAY_LAST_SLOT_MINUTE,
     PLACE_RES_LAST_SLOT_HOUR,
