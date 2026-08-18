@@ -15,10 +15,8 @@ create sequence if not exists public.global_chat_guest_number_seq;
 -- 1) Members — one row per dine-in visit (session)
 -- -----------------------------------------------------------------------------
 create table if not exists public.global_chat_members (
-  session_id              uuid primary key
-                          references public.order_sessions (session_id)
-                          on delete cascade,
-  table_number            integer not null,
+  session_id              uuid primary key,
+  table_number            integer null,
   guest_number            integer not null default nextval('public.global_chat_guest_number_seq'),
   display_name            text not null default 'אורח',
   accepted_guidelines_at  timestamptz null,
@@ -27,7 +25,7 @@ create table if not exists public.global_chat_members (
 );
 
 comment on table public.global_chat_members is
-  'Global chat membership for one dine-in visit. table_number is admin-only.';
+  'Global chat membership for one guest device. session_id is a local guest uuid, not an order session.';
 
 create unique index if not exists global_chat_members_guest_number_idx
   on public.global_chat_members (guest_number);
@@ -37,9 +35,7 @@ create unique index if not exists global_chat_members_guest_number_idx
 -- -----------------------------------------------------------------------------
 create table if not exists public.global_chat_messages (
   id            uuid primary key default gen_random_uuid(),
-  session_id    uuid null
-                references public.order_sessions (session_id)
-                on delete set null,
+  session_id    uuid null,
   sender        text not null
                 check (sender in ('guest', 'staff')),
   display_name  text not null,
@@ -67,33 +63,7 @@ create or replace function public.prepare_global_chat_member()
 returns trigger
 language plpgsql
 as $$
-declare
-  sess_status text;
-  sess_type text;
-  sess_table integer;
 begin
-  select status, order_type, table_number
-    into sess_status, sess_type, sess_table
-  from public.order_sessions
-  where session_id = new.session_id;
-
-  if not found then
-    raise exception 'global chat requires an existing session';
-  end if;
-
-  if sess_status = 'closed' then
-    raise exception 'global chat is closed with the session';
-  end if;
-
-  if sess_type is not null and sess_type not in ('dine_in', 'dine-in', 'dinein') then
-    raise exception 'global chat is dine-in only';
-  end if;
-
-  if sess_table is null then
-    raise exception 'global chat requires a table number';
-  end if;
-
-  new.table_number := sess_table;
   if new.guest_number is null then
     new.guest_number := nextval('public.global_chat_guest_number_seq');
   end if;
@@ -139,8 +109,6 @@ returns trigger
 language plpgsql
 as $$
 declare
-  sess_status text;
-  sess_type text;
   member public.global_chat_members%rowtype;
 begin
   new.body := trim(new.body);
@@ -154,20 +122,7 @@ begin
   end if;
 
   if new.session_id is null then
-    raise exception 'guest global chat requires a session';
-  end if;
-
-  select status, order_type
-    into sess_status, sess_type
-  from public.order_sessions
-  where session_id = new.session_id;
-
-  if not found or sess_status = 'closed' then
-    raise exception 'global chat requires an open dine-in session';
-  end if;
-
-  if sess_type is not null and sess_type not in ('dine_in', 'dine-in', 'dinein') then
-    raise exception 'global chat is dine-in only';
+    raise exception 'guest global chat requires a guest id';
   end if;
 
   select * into member
@@ -184,7 +139,9 @@ begin
 
   new.display_name := member.display_name;
   new.guest_number := member.guest_number;
-  new.table_number := member.table_number;
+  if new.table_number is null then
+    new.table_number := member.table_number;
+  end if;
   return new;
 end;
 $$;

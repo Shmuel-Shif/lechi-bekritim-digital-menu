@@ -1874,6 +1874,10 @@ body.table-drawer-open {
 }
 
 /* ---------- Admin menu picker (add dishes) ---------- */
+.table-drawer__body[hidden] {
+  display: none !important;
+}
+
 .table-drawer__view[hidden] {
   display: none !important;
 }
@@ -1884,11 +1888,13 @@ body.table-drawer-open {
   gap: 0.75rem;
   flex: 1;
   min-height: 0;
+  overflow: hidden;
 }
 
 .table-menu__toolbar {
   display: grid;
   gap: 0.55rem;
+  flex-shrink: 0;
 }
 
 .table-menu__search input {
@@ -1905,6 +1911,7 @@ body.table-drawer-open {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
+  flex-shrink: 0;
 }
 
 .table-menu__cat {
@@ -1931,7 +1938,8 @@ body.table-drawer-open {
   gap: 0.45rem;
   overflow: auto;
   padding-bottom: 0.5rem;
-  max-height: min(58vh, 520px);
+  flex: 1;
+  min-height: 0;
 }
 
 .table-menu__section {

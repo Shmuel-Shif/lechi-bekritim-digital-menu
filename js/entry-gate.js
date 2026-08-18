@@ -20,6 +20,7 @@
       tableFind: 'The table number is on the table.',
       tableHint1: 'Only one person at the table should place the order through the system.',
       tableHint2: 'Other guests can choose "View the menu" on the main page to browse dishes, prices, and descriptions.',
+      tableHint2DineIn: 'Other guests can choose "View the menu" here. Anyone on their own phone can write in the Lechaim general chat. Only the table representative can send the order and use the private restaurant chat.',
       tableHowTitle: 'How does it work?',
       tableHowText: 'Add your favorite dishes to the cart, review that everything is correct and nothing was forgotten, then tap Send order and the restaurant starts preparing your order right away.',
       tablePickTable: 'Choose a table',
@@ -130,6 +131,7 @@
       tableFind: 'מספר השולחן נמצא על השולחן.',
       tableHint1: 'רק נציג אחד מהשולחן יבצע את ההזמנה דרך המערכת.',
       tableHint2: 'שאר הסועדים יכולים לבחור באפשרות "צפייה בתפריט" שבעמוד הראשי כדי לעיין במנות, במחירים ובתיאורים.',
+      tableHint2DineIn: 'שאר הסועדים יכולים לבחור כאן "צפייה בתפריט". כל אחד מהטלפון שלו יכול לכתוב בצ\'אט הכללי של לחיים. רק נציג השולחן שולח את ההזמנה ומשתמש בצ\'אט הפרטי עם המסעדה.',
       tableHowTitle: 'איך זה עובד?',
       tableHowText: 'מוסיפים לסל המוצרים מנות שאתם אוהבים, עוברים על הסל שהכל נכון ולא שכחתם שום דבר, לוחצים שלח הזמנה והמסעדה מיד מתחילה לעבוד על ההזמנה שלכם.',
       tablePickTable: 'לבחירת שולחן',
@@ -383,6 +385,16 @@
           : text;
       }
     });
+
+    if (gate.dataset.mode === 'dine-in-only') {
+      const hint2 = document.getElementById('entry-table-hint-2');
+      if (hint2) hint2.textContent = t('tableHint2DineIn');
+      if (tableModalBrowse) {
+        tableModalBrowse.hidden = false;
+        tableModalBrowse.setAttribute('aria-hidden', 'false');
+        tableModalBrowse.removeAttribute('tabindex');
+      }
+    }
 
     gate.querySelectorAll('[data-entry-i18n-aria]').forEach((el) => {
       const key = el.getAttribute('data-entry-i18n-aria');
@@ -1641,6 +1653,10 @@
     highlightSelectedTable(table);
 
     if (Session) {
+      const prev = Session.getSession?.();
+      if (prev?.sessionId && Number(prev.tableNumber) !== Number(table)) {
+        clearLocalSessionMapEntry(prev.sessionId);
+      }
       if (changingTable || Session.hasActiveDineInSession()) {
         Session.updateTable(table, { lang: state.lang });
       } else {

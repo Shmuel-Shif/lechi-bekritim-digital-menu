@@ -8,6 +8,10 @@
 
 const net = require('net');
 
+/** ESC @ reset printer state between jobs so tickets never glue together */
+const INIT_COMMAND = Buffer.from([0x1B, 0x40]);
+/** ESC d 5 — feed before cut so TABLE headers from the next job cannot mix */
+const FEED_BEFORE_CUT = Buffer.from([0x1B, 0x64, 0x05]);
 /** ESC/POS full cut */
 const CUT_COMMAND = Buffer.from([0x1D, 0x56, 0x00]);
 const CONNECT_TIMEOUT_MS = 8000;
@@ -100,7 +104,9 @@ function sendToPrinter(printerName, ticket, printerConfig) {
       console.log(`[printer] connected → ${label} ${ip}:${port}`);
 
       const body = Buffer.concat([
-        encodeTicketBytes(`${String(ticket)}\n\n\n`),
+        INIT_COMMAND,
+        encodeTicketBytes(`${String(ticket)}\n`),
+        FEED_BEFORE_CUT,
         CUT_COMMAND,
       ]);
       const payload = body;

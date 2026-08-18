@@ -24,23 +24,92 @@
   bottom: calc(8.6rem + env(safe-area-inset-bottom, 0px));
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  min-height: 2.75rem;
-  padding: 0.45rem 0.9rem 0.45rem 0.7rem;
-  border: 0;
+  gap: 0.45rem;
+  min-height: 3.2rem;
+  padding: 0.55rem 1.05rem 0.55rem 0.8rem;
+  border: 2px solid #c4a06a;
   border-radius: 999px;
   background: #1f6b4a;
   color: #fff;
   font: inherit;
-  font-weight: 700;
-  font-size: 0.92rem;
-  box-shadow: 0 8px 24px rgba(21, 38, 64, 0.28);
+  font-weight: 800;
+  font-size: 1rem;
+  letter-spacing: 0.01em;
+  box-shadow: 0 0 0 4px rgba(196, 160, 106, 0.28), 0 10px 28px rgba(31, 107, 74, 0.42);
   cursor: pointer;
+  animation: lechaim-global-fab-pulse 2.6s ease-in-out infinite;
+}
+
+.dine-in-global-chat-fab__icon {
+  font-size: 1.28rem;
+  line-height: 1;
 }
 
 .dine-in-global-chat-fab:hover,
 .dine-in-global-chat-fab.is-open {
   background: #18553b;
+  animation: none;
+}
+
+@keyframes lechaim-global-fab-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 3px rgba(196, 160, 106, 0.32), 0 10px 28px rgba(31, 107, 74, 0.42);
+  }
+  50% {
+    transform: scale(1.045);
+    box-shadow: 0 0 0 10px rgba(196, 160, 106, 0), 0 12px 32px rgba(31, 107, 74, 0.5);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dine-in-global-chat-fab {
+    animation: none;
+  }
+
+  .dine-in-global-chat-fab__hint {
+    animation: none;
+    transform: translateX(-50%);
+  }
+}
+
+.dine-in-global-chat-fab__hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 0.7rem);
+  z-index: 2;
+  padding: 0.42rem 0.95rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #e4c89a 0%, #c4a06a 55%, #a8864f 100%);
+  color: #152640;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0 6px 18px rgba(21, 38, 64, 0.32);
+  pointer-events: none;
+  animation: lechaim-global-hint-bounce 1.35s ease-in-out infinite;
+}
+
+.dine-in-global-chat-fab__hint[hidden],
+.dine-in-global-chat-fab.is-open .dine-in-global-chat-fab__hint {
+  display: none !important;
+}
+
+.dine-in-global-chat-fab__hint::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 8px solid transparent;
+  border-top-color: #a8864f;
+}
+
+@keyframes lechaim-global-hint-bounce {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(7px); }
 }
 
 .dine-in-global-chat-fab__badge {
@@ -522,8 +591,22 @@ body.order-receipt-open .dine-in-global-chat-panel {
   display: none !important;
 }
 
+body.entry-pending .dine-in-global-chat-fab {
+  z-index: 10060;
+  bottom: calc(1.35rem + env(safe-area-inset-bottom, 0px));
+}
+
+body.entry-pending .dine-in-global-chat-panel {
+  z-index: 10070;
+  bottom: calc(5.2rem + env(safe-area-inset-bottom, 0px));
+}
+
 @media (max-width: 640px) {
   .dine-in-global-chat-fab {
     bottom: calc(7.6rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  body.entry-pending .dine-in-global-chat-fab {
+    bottom: calc(1.2rem + env(safe-area-inset-bottom, 0px));
   }
 }

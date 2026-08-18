@@ -17,9 +17,7 @@ create table if not exists public.global_chat_reactions (
   message_id  uuid not null
               references public.global_chat_messages (id)
               on delete cascade,
-  session_id  uuid null
-              references public.order_sessions (session_id)
-              on delete cascade,
+  session_id  uuid null,
   sender      text not null
               check (sender in ('guest', 'staff')),
   emoji       text not null
@@ -57,7 +55,6 @@ as $$
 declare
   msg public.global_chat_messages%rowtype;
   member public.global_chat_members%rowtype;
-  sess_status text;
 begin
   if new.emoji not in ('❤️', '😂', '👍', '🔥', '😍', '👏') then
     raise exception 'invalid reaction';
@@ -84,15 +81,7 @@ begin
   new.sender := 'guest';
 
   if new.session_id is null then
-    raise exception 'guest reaction requires a session';
-  end if;
-
-  select status into sess_status
-  from public.order_sessions
-  where session_id = new.session_id;
-
-  if not found or sess_status = 'closed' then
-    raise exception 'global chat requires an open dine-in session';
+    raise exception 'guest reaction requires a guest id';
   end if;
 
   select * into member

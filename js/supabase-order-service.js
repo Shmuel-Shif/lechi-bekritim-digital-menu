@@ -393,6 +393,20 @@
       .select('*');
 
     throwIfError(error, 'createOrderItems');
+
+    try {
+      const { data: orderRow } = await sb
+        .from(TABLE_ORDERS)
+        .select('session_id')
+        .eq('id', orderId)
+        .maybeSingle();
+      if (orderRow?.session_id) {
+        await refreshSessionBillTotals(sb, orderRow.session_id);
+      }
+    } catch (err) {
+      console.warn('[LechaimSupabaseOrders] createOrderItems totals refresh', err);
+    }
+
     return data || [];
   }
 

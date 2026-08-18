@@ -141,22 +141,23 @@
     return data || null;
   }
 
-  async function getOrCreateMember(sessionId, tableNumber) {
-    const existing = await getMember(sessionId);
+  async function getOrCreateMember(guestId, tableNumber) {
+    const existing = await getMember(guestId);
     if (existing) return existing;
 
     const sb = getClient();
+    const table = Number(tableNumber);
+    const row = { session_id: String(guestId) };
+    if (Number.isFinite(table) && table > 0) row.table_number = table;
+
     const { data, error } = await sb
       .from(TABLE_MEMBERS)
-      .insert({
-        session_id: String(sessionId),
-        table_number: Number(tableNumber) || 0,
-      })
+      .insert(row)
       .select('session_id, guest_number, display_name, accepted_guidelines_at, is_muted, created_at')
       .single();
 
     if (error && (error.code === '23505' || /duplicate/i.test(String(error.message || '')))) {
-      return getMember(sessionId);
+      return getMember(guestId);
     }
     throwIfError(error, 'getOrCreateMember');
     return data;
@@ -211,7 +212,9 @@
         body: text,
         session_id: String(sessionId),
         display_name: 'אורח',
-        table_number: Number(tableNumber) || null,
+        table_number: Number.isFinite(Number(tableNumber)) && Number(tableNumber) > 0
+          ? Number(tableNumber)
+          : null,
       };
 
     const { data, error } = await sb

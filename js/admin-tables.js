@@ -39,6 +39,7 @@
   const drawerTotal = document.getElementById('table-drawer-total');
   const drawerDetail = document.getElementById('table-drawer-detail');
   const drawerMenu = document.getElementById('table-drawer-menu');
+  const drawerBody = document.getElementById('table-drawer-body');
   const menuBack = document.getElementById('table-menu-back');
   const menuSearch = document.getElementById('table-menu-search');
   const menuCats = document.getElementById('table-menu-cats');
@@ -514,25 +515,49 @@
     return 'פנוי';
   }
 
+  const locallyPrintedOrderIds = new Set();
+
+  function rememberLocallyPrinted(orderId) {
+    const id = String(orderId || '');
+    if (!id) return;
+    locallyPrintedOrderIds.add(id);
+    if (locallyPrintedOrderIds.size > 200) {
+      const oldest = locallyPrintedOrderIds.values().next().value;
+      locallyPrintedOrderIds.delete(oldest);
+    }
+  }
+
+  function isRemoteOrderPrinted(order) {
+    if (!order) return false;
+    if (order.printed_at) return true;
+    return locallyPrintedOrderIds.has(String(order.id || ''));
+  }
+
   function orderHasLiveItems(order) {
     const lines = Array.isArray(order?.order_items) ? order.order_items : [];
     return lines.some((row) => (Number(row?.quantity) || 0) > 0);
   }
 
   function orderNeedsApprove(order) {
-    if (!order?.id || order.printed_at || !orderHasLiveItems(order)) return false;
+    if (!order?.id || isRemoteOrderPrinted(order) || !orderHasLiveItems(order)) return false;
     const status = String(order.status || 'submitted').toLowerCase();
     return status === 'submitted' || status === '';
   }
 
   function orderNeedsPrint(order) {
-    if (!order?.id || order.printed_at || !orderHasLiveItems(order)) return false;
+    if (!order?.id || isRemoteOrderPrinted(order) || !orderHasLiveItems(order)) return false;
     return String(order.status || '').toLowerCase() === 'preparing';
   }
 
   function hasUnprintedRemoteOrders(orders) {
     return (orders || []).some((order) => (
-      order && order.id && !order.printed_at && orderHasLiveItems(order)
+      order && order.id && !isRemoteOrderPrinted(order) && orderHasLiveItems(order)
+    ));
+  }
+
+  function wavesToMarkPrinted(entry) {
+    return (entry?.order?._remoteOrders || []).filter((order) => (
+      order && order.id && !isRemoteOrderPrinted(order) && orderHasLiveItems(order)
     ));
   }
 
@@ -608,24 +633,27 @@
 
   function calcOrderSubtotal(order) {
     if (!order) return 0;
+    const items = order.items || [];
+    const itemsSum = items.reduce((sum, item) => (
+      sum + (Number(item.price) || 0) * (Number(item.qty) || 0)
+    ), 0);
+    if (items.length) return Math.round(itemsSum * 100) / 100;
     if (order.subtotal != null && Number.isFinite(Number(order.subtotal))) {
       return Number(order.subtotal);
     }
     if (order._sessionTotal != null) return Number(order._sessionTotal) || 0;
-    return (order.items || []).reduce((sum, item) => (
-      sum + (Number(item.price) || 0) * (Number(item.qty) || 0)
-    ), 0);
+    return 0;
   }
 
   /** Products (± discount) only — delivery fee is NOT included here. */
   function calcOrderProductsPayable(order) {
     if (!order) return 0;
-    if (order.billTotal != null && Number.isFinite(Number(order.billTotal))) {
-      return Math.max(0, Number(order.billTotal));
-    }
     const sub = calcOrderSubtotal(order);
     const disc = Number(order.discountAmount) || 0;
-    return Math.max(0, Math.round((sub - disc) * 100) / 100);
+    if (order.couponCode && disc > 0) {
+      return Math.max(0, Math.round((sub - disc) * 100) / 100);
+    }
+    return Math.max(0, Math.round(sub * 100) / 100);
   }
 
   /** Products (± discount) + deliveryFee once. */
@@ -772,16 +800,23 @@
     return `table:${entry.tableNumber}`;
   }
 
+  function findEntryByKey(key, board, takeaway, butcher) {
+    if (!key) return null;
+    const tables = board || boardCache;
+    const pickups = takeaway || takeawayCache;
+    const meat = butcher || butcherCache;
+    if (String(key).startsWith('takeaway')) {
+      return (pickups || []).find((row) => entryKey(row) === key) || null;
+    }
+    if (String(key).startsWith('butcher')) {
+      return (meat || []).find((row) => entryKey(row) === key) || null;
+    }
+    const num = Number(String(key).replace('table:', ''));
+    return (tables || []).find((row) => row.tableNumber === num) || null;
+  }
+
   function findSelectedEntry(board, takeaway, butcher) {
-    if (!selectedKey) return null;
-    if (String(selectedKey).startsWith('takeaway')) {
-      return (takeaway || []).find((row) => entryKey(row) === selectedKey) || null;
-    }
-    if (String(selectedKey).startsWith('butcher')) {
-      return (butcher || []).find((row) => entryKey(row) === selectedKey) || null;
-    }
-    const num = Number(String(selectedKey).replace('table:', ''));
-    return board.find((row) => row.tableNumber === num) || null;
+    return findEntryByKey(selectedKey, board, takeaway, butcher);
   }
 
   function getSelectedEntry() {
@@ -832,7 +867,7 @@
 
     sortedOrders.forEach((order) => {
       /* Blue = not printed yet. After Approve & Print → normal color again. */
-      const isLateAdd = !order?.printed_at;
+      const isLateAdd = !isRemoteOrderPrinted(order);
       const lines = Array.isArray(order.order_items) ? order.order_items : [];
       lines.forEach((row) => {
         const mapped = mapRemoteItem(row, { isLateAdd });
@@ -1317,6 +1352,7 @@
   function setDrawerView(view) {
     menuMode = view === 'menu';
     if (drawerDetail) drawerDetail.hidden = menuMode;
+    if (drawerBody) drawerBody.hidden = menuMode;
     if (drawerMenu) drawerMenu.hidden = !menuMode;
   }
 
@@ -1630,13 +1666,14 @@
       const payable = calcOrderPaidTotal(order);
       const showDeliveryLine = fee > 0;
 
-      if (order?.couponCode && order.subtotal != null && order.discountAmount != null) {
+      if (order?.couponCode && order.discountAmount != null) {
+        const beforeDiscount = calcOrderSubtotal(order);
         drawerTotal.innerHTML = `
           <div class="table-drawer__coupon">
             <span>קופון</span>
             <strong dir="ltr">${escapeHtml(order.couponCode)}</strong>
           </div>
-          <div class="table-drawer__total-line"><span>לפני הנחה</span><strong>${escapeHtml(formatMoney(order.subtotal))}</strong></div>
+          <div class="table-drawer__total-line"><span>לפני הנחה</span><strong>${escapeHtml(formatMoney(beforeDiscount))}</strong></div>
           <div class="table-drawer__total-line"><span>הנחה (${escapeHtml(String(order.discountPercent))}%)</span><strong>−${escapeHtml(formatMoney(order.discountAmount))}</strong></div>
           <div class="table-drawer__total-line"><span>מוצרים</span><strong>${escapeHtml(formatMoney(products))}</strong></div>
           ${showDeliveryLine
@@ -1691,12 +1728,33 @@
 
   async function handleApproveAndPrint(entry) {
     if (approvePrintBusy || !entry?.order) return;
-    const remote = entry.order._remoteOrders || [];
-    if (hasOrdersNeedingApprove(remote)) {
-      await handleApproveOrder(entry);
-      entry = getSelectedEntry() || entry;
+    const lockedKey = entryKey(entry);
+
+    approvePrintBusy = true;
+    suppressCustomerNotify();
+    updateApprovePrintButton(entry);
+
+    try {
+      const remote = entry.order._remoteOrders || [];
+      if (hasOrdersNeedingApprove(remote)) {
+        const approved = await approvePendingOrders(entry);
+        if (!approved) return;
+      }
+
+      /* Always print the same table/order we started with — never the newly selected card. */
+      const fresh = findEntryByKey(lockedKey) || entry;
+      await printPendingOrder(fresh);
+    } catch (err) {
+      console.error('[admin-tables] approve-and-print failed', err);
+      showToast('האישור או ההדפסה נכשלו');
+    } finally {
+      approvePrintBusy = false;
+      const next = getSelectedEntry();
+      updateApprovePrintButton(next);
+      if (entry.orderType === 'takeaway' || entry.orderType === 'butcher') {
+        updatePendingReminder(boardCache, pickupCaches());
+      }
     }
-    await handlePrintOrder(entry);
   }
 
   function suppressCustomerNotify(ms = 4500) {
@@ -2081,13 +2139,11 @@
     }
   }
 
-  async function handleApproveOrder(entry) {
-    if (approvePrintBusy || !entry?.order) return;
-
+  async function approvePendingOrders(entry) {
     const api = OrdersApi();
     if (!api?.markOrderApproved) {
       showToast('אישור לא זמין');
-      return;
+      return false;
     }
 
     const remoteOrders = (entry.order._remoteOrders || [])
@@ -2097,25 +2153,32 @@
     if (!remoteOrders.length) {
       showToast('אין הזמנות ממתינות לאישור');
       await refreshBoardData().catch(() => {});
-      return;
+      return false;
     }
 
-    approvePrintBusy = true;
     suppressCustomerNotify(8000);
-    /* Takeaway / butcher: stop reminder on Approve (tables keep beeping until print) */
     if (entry.orderType === 'takeaway' || entry.orderType === 'butcher') {
       stopPendingReminder();
     }
+
+    for (const order of remoteOrders) {
+      await api.markOrderApproved(order.id);
+    }
+    showToast('ההזמנה אושרה · בהכנה');
+    await refreshBoardData();
+    const next = findEntryByKey(entryKey(entry));
+    if (next?.order) fillDrawer(next);
+    return true;
+  }
+
+  async function handleApproveOrder(entry) {
+    if (approvePrintBusy || !entry?.order) return;
+
+    approvePrintBusy = true;
     updateApprovePrintButton(entry);
 
     try {
-      for (const order of remoteOrders) {
-        await api.markOrderApproved(order.id);
-      }
-      showToast('ההזמנה אושרה · בהכנה');
-      await refreshBoardData();
-      const next = getSelectedEntry();
-      if (next?.order) fillDrawer(next);
+      await approvePendingOrders(entry);
     } catch (err) {
       console.error('[admin-tables] approve-order failed', err);
       showToast('האישור נכשל');
@@ -2235,25 +2298,23 @@
     };
   }
 
-  async function handlePrintOrder(entry) {
-    if (approvePrintBusy || !entry?.order) return;
+  async function printPendingOrder(entry) {
+    if (!entry?.order) return false;
 
     const api = OrdersApi();
     const print = window.LechaimPrintEngine;
     if (typeof print?.printOrder !== 'function') {
       showToast('הדפסה לא זמינה');
-      return;
+      return false;
     }
 
     const synthetic = mapEntryToPrintOrder(entry);
     if (!synthetic?.items?.length) {
       showToast('אין פריטים להדפסה');
-      return;
+      return false;
     }
 
-    approvePrintBusy = true;
     suppressCustomerNotify();
-    updateApprovePrintButton(entry);
 
     let printedOk = false;
     try {
@@ -2261,20 +2322,40 @@
       if (ok !== true) {
         console.error('[admin-tables] printOrder returned', ok);
         showToast('ההדפסה נכשלה — נסה שוב');
-        return;
+        return false;
       }
 
-      /* Sync printed_at on waves that were still pending (reprint stays available). */
-      if (api?.markOrderPrinted) {
-        const unprinted = (entry.order._remoteOrders || []).filter(orderNeedsPrint);
-        for (const order of unprinted) {
-          try {
-            await api.markOrderPrinted(order.id);
-          } catch (markErr) {
-            console.error('[admin-tables] markOrderPrinted failed after successful print', markErr);
-            showToast('הודפס בהצלחה, אך עדכון הסטטוס נכשל\n(בדוק עמודת printed_at ב־Supabase)');
-            return;
+      const waves = wavesToMarkPrinted(entry);
+      waves.forEach((order) => rememberLocallyPrinted(order.id));
+
+      if (api?.markOrderPrinted && waves.length) {
+        const failedIds = [];
+        for (const order of waves) {
+          let marked = false;
+          for (let attempt = 1; attempt <= 3; attempt += 1) {
+            try {
+              await api.markOrderPrinted(order.id);
+              marked = true;
+              break;
+            } catch (markErr) {
+              console.warn('[admin-tables] markOrderPrinted attempt', attempt, markErr);
+              if (attempt < 3) {
+                await new Promise((resolve) => window.setTimeout(resolve, 400 * attempt));
+              }
+            }
           }
+          if (!marked) failedIds.push(order.id);
+        }
+
+        if (failedIds.length) {
+          console.error('[admin-tables] printed on paper but status sync failed', failedIds);
+          failedIds.forEach((id) => {
+            window.setTimeout(() => {
+              api.markOrderPrinted(id).catch((err) => {
+                console.warn('[admin-tables] delayed markOrderPrinted failed', err);
+              });
+            }, 2500);
+          });
         }
       }
 
@@ -2282,12 +2363,10 @@
     } catch (err) {
       console.error('[admin-tables] print-order failed', err);
       showToast('ההדפסה נכשלה');
-      return;
-    } finally {
-      approvePrintBusy = false;
+      return false;
     }
 
-    if (!printedOk) return;
+    if (!printedOk) return false;
 
     showToast('ההזמנה הודפסה', { checkOnly: true });
     closeDrawer();
@@ -2295,6 +2374,22 @@
       await refreshBoardData();
     } catch (err) {
       console.warn('[admin-tables] refresh after print-order failed', err);
+    }
+    return true;
+  }
+
+  async function handlePrintOrder(entry) {
+    if (approvePrintBusy || !entry?.order) return;
+
+    approvePrintBusy = true;
+    updateApprovePrintButton(entry);
+
+    try {
+      await printPendingOrder(entry);
+    } finally {
+      approvePrintBusy = false;
+      const next = getSelectedEntry();
+      updateApprovePrintButton(next);
     }
   }
 
@@ -2433,7 +2528,7 @@
   function findStackableLateAddOrder(remoteOrders) {
     const list = Array.isArray(remoteOrders) ? remoteOrders : [];
     const unprinted = list
-      .filter((order) => order && order.id && !order.printed_at)
+      .filter((order) => order && order.id && !isRemoteOrderPrinted(order))
       .sort((a, b) => (Number(b.order_number) || 0) - (Number(a.order_number) || 0));
     const candidate = unprinted[0] || null;
     if (!candidate) return null;

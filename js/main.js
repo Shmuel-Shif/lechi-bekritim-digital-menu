@@ -1328,6 +1328,7 @@
 
   function submitButcherCheckoutForm(event) {
     event?.preventDefault?.();
+    if (isSendingOrder) return;
     const nameRaw = String(document.getElementById('butcher-checkout-name')?.value || '').trim();
     const phone = String(document.getElementById('butcher-checkout-phone')?.value || '').trim();
     const notes = String(document.getElementById('butcher-checkout-notes')?.value || '').trim();
@@ -1657,6 +1658,7 @@
 
   function submitTakeawayCheckoutForm(event) {
     event?.preventDefault?.();
+    if (isSendingOrder) return;
     const nameRaw = String(document.getElementById('takeaway-checkout-name')?.value || '').trim();
     const phone = String(document.getElementById('takeaway-checkout-phone')?.value || '').trim();
     const notes = String(document.getElementById('takeaway-checkout-notes')?.value || '').trim();
@@ -1832,6 +1834,7 @@
   }
 
   function confirmDineInNotesAndSend(notes) {
+    if (isSendingOrder) return;
     applyDineInOrderNotes(notes);
     closeDineInNotesModal();
     handleSendOrder();
@@ -5037,54 +5040,63 @@
     });
   }
 
+  function stripUnprintedLocalItems() {
+    if (typeof LechaimOrderEngine.setOrderItems !== 'function') return;
+    const current = LechaimOrderEngine.getOrder?.();
+    if (!current) return;
+    const printedOnly = (current.items || []).filter((item) => item.printed === true);
+    LechaimOrderEngine.setOrderItems(printedOnly);
+  }
+
   async function handleSendOrder() {
     if (isSendingOrder) return;
+    isSendingOrder = true;
 
-    if (!isOrderingAllowed()) {
-      showOrderFeedback('err', t('orderingClosedToast'));
-      return;
-    }
-
-    if (!cartLines.length) {
-      showOrderFeedback('err', t('cartEmpty'));
-      return;
-    }
-
-    if (!window.LechaimOrderEngine?.ensureActiveOrder) {
-      console.error('[cart] Order engine missing');
-      showOrderFeedback('err', t('orderSentFail'));
-      return;
-    }
-
-    /* Delivery min order before customer details — products only, excl. €10 fee */
-    if (isTakeawayDeliveryContext()) {
-      const itemsTotal = getCartItemsSubtotal();
-      const minOrder = getDeliveryMinOrder();
-      if (itemsTotal + 1e-9 < minOrder) {
-        showDeliveryMinOrderModal();
+    let syncedOk = false;
+    try {
+      if (!isOrderingAllowed()) {
+        showOrderFeedback('err', t('orderingClosedToast'));
         return;
       }
-    }
 
-    /* Butcher / takeaway: collect details at checkout (after browsing the catalog). */
-    if (isButcherContext() && !hasButcherCustomerDetails()) {
-      openButcherCheckoutModal();
-      return;
-    }
-    if (isTakeawayContext() && !hasTakeawayCustomerDetails()) {
-      openTakeawayCheckoutModal();
-      return;
-    }
-    if (isDineInContext() && !hasDineInNotesConfirmed()) {
-      openDineInNotesModal();
-      return;
-    }
+      if (!cartLines.length) {
+        showOrderFeedback('err', t('cartEmpty'));
+        return;
+      }
 
-    isSendingOrder = true;
-    setSendButtonState({ sending: true });
-    if (cartClear) cartClear.disabled = true;
+      if (!window.LechaimOrderEngine?.ensureActiveOrder) {
+        console.error('[cart] Order engine missing');
+        showOrderFeedback('err', t('orderSentFail'));
+        return;
+      }
 
-    try {
+      /* Delivery min order before customer details — products only, excl. €10 fee */
+      if (isTakeawayDeliveryContext()) {
+        const itemsTotal = getCartItemsSubtotal();
+        const minOrder = getDeliveryMinOrder();
+        if (itemsTotal + 1e-9 < minOrder) {
+          showDeliveryMinOrderModal();
+          return;
+        }
+      }
+
+      /* Butcher / takeaway: collect details at checkout (after browsing the catalog). */
+      if (isButcherContext() && !hasButcherCustomerDetails()) {
+        openButcherCheckoutModal();
+        return;
+      }
+      if (isTakeawayContext() && !hasTakeawayCustomerDetails()) {
+        openTakeawayCheckoutModal();
+        return;
+      }
+      if (isDineInContext() && !hasDineInNotesConfirmed()) {
+        openDineInNotesModal();
+        return;
+      }
+
+      setSendButtonState({ sending: true });
+      if (cartClear) cartClear.disabled = true;
+
       const session = ensureActiveOrderSession();
       if (!session) {
         console.error('[cart] No active session and cannot create one');
@@ -5104,6 +5116,10 @@
         return;
       }
 
+      /* Drop leftover unprinted lines from a failed previous send, then add the
+         current cart once. Mains never merge, so a retry otherwise prints 2x. */
+      stripUnprintedLocalItems();
+
       /* Append cart lines as separate order items, preserving main→side links. */
       if (typeof LechaimOrderEngine.addProductToOrder === 'function') {
         const cartLineToOrderItemId = new Map();
@@ -5113,7 +5129,7 @@
           return aLinked - bLinked;
         });
 
-        let currentOrder = order;
+        let currentOrder = LechaimOrderEngine.getOrder?.() || order;
         for (const line of sortedLines) {
           const product = resolveCartProductForOrder(line.itemId, line);
           if (!product) {
@@ -5178,21 +5194,45 @@
         localOrder: LechaimOrderEngine.getOrder?.() || order,
         waveItems,
       });
+      syncedOk = true;
 
       const waveIds = waveItems.map((item) => item.itemId).filter(Boolean);
-      if (waveIds.length && typeof LechaimOrderEngine.markPrinted === 'function') {
-        LechaimOrderEngine.markPrinted(waveIds);
+      try {
+        if (waveIds.length && typeof LechaimOrderEngine.markPrinted === 'function') {
+          LechaimOrderEngine.markPrinted(waveIds);
+        }
+      } catch (err) {
+        console.warn('[cart] markPrinted failed after sync', err);
+      }
+      try {
+        clearCartAfterSuccessfulSend();
+      } catch (err) {
+        console.warn('[cart] clearCart failed after sync', err);
+      }
+      try {
+        stripUnprintedLocalItems();
+      } catch (err) {
+        console.warn('[cart] strip unprinted failed after sync', err);
       }
 
-      clearCartAfterSuccessfulSend();
-      lockTakeawayAfterSend(waveItems);
-      clearDineInNotesConfirmation();
-      showOrderReceipt(waveItems);
-      initRemoteSessionClosedWatcher();
-      syncRemoteSessionTotal().catch(() => {});
+      try {
+        lockTakeawayAfterSend(waveItems);
+        clearDineInNotesConfirmation();
+        showOrderReceipt(waveItems);
+        initRemoteSessionClosedWatcher();
+        syncRemoteSessionTotal().catch(() => {});
+      } catch (err) {
+        console.warn('[cart] post-sync UI failed', err);
+        showOrderFeedback('ok', t('orderSentSuccess'));
+      }
     } catch (err) {
-      console.error('[cart] send order failed', err);
-      showOrderFeedback('err', t('orderSentFail'));
+      if (syncedOk) {
+        console.warn('[cart] post-sync failed', err);
+        try { showOrderFeedback('ok', t('orderSentSuccess')); } catch (_) { /* ignore */ }
+      } else {
+        console.error('[cart] send order failed', err);
+        showOrderFeedback('err', t('orderSentFail'));
+      }
     } finally {
       isSendingOrder = false;
       renderCart();
@@ -5271,12 +5311,37 @@
           : (String(rawTypeEarly).toLowerCase().includes('dine') ? 'dine_in' : null)));
     const isTakeawayEarly = normalizedEarly === 'takeaway';
     const isButcherEarly = normalizedEarly === 'butcher';
+    const dineInTable = Number(
+      localOrder?.tableNumber ?? localSession?.tableNumber ?? ctxEarly.tableNumber
+    );
+
     if (map[localId]) {
-      await ensurePublicOrderNoRemembered(map[localId], isTakeawayEarly);
+      const mappedId = map[localId];
+      let mappedOk = true;
       if (normalizedEarly === 'dine_in') {
-        await syncDineInSessionNotes(map[localId]);
+        try {
+          const remote = await api.getSession?.(mappedId);
+          const remoteTable = Number(remote?.table_number);
+          const open = remote && (remote.status === 'active' || remote.status === 'bill_requested');
+          if (!open || !Number.isFinite(dineInTable) || remoteTable !== dineInTable) {
+            mappedOk = false;
+          }
+        } catch (err) {
+          console.warn('[dual-write] mapped dine-in session check failed', err);
+          mappedOk = false;
+        }
+        if (!mappedOk) {
+          delete map[localId];
+          writeSupabaseSessionMap(map);
+        }
       }
-      return map[localId];
+      if (mappedOk) {
+        await ensurePublicOrderNoRemembered(mappedId, isTakeawayEarly);
+        if (normalizedEarly === 'dine_in') {
+          await syncDineInSessionNotes(mappedId);
+        }
+        return mappedId;
+      }
     }
 
     const ctx = ctxEarly;

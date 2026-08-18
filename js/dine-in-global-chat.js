@@ -1,12 +1,14 @@
 /**
  * LECHAIM — Customer global dine-in chat
- * Separate from the private table chat. No table numbers on screen.
+ * Separate from the private table chat. Identity is per phone (guest), not table.
+ * Does not open an Admin table session.
  */
 (function () {
   'use strict';
 
-  const MAP_KEY = 'lechaim-supabase-session-map';
+  const GUEST_KEY = 'lechaim-global-chat-guest-id';
   const LAST_READ_KEY = 'lechaim-global-chat-last-read';
+  const HINT_SEEN_KEY = 'lechaim-global-chat-hint-seen';
   const FALLBACK = {
     globalChatFabLabel: 'צ\'אט כללי של לחיים',
     globalChatTitle: 'צ\'אט כללי של לחיים',
@@ -17,8 +19,9 @@
     globalChatMuted: 'הושתקתם זמנית. אפשר להמשיך לקרוא.',
     globalChatDeleted: 'הודעה הוסרה',
     globalChatWelcomeTitle: 'ברוכים הבאים לצ\'אט הכללי של לחיים',
-    globalChatWelcomeBody: 'הצ\'אט מיועד לאורחי המסעדה.\n\nנשמח לשמור כאן על אווירה נעימה ומכבדת את כל האנשים שיושבים במסעדה.\n\nאנא הימנעו מתוכן פוגעני.',
+    globalChatWelcomeBody: 'הצ\'אט מיועד לאורחי המסעדה.\n\nשימו לב: שאר לקוחות המסעדה רואים את ההודעות שלכם. זהו צ\'אט כללי לכל המסעדה.\n\nנשמח לשמור כאן על אווירה נעימה ומכבדת את כל האנשים שיושבים במסעדה.\n\nאנא הימנעו מתוכן פוגעני.',
     globalChatWelcomeOk: 'אני מבין וממשיך',
+    globalChatFabHint: 'צ\'אט כללי',
     globalChatGuestName: 'אורח {n}',
     globalChatStaffName: 'Lechaim',
     globalChatTypingStaff: '✍️ Lechaim מקלידים...',
@@ -50,6 +53,8 @@
   let typingLive = false;
   let lastTypingSent = 0;
   let typingIdleTimer = null;
+  let guestIdMemory = '';
+  let panelFocusTrapRelease = null;
   const typingGuests = new Map();
   let typingStaff = false;
   let typingStaffTimer = null;
@@ -75,42 +80,40 @@
       .replace(/"/g, '&quot;');
   }
 
-  function readMap() {
-    try {
-      const parsed = JSON.parse(localStorage.getItem(MAP_KEY) || '{}');
-      return parsed && typeof parsed === 'object' ? parsed : {};
-    } catch {
-      return {};
-    }
-  }
-
-  function isDineInContext() {
-    const ctx = window.LechaimOrderContext || {};
-    const session = window.LechaimOrderSession?.getSession?.() || {};
-    const type = String(ctx.orderType || session.orderType || '').toLowerCase();
-    const dineIn = type === 'dine-in' || type === 'dinein' || type === 'dine_in';
-    if (!dineIn || ctx.browseOnly) return false;
-    const table = ctx.tableNumber != null ? Number(ctx.tableNumber) : Number(session.tableNumber);
-    return Number.isFinite(table);
+  function isDineInSite() {
+    const gate = document.getElementById('entry-gate');
+    if (gate?.dataset?.mode === 'dine-in-only') return true;
+    const path = String(location.pathname || '').toLowerCase();
+    return path.includes('dine-in');
   }
 
   function currentTableNumber() {
     const ctx = window.LechaimOrderContext || {};
     const session = window.LechaimOrderSession?.getSession?.() || {};
+    if (ctx.browseOnly) return null;
     const table = Number(ctx.tableNumber != null ? ctx.tableNumber : session.tableNumber);
-    return Number.isFinite(table) ? table : null;
+    return Number.isFinite(table) && table > 0 ? table : null;
   }
 
-  function resolveRemoteSession() {
-    if (!isDineInContext()) return { sessionId: null, tableNumber: null };
-    const ctx = window.LechaimOrderContext || {};
-    const session = window.LechaimOrderSession?.getSession?.() || {};
-    const localId = String(ctx.sessionId || session.sessionId || '');
-    const mapped = localId ? readMap()[localId] : null;
-    return {
-      sessionId: mapped ? String(mapped) : null,
-      tableNumber: currentTableNumber(),
-    };
+  function getGuestId() {
+    if (guestIdMemory) return guestIdMemory;
+    try {
+      const stored = String(localStorage.getItem(GUEST_KEY) || '').trim();
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(stored)) {
+        guestIdMemory = stored.toLowerCase();
+        return guestIdMemory;
+      }
+    } catch (_) { /* ignore */ }
+    const id = typeof crypto?.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : ((r & 0x3) | 0x8);
+        return v.toString(16);
+      });
+    guestIdMemory = id;
+    try { localStorage.setItem(GUEST_KEY, id); } catch (_) { /* ignore */ }
+    return id;
   }
 
   function api() {
@@ -138,7 +141,10 @@
     fab.className = 'dine-in-global-chat-fab';
     fab.hidden = true;
     fab.innerHTML = `
-      <span class="dine-in-global-chat-fab__icon" aria-hidden="true">💬</span>
+      <span class="dine-in-global-chat-fab__hint" aria-hidden="true">
+        <span class="dine-in-global-chat-fab__hint-text"></span>
+      </span>
+      <span class="dine-in-global-chat-fab__icon" aria-hidden="true">🌐</span>
       <span class="dine-in-global-chat-fab__label"></span>
       <span class="dine-in-global-chat-fab__badge" id="dine-in-global-chat-fab-badge" hidden>0</span>
     `;
@@ -208,6 +214,9 @@
     const label = fab.querySelector('.dine-in-global-chat-fab__label');
     if (label) label.textContent = t('globalChatFabLabel');
     fab.setAttribute('aria-label', t('globalChatFabLabel'));
+    const hintText = fab.querySelector('.dine-in-global-chat-fab__hint-text');
+    if (hintText) hintText.textContent = t('globalChatFabHint');
+    refreshFabHint();
     const title = panel.querySelector('#dine-in-global-chat-title');
     if (title) title.textContent = t('globalChatTitle');
     if (input) input.placeholder = t('globalChatPlaceholder');
@@ -424,8 +433,29 @@
     }
     badge.hidden = false;
     badge.textContent = unread > 99 ? '99+' : String(unread);
-    if (label) label.hidden = true;
+    if (label) label.hidden = false;
     fab.setAttribute('aria-label', `${t('globalChatFabLabel')} ${badge.textContent}`);
+  }
+
+  function hintWasSeen() {
+    try {
+      return localStorage.getItem(HINT_SEEN_KEY) === '1';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function markFabHintSeen() {
+    try {
+      localStorage.setItem(HINT_SEEN_KEY, '1');
+    } catch (_) { /* ignore */ }
+    refreshFabHint();
+  }
+
+  function refreshFabHint() {
+    const hint = fab?.querySelector('.dine-in-global-chat-fab__hint');
+    if (!hint) return;
+    hint.hidden = Boolean(open || hintWasSeen());
   }
 
   function refreshUnreadFromMessages() {
@@ -743,19 +773,10 @@
     unsub = null;
   }
 
-  async function ensureRemoteSession() {
-    if (sessionId) return sessionId;
-    const ensure = window.LechaimMenu?.ensureDineInRemoteSession;
-    if (typeof ensure !== 'function') return null;
-    try {
-      const id = await ensure();
-      sessionId = id ? String(id) : null;
-      tableNumber = currentTableNumber();
-      return sessionId;
-    } catch (err) {
-      console.warn('[dine-in-global-chat] ensure session failed', err);
-      return null;
-    }
+  function attachGuestIdentity() {
+    sessionId = getGuestId();
+    tableNumber = currentTableNumber();
+    return sessionId;
   }
 
   function handlePayload(payload) {
@@ -816,6 +837,7 @@
   }
 
   async function loadRoom() {
+    attachGuestIdentity();
     if (!sessionId || !api()?.isConfigured?.()) return;
     member = await api().getOrCreateMember(sessionId, tableNumber);
     messages = await api().listMessages({ forAdmin: false });
@@ -829,6 +851,7 @@
   }
 
   async function acceptWelcome() {
+    attachGuestIdentity();
     if (!sessionId) return;
     try {
       member = await api().acceptGuidelines(sessionId) || member;
@@ -843,14 +866,17 @@
 
   async function openPanel() {
     open = true;
+    markFabHintSeen();
     if (panel) panel.hidden = false;
     fab?.classList.add('is-open');
     document.body.classList.add('dine-in-global-chat-open');
     setBadge(0);
     applyCopy();
+    if (typeof panelFocusTrapRelease === 'function') panelFocusTrapRelease();
+    const release = window.LechaimFocusTrap?.activate?.(panel?.querySelector('.dine-in-global-chat-panel__card') || panel);
+    panelFocusTrapRelease = typeof release === 'function' ? release : null;
     try {
-      const id = await ensureRemoteSession();
-      if (!id) throw new Error('no session');
+      attachGuestIdentity();
       await loadRoom();
       joinTypingChannel();
     } catch (err) {
@@ -860,6 +886,8 @@
 
   function closePanel() {
     leaveTypingChannel();
+    if (typeof panelFocusTrapRelease === 'function') panelFocusTrapRelease();
+    panelFocusTrapRelease = null;
     if (open) markGlobalRead();
     open = false;
     if (panel) panel.hidden = true;
@@ -874,11 +902,11 @@
     sending = true;
     stopOutgoingTyping();
     try {
-      const id = await ensureRemoteSession();
-      if (!id) throw new Error('no session');
-      if (!member) member = await api().getOrCreateMember(id, tableNumber);
+      attachGuestIdentity();
+      if (!sessionId) throw new Error('no guest id');
+      if (!member) member = await api().getOrCreateMember(sessionId, tableNumber);
       const row = await api().sendMessage({
-        sessionId: id,
+        sessionId,
         tableNumber,
         sender: 'guest',
         body,
@@ -902,9 +930,9 @@
   function syncVisibility() {
     ensureDom();
     applyCopy();
-    const dineIn = isDineInContext() && api()?.isConfigured?.();
-    fab.hidden = !dineIn;
-    if (!dineIn) {
+    const allowed = isDineInSite() && api()?.isConfigured?.();
+    fab.hidden = !allowed;
+    if (!allowed) {
       closePanel();
       stopWatch();
       sessionId = null;
@@ -915,13 +943,8 @@
       setBadge(0);
       return;
     }
+    attachGuestIdentity();
     startBackgroundWatch();
-    const resolved = resolveRemoteSession();
-    tableNumber = resolved.tableNumber;
-    if (resolved.sessionId && String(resolved.sessionId) !== String(sessionId)) {
-      sessionId = String(resolved.sessionId);
-      member = null;
-    }
   }
 
   function start() {
