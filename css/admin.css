@@ -962,14 +962,28 @@ body {
   box-sizing: border-box;
 }
 
-.table-card__wa {
-  justify-self: stretch;
+.table-card__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.28rem;
   width: 100%;
   margin-top: 0.28rem;
-  padding: 0.42rem 0.55rem;
+}
+
+.table-card__wa,
+.table-card__courier {
+  justify-self: stretch;
+  width: 100%;
+  margin-top: 0;
+  padding: 0.42rem 0.4rem;
   font-size: 0.78rem;
   justify-content: center;
   box-sizing: border-box;
+}
+
+.table-card__actions .table-card__wa:only-child,
+.table-card__actions .table-card__courier:only-child {
+  grid-column: 1 / -1;
 }
 
 .table-card__chat {
@@ -2301,6 +2315,59 @@ body.admin-modal-open {
   width: min(100%, 400px);
   text-align: start;
   gap: 0.85rem;
+}
+
+.admin-courier-modal__panel {
+  width: min(100%, 400px);
+  text-align: start;
+  gap: 0.85rem;
+}
+
+.admin-courier-modal__title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--color-navy, #152640);
+}
+
+.admin-courier-modal__order {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+.admin-courier-modal__list {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+}
+
+.admin-courier-modal__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+  background: rgba(196, 160, 106, 0.12);
+}
+
+.admin-courier-modal__row dt {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.admin-courier-modal__row dd {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-navy);
+  text-align: end;
+  word-break: break-word;
 }
 
 .admin-coupon-modal__title {

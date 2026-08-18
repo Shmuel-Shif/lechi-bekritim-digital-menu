@@ -115,6 +115,7 @@
     success: null,
     confirm: null,
     coupon: null,
+    courier: null,
   };
 
   function setFocusTrap(key, root) {
@@ -382,6 +383,97 @@
     }
 
     openExternalUrl(`https://wa.me/${phone}?text=${textEnc}`);
+  }
+
+  async function copyTextToClipboard(text) {
+    const value = String(text || '');
+    if (!value) return false;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+        return true;
+      }
+    } catch (_) { /* fallback */ }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = value;
+      ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:fixed;opacity:0;';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      ta.remove();
+      return ok;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function buildCourierDetails(entry) {
+    const order = entry?.order || {};
+    const delivery = isDeliveryOrder(order);
+    const kind = entry?.orderType === 'butcher'
+      ? (delivery ? 'משלוח חנות בשר' : 'איסוף חנות בשר')
+      : (delivery ? 'משלוח' : 'איסוף עצמי');
+    const no = order.publicOrderNo != null ? ` #${order.publicOrderNo}` : '';
+    const name = String(order.customerName || '').trim() || '—';
+    const phone = String(order.customerPhone || '').trim() || '—';
+    const address = String(order.customerAddress || '').trim() || '—';
+    const heading = `${kind}${no}`;
+    const copyText = [
+      heading,
+      `שם: ${name}`,
+      `טלפון: ${phone}`,
+      `כתובת: ${address}`,
+    ].join('\n');
+    return { heading, name, phone, address, copyText };
+  }
+
+  const courierModal = document.getElementById('admin-courier-modal');
+  const courierBackdrop = document.getElementById('admin-courier-backdrop');
+  const courierCopyBtn = document.getElementById('admin-courier-copy');
+  let courierCopyText = '';
+  let courierCopyResetTimer = null;
+
+  function closeCourierModal() {
+    if (!courierModal) return;
+    window.clearTimeout(courierCopyResetTimer);
+    courierCopyResetTimer = null;
+    clearFocusTrap('courier');
+    courierModal.hidden = true;
+    courierModal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('admin-modal-open');
+    courierCopyText = '';
+    if (courierCopyBtn) courierCopyBtn.textContent = 'העתק הכל';
+  }
+
+  function openCourierModal(entry) {
+    if (!courierModal) return;
+    const details = buildCourierDetails(entry);
+    courierCopyText = details.copyText;
+    const headingEl = document.getElementById('admin-courier-order');
+    const nameEl = document.getElementById('admin-courier-name');
+    const phoneEl = document.getElementById('admin-courier-phone');
+    const addressEl = document.getElementById('admin-courier-address');
+    if (headingEl) headingEl.textContent = details.heading;
+    if (nameEl) nameEl.textContent = details.name;
+    if (phoneEl) phoneEl.textContent = details.phone;
+    if (addressEl) addressEl.textContent = details.address;
+    if (courierCopyBtn) courierCopyBtn.textContent = 'העתק הכל';
+    courierModal.hidden = false;
+    courierModal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('admin-modal-open');
+    setFocusTrap('courier', courierModal);
+    courierCopyBtn?.focus();
+  }
+
+  async function copyCourierDetails() {
+    const ok = await copyTextToClipboard(courierCopyText);
+    if (courierCopyBtn) courierCopyBtn.textContent = ok ? 'הועתק' : 'לא הועתק';
+    window.clearTimeout(courierCopyResetTimer);
+    courierCopyResetTimer = window.setTimeout(() => {
+      if (courierCopyBtn) courierCopyBtn.textContent = 'העתק הכל';
+    }, 1600);
   }
 
   const WA_ICON = `<svg class="admin-wa-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>`;
@@ -1163,12 +1255,18 @@
     const waBtn = isPickup && customerPhone
       ? `<button type="button" class="admin-btn admin-btn--whatsapp table-card__wa" data-table-action="whatsapp">${WA_ICON}<span>WhatsApp</span></button>`
       : '';
+    const courierBtn = isPickup
+      ? `<button type="button" class="admin-btn admin-btn--soft table-card__courier" data-table-action="courier">${isDelivery ? 'לשליח' : 'פרטים'}</button>`
+      : '';
+    const cardActions = isPickup && (waBtn || courierBtn)
+      ? `<div class="table-card__actions">${waBtn}${courierBtn}</div>`
+      : '';
     const pickupBlock = isPickup
       ? `
         <span class="table-card__badge${entry.orderType === 'butcher' ? ' table-card__badge--butcher' : ''}${isDelivery ? ' table-card__badge--delivery' : ''}${!isDelivery && entry.orderType === 'takeaway' ? ' table-card__badge--pickup' : ''}">${escapeHtml(badgeText)}</span>
         <span class="table-card__customer">${escapeHtml(entry.order?.customerName || '—')}</span>
         <span class="table-card__phone" dir="ltr">${escapeHtml(customerPhone || '—')}</span>
-        ${waBtn}
+        ${cardActions}
         ${(entry.orderType === 'takeaway' || entry.orderType === 'butcher') && entry.order?.customerAddress
           ? `<span class="table-card__pickup">כתובת: ${escapeHtml(entry.order.customerAddress)}</span>`
           : ''}
@@ -3375,14 +3473,17 @@
   }
 
   function onGridClick(event) {
-    const waBtn = event.target.closest('[data-table-action="whatsapp"]');
-    if (waBtn) {
+    const actionBtn = event.target.closest('[data-table-action="whatsapp"], [data-table-action="courier"]');
+    if (actionBtn) {
       event.preventDefault();
       event.stopPropagation();
-      const card = waBtn.closest('[data-entry-key]');
+      const card = actionBtn.closest('[data-entry-key]');
       const key = card?.getAttribute('data-entry-key') || card?.dataset.entryKey || '';
       const entry = findEntryByKey(key);
-      if (entry) openOrderWhatsApp(entry);
+      if (!entry) return;
+      const action = actionBtn.getAttribute('data-table-action');
+      if (action === 'whatsapp') openOrderWhatsApp(entry);
+      else if (action === 'courier') openCourierModal(entry);
       return;
     }
     const card = event.target.closest('[data-entry-key]');
@@ -3393,7 +3494,7 @@
 
   function onGridKeydown(event) {
     if (event.key !== 'Enter' && event.key !== ' ') return;
-    if (event.target.closest('[data-table-action="whatsapp"]')) return;
+    if (event.target.closest('[data-table-action="whatsapp"], [data-table-action="courier"]')) return;
     const card = event.target.closest('article[data-entry-key]');
     if (!card || event.target !== card) return;
     event.preventDefault();
@@ -3550,6 +3651,9 @@
     couponPrint?.addEventListener('click', () => { confirmAdminCouponPrint(); });
     couponCancel?.addEventListener('click', closeCouponModal);
     couponBackdrop?.addEventListener('click', closeCouponModal);
+    courierCopyBtn?.addEventListener('click', () => { copyCourierDetails(); });
+    document.getElementById('admin-courier-close')?.addEventListener('click', closeCourierModal);
+    courierBackdrop?.addEventListener('click', closeCourierModal);
 
     document.getElementById('admin-payment-cash')?.addEventListener('click', () => {
       const total = roundMoney(pendingPaymentTotal);
@@ -3677,6 +3781,10 @@
       }
       if (couponModal && !couponModal.hidden) {
         closeCouponModal();
+        return;
+      }
+      if (courierModal && !courierModal.hidden) {
+        closeCourierModal();
         return;
       }
       if (successModal && !successModal.hidden) {

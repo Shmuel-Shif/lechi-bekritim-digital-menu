@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=18">
+  <link rel="stylesheet" href="css/admin.css?v=19">
   <link rel="icon" href="assets/logo/logo.webp" type="image/webp">
 </head>
 <body>
@@ -793,6 +793,32 @@
       </div>
     </div>
 
+    <div class="admin-modal" id="admin-courier-modal" hidden aria-hidden="true">
+      <button type="button" class="admin-modal__backdrop" id="admin-courier-backdrop" aria-label="סגור"></button>
+      <div class="admin-modal__panel admin-courier-modal__panel" role="dialog" aria-modal="true" aria-labelledby="admin-courier-title">
+        <h2 class="admin-courier-modal__title" id="admin-courier-title">פרטים לשליח</h2>
+        <p class="admin-courier-modal__order" id="admin-courier-order"></p>
+        <dl class="admin-courier-modal__list">
+          <div class="admin-courier-modal__row">
+            <dt>שם</dt>
+            <dd id="admin-courier-name"></dd>
+          </div>
+          <div class="admin-courier-modal__row">
+            <dt>טלפון</dt>
+            <dd id="admin-courier-phone" dir="ltr"></dd>
+          </div>
+          <div class="admin-courier-modal__row">
+            <dt>כתובת</dt>
+            <dd id="admin-courier-address"></dd>
+          </div>
+        </dl>
+        <div class="admin-modal__actions">
+          <button type="button" class="admin-btn admin-btn--primary" id="admin-courier-copy">העתק הכל</button>
+          <button type="button" class="admin-btn admin-btn--ghost" id="admin-courier-close">סגור</button>
+        </div>
+      </div>
+    </div>
+
     <div class="admin-modal" id="admin-coupon-modal" hidden aria-hidden="true">
       <button type="button" class="admin-modal__backdrop" id="admin-coupon-backdrop" aria-label="סגור"></button>
       <div class="admin-modal__panel admin-coupon-modal__panel" role="dialog" aria-modal="true" aria-labelledby="admin-coupon-title">
@@ -886,7 +912,7 @@
   <script src="js/admin-table-chat.js?v=3" defer></script>
   <script src="js/global-chat-service.js?v=5" defer></script>
   <script src="js/admin-global-chat.js?v=7" defer></script>
-  <script src="js/admin-tables.js?v=56" defer></script>
+  <script src="js/admin-tables.js?v=57" defer></script>
   <script src="js/admin-shabbat.js" defer></script>
   <script src="js/place-reservations.js" defer></script>
   <script src="js/admin-reservations.js" defer></script>
