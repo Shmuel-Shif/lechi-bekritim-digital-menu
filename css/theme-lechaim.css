@@ -904,6 +904,10 @@ html[dir="ltr"] .search-panel__input {
   background-size: 16px 16px, auto;
 }
 
+.site-footer--compact {
+  background: #17345d;
+}
+
 .footer-card {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;

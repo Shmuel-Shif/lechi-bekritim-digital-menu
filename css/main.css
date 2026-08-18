@@ -3104,6 +3104,102 @@ body.browse-only #order-back-toggle {
   overflow: hidden;
 }
 
+.site-footer--compact {
+  display: grid;
+  gap: 0.35rem;
+  justify-items: center;
+  width: 100%;
+  margin: 0;
+  padding: 1.5rem 1rem max(1.75rem, env(safe-area-inset-bottom, 0px));
+  border-top: 0;
+  overflow: visible;
+  text-align: center;
+  background: #17345d;
+  color: #fff;
+}
+
+.site-footer__brand {
+  margin: 0;
+  font-family: var(--font-display, 'Frank Ruhl Libre', 'Playfair Display', serif);
+  font-size: clamp(0.85rem, 2vw, 1rem);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #c4a06a;
+}
+
+.site-footer__tag {
+  margin: 0;
+  font-family: var(--font-body, 'Heebo', sans-serif);
+  font-size: clamp(0.8rem, 1.8vw, 0.92rem);
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.site-footer__follow {
+  margin: 0.55rem 0 0;
+  font-family: var(--font-body, 'Heebo', sans-serif);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.site-footer__social {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  margin-top: 0.15rem;
+}
+
+.site-footer__link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.55rem;
+  height: 2.55rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  text-decoration: none;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.site-footer__link svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+}
+
+.site-footer__link:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+}
+
+.site-footer__link:focus-visible {
+  outline: 2px solid #c4a06a;
+  outline-offset: 2px;
+}
+
+.site-footer__link--whatsapp:hover {
+  background: rgba(37, 211, 102, 0.35);
+}
+
+.site-footer__link--instagram:hover {
+  background: rgba(225, 48, 108, 0.35);
+}
+
+.site-footer__link--facebook:hover {
+  background: rgba(24, 119, 242, 0.35);
+}
+
+.site-footer__link--maps:hover,
+.site-footer__link--phone:hover {
+  background: rgba(196, 160, 106, 0.4);
+}
+
 .footer-accent {
   height: 4px;
   background: linear-gradient(

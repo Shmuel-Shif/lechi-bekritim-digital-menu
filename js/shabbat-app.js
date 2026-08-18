@@ -157,6 +157,11 @@
         ? String(text).split('\n').map((line) => line.replace(/</g, '&lt;')).join('<br>')
         : text;
     });
+    document.querySelectorAll('[data-i18n-aria]').forEach((el) => {
+      const key = el.getAttribute('data-i18n-aria');
+      const text = t(key);
+      if (key && text) el.setAttribute('aria-label', text);
+    });
     [langToggle, entryLangToggle].forEach((toggle) => {
       if (!toggle) return;
       toggle.querySelectorAll('[data-lang]').forEach((opt) => {

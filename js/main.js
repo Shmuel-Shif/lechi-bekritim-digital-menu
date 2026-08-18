@@ -2827,6 +2827,9 @@
       maybeShowKitchenModalForDineInEntry({ force: true });
       if (isDineInCountdownActive()) startKitchenCloseTicker();
     }
+    if (!isTakeaway && !isButcher && nextTable != null && !window.LechaimOrderContext?.browseOnly) {
+      window.dispatchEvent(new CustomEvent('lechaim:dinein-table-ready'));
+    }
   }
 
   function updateTableHeader() {
@@ -3129,13 +3132,15 @@
   }
 
   function initSocialLinks() {
-    const instagram = $('#footer-instagram');
-    const facebook = $('#footer-facebook');
-    if (instagram && SOCIAL_LINKS?.instagram) {
-      instagram.href = SOCIAL_LINKS.instagram;
+    if (SOCIAL_LINKS?.instagram) {
+      document.querySelectorAll('#footer-instagram, .js-footer-instagram').forEach((el) => {
+        el.href = SOCIAL_LINKS.instagram;
+      });
     }
-    if (facebook && SOCIAL_LINKS?.facebook) {
-      facebook.href = SOCIAL_LINKS.facebook;
+    if (SOCIAL_LINKS?.facebook) {
+      document.querySelectorAll('#footer-facebook, .js-footer-facebook').forEach((el) => {
+        el.href = SOCIAL_LINKS.facebook;
+      });
     }
   }
 
@@ -5209,6 +5214,7 @@
   function writeSupabaseSessionMap(map) {
     try {
       localStorage.setItem(SUPABASE_SESSION_MAP_KEY, JSON.stringify(map));
+      window.dispatchEvent(new CustomEvent('lechaim:dinein-session-ready'));
     } catch (err) {
       console.warn('[dual-write] failed to persist session map', err);
     }
@@ -5373,6 +5379,21 @@
     writeSupabaseSessionMap(map);
     rememberPublicOrderNo(created.public_order_no);
     return created.session_id;
+  }
+
+  async function ensureDineInRemoteSession() {
+    const ctx = window.LechaimOrderContext || {};
+    const session = window.LechaimOrderSession?.getSession?.() || {};
+    const type = String(ctx.orderType || session.orderType || '').toLowerCase();
+    const dineIn = type === 'dine-in' || type === 'dinein' || type === 'dine_in';
+    if (!dineIn || ctx.browseOnly) return null;
+    const api = window.LechaimSupabaseOrders;
+    if (!api?.isConfigured?.()) return null;
+    return resolveSupabaseSessionId(session, window.LechaimOrderEngine?.getOrder?.() || null);
+  }
+
+  if (window.LechaimMenu) {
+    window.LechaimMenu.ensureDineInRemoteSession = ensureDineInRemoteSession;
   }
 
   async function syncDineInSessionNotes(remoteSessionId) {

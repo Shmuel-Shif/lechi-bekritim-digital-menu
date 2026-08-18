@@ -127,6 +127,7 @@
       window.LechaimAdminTables?.closeDrawer?.();
       window.LechaimAdminShabbat?.stop?.();
       window.LechaimAdminReservations?.stop?.();
+      window.LechaimAdminGlobalChat?.stop?.();
     }
   }
 
@@ -167,6 +168,7 @@
      * Only the visible board UI changes — never stop listening while logged in.
      */
     window.LechaimAdminTables?.start?.();
+    window.LechaimAdminGlobalChat?.start?.();
     window.LechaimAdminShabbat?.start?.();
     window.LechaimAdminReservations?.start?.();
     if (onBoard) {

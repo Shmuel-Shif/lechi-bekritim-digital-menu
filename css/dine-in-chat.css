@@ -1,0 +1,242 @@
+/* LECHAIM — Customer dine-in private chat */
+
+.dine-in-chat-panel .visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+body:has(.dine-in-chat-fab) .site-footer--compact,
+body:has(.dine-in-global-chat-fab) .site-footer--compact {
+  padding-bottom: calc(8.8rem + env(safe-area-inset-bottom, 0px));
+}
+
+.dine-in-chat-fab[hidden],
+.dine-in-chat-panel[hidden] {
+  display: none !important;
+}
+
+.dine-in-chat-fab {
+  position: fixed;
+  z-index: 380;
+  inset-inline-end: 1rem;
+  bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.75rem;
+  padding: 0.45rem 0.9rem 0.45rem 0.7rem;
+  border: 0;
+  border-radius: 999px;
+  background: #152640;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.92rem;
+  box-shadow: 0 8px 24px rgba(21, 38, 64, 0.28);
+  cursor: pointer;
+}
+
+.dine-in-chat-fab:hover,
+.dine-in-chat-fab.is-open {
+  background: #1e3a5f;
+}
+
+.dine-in-chat-fab__badge {
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding-inline: 0.28rem;
+  border-radius: 999px;
+  background: #b42318;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.25rem;
+  text-align: center;
+}
+
+.dine-in-chat-fab__badge[hidden] {
+  display: none !important;
+}
+
+.dine-in-chat-fab__label[hidden] {
+  display: none !important;
+}
+
+.dine-in-chat-panel {
+  position: fixed;
+  z-index: 430;
+  inset-inline-end: 1rem;
+  bottom: calc(8.4rem + env(safe-area-inset-bottom, 0px));
+  width: min(calc(100vw - 1.5rem), 360px);
+}
+
+.dine-in-chat-panel__card {
+  display: flex;
+  flex-direction: column;
+  height: min(62vh, 460px);
+  background: #fff8ee;
+  border: 1px solid #e6dfd0;
+  border-radius: 16px;
+  box-shadow: 0 16px 40px rgba(21, 38, 64, 0.22);
+  overflow: hidden;
+}
+
+.dine-in-chat-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.7rem 0.8rem;
+  background: #152640;
+  color: #fff;
+}
+
+.dine-in-chat-panel__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.dine-in-chat-panel__close {
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.dine-in-chat-panel__messages {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  background: #f6efe3;
+}
+
+.dine-in-chat-panel__empty {
+  margin: auto;
+  text-align: center;
+  color: #5c6b80;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.dine-in-chat-bubble {
+  max-width: 88%;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.dine-in-chat-bubble--guest {
+  align-self: flex-end;
+}
+
+.dine-in-chat-bubble--staff {
+  align-self: flex-start;
+}
+
+.dine-in-chat-bubble__body {
+  margin: 0;
+  padding: 0.5rem 0.7rem;
+  border-radius: 14px;
+  font-size: 0.92rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.dine-in-chat-bubble--guest .dine-in-chat-bubble__body {
+  background: #152640;
+  color: #fff;
+  border-bottom-left-radius: 4px;
+}
+
+.dine-in-chat-bubble--staff .dine-in-chat-bubble__body {
+  background: #fff;
+  color: #152640;
+  border: 1px solid #e6dfd0;
+  border-bottom-right-radius: 4px;
+}
+
+.dine-in-chat-bubble__time {
+  font-size: 0.7rem;
+  color: #5c6b80;
+}
+
+.dine-in-chat-bubble--guest .dine-in-chat-bubble__time {
+  text-align: end;
+}
+
+.dine-in-chat-panel__form {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.65rem;
+  background: #fff;
+  border-top: 1px solid #e6dfd0;
+}
+
+.dine-in-chat-typing {
+  margin: 0;
+  padding: 0.28rem 0.75rem 0;
+  background: #fff;
+  border-top: 1px solid #e6dfd0;
+  font-size: 0.78rem;
+  font-style: italic;
+  color: #5c6b80;
+}
+
+.dine-in-chat-typing[hidden] {
+  display: none !important;
+}
+
+.dine-in-chat-panel__input {
+  flex: 1;
+  min-width: 0;
+  height: 2.5rem;
+  padding: 0 0.7rem;
+  border: 1px solid #d9d0c0;
+  border-radius: 10px;
+  font: inherit;
+  background: #fff;
+}
+
+.dine-in-chat-panel__send {
+  height: 2.5rem;
+  padding: 0 0.85rem;
+  border: 0;
+  border-radius: 10px;
+  background: #152640;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+body.cart-open .dine-in-chat-fab,
+body.cart-open .dine-in-chat-panel,
+body.modal-open .dine-in-chat-fab,
+body.modal-open .dine-in-chat-panel,
+body.order-receipt-open .dine-in-chat-fab,
+body.order-receipt-open .dine-in-chat-panel {
+  display: none !important;
+}
+
+@media (max-width: 640px) {
+  .dine-in-chat-fab {
+    bottom: calc(4.6rem + env(safe-area-inset-bottom, 0px));
+  }
+}

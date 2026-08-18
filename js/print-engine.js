@@ -324,9 +324,8 @@
   }
 
   /**
-   * Drink that belongs on the BAR ticket with Hamburger Chips.
-   * Any non-doneness child of the meal counts — a product-id mismatch must not
-   * swallow the drink onto kitchen or drop the bar job.
+   * Drink included with the hamburger meal — belongs on the BAR ticket
+   * as a normal soft drink, never nested under the burger name.
    */
   function isHamburgerMealDrinkItem(item, parentById, drinkIds) {
     if (!item) return false;
@@ -423,15 +422,25 @@
       else kitchen.push(item);
     });
 
-    /* Meal drink must ride the bar ticket with the burger name, never kitchen. */
+    function removeFromBar(item) {
+      if (!item) return;
+      const b = bar.indexOf(item);
+      if (b >= 0) bar.splice(b, 1);
+      const d = barDrinks.indexOf(item);
+      if (d >= 0) barDrinks.splice(d, 1);
+      const c = barCocktails.indexOf(item);
+      if (c >= 0) barCocktails.splice(c, 1);
+    }
+
+    /* Included meal drink prints on bar like any other soft drink — never with the burger. */
     const burgers = printable.filter((item) => isHamburgerMealItem(item) && !item.linkedToMainItemId);
     burgers.forEach((burger) => {
+      removeFromBar(burger);
       const drinks = drinksLinkedToBurger(burger);
       drinks.forEach((drink) => {
         removeFromKitchen(drink);
         pushBar(drink, 'drinks');
       });
-      if (drinks.length) pushBar(burger, 'drinks');
     });
 
     if (burgers.length && !barDrinks.length) {
@@ -687,6 +696,10 @@
     list.forEach((item) => {
       const parentId = item.linkedToMainItemId ? String(item.linkedToMainItemId) : '';
       if (!parentId) return;
+      const parent = itemById.get(parentId);
+      if (parent && isHamburgerMealItem(parent) && !isDonenessProduct(item.productId)) {
+        return;
+      }
       if (!sidesByMainId.has(parentId)) sidesByMainId.set(parentId, []);
       sidesByMainId.get(parentId).push(item);
     });
@@ -730,7 +743,11 @@
       if (consumedSideIds.has(sideId)) return;
 
       const parentId = String(item.linkedToMainItemId);
-      if (itemById.has(parentId) && !itemById.get(parentId).linkedToMainItemId) {
+      const parent = itemById.get(parentId);
+      const hamburgerDrinkStandalone = Boolean(
+        parent && isHamburgerMealItem(parent) && !isDonenessProduct(item.productId)
+      );
+      if (!hamburgerDrinkStandalone && parent && !parent.linkedToMainItemId) {
         return;
       }
 

@@ -934,9 +934,9 @@
   }
 
   /**
-   * Same rule as Admin: a table is occupied only when an open Supabase
-   * session has at least one order with items (or a positive total).
-   * Empty "active" sessions must not block table selection.
+   * Same rule as Admin: a table is occupied when an open Supabase
+   * session has a live order, or when a dine-in chat thread already exists.
+   * Empty "active" sessions without chat must not block table selection.
    */
   function remoteSessionHasLiveOrder(session, orders) {
     if (!session) return false;
@@ -1004,8 +1004,23 @@
         if (list) list.push(order);
       });
 
+      let chatSessions = new Set();
+      try {
+        const { data: chatRows, error: chatErr } = await sb
+          .from('table_chats')
+          .select('session_id')
+          .in('session_id', ids);
+        if (!chatErr) {
+          chatSessions = new Set((chatRows || []).map((row) => String(row.session_id)));
+        }
+      } catch (_) { /* table_chats may not exist yet */ }
+
       sessions.forEach((session) => {
-        if (remoteSessionHasLiveOrder(session, bySession.get(session.session_id) || [])) {
+        const sid = String(session.session_id || '');
+        if (
+          remoteSessionHasLiveOrder(session, bySession.get(session.session_id) || [])
+          || chatSessions.has(sid)
+        ) {
           occupied.add(Number(session.table_number));
         }
       });

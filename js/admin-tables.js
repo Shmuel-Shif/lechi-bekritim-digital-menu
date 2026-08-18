@@ -728,8 +728,8 @@
       const synthetic = flattenSessionOrders(session, orders);
       if (!synthetic?.orderType) return;
       const isPickupBoard = synthetic.orderType === 'takeaway' || synthetic.orderType === 'butcher';
-      /* Keep takeaway/butcher visible even if admin removed all line items */
-      if (!isPickupBoard && !synthetic.items.length && !(Number(synthetic._sessionTotal) > 0)) return;
+      /* Keep takeaway/butcher visible even if admin removed all line items.
+         Dine-in with no items stays visible so staff can answer pre-order chat. */
 
       if (isPickupBoard) {
         const entry = withPayableTotal({
@@ -979,6 +979,9 @@
     if (loadPromise) return loadPromise;
     loadPromise = (async () => {
       const data = await loadBoardData();
+      if (window.LechaimAdminTableChat?.loadUnreads) {
+        await window.LechaimAdminTableChat.loadUnreads();
+      }
       boardCache = (data.board || []).map(withPayableTotal);
       takeawayCache = (data.takeaway || []).map(withPayableTotal);
       butcherCache = (data.butcher || []).map(withPayableTotal);
@@ -1053,6 +1056,11 @@
         class="table-card table-card--${escapeHtml(entry.uiStatus)}${isPickup ? ' table-card--pickup' : ''}"
         data-entry-key="${escapeAttr(entryKey(entry))}"
       >
+        ${
+          !free && !isPickup && Number(window.LechaimAdminTableChat?.getStaffUnread?.(entry.order?._supabaseSessionId)) > 0
+            ? `<span class="table-card__chat${window.LechaimAdminTableChat?.isPulsing?.(entry.order._supabaseSessionId) ? ' table-card__chat--alert' : ''}">💬 ${escapeHtml(String(window.LechaimAdminTableChat.getStaffUnread(entry.order._supabaseSessionId)))}</span>`
+            : ''
+        }
         <span class="table-card__num">${
           isPickup
             ? escapeHtml(
@@ -1423,6 +1431,7 @@
     }
 
     updateApprovePrintButton(entry);
+    window.LechaimAdminTableChat?.syncDrawer?.(entry);
   }
 
   function updateApprovePrintButton(entry) {
@@ -1469,6 +1478,60 @@
     suppressNotifyUntil = Date.now() + Math.max(0, Number(ms) || 0);
   }
 
+  const chatNotifyIds = new Set();
+
+  function rememberChatNotifyId(id) {
+    const key = String(id || '');
+    if (!key) return false;
+    if (chatNotifyIds.has(key)) return false;
+    chatNotifyIds.add(key);
+    if (chatNotifyIds.size > 120) {
+      const oldest = chatNotifyIds.values().next().value;
+      chatNotifyIds.delete(oldest);
+    }
+    return true;
+  }
+
+  function getSharedAudioContext() {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    const ctx = playOrderNotifyChime._ctx || playChatNotifyChime._ctx || new Ctx();
+    playOrderNotifyChime._ctx = ctx;
+    playChatNotifyChime._ctx = ctx;
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+    return ctx;
+  }
+
+  /** Short chat beep — not the order alert, and no reminder loop. */
+  function playChatNotifyChime(messageId, opts) {
+    if (!rememberChatNotifyId(messageId)) return;
+    if (opts?.silent) return;
+    try {
+      const ctx = getSharedAudioContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      const tones = [
+        { freq: 1046, at: 0, dur: 0.07 },
+        { freq: 1397, at: 0.08, dur: 0.1 },
+      ];
+      tones.forEach((tone) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = tone.freq;
+        gain.gain.setValueAtTime(0.0001, now + tone.at);
+        gain.gain.exponentialRampToValueAtTime(0.14, now + tone.at + 0.012);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + tone.at + tone.dur);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + tone.at);
+        osc.stop(now + tone.at + tone.dur + 0.02);
+      });
+    } catch (err) {
+      console.warn('[admin-tables] chat chime failed', err);
+    }
+  }
+
   function playOrderNotifyChime() {
     try {
       if (Date.now() < suppressNotifyUntil) return;
@@ -1477,11 +1540,8 @@
       if (playOrderNotifyChime._last && stamp - playOrderNotifyChime._last < 1400) return;
       playOrderNotifyChime._last = stamp;
 
-      const Ctx = window.AudioContext || window.webkitAudioContext;
-      if (!Ctx) return;
-      const ctx = playOrderNotifyChime._ctx || new Ctx();
-      playOrderNotifyChime._ctx = ctx;
-      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+      const ctx = getSharedAudioContext();
+      if (!ctx) return;
 
       const now = ctx.currentTime;
       /* Loud admin alert — customer events only (new order / bill request) */
@@ -2089,6 +2149,7 @@
   }
 
   function openMenuPicker() {
+    window.LechaimAdminTableChat?.close?.();
     loadCatalog();
     menuCategoryId = 'all';
     menuQuery = '';
@@ -2132,6 +2193,7 @@
     selectedKey = null;
     menuMode = false;
     setDrawerView('detail');
+    window.LechaimAdminTableChat?.close?.();
     if (!drawer) return;
     clearFocusTrap('drawer');
     drawer.hidden = true;
@@ -3016,6 +3078,11 @@
       return;
     }
 
+    if (action === 'open-chat') {
+      window.LechaimAdminTableChat?.openForEntry?.(entry);
+      return;
+    }
+
     if (action === 'add-items') {
       openMenuPicker();
       return;
@@ -3280,6 +3347,9 @@
     }
     watchRunning = true;
     startRealtime();
+    window.LechaimAdminTableChat?.subscribeBoard?.(() => {
+      paintBoard(boardCache, takeawayCache, butcherCache);
+    });
     renderBoard();
     pollTimer = window.setInterval(renderBoard, 1000);
   }
@@ -3292,11 +3362,13 @@
     }
     window.clearTimeout(refreshTimer);
     stopRealtime();
+    window.LechaimAdminTableChat?.stopBoard?.();
     stopPendingReminder();
   }
 
   function init() {
     bindCardClicks();
+    window.LechaimAdminTableChat?.init?.();
     closeDeliveriesBtn?.addEventListener('click', () => {
       toggleDeliveriesClosed().catch((err) => {
         console.error('[admin-tables] deliveries toggle failed', err);
@@ -3472,6 +3544,7 @@
     closeDrawer,
     setBoardFilter,
     playNotifyChime: playOrderNotifyChime,
+    playChatNotifyChime,
     silenceNotifyChime() {
       suppressCustomerNotify(8000);
       stopPendingReminder();
