@@ -205,15 +205,8 @@
         lines.push(`${isDelivery ? 'Delivery' : 'Pickup'}: ASAP`);
       }
     } else {
-      const address = String(order.customerAddress || order.customer_address || '').trim();
-      const isDelivery = String(order.fulfillmentType || order.fulfillment_type || '') === 'delivery'
-        || Boolean(address);
-      lines.push(`Customer: ${name}`);
-      if (isDelivery && address) lines.push(`Address: ${address}`);
-      lines.push(
-        `Phone: ${phone}`,
-        `${isDelivery ? 'Delivery' : 'Pickup'}: ${pickup}`,
-      );
+      /* Takeaway pickup + delivery: kitchen bon stays TAKEAWAY/DELIVERY # only —
+         no Customer / Address / Phone / Delivery ASAP. */
     }
     /* Customer notes stay in Admin only — not on kitchen bon.
        Order number is already on the TAKEAWAY # line (large). */

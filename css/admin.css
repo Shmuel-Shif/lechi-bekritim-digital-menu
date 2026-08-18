@@ -956,6 +956,20 @@ body {
   cursor: pointer;
   box-shadow: var(--shadow-sm);
   transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+  font: inherit;
+  color: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.table-card__wa {
+  justify-self: stretch;
+  width: 100%;
+  margin-top: 0.28rem;
+  padding: 0.42rem 0.55rem;
+  font-size: 0.78rem;
+  justify-content: center;
+  box-sizing: border-box;
 }
 
 .table-card__chat {
