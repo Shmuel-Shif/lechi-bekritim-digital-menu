@@ -39,6 +39,9 @@
   const kitchenCloseBtn = document.getElementById('admin-kitchen-close-btn');
   const shopHoursBtn = document.getElementById('admin-shop-hours-btn');
   const kitchenBeepBtn = document.getElementById('admin-kitchen-beep-btn');
+  const hugMeBtn = document.getElementById('admin-hug-me-btn');
+  const HUG_ME_AUDIO_SRC = 'assets/audio/techabek-oti.ogg';
+  let hugMeAudio = null;
   const PRINT_SERVICE_ORIGIN = 'http://127.0.0.1:3001';
 
   let inventorySubscribed = false;
@@ -484,6 +487,34 @@
       showError(panelError, 'שירות ההדפסה לא זמין — לא ניתן לצפצף');
     } finally {
       kitchenBeepBtn.disabled = false;
+    }
+  }
+
+  function playHugMeSound() {
+    if (!hugMeBtn) return;
+    try {
+      if (!hugMeAudio) {
+        hugMeAudio = new Audio(HUG_ME_AUDIO_SRC);
+        hugMeAudio.preload = 'auto';
+        hugMeAudio.addEventListener('playing', () => hugMeBtn.classList.add('is-playing'));
+        hugMeAudio.addEventListener('pause', () => hugMeBtn.classList.remove('is-playing'));
+        hugMeAudio.addEventListener('ended', () => hugMeBtn.classList.remove('is-playing'));
+        hugMeAudio.addEventListener('error', () => {
+          hugMeBtn.classList.remove('is-playing');
+          showError(panelError, 'לא נמצא הקובץ techabek-oti.ogg');
+        });
+      }
+      hugMeAudio.pause();
+      hugMeAudio.currentTime = 0;
+      const play = hugMeAudio.play();
+      if (play && typeof play.catch === 'function') {
+        play.catch(() => {
+          hugMeBtn.classList.remove('is-playing');
+          showError(panelError, 'לא ניתן לנגן את השיר');
+        });
+      }
+    } catch (_) {
+      showError(panelError, 'לא ניתן לנגן את השיר');
     }
   }
 
@@ -991,6 +1022,10 @@
 
   kitchenBeepBtn?.addEventListener('click', () => {
     handleKitchenBeepClick();
+  });
+
+  hugMeBtn?.addEventListener('click', () => {
+    playHugMeSound();
   });
 
   successOk?.addEventListener('click', closeAdminModal);

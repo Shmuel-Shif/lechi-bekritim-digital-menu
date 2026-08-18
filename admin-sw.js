@@ -1,5 +1,5 @@
 /* LECHAIM Admin — Service Worker (PWA installability) */
-const CACHE = 'lechaim-admin-v69';
+const CACHE = 'lechaim-admin-v70';
 const PRECACHE = [
   './admin.html',
   './admin.webmanifest',

@@ -3759,6 +3759,23 @@ body.admin-modal-open {
   font-weight: 700;
 }
 
+.admin-btn--hug {
+  background: #fff6e8;
+  color: #7a4a12;
+  border: 1px solid #c4a06a;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.admin-btn--hug:hover {
+  background: #f3e2c4;
+}
+
+.admin-btn--hug.is-playing {
+  background: #c4a06a;
+  color: #1e3354;
+}
+
 .admin-global-chat-open__badge {
   display: inline-block;
   min-width: 1.2rem;
