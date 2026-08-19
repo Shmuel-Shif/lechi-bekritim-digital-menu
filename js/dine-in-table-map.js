@@ -25,9 +25,9 @@
   function buildChrome() {
     const header = document.createElement('div');
     header.className = 'dine-in-map__header';
-    header.innerHTML = `
-      <h2 class="dine-in-map__title">בחרו את השולחן שלכם</h2>
-    `;
+    header.innerHTML = document.body?.getAttribute('data-staff-order') === '1'
+      ? '<h2 class="dine-in-map__title">בחרו שולחן</h2>'
+      : '<h2 class="dine-in-map__title">בחרו את השולחן שלכם</h2>';
 
     const stage = document.createElement('div');
     stage.className = 'dine-in-map__stage';
@@ -180,7 +180,8 @@
         if (!btn || !chromeEls.markers.contains(btn)) return;
         event.preventDefault();
         event.stopPropagation();
-        if (btn.disabled || btn.classList.contains('is-occupied')) return;
+        if (btn.disabled) return;
+        if (btn.classList.contains('is-occupied') && document.body?.getAttribute('data-staff-order') !== '1') return;
         const n = Number(btn.dataset.table);
         if (!Number.isInteger(n)) return;
         selectTable(n);

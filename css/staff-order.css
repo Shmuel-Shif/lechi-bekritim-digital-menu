@@ -1,0 +1,26 @@
+/* LECHAIM — Staff Order (Stage 8). Loaded only on staff-order.html. */
+
+body[data-staff-order="1"] #entry-table-modal,
+body[data-staff-order="1"] #cart-request-bill,
+body[data-staff-order="1"] #my-order-toggle,
+body[data-staff-order="1"] #order-back-toggle {
+  display: none !important;
+}
+
+body[data-staff-order="1"] #entry-tables.dine-in-map .entry-gate__table.is-occupied,
+body[data-staff-order="1"] #entry-tables.dine-in-map .entry-gate__table.is-occupied:hover {
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+  font-size: 0.95rem;
+}
+
+body[data-staff-order="1"] #entry-tables.dine-in-map .entry-gate__table.is-occupied:hover,
+body[data-staff-order="1"] #entry-tables.dine-in-map .entry-gate__table.is-occupied:focus-visible {
+  outline: 2px solid #fff8ee;
+  box-shadow: 0 6px 18px rgba(143, 34, 34, 0.45);
+}
+
+body[data-staff-order="1"] .header-action--table.is-locked {
+  opacity: 1;
+  cursor: pointer;
+}

@@ -13,6 +13,10 @@
   const $ = (sel, ctx = document) => ctx.querySelector(sel);
   const $$ = (sel, ctx = document) => [...ctx.querySelectorAll(sel)];
 
+  function isStaffOrderPage() {
+    return document.body?.getAttribute('data-staff-order') === '1';
+  }
+
   const header = $('#site-header');
   const categoryNavWrapper = $('#category-nav-wrapper');
   const categoryNavList = $('#category-nav-list');
@@ -2859,13 +2863,16 @@
     if (isDineIn) {
       tableBtn.hidden = false;
       numEl.textContent = String(ctx.tableNumber);
-      tableBtn.disabled = locked;
-      tableBtn.classList.toggle('is-locked', locked);
+      const staff = isStaffOrderPage();
+      tableBtn.disabled = staff ? false : locked;
+      tableBtn.classList.toggle('is-locked', staff ? false : locked);
       tableBtn.setAttribute(
         'aria-label',
-        locked
-          ? t('tableChangeLocked')
-          : `${t('changeTableAria')}: ${ctx.tableNumber}`
+        staff
+          ? `שולחן ${ctx.tableNumber} — חזרה לשולחנות`
+          : (locked
+            ? t('tableChangeLocked')
+            : `${t('changeTableAria')}: ${ctx.tableNumber}`)
       );
       if (backBtn) backBtn.hidden = true;
       return;
@@ -2894,6 +2901,12 @@
     if (tableBtn && tableBtn.dataset.bound !== '1') {
       tableBtn.dataset.bound = '1';
       tableBtn.addEventListener('click', () => {
+        if (isStaffOrderPage()) {
+          if (typeof window.LechaimStaffOrder?.returnToTables === 'function') {
+            window.LechaimStaffOrder.returnToTables();
+          }
+          return;
+        }
         if (hasActiveOrderItems()) {
           showOrderFeedback('err', t('tableChangeLocked'));
           return;
@@ -5218,9 +5231,13 @@
       try {
         lockTakeawayAfterSend(waveItems);
         clearDineInNotesConfirmation();
-        showOrderReceipt(waveItems);
-        initRemoteSessionClosedWatcher();
-        syncRemoteSessionTotal().catch(() => {});
+        if (isStaffOrderPage() && typeof window.LechaimStaffOrder?.onOrderSent === 'function') {
+          window.LechaimStaffOrder.onOrderSent();
+        } else {
+          showOrderReceipt(waveItems);
+          initRemoteSessionClosedWatcher();
+          syncRemoteSessionTotal().catch(() => {});
+        }
       } catch (err) {
         console.warn('[cart] post-sync UI failed', err);
         showOrderFeedback('ok', t('orderSentSuccess'));

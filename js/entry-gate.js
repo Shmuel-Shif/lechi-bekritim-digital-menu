@@ -10,6 +10,10 @@
   const TABLE_MIN = Session?.TABLE_MIN || 60;
   const TABLE_MAX = Session?.TABLE_MAX || 73;
 
+  function isStaffOrderPage() {
+    return document.body?.getAttribute('data-staff-order') === '1';
+  }
+
   const COPY = {
     en: {
       welcome: '✦ Welcome ✦',
@@ -1059,6 +1063,16 @@
       const n = Number(btn.dataset.table);
       const isOccupied = occupied.has(n);
       btn.classList.toggle('is-occupied', isOccupied);
+      if (isStaffOrderPage()) {
+        btn.disabled = false;
+        btn.setAttribute('aria-disabled', 'false');
+        btn.textContent = String(n);
+        btn.setAttribute(
+          'aria-label',
+          isOccupied ? `Table ${n} — occupied` : `Table ${n}`
+        );
+        return;
+      }
       btn.disabled = isOccupied;
       btn.setAttribute('aria-disabled', isOccupied ? 'true' : 'false');
       if (isOccupied) {
@@ -1278,7 +1292,7 @@
     if (tableBackBtn) tableBackBtn.dataset.entryBack = 'order';
     showStep(stepTable);
     refreshOccupiedTables();
-    openTableInfoModal();
+    if (!isStaffOrderPage()) openTableInfoModal();
   }
 
   function pad2(n) {
@@ -1648,6 +1662,9 @@
   }
 
   function finishWithTable(table) {
+    if (isStaffOrderPage()) {
+      try { localStorage.removeItem('lechaim-keri-cart'); } catch (_) { /* ignore */ }
+    }
     state.orderType = 'dine-in';
     state.tableNumber = table;
     highlightSelectedTable(table);
@@ -2375,7 +2392,9 @@
 
     const tableBtn = event.target.closest('[data-table]');
     if (tableBtn && stepTable && !stepTable.hidden) {
-      if (tableBtn.disabled || tableBtn.classList.contains('is-occupied')) {
+      const occupiedBlocked = tableBtn.disabled
+        || (tableBtn.classList.contains('is-occupied') && !isStaffOrderPage());
+      if (occupiedBlocked) {
         showNotice(t('tableOccupied'));
         return;
       }
@@ -2505,7 +2524,7 @@
     /* dine-in.html: open table modal immediately — do not wait on restaurant flags */
     if (gate.dataset.mode === 'dine-in-only') {
       setLang('he');
-      if (await tryResumeSession()) {
+      if (!isStaffOrderPage() && await tryResumeSession()) {
         void bootRestaurantFlags();
         return;
       }
