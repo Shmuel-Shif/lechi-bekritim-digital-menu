@@ -1339,6 +1339,77 @@
   }
 
   /**
+   * Read-only: main dishes sold on a local calendar day.
+   * Same universe as the till (closed + cash/credit/split). Does not change till math.
+   * Child lines (parent_item_id set: sides, doneness, meal drinks) are excluded.
+   * Quantities from separate orders of the same product_id are summed.
+   * @param {string} dateStr YYYY-MM-DD
+   * @returns {Promise<Array<{ productId: string, name: string, qty: number }>>}
+   */
+  async function getDailySoldProducts(dateStr) {
+    const sb = getClient();
+    const day = String(dateStr || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+      throw new Error('[LechaimSupabaseOrders.getDailySoldProducts] date YYYY-MM-DD required');
+    }
+
+    const start = new Date(`${day}T00:00:00`);
+    const end = new Date(`${day}T23:59:59.999`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      throw new Error('[LechaimSupabaseOrders.getDailySoldProducts] invalid date');
+    }
+
+    const { data: sessions, error: sessionErr } = await sb
+      .from(TABLE_SESSIONS)
+      .select('session_id, payment_method')
+      .eq('status', 'closed')
+      .in('payment_method', ['cash', 'credit', 'split'])
+      .gte('closed_at', start.toISOString())
+      .lte('closed_at', end.toISOString())
+      .limit(500);
+
+    throwIfError(sessionErr, 'getDailySoldProducts.sessions');
+    const sessionIds = (sessions || []).map((row) => row.session_id).filter(Boolean);
+    if (!sessionIds.length) return [];
+
+    const { data: orders, error: orderErr } = await sb
+      .from(TABLE_ORDERS)
+      .select('id')
+      .in('session_id', sessionIds);
+
+    throwIfError(orderErr, 'getDailySoldProducts.orders');
+    const orderIds = (orders || []).map((row) => row.id).filter(Boolean);
+    if (!orderIds.length) return [];
+
+    const { data: items, error: itemErr } = await sb
+      .from(TABLE_ITEMS)
+      .select('product_id, product_name, print_name, quantity, parent_item_id')
+      .in('order_id', orderIds);
+
+    throwIfError(itemErr, 'getDailySoldProducts.items');
+
+    const byProduct = new Map();
+    (items || []).forEach((row) => {
+      if (row?.parent_item_id) return;
+      const qty = Math.floor(Number(row?.quantity) || 0);
+      if (qty <= 0) return;
+      const productId = String(row.product_id || '').trim();
+      if (!productId) return;
+      const name = String(row.product_name || row.print_name || productId).trim() || productId;
+      const prev = byProduct.get(productId);
+      if (prev) {
+        prev.qty += qty;
+        return;
+      }
+      byProduct.set(productId, { productId, name, qty });
+    });
+
+    return Array.from(byProduct.values()).sort((a, b) => (
+      (b.qty - a.qty) || a.name.localeCompare(b.name, 'he')
+    ));
+  }
+
+  /**
    * Closed dine-in sessions for one table (newest first), with nested orders + items.
    * @param {number} tableNumber
    * @param {{ limit?: number }} [options]
@@ -1991,6 +2062,7 @@
     getCouponUsageReport,
     getShabbatSessionsReport,
     getDailyTillReport,
+    getDailySoldProducts,
     getDineInCloseAt,
     startDineInCloseCountdown,
     clearDineInCloseCountdown,

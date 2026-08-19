@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=21">
+  <link rel="stylesheet" href="css/admin.css?v=25">
   <link rel="icon" href="assets/logo/logo.webp" type="image/webp">
 </head>
 <body>
@@ -84,7 +84,7 @@
           הזמנות לשבת
           <span class="admin-tab__badge" id="tab-badge-shabbat" data-count="0" hidden>0</span>
         </button>
-        <button type="button" class="admin-tab" data-tab="till">קופה</button>
+        <button type="button" class="admin-tab" data-tab="till">מכירות</button>
         <button type="button" class="admin-tab" data-tab="staff-hours">שעות עובדים</button>
         <button type="button" class="admin-tab" data-tab="inventory">מלאי</button>
         <button type="button" class="admin-tab" data-tab="stats">קופונים</button>
@@ -267,34 +267,62 @@
         </div>
       </div>
 
-      <!-- Till / קופה tab -->
+      <!-- Till / מכירות tab — money card unchanged; products are a read-only report -->
       <div class="admin-view" id="admin-view-till" hidden>
         <header class="admin-header admin-header--row">
           <div class="admin-header__text">
             <p class="admin-header__eyebrow">ניהול</p>
-            <h1 class="admin-header__title">קופה</h1>
+            <h1 class="admin-header__title">מכירות</h1>
           </div>
-          <label class="admin-till-date">
-            <span>תאריך</span>
-            <input type="date" id="admin-till-date" dir="ltr">
-          </label>
+          <div class="admin-till-date-wrap">
+            <div class="admin-till-date-shortcuts">
+              <button type="button" class="admin-btn admin-btn--ghost" id="admin-till-today">היום</button>
+              <button type="button" class="admin-btn admin-btn--ghost" id="admin-till-yesterday">אתמול</button>
+            </div>
+            <label class="admin-till-date">
+              <span>תאריך</span>
+              <input type="date" id="admin-till-date" dir="ltr">
+            </label>
+          </div>
         </header>
         <p class="admin-error" id="admin-till-error" role="alert" hidden></p>
-        <article class="admin-till-card" id="admin-till-summary-card">
-          <p class="admin-till-card__date" id="admin-till-date-label">—</p>
-          <div class="admin-till-card__row">
-            <span class="admin-till-card__label">מזומן</span>
-            <strong class="admin-till-card__value" id="admin-till-cash">€0</strong>
-          </div>
-          <div class="admin-till-card__row">
-            <span class="admin-till-card__label">אשראי</span>
-            <strong class="admin-till-card__value" id="admin-till-credit">€0</strong>
-          </div>
-          <button type="button" class="admin-btn admin-btn--whatsapp admin-till-card__wa" id="admin-till-whatsapp">
-            <svg class="admin-wa-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-            <span>WhatsApp</span>
-          </button>
-        </article>
+        <div class="admin-till-layout">
+          <section class="admin-till-products" aria-labelledby="admin-till-products-title">
+            <h2 class="admin-till-products__title" id="admin-till-products-title">מוצרים שנמכרו</h2>
+            <label class="admin-till-search">
+              <span class="visually-hidden">חיפוש מוצר</span>
+              <input
+                type="search"
+                id="admin-till-product-search"
+                placeholder="🔍 חפש מוצר..."
+                autocomplete="off"
+                spellcheck="false"
+              >
+            </label>
+            <div class="admin-till-cats" id="admin-till-cats" role="tablist" aria-label="סינון לפי קטגוריה"></div>
+            <p class="admin-till-products__empty" id="admin-till-products-empty">אין מוצרים שנמכרו ביום זה</p>
+            <ul class="admin-till-products__list" id="admin-till-products-list" hidden></ul>
+          </section>
+          <article class="admin-till-card" id="admin-till-summary-card">
+            <p class="admin-till-card__date" id="admin-till-date-label">—</p>
+            <div class="admin-till-card__row admin-till-card__row--total">
+              <span class="admin-till-card__label">סה״כ מכירות</span>
+              <strong class="admin-till-card__value" id="admin-till-total">€0</strong>
+            </div>
+            <div class="admin-till-card__row">
+              <span class="admin-till-card__label">מזומן</span>
+              <strong class="admin-till-card__value" id="admin-till-cash">€0</strong>
+            </div>
+            <div class="admin-till-card__row">
+              <span class="admin-till-card__label">אשראי</span>
+              <strong class="admin-till-card__value" id="admin-till-credit">€0</strong>
+            </div>
+            <button type="button" class="admin-btn admin-btn--whatsapp admin-till-card__wa" id="admin-till-whatsapp">
+              <svg class="admin-wa-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+              <span>WhatsApp</span>
+            </button>
+          </article>
+        </div>
       </div>
 
       <!-- Inventory tab -->
@@ -902,7 +930,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
   <script src="js/order-types.js" defer></script>
-  <script src="js/supabase-order-service.js?v=8" defer></script>
+  <script src="js/supabase-order-service.js?v=11" defer></script>
   <script src="js/menu-data.js?v=83" defer></script>
   <script src="js/opening-hours.js?v=6" defer></script>
   <script src="js/shabbat-menu-data.js" defer></script>
@@ -921,7 +949,7 @@
   <script src="js/admin-reservations.js?v=2" defer></script>
   <script src="js/admin-history.js" defer></script>
   <script src="js/admin-coupons.js" defer></script>
-  <script src="js/admin-till.js" defer></script>
+  <script src="js/admin-till.js?v=3" defer></script>
   <script src="js/admin-staff-hours.js" defer></script>
   <script src="js/admin.js?v=53" defer></script>
   <script src="js/admin-pwa.js" defer></script>

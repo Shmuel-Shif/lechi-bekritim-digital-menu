@@ -1,5 +1,6 @@
 /**
- * LECHAIM — Admin daily till (קופה): compact card + WhatsApp group.
+ * LECHAIM — Admin daily sales (מכירות): till money + sold products.
+ * Till cash/credit/WhatsApp logic is unchanged.
  */
 (function () {
   'use strict';
@@ -12,12 +13,23 @@
   const dateLabelEl = document.getElementById('admin-till-date-label');
   const cashEl = document.getElementById('admin-till-cash');
   const creditEl = document.getElementById('admin-till-credit');
+  const totalEl = document.getElementById('admin-till-total');
   const whatsappBtn = document.getElementById('admin-till-whatsapp');
+  const todayBtn = document.getElementById('admin-till-today');
+  const yesterdayBtn = document.getElementById('admin-till-yesterday');
+  const productsListEl = document.getElementById('admin-till-products-list');
+  const productsEmptyEl = document.getElementById('admin-till-products-empty');
+  const searchInput = document.getElementById('admin-till-product-search');
+  const catsEl = document.getElementById('admin-till-cats');
 
-  let cache = { date: '', cash: 0, credit: 0 };
+  let cache = { date: '', cash: 0, credit: 0, products: [] };
   let started = false;
   let refreshTimer = null;
   let loadSeq = 0;
+  let selectedCategory = 'all';
+  let searchQuery = '';
+  let productCategoryById = new Map();
+  let menuCategories = [];
 
   function OrdersApi() {
     return window.LechaimSupabaseOrders;
@@ -34,12 +46,22 @@
     errorEl.textContent = message;
   }
 
+  function pad2(n) {
+    return String(n).padStart(2, '0');
+  }
+
+  function toLocalYmd(date) {
+    return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+  }
+
   function todayLocalYmd() {
+    return toLocalYmd(new Date());
+  }
+
+  function yesterdayLocalYmd() {
     const d = new Date();
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
+    d.setDate(d.getDate() - 1);
+    return toLocalYmd(d);
   }
 
   function formatDisplayDate(ymd) {
@@ -51,6 +73,14 @@
   function formatMoney(amount) {
     const n = Number(amount) || 0;
     return `€${n % 1 === 0 ? n.toFixed(0) : n.toFixed(2)}`;
+  }
+
+  function escapeHtml(str) {
+    return String(str == null ? '' : str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
   }
 
   function sessionPaidAmount(row) {
@@ -105,14 +135,100 @@
     };
   }
 
+  function normalizeSearch(value) {
+    return String(value || '').trim().toLowerCase();
+  }
+
+  function loadMenuCategories() {
+    productCategoryById = new Map();
+    menuCategories = [];
+    const heCats = window.TRANSLATIONS?.he?.categories || {};
+    const menu = window.MENU_DATA;
+
+    (menu?.categories || []).forEach((cat) => {
+      if (!cat?.id) return;
+      const title = heCats[cat.id] || cat.id;
+      menuCategories.push({ id: String(cat.id), title: String(title) });
+      const lists = [cat.items || []];
+      (cat.subsections || []).forEach((sub) => lists.push(sub.items || []));
+      lists.forEach((list) => {
+        list.forEach((item) => {
+          if (item?.id) productCategoryById.set(String(item.id), String(cat.id));
+        });
+      });
+    });
+
+    (window.HOT_SIDE_ITEMS || []).forEach((item) => {
+      if (item?.id) productCategoryById.set(String(item.id), 'hotSides');
+    });
+
+    (window.SHABBAT_MENU_DATA?.categories || []).forEach((cat) => {
+      (cat.items || []).forEach((item) => {
+        if (!item?.id || productCategoryById.has(String(item.id))) return;
+        productCategoryById.set(String(item.id), String(cat.id || ''));
+      });
+    });
+  }
+
+  function renderCategoryChips() {
+    if (!catsEl) return;
+    const chips = [{ id: 'all', title: 'הכול' }, ...menuCategories];
+    catsEl.innerHTML = chips.map((cat) => (
+      `<button type="button" class="admin-till-cat${selectedCategory === cat.id ? ' is-active' : ''}" data-till-cat="${escapeHtml(cat.id)}" role="tab" aria-selected="${selectedCategory === cat.id ? 'true' : 'false'}">${escapeHtml(cat.title)}</button>`
+    )).join('');
+  }
+
+  function visibleProducts() {
+    const q = normalizeSearch(searchQuery);
+    return (cache.products || []).filter((row) => {
+      if (selectedCategory !== 'all') {
+        const catId = productCategoryById.get(String(row.productId || ''));
+        if (catId !== selectedCategory) return false;
+      }
+      if (!q) return true;
+      const hay = `${row.name || ''} ${row.productId || ''}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }
+
+  function renderProducts() {
+    if (!productsListEl || !productsEmptyEl) return;
+    const all = Array.isArray(cache.products) ? cache.products : [];
+    const products = visibleProducts();
+
+    if (!products.length) {
+      productsListEl.hidden = true;
+      productsListEl.innerHTML = '';
+      productsEmptyEl.hidden = false;
+      productsEmptyEl.textContent = (!all.length)
+        ? 'אין מוצרים שנמכרו ביום זה'
+        : 'אין מוצרים שמתאימים לחיפוש';
+      return;
+    }
+    productsEmptyEl.hidden = true;
+    productsListEl.hidden = false;
+    productsListEl.innerHTML = products.map((row) => (
+      `<li class="admin-till-products__item">`
+      + `<span class="admin-till-products__name">${escapeHtml(row.name)}</span>`
+      + `<span class="admin-till-products__qty" dir="ltr">${Number(row.qty) || 0}</span>`
+      + `</li>`
+    )).join('');
+  }
+
   function renderSummary() {
     if (dateLabelEl) dateLabelEl.textContent = formatDisplayDate(cache.date);
     if (cashEl) cashEl.textContent = formatMoney(cache.cash);
     if (creditEl) creditEl.textContent = formatMoney(cache.credit);
+    if (totalEl) {
+      totalEl.textContent = formatMoney(
+        Math.round((Number(cache.cash) + Number(cache.credit)) * 100) / 100
+      );
+    }
+    renderProducts();
   }
 
   function buildWhatsAppText() {
-    /* Same content as the till card */
+    /* Same content as the original till card — do not add total/products */
     return [
       formatDisplayDate(cache.date),
       `מזומן ${formatMoney(cache.cash)}`,
@@ -188,6 +304,23 @@
     openExternalUrl(`https://wa.me/?text=${textEnc}`);
   }
 
+  function setDateAndLoad(ymd) {
+    if (!dateInput || !ymd) return;
+    dateInput.value = ymd;
+    scheduleRefresh();
+  }
+
+  async function loadSoldProducts(api, date) {
+    if (typeof api.getDailySoldProducts !== 'function') return [];
+    try {
+      const list = await api.getDailySoldProducts(date);
+      return Array.isArray(list) ? list : [];
+    } catch (err) {
+      console.warn('[admin-till] sold products failed', err);
+      return [];
+    }
+  }
+
   async function loadReport() {
     const api = OrdersApi();
     const date = dateInput?.value || todayLocalYmd();
@@ -196,25 +329,28 @@
     /* Days before go-live show a clean zero till */
     if (date < TILL_COUNT_FROM_YMD) {
       showError('');
-      cache = { date, cash: 0, credit: 0 };
+      cache = { date, cash: 0, credit: 0, products: [] };
       renderSummary();
       return;
     }
 
     if (!api?.isConfigured?.() || typeof api.getDailyTillReport !== 'function') {
-      showError('קופה לא זמינה — בדקו חיבור Supabase');
-      cache = { date, cash: 0, credit: 0 };
+      showError('מכירות לא זמינות — בדקו חיבור Supabase');
+      cache = { date, cash: 0, credit: 0, products: [] };
       renderSummary();
       return;
     }
 
     const seq = ++loadSeq;
     try {
-      const rows = await api.getDailyTillReport(date);
+      const [rows, products] = await Promise.all([
+        api.getDailyTillReport(date),
+        loadSoldProducts(api, date),
+      ]);
       if (seq !== loadSeq) return;
       showError('');
       const sums = buildSummary(rows);
-      cache = { date, ...sums };
+      cache = { date, ...sums, products };
       renderSummary();
     } catch (err) {
       if (seq !== loadSeq) return;
@@ -223,9 +359,9 @@
       if (msg.includes('payment_method') || msg.includes('paid_total') || msg.includes('paid_cash') || msg.includes('column')) {
         showError('חסרות עמודות קופה — הריצו supabase-till-payment.sql ב-Supabase');
       } else {
-        showError('לא ניתן לטעון את הקופה');
+        showError('לא ניתן לטעון את המכירות');
       }
-      cache = { date, cash: 0, credit: 0 };
+      cache = { date, cash: 0, credit: 0, products: [] };
       renderSummary();
     }
   }
@@ -243,6 +379,21 @@
     started = true;
     if (dateInput && !dateInput.value) dateInput.value = todayLocalYmd();
     dateInput?.addEventListener('change', () => { scheduleRefresh(); });
+    todayBtn?.addEventListener('click', () => { setDateAndLoad(todayLocalYmd()); });
+    yesterdayBtn?.addEventListener('click', () => { setDateAndLoad(yesterdayLocalYmd()); });
+    searchInput?.addEventListener('input', () => {
+      searchQuery = searchInput.value || '';
+      renderProducts();
+    });
+    catsEl?.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-till-cat]');
+      if (!btn || !catsEl.contains(btn)) return;
+      selectedCategory = String(btn.getAttribute('data-till-cat') || 'all');
+      renderCategoryChips();
+      renderProducts();
+    });
+    loadMenuCategories();
+    renderCategoryChips();
     whatsappBtn?.addEventListener('click', (event) => {
       event.preventDefault();
       void openTillWhatsApp();

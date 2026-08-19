@@ -3182,11 +3182,11 @@ body.admin-modal-open {
   font-size: 0.9rem;
 }
 
-/* —— Till / קופה —— */
+/* —— Till / מכירות —— */
 #admin-view-till {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   min-height: min(70vh, 36rem);
 }
 
@@ -3195,8 +3195,26 @@ body.admin-modal-open {
 }
 
 #admin-view-till .admin-error {
-  width: min(100%, 22rem);
+  width: 100%;
   text-align: center;
+}
+
+.admin-till-date-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 0.55rem 0.75rem;
+}
+
+.admin-till-date-shortcuts {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.admin-till-date-shortcuts .admin-btn {
+  min-height: 2.5rem;
+  padding: 0.35rem 0.8rem;
 }
 
 .admin-till-date {
@@ -3216,25 +3234,39 @@ body.admin-modal-open {
   font: inherit;
 }
 
+.admin-till-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(16.5rem, 20rem);
+  gap: 1.15rem 1.35rem;
+  width: 100%;
+  align-items: start;
+  direction: ltr;
+}
+
+.admin-till-layout > * {
+  direction: rtl;
+}
+
 .admin-till-card {
   display: grid;
-  gap: 0.4rem;
-  width: min(100%, 228px);
-  margin: auto 0;
-  padding: 0.85rem 0.9rem 0.8rem;
-  border-radius: 12px;
-  border: 1px solid rgba(30, 51, 84, 0.14);
-  background: #fff;
+  gap: 0.55rem;
+  width: 100%;
+  margin: 0;
+  padding: 1.1rem 1.15rem 1rem;
+  border-radius: 16px;
+  border: 1px solid rgba(30, 51, 84, 0.12);
+  background: linear-gradient(180deg, #fffdf8 0%, #fff 70%);
   color: var(--color-navy, #152640);
   text-align: right;
-  box-shadow: 0 3px 12px rgba(21, 38, 64, 0.07);
+  box-shadow: 0 8px 24px rgba(21, 38, 64, 0.08);
 }
 
 .admin-till-card__date {
-  margin: 0 0 0.05rem;
-  font-size: 0.98rem;
+  margin: 0;
+  font-size: 0.92rem;
   font-weight: 800;
   letter-spacing: 0.01em;
+  color: var(--color-text-muted, #58677b);
 }
 
 .admin-till-card__row {
@@ -3242,6 +3274,26 @@ body.admin-modal-open {
   align-items: baseline;
   justify-content: space-between;
   gap: 0.55rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 12px;
+  background: #f7f3ea;
+}
+
+.admin-till-card__row--total {
+  padding: 0.75rem 0.7rem;
+  margin: 0;
+  border: 0;
+  background: #152640;
+  color: #fff8ee;
+}
+
+.admin-till-card__row--total .admin-till-card__label {
+  color: rgba(255, 248, 238, 0.82);
+}
+
+.admin-till-card__row--total .admin-till-card__value {
+  font-size: 1.45rem;
+  color: #fff8ee;
 }
 
 .admin-till-card__label {
@@ -3251,7 +3303,7 @@ body.admin-modal-open {
 }
 
 .admin-till-card__value {
-  font-size: 1.05rem;
+  font-size: 1.12rem;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   direction: ltr;
@@ -3260,11 +3312,149 @@ body.admin-modal-open {
 
 .admin-till-card__wa {
   width: 100%;
-  margin-top: 0.3rem;
+  margin-top: 0.15rem;
   justify-content: center;
-  min-height: 2.2rem;
-  padding: 0.4rem 0.55rem;
-  font-size: 0.85rem;
+  min-height: 2.4rem;
+  padding: 0.45rem 0.55rem;
+  font-size: 0.88rem;
+}
+
+.admin-till-products {
+  width: 100%;
+  min-height: 16rem;
+  margin: 0;
+  padding: 1rem 1.1rem 0.85rem;
+  border-radius: 16px;
+  border: 1px solid rgba(30, 51, 84, 0.12);
+  background: #fff;
+  color: var(--color-navy, #152640);
+  box-shadow: 0 8px 24px rgba(21, 38, 64, 0.08);
+}
+
+.admin-till-products__title {
+  margin: 0 0 0.75rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.admin-till-search {
+  display: block;
+  margin: 0 0 0.65rem;
+}
+
+.admin-till-search input {
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0.45rem 0.8rem;
+  border: 1px solid rgba(30, 51, 84, 0.14);
+  border-radius: 12px;
+  background: #f7f3ea;
+  color: var(--color-navy, #152640);
+  font: inherit;
+  font-weight: 600;
+}
+
+.admin-till-search input:focus {
+  outline: 2px solid #c4a06a;
+  outline-offset: 1px;
+  background: #fff;
+}
+
+.admin-till-cats {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.35rem;
+  margin: 0 0 0.85rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.admin-till-cats::-webkit-scrollbar {
+  display: none;
+}
+
+.admin-till-cat {
+  appearance: none;
+  flex-shrink: 0;
+  min-height: 2.15rem;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid rgba(30, 51, 84, 0.16);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--color-navy, #152640);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.admin-till-cat.is-active {
+  background: #152640;
+  border-color: #152640;
+  color: #fff8ee;
+}
+
+.admin-till-products__empty {
+  margin: 0;
+  color: var(--color-text-muted, #58677b);
+  font-size: 0.95rem;
+}
+
+.admin-till-products__empty[hidden],
+.admin-till-products__list[hidden] {
+  display: none !important;
+}
+
+.admin-till-products__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.admin-till-products__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0.7rem;
+  border: 0;
+  border-radius: 12px;
+  background: #f7f3ea;
+  font-size: 0.98rem;
+}
+
+.admin-till-products__item:last-child {
+  border-bottom: 0;
+}
+
+.admin-till-products__name {
+  flex: 1;
+  font-weight: 700;
+}
+
+.admin-till-products__qty {
+  min-width: 2.1rem;
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  background: #152640;
+  color: #fff8ee;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+@media (max-width: 800px) {
+  .admin-till-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-till-card {
+    order: -1;
+  }
 }
 
 .admin-till-card__wa .admin-wa-icon {
