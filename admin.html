@@ -745,13 +745,9 @@
             <span>טלפון *</span>
             <input type="tel" id="reservation-phone" name="customer_phone" required autocomplete="tel" dir="ltr" maxlength="20" inputmode="tel">
           </label>
-          <label class="admin-field" id="reservation-party-field" hidden>
+          <label class="admin-field" id="reservation-party-field">
             <span>מספר סועדים *</span>
-            <input type="number" id="reservation-party" name="party_size" min="1" max="60" step="1" inputmode="numeric">
-          </label>
-          <label class="admin-field">
-            <span>הערות</span>
-            <textarea id="reservation-notes" name="notes" rows="3" maxlength="400" placeholder="אופציונלי"></textarea>
+            <input type="number" id="reservation-party" name="party_size" min="1" max="60" step="1" inputmode="numeric" placeholder="כמה סועדים">
           </label>
           <label class="admin-field">
             <span>תאריך *</span>
@@ -760,6 +756,10 @@
           <label class="admin-field">
             <span>שעת הגעה *</span>
             <select id="reservation-arrival" name="arrival_time" required dir="ltr"></select>
+          </label>
+          <label class="admin-field">
+            <span>הערות</span>
+            <textarea id="reservation-notes" name="notes" rows="3" maxlength="400" placeholder="אופציונלי"></textarea>
           </label>
           <p class="admin-error" id="reservation-form-error" role="alert" hidden></p>
           <div class="reservation-modal__actions">
@@ -903,10 +903,10 @@
   <script src="js/supabase-config.js" defer></script>
   <script src="js/order-types.js" defer></script>
   <script src="js/supabase-order-service.js?v=8" defer></script>
-  <script src="js/menu-data.js?v=81" defer></script>
+  <script src="js/menu-data.js?v=83" defer></script>
   <script src="js/opening-hours.js?v=6" defer></script>
   <script src="js/shabbat-menu-data.js" defer></script>
-  <script src="js/inventory.js?v=42" defer></script>
+  <script src="js/inventory.js?v=43" defer></script>
   <script src="js/order-session.js?v=2" defer></script>
   <script src="js/order-engine.js" defer></script>
   <script src="js/print-engine.js?v=36" defer></script>
@@ -917,8 +917,8 @@
   <script src="js/admin-global-chat.js?v=7" defer></script>
   <script src="js/admin-tables.js?v=61" defer></script>
   <script src="js/admin-shabbat.js?v=1" defer></script>
-  <script src="js/place-reservations.js" defer></script>
-  <script src="js/admin-reservations.js" defer></script>
+  <script src="js/place-reservations.js?v=2" defer></script>
+  <script src="js/admin-reservations.js?v=2" defer></script>
   <script src="js/admin-history.js" defer></script>
   <script src="js/admin-coupons.js" defer></script>
   <script src="js/admin-till.js" defer></script>

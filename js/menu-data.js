@@ -757,14 +757,6 @@ const MENU_DATA = {
       titleKey: 'categories.starters',
       items: [
         {
-          id: 'salad-plate',
-          name: 'פלטת סלטים פתיחה',
-          printName: 'Paletet Salatim',
-          description: 'מבחר סלטי הבית המרעננים לצד לחם חם (מומלץ למרכז שולחן).',
-          price: 15,
-          image: dishImage('salad-plate'),
-        },
-        {
           id: 'hatzil-patuach',
           name: 'חציל פתוח למרכז שולחן',
           printName: 'Hatzil',
@@ -795,14 +787,6 @@ const MENU_DATA = {
           description: 'חומוס קרמי בעבודת יד, מוגש עם שמן זית, כמון ולחם בתוספת בשר.',
           price: 19,
           image: dishImage('hummus-meat'),
-        },
-        {
-          id: 'mushrooms',
-          name: 'פטריות חמות',
-          printName: 'Pitriyot Hamot',
-          description: 'פטריות טריות מוקפצות בשום, שמן זית ופטרוזיליה.',
-          price: 10,
-          image: dishImage('mushrooms'),
         },
         {
           id: 'fries-classic',
@@ -916,22 +900,6 @@ const MENU_DATA = {
           image: dishImage('salmon'),
         },
         {
-          id: 'kebab',
-          name: 'שיפודי קבב',
-          printName: 'Shpudei Kabab',
-          description: 'מוגש לצד טחינה וסלטון קטן.',
-          price: 27,
-          image: dishImage('kebab'),
-        },
-        {
-          id: 'chicken-stirfry',
-          name: 'מוקפץ עוף',
-          printName: 'Mukpatz Of',
-          description: 'נתחי עוף מוקפצים עם ירקות ברוטב סויה וג\'ינג\'ר.',
-          price: 20,
-          image: dishImage('chicken-stirfry'),
-        },
-        {
           id: 'hamburger-fries',
           name: 'המבורגר וצ\'יפס',
           printName: 'Hamburger Chips',
@@ -960,14 +928,6 @@ const MENU_DATA = {
           description: 'סלט ירקות טרי.',
           price: 10,
           image: dishImage('israeli-salad'),
-        },
-        {
-          id: 'green-salad',
-          name: 'סלט ירוק',
-          printName: 'Salat Yarok',
-          description: 'מבחר עלים טריים עם רוטב ויניגרט.',
-          price: 9,
-          image: dishImage('green-salad'),
         },
         {
           id: 'market-salad',

@@ -194,6 +194,7 @@
       isReady: () => mapReady,
       getVariant: () => activeVariant,
     };
+    window.LechaimEntryGate?.refreshOccupiedTables?.();
   }
 
   async function loadConfig() {

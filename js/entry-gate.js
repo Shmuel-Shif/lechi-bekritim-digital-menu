@@ -977,16 +977,72 @@
     return hasItems || total > 0;
   }
 
+  let occupiedSbClient = null;
+  let occupiedRealtimeChannel = null;
+
+  function getOccupiedSupabaseClient() {
+    const cfg = window.LECHAIM_SUPABASE_CONFIG;
+    if (!cfg?.url || !cfg?.anonKey || !window.supabase?.createClient) return null;
+    if (occupiedSbClient) return occupiedSbClient;
+    occupiedSbClient = window.supabase.createClient(cfg.url, cfg.anonKey);
+    return occupiedSbClient;
+  }
+
+  function getSharedOccupiedClient() {
+    try {
+      const fromInv = window.LechaimInventory?.getClient?.();
+      if (fromInv) return fromInv;
+    } catch (_) { /* ignore */ }
+    try {
+      const fromOrders = window.LechaimSupabaseOrders?.getClient?.();
+      if (fromOrders) return fromOrders;
+    } catch (_) { /* ignore */ }
+    return getOccupiedSupabaseClient();
+  }
+
+  function startOccupiedRealtime() {
+    if (!isStaffOrderPage() || occupiedRealtimeChannel) return;
+    const sb = getSharedOccupiedClient();
+    if (!sb?.channel) return;
+    occupiedRealtimeChannel = sb
+      .channel('staff-occupied-tables')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'order_sessions' },
+        () => { refreshOccupiedTables(); }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        () => { refreshOccupiedTables(); }
+      )
+      .subscribe();
+  }
+
   async function collectRemoteOccupiedTables() {
     const occupied = new Set();
-    /* Lean path only: dine_in open sessions + qty/price (or order.total). */
-    const cfg = window.LECHAIM_SUPABASE_CONFIG;
-    if (!cfg?.url || !cfg?.anonKey || !window.supabase?.createClient) {
+
+    if (isStaffOrderPage()) {
+      try {
+        const api = window.LechaimSupabaseOrders;
+        if (typeof api?.getOpenSessions !== 'function') return occupied;
+        const open = await api.getOpenSessions();
+        (open || []).forEach((row) => {
+          if (String(row.order_type || '') !== 'dine_in') return;
+          const n = Number(row.table_number);
+          if (Number.isFinite(n)) occupied.add(n);
+        });
+      } catch (err) {
+        console.warn('[entry-gate] staff occupied fetch failed', err);
+      }
       return occupied;
     }
 
+    /* Lean path only: dine_in open sessions + qty/price (or order.total). */
+    const sb = getOccupiedSupabaseClient();
+    if (!sb) return occupied;
+
     try {
-      const sb = window.supabase.createClient(cfg.url, cfg.anonKey);
       const { data, error } = await sb
         .from('order_sessions')
         .select('table_number, session_id')
@@ -1292,6 +1348,7 @@
     if (tableBackBtn) tableBackBtn.dataset.entryBack = 'order';
     showStep(stepTable);
     refreshOccupiedTables();
+    if (isStaffOrderPage()) startOccupiedRealtime();
     if (!isStaffOrderPage()) openTableInfoModal();
   }
 
@@ -1687,7 +1744,7 @@
       lang: state.lang,
     }));
     if (isStaffOrderPage()) {
-      void window.LechaimStaffOrder?.attachToTable?.();
+      void window.LechaimStaffOrder?.attachToTable?.(table);
     }
   }
 
@@ -2471,6 +2528,7 @@
     reopenTablePicker,
     reopenOrderTypePicker,
     resetToEntry,
+    refreshOccupiedTables,
     /** Used by dine-in floor-plan map — same path as tapping a table button */
     selectDineInTable: finishWithTable,
     transliterateToEnglish,

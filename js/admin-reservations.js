@@ -42,6 +42,7 @@
   let pollTimer = null;
   let realtimeChannel = null;
   let active = false;
+  let arrivalSlotsToken = 0;
   const dayTitleEl = document.getElementById('reservations-day-title');
 
   const STATUS_LABEL = {
@@ -324,7 +325,7 @@
     return slots;
   }
 
-  function fillArrivalSlots(selected) {
+  function fillHoldArrivalSlots(selected) {
     if (!arrivalSelect) return;
     const slots = buildArrivalSlots();
     const sel = selected ? formatTime(selected) : '';
@@ -337,6 +338,78 @@
         `<option value="${escapeHtml(sel)}" selected>${escapeHtml(sel)}</option>`
       );
     }
+  }
+
+  async function fillPlaceArrivalSlots(selected) {
+    if (!arrivalSelect) return;
+    const token = ++arrivalSlotsToken;
+    const slots = buildArrivalSlots();
+    const sel = selected ? formatTime(selected) : String(arrivalSelect.value || '');
+    const dateStr = String(dateInput?.value || '').trim();
+    const partySize = Math.floor(Number(partyInput?.value));
+    const api = global.LechaimPlaceReservations;
+    let unavailable = [];
+
+    if (api?.isPlaceResWeekend?.(dateStr)) {
+      unavailable = slots.slice();
+    } else if (typeof api?.getOccupancyForDate === 'function' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      try {
+        const occupancy = await api.getOccupancyForDate(dateStr);
+        const size = Number.isFinite(partySize) && partySize >= 1 ? partySize : 1;
+        const cap = Number(api.CAPACITY_SEATS) || 60;
+        unavailable = slots.filter((slot) => {
+          const occupied = api.occupiedSeatsForWindow?.(occupancy, slot) || 0;
+          return occupied + size > cap;
+        });
+      } catch (err) {
+        console.warn('[admin-reservations] occupancy slots failed', err);
+      }
+    }
+    if (token !== arrivalSlotsToken) return;
+
+    const blocked = new Set(unavailable);
+    arrivalSelect.innerHTML = [
+      '<option value="">שעת הגעה</option>',
+      ...slots.map((slot) => {
+        const isFull = blocked.has(slot);
+        const keepSelected = Boolean(sel) && slot === sel;
+        const disabled = isFull && !keepSelected;
+        const label = isFull ? `${slot} (מלא)` : slot;
+        return `<option value="${slot}"${disabled ? ' disabled' : ''}${keepSelected ? ' selected' : ''}>${label}</option>`;
+      }),
+    ].join('');
+    if (sel && !slots.includes(sel)) {
+      arrivalSelect.insertAdjacentHTML(
+        'afterbegin',
+        `<option value="${escapeHtml(sel)}" selected>${escapeHtml(sel)}</option>`
+      );
+    } else if (sel && slots.includes(sel) && (!blocked.has(sel) || sel === formatTime(selected))) {
+      arrivalSelect.value = sel;
+    } else {
+      arrivalSelect.value = '';
+    }
+
+    const openCount = slots.filter((slot) => !blocked.has(slot) || slot === sel).length;
+    if (!openCount && Number.isFinite(partySize) && partySize >= 1) {
+      showFormError('אין שעות פנויות למספר הסועדים הזה — נסו תאריך אחר');
+    } else if (formError?.textContent === 'אין שעות פנויות למספר הסועדים הזה — נסו תאריך אחר') {
+      showFormError('');
+    }
+  }
+
+  function fillArrivalSlots(selected) {
+    const kind = String(kindInput?.value || 'hold');
+    if (kind === 'place') {
+      void fillPlaceArrivalSlots(selected);
+      return;
+    }
+    fillHoldArrivalSlots(selected);
+  }
+
+  function onPlaceSlotInputsChanged() {
+    if (String(kindInput?.value || '') !== 'place') return;
+    if (modal?.hidden) return;
+    void fillPlaceArrivalSlots(arrivalSelect?.value || '');
   }
 
   function isValidPhone(value) {
@@ -693,25 +766,35 @@
     if (!modal || !form) return;
     showFormError('');
     const editing = Boolean(record?.id);
-    /* New cards are always manual holds; place kind only when editing a website request */
+    /* New cards use the customer place-reservation form (incl. party size). */
     const modalKind = opts.kind === 'place' || (editing && findPlaceRecord(record.id))
       ? 'place'
       : 'hold';
 
     if (titleEl) {
-      titleEl.textContent = editing ? 'עריכת כרטיס' : 'כרטיס שמירת מקום';
+      titleEl.textContent = editing
+        ? 'עריכת כרטיס'
+        : (modalKind === 'place' ? 'הזמנת מקום' : 'כרטיס שמירת מקום');
     }
     if (kindInput) kindInput.value = modalKind;
     if (idInput) idInput.value = editing ? record.id : '';
     if (nameInput) nameInput.value = editing ? (record.customer_name || '') : '';
     if (phoneInput) phoneInput.value = editing ? (record.customer_phone || '') : '';
     if (notesInput) notesInput.value = editing ? (record.notes || '') : '';
-    if (partyField) partyField.hidden = modalKind !== 'place';
+    if (partyField) {
+      partyField.hidden = modalKind !== 'place';
+      if (modalKind === 'place') partyField.removeAttribute('hidden');
+    }
     if (partyInput) {
       partyInput.value = modalKind === 'place' && editing
         ? String(record.party_size || '')
         : '';
       partyInput.required = modalKind === 'place';
+      if (modalKind === 'place') {
+        partyInput.setAttribute('required', 'required');
+      } else {
+        partyInput.removeAttribute('required');
+      }
     }
     if (dateInput) {
       dateInput.value = editing
@@ -783,8 +866,13 @@
     if (saveBtn) saveBtn.disabled = true;
     try {
       if (payload.kind === 'place') {
-        if (!id) throw new Error('חסר מזהה בקשה');
-        await global.LechaimPlaceReservations.updateRequest(id, payload);
+        if (id) {
+          await global.LechaimPlaceReservations.updateRequest(id, payload);
+        } else if (typeof global.LechaimPlaceReservations.createConfirmedRequest === 'function') {
+          await global.LechaimPlaceReservations.createConfirmedRequest(payload);
+        } else {
+          throw new Error('חסר מזהה בקשה');
+        }
       } else if (id) {
         await updateReservation(id, payload);
       } else {
@@ -997,10 +1085,12 @@
   function bindOnce() {
     if (bindOnce.done) return;
     bindOnce.done = true;
-    newBtn?.addEventListener('click', () => openModal(null));
+    newBtn?.addEventListener('click', () => openModal(null, { kind: 'place' }));
     cancelBtn?.addEventListener('click', closeModal);
     backdrop?.addEventListener('click', closeModal);
     form?.addEventListener('submit', onSubmit);
+    partyInput?.addEventListener('input', onPlaceSlotInputsChanged);
+    dateInput?.addEventListener('change', onPlaceSlotInputsChanged);
     const onAnyCardClick = (event) => {
       const shelveBtn = event.target.closest('[data-shelve-future]');
       if (shelveBtn) {

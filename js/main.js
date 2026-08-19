@@ -134,6 +134,7 @@
   let cartLineOrder = [];
   let lastMainLineId = null;
   let remoteSessionTotalOverride = null;
+  let remoteSessionTotalSynced = false;
   let remoteTotalSyncTimer = null;
   let takeawayReceiptItems = null;
 
@@ -4880,6 +4881,7 @@
     cartLineOrder = [];
     lastMainLineId = null;
     remoteSessionTotalOverride = null;
+    remoteSessionTotalSynced = false;
     clearTakeawayLock();
     if (remoteTotalSyncTimer) {
       window.clearInterval(remoteTotalSyncTimer);
@@ -5715,6 +5717,7 @@
       || sessionOrderType === window.LechaimOrderSession?.ORDER_TYPE?.BUTCHER;
 
     remoteSessionTotalOverride = null;
+    remoteSessionTotalSynced = false;
     if (remoteTotalSyncTimer) {
       window.clearInterval(remoteTotalSyncTimer);
       remoteTotalSyncTimer = null;
@@ -5825,6 +5828,7 @@
       remoteTotalSyncTimer = null;
     }
     remoteSessionTotalOverride = null;
+    remoteSessionTotalSynced = false;
   }
 
   function initRemoteSessionClosedWatcher() {
@@ -5902,10 +5906,13 @@
 
     (orders || []).forEach((order) => {
       const lines = Array.isArray(order.order_items) ? order.order_items : [];
+      let lineSum = 0;
       lines.forEach((row) => {
         const qty = Number(row.quantity) || 0;
         if (qty <= 0) return;
-        total += (Number(row.price) || 0) * qty;
+        const lineTotal = (Number(row.price) || 0) * qty;
+        lineSum += lineTotal;
+        total += lineTotal;
         remoteItems.push({
           itemId: String(row.id),
           remoteItemId: String(row.id),
@@ -5920,9 +5927,24 @@
           createdAt: row.created_at || null,
         });
       });
+      if (!lines.length && Number(order?.total) > 0) {
+        total += Number(order.total) || 0;
+      } else if (lines.length && lineSum === 0 && Number(order?.total) > 0) {
+        total += Number(order.total) || 0;
+      }
     });
 
+    const hasRemoteItems = remoteItems.length > 0 || total > 0;
+    if (isStaffOrderPage() && !hasRemoteItems) {
+      /* Empty fetch must not lock the cart at €0 before the other tablet's order arrives. */
+      remoteSessionTotalOverride = null;
+      remoteSessionTotalSynced = false;
+      renderCart();
+      return;
+    }
+
     remoteSessionTotalOverride = Math.round(total * 100) / 100;
+    remoteSessionTotalSynced = true;
 
     try {
       const ctx = window.LechaimOrderContext || {};
@@ -6549,7 +6571,11 @@
       }
     }
     if (cartSessionTotalPrice) {
-      cartSessionTotalPrice.textContent = formatEuroTotal(getSessionOrderTotal());
+      if (isStaffOrderPage() && !remoteSessionTotalSynced) {
+        cartSessionTotalPrice.textContent = '—';
+      } else {
+        cartSessionTotalPrice.textContent = formatEuroTotal(getSessionOrderTotal());
+      }
     }
 
     /* Bill depends on sent order items — update even while send is in progress */
@@ -6600,6 +6626,10 @@
     if (isTakeawayOrderLocked() && getCartCount() === 0) {
       showOrderReceipt(getTakeawayReceiptItems());
       return;
+    }
+
+    if (isStaffOrderPage() && typeof window.LechaimStaffOrder?.refreshSessionTotal === 'function') {
+      void window.LechaimStaffOrder.refreshSessionTotal();
     }
 
     if (!cartPanel) return;

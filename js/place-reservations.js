@@ -270,6 +270,63 @@
     return Array.isArray(data) ? data[0] : data;
   }
 
+  /**
+   * Admin "כרטיס חדש": same fields as the customer form, saved as confirmed.
+   * Allows admin 15-minute slots (not only the public half-hour list).
+   */
+  async function createConfirmedRequest(payload = {}) {
+    const sb = getClient();
+    const customer_name = String(payload.customerName ?? payload.customer_name ?? '').trim();
+    const customer_phone = String(payload.customerPhone ?? payload.customer_phone ?? '').trim();
+    const notesRaw = String(payload.notes ?? '').trim();
+    const reservation_date = normalizeDateStr(
+      payload.reservationDate ?? payload.reservation_date
+    );
+    const arrival_time = String(payload.arrivalTime ?? payload.arrival_time ?? '').trim();
+    const party_size = Math.floor(Number(payload.partySize ?? payload.party_size));
+
+    if (!customer_name) throw new Error('נא להזין שם מלא');
+    if (!customer_phone || customer_phone.replace(/\D/g, '').length < 8) {
+      throw new Error('נא להזין טלפון תקין');
+    }
+    if (!Number.isFinite(party_size) || party_size < 1 || party_size > CAPACITY_SEATS) {
+      throw new Error(`נא להזין מספר סועדים (1–${CAPACITY_SEATS})`);
+    }
+    if (!reservation_date) throw new Error('נא לבחור תאריך');
+    if (isPlaceResWeekend(reservation_date)) {
+      throw new Error('לא ניתן להזמין מקום בשישי ובשבת — המסעדה סגורה');
+    }
+    const arrivalNormalized = minutesToTime(timeToMinutes(arrival_time));
+    if (!arrivalNormalized) throw new Error('נא לבחור שעה בין 14:00 ל־21:00');
+
+    const occupancy = await getOccupancyForDate(reservation_date);
+    const others = occupiedSeatsForWindow(occupancy, arrivalNormalized);
+    if (others + party_size > CAPACITY_SEATS) {
+      const e = new Error('CAPACITY_EXCEEDED');
+      e.code = 'CAPACITY_EXCEEDED';
+      throw e;
+    }
+
+    const { data, error } = await sb
+      .from(TABLE)
+      .insert({
+        customer_name,
+        customer_phone,
+        party_size,
+        reservation_date,
+        arrival_time: arrivalNormalized,
+        notes: notesRaw || null,
+        status: 'confirmed',
+      })
+      .select(
+        'id, customer_name, customer_phone, party_size, notes, arrival_time, reservation_date, status, created_at'
+      )
+      .single();
+
+    if (error) throw new Error(error.message || 'יצירת ההזמנה נכשלה');
+    return data;
+  }
+
   function todayDateStr() {
     const d = new Date();
     return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -471,6 +528,7 @@
   global.LechaimPlaceReservations = {
     isConfigured,
     createRequest,
+    createConfirmedRequest,
     listForDate,
     listUpcomingActive,
     setStatus,

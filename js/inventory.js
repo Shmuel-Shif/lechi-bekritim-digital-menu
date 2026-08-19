@@ -263,7 +263,7 @@
     }
 
     function pushItem(item, categoryId, categoryTitleKey) {
-      if (!item?.id || seen.has(item.id)) return;
+      if (!item?.id || seen.has(item.id) || item.retired) return;
       seen.add(item.id);
       const resolved = resolveItem(item);
       const isButcher = BUTCHER_CATEGORY_IDS.has(categoryId);

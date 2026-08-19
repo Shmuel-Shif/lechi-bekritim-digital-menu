@@ -240,3 +240,32 @@ body.order-receipt-open .dine-in-chat-panel {
     bottom: calc(4.6rem + env(safe-area-inset-bottom, 0px));
   }
 }
+
+@media (max-width: 768px) {
+  .dine-in-chat-fab {
+    width: 3.2rem;
+    height: 3.2rem;
+    min-height: 3.2rem;
+    min-width: 3.2rem;
+    max-width: 3.2rem;
+    padding: 0;
+    gap: 0;
+    justify-content: center;
+    inset-inline-end: 0.65rem;
+    border-radius: 50%;
+  }
+
+  .dine-in-chat-fab__label {
+    display: none !important;
+  }
+
+  .dine-in-chat-fab__icon {
+    font-size: 1.35rem;
+  }
+
+  .dine-in-chat-fab__badge {
+    position: absolute;
+    top: -0.15rem;
+    inset-inline-start: -0.15rem;
+  }
+}

@@ -11,7 +11,13 @@ body[data-staff-order="1"] #entry-tables.dine-in-map .entry-gate__table.is-occup
 body[data-staff-order="1"] #entry-tables.dine-in-map .entry-gate__table.is-occupied:hover {
   cursor: pointer;
   transform: translate(-50%, -50%);
+  background: #c23b3b;
+  border-color: #8f2222;
+  color: #fff;
   font-size: 0.95rem;
+  font-weight: 800;
+  box-shadow: 0 0 0 3px #fff8ee, 0 6px 18px rgba(143, 34, 34, 0.5);
+  opacity: 1;
 }
 
 body[data-staff-order="1"] #entry-tables.dine-in-map .entry-gate__table.is-occupied:hover,

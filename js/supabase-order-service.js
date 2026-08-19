@@ -682,7 +682,33 @@
       .order('created_at', { ascending: true, foreignTable: 'order_items' });
 
     throwIfError(error, 'getSessionOrders');
-    return data || [];
+    const rows = data || [];
+    const missingIds = rows
+      .filter((order) => !Array.isArray(order.order_items) || order.order_items.length === 0)
+      .map((order) => order.id)
+      .filter(Boolean);
+    if (!missingIds.length) return rows;
+
+    /* Nested embed can be empty on some clients — load items by order_id. */
+    const { data: itemRows, error: itemErr } = await sb
+      .from(TABLE_ITEMS)
+      .select('*')
+      .in('order_id', missingIds);
+    if (itemErr || !itemRows?.length) return rows;
+
+    const byOrder = new Map();
+    itemRows.forEach((item) => {
+      const key = item.order_id;
+      const list = byOrder.get(key) || [];
+      list.push(item);
+      byOrder.set(key, list);
+    });
+    return rows.map((order) => ({
+      ...order,
+      order_items: (Array.isArray(order.order_items) && order.order_items.length)
+        ? order.order_items
+        : (byOrder.get(order.id) || []),
+    }));
   }
 
   /* Columns verified used by admin-tables (+ board routing). Not select('*'). */
@@ -1936,6 +1962,7 @@
 
   global.LechaimSupabaseOrders = {
     isConfigured,
+    getClient,
     createSession,
     createOrder,
     createOrderItems,

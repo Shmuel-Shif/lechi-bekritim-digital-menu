@@ -126,11 +126,14 @@
     discardLocalStaffState();
     closeStaffUiChrome();
     window.LechaimEntryGate?.resetToEntry?.();
+    startOccupiedPoll();
   }
 
   function onOrderSent() {
     const table = currentTableNumber();
+    pingOccupiedTables();
     returnToTables();
+    pingOccupiedTables();
     const feedback = document.getElementById('order-feedback');
     if (feedback && table != null) {
       feedback.hidden = false;
@@ -154,20 +157,145 @@
     }
   }
 
-  async function attachToTable() {
-    if (!isStaffOrderPage()) return;
+  function sleep(ms) {
+    return new Promise((resolve) => window.setTimeout(resolve, ms));
+  }
+
+  function writeLocalRemoteMap(localId, remoteId) {
+    if (!localId || !remoteId) return;
     try {
-      const ensure = window.LechaimMenu?.ensureDineInRemoteSession;
-      if (typeof ensure !== 'function') return;
-      const remoteId = await ensure();
-      if (!remoteId) return;
-      if (typeof window.LechaimMenu.syncRemoteSessionTotal === 'function') {
-        await window.LechaimMenu.syncRemoteSessionTotal(remoteId);
+      const raw = localStorage.getItem(MAP_KEY);
+      const map = raw ? JSON.parse(raw) : {};
+      map[String(localId)] = String(remoteId);
+      localStorage.setItem(MAP_KEY, JSON.stringify(map));
+      window.dispatchEvent(new CustomEvent('lechaim:dinein-session-ready'));
+    } catch (err) {
+      console.warn('[staff-order] session-map write failed', err);
+    }
+  }
+
+  async function findOpenSessionForTable(table) {
+    const api = window.LechaimSupabaseOrders;
+    if (!api?.getOpenSessions || !Number.isFinite(table)) return null;
+    const open = await api.getOpenSessions();
+    return (open || []).find((row) => (
+      String(row.order_type || '') === 'dine_in' && Number(row.table_number) === Number(table)
+    )) || null;
+  }
+
+  function remoteOrdersHaveItems(orders) {
+    return (orders || []).some((order) => {
+      const lines = Array.isArray(order.order_items) ? order.order_items : [];
+      if (lines.some((row) => (Number(row.quantity) || 0) > 0)) return true;
+      return Number(order?.total) > 0;
+    });
+  }
+
+  let attachToken = 0;
+
+  async function attachToTable(tableArg) {
+    if (!isStaffOrderPage()) return;
+    const token = ++attachToken;
+    try {
+      const table = Number(tableArg) || currentTableNumber();
+      if (!Number.isFinite(table) || table <= 0) return;
+
+      const api = window.LechaimSupabaseOrders;
+      let remoteId = null;
+      let foundItems = false;
+
+      /* Join only — never create a session here. The first send opens the table. */
+      for (let attempt = 0; attempt < 12 && token === attachToken; attempt += 1) {
+        const existing = await findOpenSessionForTable(table);
+        remoteId = existing?.session_id || null;
+        if (remoteId && api?.getSessionOrders) {
+          writeLocalRemoteMap(currentLocalSessionId(), remoteId);
+          const orders = await api.getSessionOrders(remoteId);
+          foundItems = remoteOrdersHaveItems(orders);
+          if (foundItems) {
+            await window.LechaimMenu?.syncRemoteSessionTotal?.(remoteId);
+            break;
+          }
+        }
+        await sleep(attempt === 0 ? 120 : 350);
       }
+      if (token !== attachToken) return;
+      if (!remoteId) return;
+
+      writeLocalRemoteMap(currentLocalSessionId(), remoteId);
       window.LechaimMenu.initRemoteSessionClosedWatcher?.();
+      if (!foundItems) {
+        await window.LechaimMenu?.syncRemoteSessionTotal?.(remoteId);
+      }
     } catch (err) {
       console.warn('[staff-order] attach to table session failed', err);
     }
+  }
+
+  async function refreshSessionTotal() {
+    if (!isStaffOrderPage()) return;
+    try {
+      const table = currentTableNumber();
+      const existing = table != null ? await findOpenSessionForTable(table) : null;
+      const localId = currentLocalSessionId();
+      let remoteId = existing?.session_id || null;
+      if (!remoteId && localId) {
+        try {
+          const map = JSON.parse(localStorage.getItem(MAP_KEY) || '{}');
+          remoteId = map[localId] || null;
+        } catch (_) { /* ignore */ }
+      }
+      if (!remoteId) return;
+      writeLocalRemoteMap(localId, remoteId);
+      await window.LechaimMenu?.syncRemoteSessionTotal?.(remoteId);
+    } catch (err) {
+      console.warn('[staff-order] refresh session total failed', err);
+    }
+  }
+
+  let occupiedTimer = null;
+  let occupiedBc = null;
+
+  function getOccupiedChannel() {
+    if (occupiedBc) return occupiedBc;
+    if (typeof window.BroadcastChannel !== 'function') return null;
+    try {
+      occupiedBc = new BroadcastChannel('lechaim-staff-occupied');
+      occupiedBc.onmessage = () => {
+        window.LechaimEntryGate?.refreshOccupiedTables?.();
+      };
+    } catch (err) {
+      occupiedBc = null;
+    }
+    return occupiedBc;
+  }
+
+  function pingOccupiedTables() {
+    window.LechaimEntryGate?.refreshOccupiedTables?.();
+    try {
+      getOccupiedChannel()?.postMessage({ at: Date.now() });
+    } catch (_) { /* ignore */ }
+    for (let i = 1; i <= 8; i += 1) {
+      window.setTimeout(() => {
+        window.LechaimEntryGate?.refreshOccupiedTables?.();
+      }, i * 400);
+    }
+  }
+
+  function startOccupiedPoll() {
+    getOccupiedChannel();
+    const tick = () => {
+      if (!isStaffOrderPage()) return;
+      const tableStep = document.getElementById('entry-step-table');
+      const onMap = document.body.classList.contains('entry-pending')
+        && tableStep
+        && !tableStep.hidden;
+      if (!onMap) return;
+      window.LechaimEntryGate?.refreshOccupiedTables?.();
+    };
+    tick();
+    if (occupiedTimer) return;
+    occupiedTimer = window.setInterval(tick, 1000);
   }
 
   window.LechaimStaffOrder = {
@@ -176,13 +304,18 @@
     returnToTables,
     discardLocalStaffState,
     attachToTable,
+    refreshSessionTotal,
   };
 
   function boot() {
     if (!isStaffOrderPage()) return;
     applyStaffChrome();
+    startOccupiedPoll();
     window.setTimeout(applyStaffChrome, 400);
     document.addEventListener('lechaim:dinein-table-ready', applyStaffChrome);
+    document.addEventListener('lechaim:dinein-table-ready', () => {
+      void attachToTable(currentTableNumber());
+    });
   }
 
   if (document.readyState === 'loading') {
