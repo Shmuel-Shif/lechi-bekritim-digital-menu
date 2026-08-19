@@ -2580,6 +2580,7 @@
   async function maybeShowRecommendedToday() {
     stopRecommendedTodayWait();
     recommendedTodayShownForEntry = false;
+    if (isStaffOrderPage()) return;
     if (isButcherContext()) return;
 
     try {
@@ -5476,6 +5477,9 @@
 
   if (window.LechaimMenu) {
     window.LechaimMenu.ensureDineInRemoteSession = ensureDineInRemoteSession;
+    window.LechaimMenu.syncRemoteSessionTotal = syncRemoteSessionTotal;
+    window.LechaimMenu.initRemoteSessionClosedWatcher = initRemoteSessionClosedWatcher;
+    window.LechaimMenu.stopRemoteSessionWatcher = stopRemoteSessionWatcher;
   }
 
   async function syncDineInSessionNotes(remoteSessionId) {
@@ -5811,6 +5815,18 @@
     return false;
   }
 
+  function stopRemoteSessionWatcher() {
+    if (typeof sessionWatchUnsub === 'function') {
+      try { sessionWatchUnsub(); } catch (_) { /* ignore */ }
+      sessionWatchUnsub = null;
+    }
+    if (remoteTotalSyncTimer) {
+      window.clearInterval(remoteTotalSyncTimer);
+      remoteTotalSyncTimer = null;
+    }
+    remoteSessionTotalOverride = null;
+  }
+
   function initRemoteSessionClosedWatcher() {
     const api = window.LechaimSupabaseOrders;
     if (!api?.isConfigured?.() || typeof api.subscribeToOrders !== 'function') return;
@@ -5870,6 +5886,10 @@
   }
 
   async function syncRemoteSessionTotal(remoteSessionId) {
+    if (isStaffOrderPage()) {
+      const type = String(window.LechaimOrderContext?.orderType || '').toLowerCase();
+      if (type !== 'dine-in' && type !== 'dinein' && type !== 'dine_in') return;
+    }
     const api = window.LechaimSupabaseOrders;
     const localSessionId = window.LechaimOrderContext?.sessionId
       || window.LechaimOrderSession?.getSession?.()?.sessionId;

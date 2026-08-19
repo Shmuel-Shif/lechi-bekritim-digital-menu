@@ -1184,7 +1184,7 @@
     if (typeof window.LechaimMenu?.updateOrderContext === 'function') {
       window.LechaimMenu.updateOrderContext(context);
     }
-    if (typeof window.LechaimMenu?.maybeShowRecommendedToday === 'function') {
+    if (!isStaffOrderPage() && typeof window.LechaimMenu?.maybeShowRecommendedToday === 'function') {
       window.LechaimMenu.maybeShowRecommendedToday();
     }
   }
@@ -1686,6 +1686,9 @@
       tableNumber: table,
       lang: state.lang,
     }));
+    if (isStaffOrderPage()) {
+      void window.LechaimStaffOrder?.attachToTable?.();
+    }
   }
 
   function finishTakeaway(details = {}) {

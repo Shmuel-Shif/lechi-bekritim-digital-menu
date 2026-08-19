@@ -122,6 +122,7 @@
   }
 
   function returnToTables() {
+    window.LechaimMenu?.stopRemoteSessionWatcher?.();
     discardLocalStaffState();
     closeStaffUiChrome();
     window.LechaimEntryGate?.resetToEntry?.();
@@ -153,11 +154,28 @@
     }
   }
 
+  async function attachToTable() {
+    if (!isStaffOrderPage()) return;
+    try {
+      const ensure = window.LechaimMenu?.ensureDineInRemoteSession;
+      if (typeof ensure !== 'function') return;
+      const remoteId = await ensure();
+      if (!remoteId) return;
+      if (typeof window.LechaimMenu.syncRemoteSessionTotal === 'function') {
+        await window.LechaimMenu.syncRemoteSessionTotal(remoteId);
+      }
+      window.LechaimMenu.initRemoteSessionClosedWatcher?.();
+    } catch (err) {
+      console.warn('[staff-order] attach to table session failed', err);
+    }
+  }
+
   window.LechaimStaffOrder = {
     isActive: true,
     onOrderSent,
     returnToTables,
     discardLocalStaffState,
+    attachToTable,
   };
 
   function boot() {
