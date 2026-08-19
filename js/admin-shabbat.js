@@ -184,7 +184,7 @@
       customerName: session.customer_name || '—',
       customerPhone: session.customer_phone || '—',
       customerNotes: session.notes || '',
-      pickupTime: session.pickup_time || '13:00-14:00',
+      pickupTime: session.pickup_time || '14:00',
       openedAt: session.created_at,
       orders: orders || [],
       items,
@@ -302,7 +302,7 @@
           <div class="table-drawer__pickup-grid">
             <div class="table-drawer__pickup-row"><span>לקוח</span><strong>${escapeHtml(entry.customerName)}</strong></div>
             <div class="table-drawer__pickup-row"><span>טלפון</span><strong dir="ltr">${escapeHtml(entry.customerPhone)}</strong></div>
-            <div class="table-drawer__pickup-row"><span>איסוף</span><strong>${escapeHtml(entry.pickupTime || '13:00-14:00')}</strong></div>
+            <div class="table-drawer__pickup-row"><span>איסוף</span><strong>${escapeHtml(entry.pickupTime || '14:00')}</strong></div>
             ${entry.customerNotes
               ? `<div class="table-drawer__pickup-row"><span>הערות</span><strong dir="auto">${escapeHtml(entry.customerNotes)}</strong></div>`
               : ''}
@@ -580,7 +580,7 @@
       customerPhone: entry.customerPhone,
       customerNotes: entry.customerNotes,
       pickupType: 'TIME',
-      pickupTime: entry.pickupTime || '13:00-14:00',
+      pickupTime: entry.pickupTime || '14:00',
       publicOrderNo: null,
       _skipLocalMarkPrinted: true,
     };
@@ -1030,7 +1030,7 @@
         customerPhone: customerPhone || null,
         notes: notes || null,
         pickupType: 'TIME',
-        pickupTime: '13:00-14:00',
+        pickupTime: '14:00',
         language: 'he',
       });
       closeNewModal();

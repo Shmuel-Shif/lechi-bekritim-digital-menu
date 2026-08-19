@@ -8,7 +8,7 @@
   const DETAILS_KEY = 'lechaim-shabbat-customer';
   const LOCK_KEY = 'lechaim-shabbat-order-lock';
   const ENTERED_MENU_KEY = 'lechaim-shabbat-entered-menu';
-  const PICKUP_WINDOW = '13:00-14:00';
+  const PICKUP_WINDOW = '14:00';
 
   const $ = (sel, ctx = document) => ctx.querySelector(sel);
 

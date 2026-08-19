@@ -186,7 +186,7 @@
       case 'shabbat':
         /* Fixed Friday pickup window — no ASAP / no public takeaway number */
         row.pickup_type = 'TIME';
-        row.pickup_time = row.pickup_time ? String(row.pickup_time) : '13:00-14:00';
+        row.pickup_time = row.pickup_time ? String(row.pickup_time) : '14:00';
         row.pickup_date = null;
         row.public_order_no = null;
         row.customer_address = null;

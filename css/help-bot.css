@@ -1,0 +1,472 @@
+/* LECHAIM — Customer help bot (prepared answers, no AI) */
+
+.help-bot-panel .visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.help-bot-fab[hidden],
+.help-bot-panel[hidden],
+.help-bot-welcome[hidden],
+.help-bot-topics[hidden],
+.help-bot-answer[hidden] {
+  display: none !important;
+}
+
+.help-bot-fab {
+  position: fixed;
+  z-index: 382;
+  inset-inline-end: 1rem;
+  bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 3rem;
+  max-width: calc(100vw - 2rem);
+  padding: 0.4rem 1rem 0.4rem 0.4rem;
+  border: 2px solid #c4a06a;
+  border-radius: 999px;
+  background: #152640;
+  color: #fff8ee;
+  font: inherit;
+  font-weight: 800;
+  font-size: 0.95rem;
+  letter-spacing: 0.01em;
+  box-shadow: 0 0 0 3px rgba(196, 160, 106, 0.22), 0 10px 28px rgba(21, 38, 64, 0.32);
+  cursor: pointer;
+}
+
+.help-bot-fab__avatar {
+  width: 2.35rem;
+  height: 2.35rem;
+  flex: 0 0 2.35rem;
+  border-radius: 50%;
+  background: #fff8ee;
+  object-fit: contain;
+  object-position: center 42%;
+  display: block;
+}
+
+.help-bot-fab__label {
+  line-height: 1.2;
+  text-align: start;
+}
+
+.help-bot-fab:hover,
+.help-bot-fab.is-open {
+  background: #1e3a5f;
+}
+
+body:has(.dine-in-chat-fab:not([hidden])):not(:has(.dine-in-global-chat-fab:not([hidden]))) .help-bot-fab {
+  bottom: calc(8.6rem + env(safe-area-inset-bottom, 0px));
+}
+
+body:has(.dine-in-global-chat-fab:not([hidden])) .help-bot-fab {
+  bottom: calc(12.2rem + env(safe-area-inset-bottom, 0px));
+}
+
+.help-bot-panel {
+  position: fixed;
+  z-index: 432;
+  inset-inline-end: 1rem;
+  bottom: calc(9rem + env(safe-area-inset-bottom, 0px));
+  width: min(calc(100vw - 1.5rem), 360px);
+}
+
+body:has(.dine-in-chat-fab:not([hidden])):not(:has(.dine-in-global-chat-fab:not([hidden]))) .help-bot-panel {
+  bottom: calc(12.1rem + env(safe-area-inset-bottom, 0px));
+}
+
+body:has(.dine-in-global-chat-fab:not([hidden])) .help-bot-panel {
+  bottom: calc(15.7rem + env(safe-area-inset-bottom, 0px));
+}
+
+body.help-bot-open {
+  overflow: hidden;
+}
+
+body.help-bot-open .help-bot-fab {
+  display: none !important;
+}
+
+body.help-bot-open .help-bot-panel,
+body.entry-pending.help-bot-open .help-bot-panel {
+  top: max(0.4rem, env(safe-area-inset-top, 0px)) !important;
+  bottom: max(0.45rem, env(safe-area-inset-bottom, 0px)) !important;
+  inset-inline-end: 0.55rem !important;
+  inset-inline-start: auto !important;
+  width: min(calc(100vw - 1.1rem), 380px) !important;
+  max-width: none;
+  margin-inline: 0 !important;
+  z-index: 10072;
+}
+
+.help-bot-panel__card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-height: min(72vh, 560px);
+  background: #fff8ee;
+  border: 1px solid #e6dfd0;
+  border-radius: 16px;
+  box-shadow: 0 16px 40px rgba(21, 38, 64, 0.22);
+  overflow: hidden;
+}
+
+body.help-bot-open .help-bot-panel__card {
+  max-height: none;
+}
+
+.help-bot-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.75rem 0.8rem;
+  background: #152640;
+  color: #fff8ee;
+}
+
+.help-bot-panel__avatar {
+  width: 2.7rem;
+  height: 2.7rem;
+  flex: 0 0 2.7rem;
+  border-radius: 50%;
+  background: #fff8ee;
+  object-fit: contain;
+  object-position: center 42%;
+  display: block;
+  box-shadow: 0 0 0 2px #c4a06a;
+}
+
+.help-bot-panel__title {
+  flex: 1;
+  margin: 0;
+  font-size: 1.02rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.help-bot-panel__close {
+  flex: 0 0 auto;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #fff8ee;
+  font-size: 1.55rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.help-bot-panel__close:hover {
+  background: rgba(255, 248, 238, 0.12);
+}
+
+.help-bot-panel__body {
+  flex: 1;
+  min-height: 0;
+  padding: 0.75rem 0.8rem 0.9rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.help-bot-welcome {
+  margin: 0 0 0.7rem;
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+
+.help-bot-welcome__title,
+.help-bot-welcome__body {
+  margin: 0;
+  color: #152640;
+  line-height: 1.4;
+}
+
+.help-bot-welcome__title {
+  font-size: 1.02rem;
+  font-weight: 800;
+}
+
+.help-bot-welcome__body {
+  margin-top: 0.28rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1e3a5f;
+}
+
+.help-bot-topics {
+  display: grid;
+  gap: 0.38rem;
+}
+
+.help-bot-topic {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 2.55rem;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid #e6dfd0;
+  border-radius: 12px;
+  background: #fff;
+  color: #152640;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.98rem;
+  text-align: start;
+  cursor: pointer;
+}
+
+.help-bot-topic:hover,
+.help-bot-topic:focus-visible {
+  border-color: #c4a06a;
+  background: #f7f0e4;
+}
+
+.help-bot-answer__title {
+  margin: 0 0 0.55rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #152640;
+  line-height: 1.35;
+}
+
+.help-bot-answer__body {
+  margin: 0;
+  color: #1e3a5f;
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.55;
+  white-space: pre-line;
+}
+
+.help-bot-answer__image {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0.75rem 0 0;
+  border-radius: 12px;
+  border: 1px solid #e6dfd0;
+  background: #fff;
+}
+
+.help-bot-answer__maps {
+  display: inline-flex;
+  margin-top: 0.7rem;
+  color: #1f6b4a;
+  font-weight: 800;
+  text-decoration: underline;
+}
+
+.help-bot-related {
+  margin-top: 0.95rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e6dfd0;
+}
+
+.help-bot-related__label {
+  margin: 0 0 0.45rem;
+  color: #152640;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.help-bot-related__list {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.help-bot-related__btn {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 2.55rem;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid #e6dfd0;
+  border-radius: 12px;
+  background: #fff;
+  color: #152640;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.92rem;
+  text-align: start;
+  cursor: pointer;
+}
+
+.help-bot-related__btn:hover,
+.help-bot-related__btn:focus-visible {
+  border-color: #c4a06a;
+  background: #f7f0e4;
+}
+
+.help-bot-answer__action,
+.help-bot-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 2.75rem;
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.85rem;
+  border: 0;
+  border-radius: 12px;
+  font: inherit;
+  font-weight: 800;
+  text-decoration: none;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+a.help-bot-answer__action + a.help-bot-answer__action {
+  margin-top: 0.45rem;
+}
+
+.help-bot-answer__action {
+  background: #152640;
+  color: #fff8ee;
+}
+
+.help-bot-answer__action:hover {
+  background: #1e3a5f;
+}
+
+.help-bot-back {
+  background: transparent;
+  color: #152640;
+  border: 1px solid #c4a06a;
+}
+
+.help-bot-back:hover {
+  background: #f7f0e4;
+}
+
+body.help-bot-open .dine-in-chat-fab,
+body.help-bot-open .dine-in-chat-panel,
+body.help-bot-open .dine-in-global-chat-fab,
+body.help-bot-open .dine-in-global-chat-panel {
+  display: none !important;
+}
+
+body.dine-in-global-chat-open .help-bot-fab,
+body.dine-in-global-chat-open .help-bot-panel,
+body:has(.dine-in-chat-fab.is-open) .help-bot-fab,
+body:has(.dine-in-chat-fab.is-open) .help-bot-panel {
+  display: none !important;
+}
+
+body.cart-open .help-bot-fab,
+body.cart-open .help-bot-panel,
+body.modal-open .help-bot-fab,
+body.modal-open .help-bot-panel,
+body.order-receipt-open .help-bot-fab,
+body.order-receipt-open .help-bot-panel {
+  display: none !important;
+}
+
+body.entry-pending .help-bot-fab {
+  z-index: 10062;
+  bottom: calc(1.35rem + env(safe-area-inset-bottom, 0px));
+}
+
+body.entry-pending:has(.dine-in-global-chat-fab:not([hidden])) .help-bot-fab {
+  bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+}
+
+body.entry-pending .help-bot-panel {
+  z-index: 10072;
+  bottom: calc(5.2rem + env(safe-area-inset-bottom, 0px));
+}
+
+body.entry-pending:has(.dine-in-global-chat-fab:not([hidden])) .help-bot-panel {
+  bottom: calc(8.7rem + env(safe-area-inset-bottom, 0px));
+}
+
+body:has(#lechaim-help-bot-fab) .site-footer--compact {
+  padding-bottom: calc(8.8rem + env(safe-area-inset-bottom, 0px));
+}
+
+body:has(.dine-in-global-chat-fab:not([hidden])) .site-footer--compact {
+  padding-bottom: calc(15.4rem + env(safe-area-inset-bottom, 0px));
+}
+
+@media (max-width: 640px) {
+  .help-bot-fab {
+    font-size: 0.88rem;
+    bottom: calc(4.6rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  body:has(.dine-in-chat-fab:not([hidden])):not(:has(.dine-in-global-chat-fab:not([hidden]))) .help-bot-fab {
+    bottom: calc(7.6rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  body:has(.dine-in-global-chat-fab:not([hidden])) .help-bot-fab {
+    bottom: calc(11.2rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  body.entry-pending .help-bot-fab {
+    bottom: calc(1.2rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  body.entry-pending:has(.dine-in-global-chat-fab:not([hidden])) .help-bot-fab {
+    bottom: calc(4.7rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@media (max-width: 768px) {
+  body.entry-pending .help-bot-fab,
+  body.entry-pending:has(.dine-in-global-chat-fab:not([hidden])) .help-bot-fab {
+    width: 3.2rem;
+    height: 3.2rem;
+    min-height: 3.2rem;
+    min-width: 3.2rem;
+    max-width: 3.2rem;
+    padding: 0.18rem;
+    gap: 0;
+    justify-content: center;
+    inset-inline-end: 0.65rem;
+    border-radius: 50%;
+  }
+
+  body.entry-pending .help-bot-fab {
+    bottom: calc(1.1rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  body.entry-pending:has(.dine-in-global-chat-fab:not([hidden])) .help-bot-fab {
+    bottom: calc(4.55rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  body.entry-pending .help-bot-fab__label {
+    display: none;
+  }
+
+  body.entry-pending .help-bot-fab__avatar {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  body.entry-pending .help-bot-fab::after {
+    content: '?';
+    position: absolute;
+    top: -0.12rem;
+    inset-inline-start: -0.12rem;
+    width: 1.15rem;
+    height: 1.15rem;
+    border-radius: 50%;
+    background: #c4a06a;
+    color: #152640;
+    font-size: 0.72rem;
+    font-weight: 800;
+    line-height: 1.15rem;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(21, 38, 64, 0.28);
+  }
+}

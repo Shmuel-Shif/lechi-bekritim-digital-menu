@@ -10,8 +10,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/main.css?v=46">
   <link rel="stylesheet" href="css/theme-lechaim.css?v=2">
-  <link rel="stylesheet" href="css/entry-gate.css?v=4">
+  <link rel="stylesheet" href="css/entry-gate.css?v=5">
   <link rel="stylesheet" href="css/dine-in-chat.css?v=4">
+  <link rel="stylesheet" href="css/help-bot.css?v=6">
   <link rel="icon" href="assets/logo/logo.webp" type="image/webp">
 </head>
 <body class="entry-pending">
@@ -111,7 +112,7 @@
               </span>
               <span class="entry-gate__btn-text">
                 <span class="entry-gate__btn-label" data-entry-i18n="deliveryOrder">משלוח</span>
-                <span class="entry-gate__btn-hint" data-entry-i18n="deliveryOrderHint">משלוח בעלות €10 · זמן משלוח כשעה וחצי · מינימום הזמנה €75</span>
+                <span class="entry-gate__btn-hint" data-entry-i18n="deliveryOrderHint">משלוח בעלות €10 · זמן משלוח כשעה וחצי · מינימום הזמנה €100</span>
               </span>
               <span class="entry-gate__btn-chevron" aria-hidden="true"></span>
             </button>
@@ -665,7 +666,7 @@
   <div class="app-confirm" id="delivery-min-order-modal" hidden aria-hidden="true">
     <button type="button" class="app-confirm__backdrop" id="delivery-min-order-backdrop" aria-label="סגור"></button>
     <div class="app-confirm__panel" role="dialog" aria-modal="true" aria-labelledby="delivery-min-order-text">
-      <p class="app-confirm__text" id="delivery-min-order-text">מינימום הזמנה למשלוח €75 (לא כולל משלוח)</p>
+      <p class="app-confirm__text" id="delivery-min-order-text">מינימום הזמנה למשלוח €100 (לא כולל משלוח)</p>
       <div class="app-confirm__actions">
         <button type="button" class="cart-send-btn" id="delivery-min-order-ok" data-i18n="gotIt">הבנתי</button>
       </div>
@@ -978,17 +979,18 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
   <script src="js/order-types.js" defer></script>
-  <script src="js/supabase-order-service.js?v=7" defer></script>
-  <script src="js/menu-data.js?v=70" defer></script>
+  <script src="js/supabase-order-service.js?v=8" defer></script>
+  <script src="js/menu-data.js?v=81" defer></script>
   <script src="js/opening-hours.js?v=6" defer></script>
   <script src="js/inventory.js?v=42" defer></script>
   <script src="js/order-session.js?v=2" defer></script>
   <script src="js/order-engine.js" defer></script>
   <script src="js/a11y-focus-trap.js" defer></script>
-  <script src="js/main.js?v=56" defer></script>
+  <script src="js/main.js?v=57" defer></script>
   <script src="js/table-chat-service.js?v=3" defer></script>
   <script src="js/dine-in-chat.js?v=6" defer></script>
   <script src="js/place-reservations.js" defer></script>
-  <script src="js/entry-gate.js?v=37" defer></script>
+  <script src="js/entry-gate.js?v=38" defer></script>
+  <script src="js/help-bot.js?v=12" defer></script>
 </body>
 </html>

@@ -610,3 +610,34 @@ body.entry-pending .dine-in-global-chat-panel {
     bottom: calc(1.2rem + env(safe-area-inset-bottom, 0px));
   }
 }
+
+@media (max-width: 768px) {
+  body.entry-pending .dine-in-global-chat-fab {
+    width: 3.2rem;
+    height: 3.2rem;
+    min-height: 3.2rem;
+    min-width: 3.2rem;
+    max-width: 3.2rem;
+    padding: 0;
+    gap: 0;
+    justify-content: center;
+    inset-inline-end: 0.65rem;
+    bottom: calc(1.1rem + env(safe-area-inset-bottom, 0px));
+    border-radius: 50%;
+  }
+
+  body.entry-pending .dine-in-global-chat-fab__label,
+  body.entry-pending .dine-in-global-chat-fab__hint {
+    display: none !important;
+  }
+
+  body.entry-pending .dine-in-global-chat-fab__icon {
+    font-size: 1.35rem;
+  }
+
+  body.entry-pending .dine-in-global-chat-fab__badge {
+    position: absolute;
+    top: -0.15rem;
+    inset-inline-start: -0.15rem;
+  }
+}

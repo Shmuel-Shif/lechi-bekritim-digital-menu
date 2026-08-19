@@ -968,7 +968,7 @@
   }
 
   function getDeliveryMinOrder() {
-    return Number(window.TAKEAWAY_DELIVERY_MIN_ORDER) || 75;
+    return Number(window.TAKEAWAY_DELIVERY_MIN_ORDER) || 100;
   }
 
   function isTakeawayDeliveryContext() {

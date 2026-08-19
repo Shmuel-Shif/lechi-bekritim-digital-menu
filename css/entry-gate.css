@@ -23,7 +23,7 @@ body.entry-pending {
   overflow: hidden;
 }
 
-body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#dine-in-global-chat-fab):not(#dine-in-global-chat-panel) {
+body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#dine-in-global-chat-fab):not(#dine-in-global-chat-panel):not(#lechaim-help-bot-fab):not(#lechaim-help-bot-panel) {
   visibility: hidden;
   pointer-events: none;
 }
