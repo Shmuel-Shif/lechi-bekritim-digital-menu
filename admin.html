@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=30">
+  <link rel="stylesheet" href="css/admin.css?v=32">
   <link rel="icon" href="assets/logo/logo.webp" type="image/webp">
 </head>
 <body>
@@ -195,8 +195,20 @@
             <span class="admin-legend__item"><i class="admin-dot admin-dot--preparing"></i> אושר</span>
             <span class="admin-legend__item"><i class="admin-dot admin-dot--active"></i> פעיל</span>
           </div>
-          <div class="tables-takeaway__grid" id="shabbat-orders-grid"></div>
-          <p class="tables-category__empty" id="shabbat-orders-empty">אין הזמנות שבת כרגע</p>
+          <div class="shabbat-board">
+            <div class="shabbat-board__main">
+              <div class="tables-takeaway__grid" id="shabbat-orders-grid"></div>
+              <p class="tables-category__empty" id="shabbat-orders-empty">אין הזמנות שבת כרגע</p>
+            </div>
+            <aside class="shabbat-qty-panel" aria-label="כמויות להכנה">
+              <header class="shabbat-qty-panel__head">
+                <h2 class="shabbat-qty-panel__title">כמויות להכנה</h2>
+                <p class="shabbat-qty-panel__sum" id="shabbat-qty-sum"></p>
+              </header>
+              <ul class="shabbat-qty-panel__list" id="shabbat-qty-list"></ul>
+              <p class="shabbat-qty-panel__empty" id="shabbat-qty-empty">אין מנות בכרטיסים</p>
+            </aside>
+          </div>
         </section>
       </div>
 
@@ -931,7 +943,7 @@
   <script src="js/print-engine.js?v=36" defer></script>
   <script src="js/a11y-focus-trap.js" defer></script>
   <script src="js/admin-tables.js?v=66" defer></script>
-  <script src="js/admin-shabbat.js?v=4" defer></script>
+  <script src="js/admin-shabbat.js?v=5" defer></script>
   <script src="js/place-reservations.js?v=2" defer></script>
   <script src="js/admin-reservations.js?v=2" defer></script>
   <script src="js/admin-history.js" defer></script>

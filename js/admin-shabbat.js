@@ -7,6 +7,9 @@
 
   const gridEl = document.getElementById('shabbat-orders-grid');
   const emptyEl = document.getElementById('shabbat-orders-empty');
+  const qtyListEl = document.getElementById('shabbat-qty-list');
+  const qtyEmptyEl = document.getElementById('shabbat-qty-empty');
+  const qtySumEl = document.getElementById('shabbat-qty-sum');
   const badgeEl = document.getElementById('tab-badge-shabbat');
   const drawer = document.getElementById('shabbat-drawer');
   const drawerBackdrop = document.getElementById('shabbat-drawer-backdrop');
@@ -178,6 +181,69 @@
     return { items, total };
   }
 
+  function catalogPrepOrder() {
+    const map = new Map();
+    let index = 0;
+    (global.SHABBAT_MENU_DATA?.categories || []).forEach((cat) => {
+      (cat.items || []).forEach((item) => {
+        const id = String(item?.id || '');
+        if (!id || map.has(id)) return;
+        map.set(id, { order: index, name: item.name || id });
+        index += 1;
+      });
+    });
+    return map;
+  }
+
+  function buildPrepQuantities() {
+    const catalog = catalogPrepOrder();
+    const byKey = new Map();
+    cache.forEach((entry) => {
+      (entry.items || []).forEach((item) => {
+        const qty = Number(item.qty) || 0;
+        if (qty <= 0) return;
+        const productId = String(item.productId || '').trim();
+        const name = String(item.name || '').trim();
+        const key = productId || name;
+        if (!key) return;
+        const prev = byKey.get(key);
+        if (prev) {
+          prev.qty += qty;
+          return;
+        }
+        const fromCatalog = productId ? catalog.get(productId) : null;
+        byKey.set(key, {
+          name: fromCatalog?.name || name || productId,
+          qty,
+          order: fromCatalog ? fromCatalog.order : 10000,
+        });
+      });
+    });
+    return Array.from(byKey.values()).sort((a, b) => {
+      if (a.order !== b.order) return a.order - b.order;
+      return a.name.localeCompare(b.name, 'he');
+    });
+  }
+
+  function renderQtyPanel() {
+    if (!qtyListEl) return;
+    const rows = buildPrepQuantities();
+    const total = rows.reduce((sum, row) => sum + row.qty, 0);
+    if (qtySumEl) qtySumEl.textContent = total ? `${total} מנות` : '';
+    if (!rows.length) {
+      qtyListEl.innerHTML = '';
+      if (qtyEmptyEl) qtyEmptyEl.hidden = false;
+      return;
+    }
+    if (qtyEmptyEl) qtyEmptyEl.hidden = true;
+    qtyListEl.innerHTML = rows.map((row) => `
+      <li class="shabbat-qty-panel__row">
+        <span class="shabbat-qty-panel__name">${escapeHtml(row.name)}</span>
+        <strong class="shabbat-qty-panel__qty">${escapeHtml(String(row.qty))}</strong>
+      </li>
+    `).join('');
+  }
+
   function mapRow(session, orders) {
     const { items, total } = flattenItems(orders);
     return {
@@ -282,6 +348,7 @@
     if (!cache.length) {
       gridEl.innerHTML = '';
       if (emptyEl) emptyEl.hidden = false;
+      renderQtyPanel();
       return;
     }
     if (emptyEl) emptyEl.hidden = true;
@@ -311,6 +378,7 @@
       </article>
     `;
     }).join('');
+    renderQtyPanel();
   }
 
   function updateActionButtons(entry) {

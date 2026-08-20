@@ -876,6 +876,139 @@ body {
   color: var(--color-navy, #1e3354);
 }
 
+.shabbat-board {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+  gap: 1.35rem;
+  align-items: start;
+}
+
+.shabbat-board__main {
+  min-width: 0;
+}
+
+.shabbat-board .tables-takeaway__grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.shabbat-board .table-card {
+  padding: 1rem 0.9rem 0.95rem;
+  gap: 0.35rem;
+}
+
+.shabbat-board .table-card__actions {
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.shabbat-board .table-card__wa,
+.shabbat-board .table-card__courier {
+  padding: 0.5rem 0.45rem;
+  font-size: 0.8rem;
+}
+
+.shabbat-qty-panel {
+  position: sticky;
+  top: 0.75rem;
+  background: #fff;
+  border: 1px solid rgba(21, 38, 64, 0.12);
+  border-radius: 16px;
+  padding: 1.05rem 1.05rem 1rem;
+  max-height: calc(100vh - 7.5rem);
+  overflow: auto;
+}
+
+.shabbat-qty-panel__head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  margin-bottom: 0.9rem;
+}
+
+.shabbat-qty-panel__title {
+  margin: 0;
+  font-size: 1.12rem;
+  font-weight: 800;
+  color: var(--color-navy, #1e3354);
+}
+
+.shabbat-qty-panel__sum {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.shabbat-qty-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.shabbat-qty-panel__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 12px;
+  background: rgba(196, 160, 106, 0.12);
+}
+
+.shabbat-qty-panel__name {
+  font-size: 0.92rem;
+  font-weight: 650;
+  line-height: 1.4;
+  color: var(--color-navy, #1e3354);
+  word-break: break-word;
+}
+
+.shabbat-qty-panel__qty {
+  flex-shrink: 0;
+  min-width: 2.1rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(30, 51, 84, 0.08);
+  font-size: 1.15rem;
+  font-weight: 800;
+  text-align: center;
+  color: var(--color-navy, #1e3354);
+  font-variant-numeric: tabular-nums;
+}
+
+.shabbat-qty-panel__empty {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--color-text-muted);
+}
+
+.shabbat-qty-panel__empty[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 1200px) {
+  .shabbat-board .tables-takeaway__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 980px) {
+  .shabbat-board {
+    grid-template-columns: 1fr;
+  }
+
+  .shabbat-qty-panel {
+    position: static;
+    max-height: none;
+    order: -1;
+  }
+}
+
 .tables-category {
   margin-top: 1.25rem;
 }
