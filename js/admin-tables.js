@@ -333,9 +333,11 @@
     const order = entry?.order || {};
     const name = String(order.customerName || '').trim() || 'לקוח';
     const delivery = isDeliveryOrder(order);
-    const kind = entry?.orderType === 'butcher'
-      ? (delivery ? 'משלוח חנות בשר' : 'איסוף חנות בשר')
-      : (delivery ? 'משלוח' : 'איסוף עצמי');
+    const kind = entry?.orderType === 'shabbat'
+      ? 'הזמנות לשבת'
+      : (entry?.orderType === 'butcher'
+        ? (delivery ? 'משלוח חנות בשר' : 'איסוף חנות בשר')
+        : (delivery ? 'משלוח' : 'איסוף עצמי'));
     const no = order.publicOrderNo != null ? ` #${order.publicOrderNo}` : '';
     const when = formatPickupLabel(order);
     const isAsap = !when || when === '—' || when === 'בהקדם האפשרי' || when === 'בהקדם';
@@ -410,31 +412,211 @@
     }
   }
 
+  const COURIER_HE_EN = {
+    'מלון': 'hotel',
+    'הוטל': 'hotel',
+    'דירה': 'apartment',
+    'דירות': 'apartments',
+    'אפרטמנט': 'apartment',
+    'אפרטמנטס': 'apartments',
+    'אפארטמנט': 'apartment',
+    'וילה': 'villa',
+    'בית': 'house',
+    'רחוב': 'street',
+    'שדרה': 'avenue',
+    'כיכר': 'square',
+    'כפר': 'village',
+    'עיר': 'city',
+    'נמל': 'port',
+    'חוף': 'beach',
+    'חדר': 'room',
+    'קומה': 'floor',
+    'מספר': 'no.',
+    'מס': 'no.',
+    'בניין': 'building',
+    'בנין': 'building',
+    'כניסה': 'entrance',
+    'ליד': 'near',
+    'מול': 'opposite',
+    'אחרי': 'after',
+    'לפני': 'before',
+    'פינה': 'corner',
+    'סוויטה': 'suite',
+    'ריזורט': 'resort',
+    'סטודיו': 'studio',
+    'בריכה': 'pool',
+    'איסוף': 'pickup',
+    'שישי': 'Friday',
+    'שבת': 'Shabbat',
+    'משלוח': 'delivery',
+    'עצמי': 'pickup',
+    'חרסוניסוס': 'Hersonissos',
+    'הרקליון': 'Heraklion',
+    'אירקליו': 'Heraklion',
+    'סטלידה': 'Stalida',
+    'מליה': 'Malia',
+    'גובס': 'Gouves',
+    'כרתים': 'Crete',
+    'כריתים': 'Crete',
+  };
+
+  function stripNikud(value) {
+    return String(value || '').replace(/[\u0591-\u05C7]/g, '');
+  }
+
+  function titleCaseLatin(value) {
+    const s = String(value || '').toLowerCase();
+    if (!s) return '';
+    if (s === 'no.') return 'No.';
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
+  function transliterateHebrewWord(word) {
+    const chars = [...String(word || '')];
+    let out = '';
+    let i = 0;
+    while (i < chars.length) {
+      const ch = chars[i];
+      const next = chars[i + 1];
+      if (ch === '\u05E9') { out += 'sh'; i += 1; continue; }
+      if (ch === '\u05D7') { out += 'ch'; i += 1; continue; }
+      if (ch === '\u05E6' || ch === '\u05E5') { out += 'tz'; i += 1; continue; }
+      if (ch === '\u05D5') {
+        if (next === '\u05D0' || next === '\u05E2') { out += 'ue'; i += 2; continue; }
+        if (next === '\u05D9') { out += 'oi'; i += 2; continue; }
+        out += i === 0 ? 'v' : 'o';
+        i += 1;
+        continue;
+      }
+      if (ch === '\u05D9') { out += i === 0 ? 'y' : 'i'; i += 1; continue; }
+      if (ch === '\u05D0') { if (i === 0) out += 'a'; i += 1; continue; }
+      if (ch === '\u05D4') { // ה
+        out += i === chars.length - 1 ? 'a' : 'h';
+        i += 1;
+        continue;
+      }
+      if (ch === '\u05E2') { out += 'a'; i += 1; continue; }
+      if (ch === '\u05E4' || ch === '\u05E3') {
+        out += (ch === '\u05E3' || i === chars.length - 1) ? 'f' : 'p';
+        i += 1;
+        continue;
+      }
+      const simple = {
+        '\u05D1': 'b', '\u05D2': 'g', '\u05D3': 'd', '\u05D6': 'z', '\u05D8': 't',
+        '\u05DB': 'k', '\u05DA': 'k', '\u05DC': 'l', '\u05DE': 'm', '\u05DD': 'm',
+        '\u05E0': 'n', '\u05DF': 'n', '\u05E1': 's', '\u05E7': 'k', '\u05E8': 'r',
+        '\u05EA': 't',
+      };
+      if (simple[ch]) { out += simple[ch]; i += 1; continue; }
+      if (/[A-Za-z0-9]/.test(ch)) out += ch;
+      i += 1;
+    }
+    return out.replace(/(.)\1+/g, '$1$1');
+  }
+
+  function lookupCourierWord(heWord) {
+    const clean = stripNikud(heWord);
+    if (COURIER_HE_EN[clean]) return COURIER_HE_EN[clean];
+    if (clean.length > 2 && 'ושהבלכמ'.includes(clean[0])) {
+      const rest = clean.slice(1);
+      if (COURIER_HE_EN[rest]) return COURIER_HE_EN[rest];
+    }
+    return '';
+  }
+
+  function transliterateCourierText(raw) {
+    const text = stripNikud(String(raw || '')).normalize('NFKC').trim();
+    if (!text) return '';
+    if (text === '—') return '—';
+    if (!/[\u0590-\u05FF]/.test(text)) return text.replace(/\s+/g, ' ').trim();
+    return text
+      .split(/(\s+)/)
+      .map((token) => {
+        if (/^\s+$/.test(token)) return ' ';
+        const match = token.match(/^([^A-Za-z0-9\u0590-\u05FF]*)(.+?)([^A-Za-z0-9\u0590-\u05FF]*)$/);
+        if (!match) return token;
+        const [, lead, core, trail] = match;
+        if (!/[\u0590-\u05FF]/.test(core)) return token;
+        const mapped = lookupCourierWord(core) || transliterateHebrewWord(core);
+        return `${lead}${titleCaseLatin(mapped)}${trail}`;
+      })
+      .join('')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   function buildCourierDetails(entry) {
     const order = entry?.order || {};
     const delivery = isDeliveryOrder(order);
-    const kind = entry?.orderType === 'butcher'
-      ? (delivery ? 'משלוח חנות בשר' : 'איסוף חנות בשר')
-      : (delivery ? 'משלוח' : 'איסוף עצמי');
+    const kindHe = entry?.orderType === 'shabbat'
+      ? 'הזמנות לשבת'
+      : (entry?.orderType === 'butcher'
+        ? (delivery ? 'משלוח חנות בשר' : 'איסוף חנות בשר')
+        : (delivery ? 'משלוח' : 'איסוף עצמי'));
+    const kindEn = entry?.orderType === 'shabbat'
+      ? 'Shabbat orders'
+      : (entry?.orderType === 'butcher'
+        ? (delivery ? 'Butcher delivery' : 'Butcher pickup')
+        : (delivery ? 'Delivery' : 'Pickup'));
     const no = order.publicOrderNo != null ? ` #${order.publicOrderNo}` : '';
-    const name = String(order.customerName || '').trim() || '—';
+    const nameHe = String(order.customerName || '').trim() || '—';
     const phone = String(order.customerPhone || '').trim() || '—';
-    const address = String(order.customerAddress || '').trim() || '—';
-    const heading = `${kind}${no}`;
-    const copyText = [
-      heading,
-      `שם: ${name}`,
+    const pickupTime = String(order.pickupTime || '14:00').trim();
+    const hasAddress = Boolean(String(order.customerAddress || '').trim());
+    const addressHe = hasAddress
+      ? String(order.customerAddress).trim()
+      : (entry?.orderType === 'shabbat' ? `איסוף שישי ${pickupTime}` : '—');
+    const headingHe = `${kindHe}${no}`;
+    const headingEn = `${kindEn}${no}`;
+    const nameEn = transliterateCourierText(nameHe) || nameHe;
+    const addressEn = hasAddress
+      ? (transliterateCourierText(addressHe) || addressHe)
+      : (entry?.orderType === 'shabbat' ? `Friday pickup ${pickupTime}` : '—');
+    const total = formatMoney(calcOrderPaidTotal(order) || Number(entry?.total) || 0);
+    const copyHe = [
+      headingHe,
+      `שם: ${nameHe}`,
       `טלפון: ${phone}`,
-      `כתובת: ${address}`,
+      `כתובת: ${addressHe}`,
+      `סכום כולל: ${total}`,
     ].join('\n');
-    return { heading, name, phone, address, copyText };
+    const copyEn = [
+      headingEn,
+      `Name: ${nameEn}`,
+      `Phone: ${phone}`,
+      `Address: ${addressEn}`,
+      `Total: ${total}`,
+    ].join('\n');
+    return {
+      he: { heading: headingHe, name: nameHe, phone, address: addressHe, total, copyText: copyHe },
+      en: { heading: headingEn, name: nameEn, phone, address: addressEn, total, copyText: copyEn },
+    };
   }
 
   const courierModal = document.getElementById('admin-courier-modal');
   const courierBackdrop = document.getElementById('admin-courier-backdrop');
-  const courierCopyBtn = document.getElementById('admin-courier-copy');
-  let courierCopyText = '';
+  const courierCopyHeBtn = document.getElementById('admin-courier-copy-he');
+  const courierCopyEnBtn = document.getElementById('admin-courier-copy-en');
+  let courierCopyHe = '';
+  let courierCopyEn = '';
   let courierCopyResetTimer = null;
+
+  function resetCourierCopyButtons() {
+    if (courierCopyHeBtn) courierCopyHeBtn.textContent = 'העתק';
+    if (courierCopyEnBtn) courierCopyEnBtn.textContent = 'Copy';
+  }
+
+  function fillCourierCard(lang, details) {
+    const setText = (id, value) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = value;
+    };
+    setText(`admin-courier-order-${lang}`, details.heading);
+    setText(`admin-courier-name-${lang}`, details.name);
+    setText(`admin-courier-phone-${lang}`, details.phone);
+    setText(`admin-courier-address-${lang}`, details.address);
+    setText(`admin-courier-total-${lang}`, details.total);
+  }
 
   function closeCourierModal() {
     if (!courierModal) return;
@@ -444,36 +626,36 @@
     courierModal.hidden = true;
     courierModal.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('admin-modal-open');
-    courierCopyText = '';
-    if (courierCopyBtn) courierCopyBtn.textContent = 'העתק הכל';
+    courierCopyHe = '';
+    courierCopyEn = '';
+    resetCourierCopyButtons();
   }
 
   function openCourierModal(entry) {
     if (!courierModal) return;
     const details = buildCourierDetails(entry);
-    courierCopyText = details.copyText;
-    const headingEl = document.getElementById('admin-courier-order');
-    const nameEl = document.getElementById('admin-courier-name');
-    const phoneEl = document.getElementById('admin-courier-phone');
-    const addressEl = document.getElementById('admin-courier-address');
-    if (headingEl) headingEl.textContent = details.heading;
-    if (nameEl) nameEl.textContent = details.name;
-    if (phoneEl) phoneEl.textContent = details.phone;
-    if (addressEl) addressEl.textContent = details.address;
-    if (courierCopyBtn) courierCopyBtn.textContent = 'העתק הכל';
+    courierCopyHe = details.he.copyText;
+    courierCopyEn = details.en.copyText;
+    fillCourierCard('he', details.he);
+    fillCourierCard('en', details.en);
+    resetCourierCopyButtons();
     courierModal.hidden = false;
     courierModal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('admin-modal-open');
     setFocusTrap('courier', courierModal);
-    courierCopyBtn?.focus();
+    courierCopyHeBtn?.focus();
   }
 
-  async function copyCourierDetails() {
-    const ok = await copyTextToClipboard(courierCopyText);
-    if (courierCopyBtn) courierCopyBtn.textContent = ok ? 'הועתק' : 'לא הועתק';
+  async function copyCourierDetails(lang) {
+    const isEn = lang === 'en';
+    const ok = await copyTextToClipboard(isEn ? courierCopyEn : courierCopyHe);
+    const btn = isEn ? courierCopyEnBtn : courierCopyHeBtn;
+    if (btn) btn.textContent = ok
+      ? (isEn ? 'Copied' : 'הועתק')
+      : (isEn ? 'Not copied' : 'לא הועתק');
     window.clearTimeout(courierCopyResetTimer);
     courierCopyResetTimer = window.setTimeout(() => {
-      if (courierCopyBtn) courierCopyBtn.textContent = 'העתק הכל';
+      resetCourierCopyButtons();
     }, 1600);
   }
 
@@ -975,8 +1157,7 @@
       const synthetic = flattenSessionOrders(session, orders);
       if (!synthetic?.orderType) return;
       const isPickupBoard = synthetic.orderType === 'takeaway' || synthetic.orderType === 'butcher';
-      /* Keep takeaway/butcher visible even if admin removed all line items.
-         Dine-in with no items stays visible so staff can answer pre-order chat. */
+      /* Keep takeaway/butcher visible even if admin removed all line items. */
 
       if (isPickupBoard) {
         const entry = withPayableTotal({
@@ -1226,9 +1407,6 @@
     if (loadPromise) return loadPromise;
     loadPromise = (async () => {
       const data = await loadBoardData();
-      if (window.LechaimAdminTableChat?.loadUnreads) {
-        await window.LechaimAdminTableChat.loadUnreads();
-      }
       boardCache = (data.board || []).map(withPayableTotal);
       takeawayCache = (data.takeaway || []).map(withPayableTotal);
       butcherCache = (data.butcher || []).map(withPayableTotal);
@@ -1316,11 +1494,6 @@
         class="table-card table-card--${escapeHtml(entry.uiStatus)}${isPickup ? ' table-card--pickup' : ''}"
         data-entry-key="${escapeAttr(entryKey(entry))}"${roleAttr}
       >
-        ${
-          !free && !isPickup && Number(window.LechaimAdminTableChat?.getStaffUnread?.(entry.order?._supabaseSessionId)) > 0
-            ? `<span class="table-card__chat${window.LechaimAdminTableChat?.isPulsing?.(entry.order._supabaseSessionId) ? ' table-card__chat--alert' : ''}">💬 ${escapeHtml(String(window.LechaimAdminTableChat.getStaffUnread(entry.order._supabaseSessionId)))}</span>`
-            : ''
-        }
         <span class="table-card__num">${
           isPickup
             ? escapeHtml(
@@ -1693,7 +1866,6 @@
     }
 
     updateApprovePrintButton(entry);
-    window.LechaimAdminTableChat?.syncDrawer?.(entry);
   }
 
   function updateApprovePrintButton(entry) {
@@ -2469,7 +2641,6 @@
   }
 
   function openMenuPicker() {
-    window.LechaimAdminTableChat?.close?.();
     loadCatalog();
     menuCategoryId = 'all';
     menuQuery = '';
@@ -2513,7 +2684,6 @@
     selectedKey = null;
     menuMode = false;
     setDrawerView('detail');
-    window.LechaimAdminTableChat?.close?.();
     if (!drawer) return;
     clearFocusTrap('drawer');
     drawer.hidden = true;
@@ -3398,11 +3568,6 @@
       return;
     }
 
-    if (action === 'open-chat') {
-      window.LechaimAdminTableChat?.openForEntry?.(entry);
-      return;
-    }
-
     if (action === 'add-items') {
       openMenuPicker();
       return;
@@ -3699,11 +3864,8 @@
     }
     watchRunning = true;
     startRealtime();
-    window.LechaimAdminTableChat?.subscribeBoard?.(() => {
-      paintBoard(boardCache, takeawayCache, butcherCache);
-    });
     renderBoard();
-    pollTimer = window.setInterval(renderBoard, 1000);
+    pollTimer = window.setInterval(renderBoard, 45000);
   }
 
   function stopPolling() {
@@ -3714,13 +3876,11 @@
     }
     window.clearTimeout(refreshTimer);
     stopRealtime();
-    window.LechaimAdminTableChat?.stopBoard?.();
     stopPendingReminder();
   }
 
   function init() {
     bindCardClicks();
-    window.LechaimAdminTableChat?.init?.();
     closeDeliveriesBtn?.addEventListener('click', () => {
       toggleDeliveriesClosed().catch((err) => {
         console.error('[admin-tables] deliveries toggle failed', err);
@@ -3746,7 +3906,8 @@
     couponPrint?.addEventListener('click', () => { confirmAdminCouponPrint(); });
     couponCancel?.addEventListener('click', closeCouponModal);
     couponBackdrop?.addEventListener('click', closeCouponModal);
-    courierCopyBtn?.addEventListener('click', () => { copyCourierDetails(); });
+    courierCopyHeBtn?.addEventListener('click', () => { copyCourierDetails('he'); });
+    courierCopyEnBtn?.addEventListener('click', () => { copyCourierDetails('en'); });
     document.getElementById('admin-courier-close')?.addEventListener('click', closeCourierModal);
     courierBackdrop?.addEventListener('click', closeCourierModal);
 
@@ -3912,6 +4073,8 @@
     showConfirmModal,
     showSuccessModal,
     renderDrawerItemsHtml,
+    openOrderWhatsApp,
+    openCourierModal,
   };
 
   if (document.readyState === 'loading') {

@@ -1,6 +1,6 @@
 /**
  * LECHAIM — Customer help bot (prepared answers only).
- * Independent of private chat, global chat, orders, and Supabase.
+ * Independent of orders and Supabase. Staff contact uses WhatsApp / phone.
  */
 (function () {
   'use strict';
@@ -431,22 +431,8 @@
   }
 
   function showStaffTopic(id) {
-    const table = currentTableNumber();
-    if (table != null) {
-      openPrivateChat();
-      return;
-    }
     view = 'answer';
     currentTopicId = id;
-    if (isDineInPage()) {
-      renderAnswer({
-        topicId: id,
-        title: `💬 ${t('helpBotStaffNeedTable')}`,
-        actionLabel: t('helpBotTablePick'),
-        related: false,
-      });
-      return;
-    }
     renderAnswer({
       topicId: id,
       title: `💬 ${t('helpBotStaffHow')}`,
@@ -472,16 +458,6 @@
     const api = window.LechaimEntryGate;
     if (api?.reopenTablePicker?.()) return;
     api?.reopenOrderTypePicker?.();
-  }
-
-  function openPrivateChat() {
-    closePanel();
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        const chatFab = document.getElementById('dine-in-chat-fab');
-        if (chatFab && !chatFab.hidden) chatFab.click();
-      });
-    });
   }
 
   function openPanel() {

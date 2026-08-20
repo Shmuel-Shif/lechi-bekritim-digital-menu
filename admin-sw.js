@@ -1,15 +1,11 @@
 /* LECHAIM Admin — Service Worker (PWA installability) */
-const CACHE = 'lechaim-admin-v70';
+const CACHE = 'lechaim-admin-v78';
 const PRECACHE = [
   './admin.html',
   './admin.webmanifest',
   './css/admin.css',
   './js/admin.js',
   './js/admin-tables.js',
-  './js/table-chat-service.js',
-  './js/admin-table-chat.js',
-  './js/global-chat-service.js',
-  './js/admin-global-chat.js',
   './js/admin-till.js',
   './js/admin-staff-hours.js',
   './js/admin-coupons.js',

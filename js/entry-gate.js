@@ -24,7 +24,7 @@
       tableFind: 'The table number is on the table.',
       tableHint1: 'Only one person at the table should place the order through the system.',
       tableHint2: 'Other guests can choose "View the menu" on the main page to browse dishes, prices, and descriptions.',
-      tableHint2DineIn: 'Other guests can choose "View the menu" here. Anyone on their own phone can write in the Lechaim general chat. Only the table representative can send the order and use the private restaurant chat.',
+      tableHint2DineIn: 'Other guests can choose "View the menu" here. Only the table representative can send the order.',
       tableHowTitle: 'How does it work?',
       tableHowText: 'Add your favorite dishes to the cart, review that everything is correct and nothing was forgotten, then tap Send order and the restaurant starts preparing your order right away.',
       tablePickTable: 'Choose a table',
@@ -135,7 +135,7 @@
       tableFind: 'מספר השולחן נמצא על השולחן.',
       tableHint1: 'רק נציג אחד מהשולחן יבצע את ההזמנה דרך המערכת.',
       tableHint2: 'שאר הסועדים יכולים לבחור באפשרות "צפייה בתפריט" שבעמוד הראשי כדי לעיין במנות, במחירים ובתיאורים.',
-      tableHint2DineIn: 'שאר הסועדים יכולים לבחור כאן "צפייה בתפריט". כל אחד מהטלפון שלו יכול לכתוב בצ\'אט הכללי של לחיים. רק נציג השולחן שולח את ההזמנה ומשתמש בצ\'אט הפרטי עם המסעדה.',
+      tableHint2DineIn: 'שאר הסועדים יכולים לבחור כאן "צפייה בתפריט". רק נציג השולחן שולח את ההזמנה.',
       tableHowTitle: 'איך זה עובד?',
       tableHowText: 'מוסיפים לסל המוצרים מנות שאתם אוהבים, עוברים על הסל שהכל נכון ולא שכחתם שום דבר, לוחצים שלח הזמנה והמסעדה מיד מתחילה לעבוד על ההזמנה שלכם.',
       tablePickTable: 'לבחירת שולחן',
@@ -950,9 +950,8 @@
   }
 
   /**
-   * Same rule as Admin: a table is occupied when an open Supabase
-   * session has a live order, or when a dine-in chat thread already exists.
-   * Empty "active" sessions without chat must not block table selection.
+   * A table is occupied when an open Supabase session has a live order.
+   * Empty "active" sessions must not block table selection.
    */
   function remoteSessionHasLiveOrder(session, orders) {
     if (!session) return false;
@@ -979,6 +978,7 @@
 
   let occupiedSbClient = null;
   let occupiedRealtimeChannel = null;
+  let occupiedRealtimeTimer = null;
 
   function getOccupiedSupabaseClient() {
     const cfg = window.LECHAIM_SUPABASE_CONFIG;
@@ -1008,13 +1008,18 @@
       .channel('staff-occupied-tables')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'order_sessions' },
-        () => { refreshOccupiedTables(); }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders' },
-        () => { refreshOccupiedTables(); }
+        { event: '*', schema: 'public', table: 'order_sessions', filter: 'order_type=eq.dine_in' },
+        () => {
+          const tableStep = document.getElementById('entry-step-table');
+          const onMap = document.body.classList.contains('entry-pending')
+            && tableStep
+            && !tableStep.hidden;
+          if (!onMap) return;
+          window.clearTimeout(occupiedRealtimeTimer);
+          occupiedRealtimeTimer = window.setTimeout(() => {
+            refreshOccupiedTables();
+          }, 250);
+        }
       )
       .subscribe();
   }
@@ -1076,23 +1081,8 @@
         if (list) list.push(order);
       });
 
-      let chatSessions = new Set();
-      try {
-        const { data: chatRows, error: chatErr } = await sb
-          .from('table_chats')
-          .select('session_id')
-          .in('session_id', ids);
-        if (!chatErr) {
-          chatSessions = new Set((chatRows || []).map((row) => String(row.session_id)));
-        }
-      } catch (_) { /* table_chats may not exist yet */ }
-
       sessions.forEach((session) => {
-        const sid = String(session.session_id || '');
-        if (
-          remoteSessionHasLiveOrder(session, bySession.get(session.session_id) || [])
-          || chatSessions.has(sid)
-        ) {
+        if (remoteSessionHasLiveOrder(session, bySession.get(session.session_id) || [])) {
           occupied.add(Number(session.table_number));
         }
       });

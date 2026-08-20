@@ -46,6 +46,7 @@
   let timer = null;
   let unsub = null;
   let running = false;
+  let realtimeRefreshTimer = null;
   let menuMode = false;
   let menuCategoryId = 'all';
   let menuQuery = '';
@@ -193,7 +194,30 @@
         : total,
       couponCode: session.coupon_code || null,
       discountPercent: session.discount_percent,
+      discountAmount: session.discount_amount != null ? Number(session.discount_amount) : 0,
       uiStatus: entryStatus({ orders }),
+    };
+  }
+
+  const WA_ICON = `<svg class="admin-wa-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>`;
+
+  function toContactBoardEntry(entry) {
+    const phone = String(entry?.customerPhone || '').trim();
+    const name = String(entry?.customerName || '').trim();
+    return {
+      orderType: 'shabbat',
+      total: Number(entry?.total) || 0,
+      order: {
+        customerName: name === '—' ? '' : name,
+        customerPhone: phone === '—' ? '' : phone,
+        customerNotes: entry?.customerNotes || '',
+        pickupType: 'TIME',
+        pickupTime: entry?.pickupTime || '14:00',
+        items: entry?.items || [],
+        couponCode: entry?.couponCode || null,
+        discountPercent: entry?.discountPercent,
+        discountAmount: entry?.discountAmount,
+      },
     };
   }
 
@@ -261,21 +285,32 @@
       return;
     }
     if (emptyEl) emptyEl.hidden = true;
-    gridEl.innerHTML = cache.map((entry) => `
-      <button
-        type="button"
+    gridEl.innerHTML = cache.map((entry) => {
+      const phone = String(entry.customerPhone || '').trim();
+      const hasPhone = phone && phone !== '—';
+      const waBtn = hasPhone
+        ? `<button type="button" class="admin-btn admin-btn--whatsapp table-card__wa" data-shabbat-action="whatsapp">${WA_ICON}<span>WhatsApp</span></button>`
+        : '';
+      const courierBtn = `<button type="button" class="admin-btn admin-btn--soft table-card__courier" data-shabbat-action="courier">לשליח</button>`;
+      const cardActions = `<div class="table-card__actions">${waBtn}${courierBtn}</div>`;
+      return `
+      <article
         class="table-card table-card--pickup table-card--${escapeHtml(entry.uiStatus)}"
         data-shabbat-id="${escapeHtml(entry.sessionId)}"
+        role="button"
+        tabindex="0"
       >
         <span class="table-card__badge">שבת</span>
         <span class="table-card__customer">${escapeHtml(entry.customerName)}</span>
         <span class="table-card__phone" dir="ltr">${escapeHtml(entry.customerPhone)}</span>
+        ${cardActions}
         <span class="table-card__status">${escapeHtml(statusLabel(entry.uiStatus))}</span>
         <span class="table-card__total">${escapeHtml(formatMoney(entry.total))}</span>
         <span class="table-card__items">${entry.items.reduce((s, i) => s + i.qty, 0)} פריטים</span>
         <span class="table-card__time">${escapeHtml(formatClock(entry.openedAt))}</span>
-      </button>
-    `).join('');
+      </article>
+    `;
+    }).join('');
   }
 
   function updateActionButtons(entry) {
@@ -1050,9 +1085,35 @@
   }
 
   function onGridClick(event) {
-    const btn = event.target.closest('[data-shabbat-id]');
-    if (!btn) return;
-    const entry = cache.find((row) => row.sessionId === btn.getAttribute('data-shabbat-id'));
+    const actionBtn = event.target.closest('[data-shabbat-action="whatsapp"], [data-shabbat-action="courier"]');
+    if (actionBtn) {
+      event.preventDefault();
+      event.stopPropagation();
+      const card = actionBtn.closest('[data-shabbat-id]');
+      const entry = cache.find((row) => row.sessionId === card?.getAttribute('data-shabbat-id'));
+      if (!entry) return;
+      const boardEntry = toContactBoardEntry(entry);
+      const action = actionBtn.getAttribute('data-shabbat-action');
+      if (action === 'whatsapp') {
+        global.LechaimAdminTables?.openOrderWhatsApp?.(boardEntry);
+      } else if (action === 'courier') {
+        global.LechaimAdminTables?.openCourierModal?.(boardEntry);
+      }
+      return;
+    }
+    const card = event.target.closest('[data-shabbat-id]');
+    if (!card) return;
+    const entry = cache.find((row) => row.sessionId === card.getAttribute('data-shabbat-id'));
+    if (entry) openDrawer(entry);
+  }
+
+  function onGridKeydown(event) {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    if (event.target.closest('[data-shabbat-action="whatsapp"], [data-shabbat-action="courier"]')) return;
+    const card = event.target.closest('article[data-shabbat-id]');
+    if (!card || event.target !== card) return;
+    event.preventDefault();
+    const entry = cache.find((row) => row.sessionId === card.getAttribute('data-shabbat-id'));
     if (entry) openDrawer(entry);
   }
 
@@ -1108,6 +1169,13 @@
     }
   }
 
+  function scheduleRealtimeRefresh() {
+    window.clearTimeout(realtimeRefreshTimer);
+    realtimeRefreshTimer = window.setTimeout(() => {
+      refresh();
+    }, 250);
+  }
+
   function start() {
     if (running) {
       refresh();
@@ -1124,11 +1192,24 @@
         updateShabbatOrdersToggleButton();
       });
     }
-    timer = window.setInterval(refresh, 8000);
+    timer = window.setInterval(refresh, 45000);
     try {
       if (global.LechaimSupabaseOrders?.subscribeToOrders) {
-        unsub = global.LechaimSupabaseOrders.subscribeToOrders(() => {
-          refresh();
+        unsub = global.LechaimSupabaseOrders.subscribeToOrders((payload) => {
+          const table = payload?.table;
+          const row = payload?.new || payload?.old || payload?.payload?.new;
+          if (table === 'order_items') return;
+          if (table === 'order_sessions') {
+            if (row?.order_type && String(row.order_type) !== 'shabbat') return;
+            scheduleRealtimeRefresh();
+            return;
+          }
+          if (table === 'orders') {
+            const sid = String(row?.session_id || '');
+            const known = cache.some((entry) => String(entry.sessionId) === sid);
+            if (!known) return;
+            scheduleRealtimeRefresh();
+          }
         });
       }
     } catch (err) {
@@ -1138,6 +1219,8 @@
 
   function stop() {
     running = false;
+    window.clearTimeout(realtimeRefreshTimer);
+    realtimeRefreshTimer = null;
     if (timer) {
       window.clearInterval(timer);
       timer = null;
@@ -1155,6 +1238,7 @@
   }
 
   gridEl?.addEventListener('click', onGridClick);
+  gridEl?.addEventListener('keydown', onGridKeydown);
   drawerBackdrop?.addEventListener('click', closeDrawer);
   drawerClose?.addEventListener('click', closeDrawer);
   approveBtn?.addEventListener('click', handleApprove);

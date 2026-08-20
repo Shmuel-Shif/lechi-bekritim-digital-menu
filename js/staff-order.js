@@ -275,11 +275,6 @@
     try {
       getOccupiedChannel()?.postMessage({ at: Date.now() });
     } catch (_) { /* ignore */ }
-    for (let i = 1; i <= 8; i += 1) {
-      window.setTimeout(() => {
-        window.LechaimEntryGate?.refreshOccupiedTables?.();
-      }, i * 400);
-    }
   }
 
   function startOccupiedPoll() {
@@ -295,7 +290,7 @@
     };
     tick();
     if (occupiedTimer) return;
-    occupiedTimer = window.setInterval(tick, 1000);
+    occupiedTimer = window.setInterval(tick, 45000);
   }
 
   window.LechaimStaffOrder = {

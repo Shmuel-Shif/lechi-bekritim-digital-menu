@@ -18,6 +18,9 @@
 
   let client = null;
   let channel = null;
+  const boardListeners = new Set();
+  const sessionChannels = new Map();
+  const sessionListenerSets = new Map();
 
   function getConfig() {
     return global.LECHAIM_SUPABASE_CONFIG || {};
@@ -651,12 +654,13 @@
 
   /**
    * Open sessions (active + bill_requested), newest first.
+   * Lean columns — used for occupancy / join-by-table, not the admin board.
    */
   async function getOpenSessions() {
     const sb = getClient();
     const { data, error } = await sb
       .from(TABLE_SESSIONS)
-      .select('*')
+      .select('session_id, order_type, table_number, status')
       .in('status', OPEN_SESSION_STATUSES)
       .order('updated_at', { ascending: false });
 
@@ -1106,43 +1110,35 @@
     return data;
   }
 
-  /**
-   * Realtime subscription for sessions + orders + items.
-   * @param {(payload: object) => void} onEvent
-   * @returns {() => void} unsubscribe
-   */
-  function subscribeToOrders(onEvent) {
-    if (typeof onEvent !== 'function') {
-      throw new Error('[LechaimSupabaseOrders.subscribeToOrders] callback required');
-    }
-
-    const sb = getClient();
-
-    if (channel) {
+  function emitOrderEvent(listeners, table, payload) {
+    listeners.forEach((fn) => {
       try {
-        sb.removeChannel(channel);
+        fn({ table, ...payload });
       } catch (err) {
-        console.warn('[LechaimSupabaseOrders] removeChannel warning', err);
+        console.warn('[LechaimSupabaseOrders] listener failed', err);
       }
-      channel = null;
-    }
+    });
+  }
 
+  function ensureBoardChannel() {
+    if (channel) return;
+    const sb = getClient();
     channel = sb
       .channel('lechaim-orders')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: TABLE_SESSIONS },
-        (payload) => onEvent({ table: TABLE_SESSIONS, ...payload })
+        (payload) => emitOrderEvent(boardListeners, TABLE_SESSIONS, payload)
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: TABLE_ORDERS },
-        (payload) => onEvent({ table: TABLE_ORDERS, ...payload })
+        (payload) => emitOrderEvent(boardListeners, TABLE_ORDERS, payload)
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: TABLE_ITEMS },
-        (payload) => onEvent({ table: TABLE_ITEMS, ...payload })
+        (payload) => emitOrderEvent(boardListeners, TABLE_ITEMS, payload)
       )
       .subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
@@ -1151,15 +1147,95 @@
           console.error('[LechaimSupabaseOrders] Realtime', status, err || '');
         }
       });
+  }
 
-    return function unsubscribe() {
-      if (!channel) return;
-      try {
-        sb.removeChannel(channel);
-      } catch (err) {
-        console.warn('[LechaimSupabaseOrders] unsubscribe warning', err);
+  function stopBoardChannel() {
+    if (!channel) return;
+    try {
+      getClient().removeChannel(channel);
+    } catch (err) {
+      console.warn('[LechaimSupabaseOrders] removeChannel warning', err);
+    }
+    channel = null;
+  }
+
+  function ensureSessionChannel(sessionId) {
+    if (sessionChannels.has(sessionId)) return;
+    const sb = getClient();
+    const filter = `session_id=eq.${sessionId}`;
+    const ch = sb
+      .channel(`lechaim-orders-session:${sessionId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: TABLE_SESSIONS, filter },
+        (payload) => {
+          const set = sessionListenerSets.get(sessionId);
+          if (set) emitOrderEvent(set, TABLE_SESSIONS, payload);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: TABLE_ORDERS, filter },
+        (payload) => {
+          const set = sessionListenerSets.get(sessionId);
+          if (set) emitOrderEvent(set, TABLE_ORDERS, payload);
+        }
+      )
+      .subscribe((status, err) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.error('[LechaimSupabaseOrders] session realtime', sessionId, status, err || '');
+        }
+      });
+    sessionChannels.set(sessionId, ch);
+  }
+
+  function stopSessionChannel(sessionId) {
+    const ch = sessionChannels.get(sessionId);
+    if (!ch) return;
+    try {
+      getClient().removeChannel(ch);
+    } catch (err) {
+      console.warn('[LechaimSupabaseOrders] session unsubscribe warning', err);
+    }
+    sessionChannels.delete(sessionId);
+    sessionListenerSets.delete(sessionId);
+  }
+
+  /**
+   * Realtime for sessions + orders + items.
+   * Board (admin): all restaurant rows, shared channel, multiple listeners.
+   * Session (guest/tablet): only that session_id on sessions + orders.
+   * Item changes still arrive via orders.total / session totals updates.
+   * @param {(payload: object) => void} onEvent
+   * @param {{ sessionId?: string }} [options]
+   * @returns {() => void} unsubscribe
+   */
+  function subscribeToOrders(onEvent, options) {
+    if (typeof onEvent !== 'function') {
+      throw new Error('[LechaimSupabaseOrders.subscribeToOrders] callback required');
+    }
+
+    const sessionId = String(options?.sessionId || '').trim();
+    if (sessionId) {
+      let set = sessionListenerSets.get(sessionId);
+      if (!set) {
+        set = new Set();
+        sessionListenerSets.set(sessionId, set);
       }
-      channel = null;
+      set.add(onEvent);
+      ensureSessionChannel(sessionId);
+      return function unsubscribe() {
+        const current = sessionListenerSets.get(sessionId);
+        if (current) current.delete(onEvent);
+        if (!current || !current.size) stopSessionChannel(sessionId);
+      };
+    }
+
+    boardListeners.add(onEvent);
+    ensureBoardChannel();
+    return function unsubscribe() {
+      boardListeners.delete(onEvent);
+      if (!boardListeners.size) stopBoardChannel();
     };
   }
 

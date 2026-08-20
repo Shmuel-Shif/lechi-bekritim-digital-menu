@@ -2326,7 +2326,7 @@ body.admin-modal-open {
 }
 
 .admin-courier-modal__panel {
-  width: min(100%, 400px);
+  width: min(100%, 420px);
   text-align: start;
   gap: 0.85rem;
 }
@@ -2336,6 +2336,36 @@ body.admin-modal-open {
   font-size: 1.15rem;
   font-weight: 800;
   color: var(--color-navy, #152640);
+}
+
+.admin-courier-cards {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.admin-courier-card {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.7rem;
+  border-radius: 14px;
+  border: 1px solid rgba(21, 38, 64, 0.12);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.admin-courier-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.admin-courier-card__lang {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
 }
 
 .admin-courier-modal__order {

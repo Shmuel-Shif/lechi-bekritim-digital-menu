@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=25">
+  <link rel="stylesheet" href="css/admin.css?v=30">
   <link rel="icon" href="assets/logo/logo.webp" type="image/webp">
 </head>
 <body>
@@ -104,18 +104,16 @@
               <p class="admin-header__subtitle">מצב המסעדה בזמן אמת</p>
             </div>
             <div class="admin-header__actions">
-              <button type="button" class="admin-btn admin-btn--global-chat" id="admin-global-chat-open">
-                🌐 צ'אט כללי
-                <span class="admin-global-chat-open__badge" id="admin-global-chat-badge" hidden>0</span>
-              </button>
+              <!-- Restore hug button: uncomment the button below
               <button type="button" class="admin-btn admin-btn--hug" id="admin-hug-me-btn" aria-label="תחבק אותי">
                 🤗 תחבק אותי
               </button>
-              <button type="button" class="admin-btn admin-btn--primary" id="admin-shop-hours-btn">
-                פתח חנות
-              </button>
+              -->
               <button type="button" class="admin-btn admin-btn--kitchen-beep" id="admin-kitchen-beep-btn">
                 🔔 צפצף
+              </button>
+              <button type="button" class="admin-btn admin-btn--primary" id="admin-shop-hours-btn">
+                פתח חנות
               </button>
               <button type="button" class="admin-btn admin-btn--danger" id="admin-kitchen-close-btn">
                 סגירת מטבח (ישיבה במקום)
@@ -129,7 +127,6 @@
             <span class="admin-legend__item"><i class="admin-dot admin-dot--preparing"></i> בהכנה</span>
             <span class="admin-legend__item"><i class="admin-dot admin-dot--bill"></i> ביקש חשבון</span>
           </div>
-          <p class="admin-chat-split">💬 צ'אטים פרטיים על כרטיס השולחן · 🌐 צ'אט כללי בכפתור למעלה</p>
           <div class="tables-grid" id="tables-grid"></div>
         </section>
 
@@ -631,27 +628,10 @@
               הדפס
             </button>
             <button type="button" class="admin-btn admin-btn--soft" data-table-action="add-items">הוסף מנות</button>
-            <button type="button" class="admin-btn admin-btn--chat" data-table-action="open-chat" id="table-drawer-chat-open" hidden>
-              💬 צ'אט עם שולחן
-            </button>
             <button type="button" class="admin-btn admin-btn--bill" data-table-action="print-bill">חשבון</button>
             <button type="button" class="admin-btn admin-btn--primary" data-table-action="close-table">סגור שולחן</button>
           </footer>
         </div>
-
-        <aside class="table-drawer-chat" id="table-drawer-chat" hidden>
-          <header class="table-drawer-chat__header">
-            <h3 class="table-drawer-chat__title" id="table-drawer-chat-title">צ'אט עם שולחן</h3>
-            <button type="button" class="admin-btn admin-btn--ghost" id="table-drawer-chat-close">סגור</button>
-          </header>
-          <div class="table-drawer-chat__messages" id="table-drawer-chat-messages"></div>
-          <p class="table-drawer-chat__typing" id="table-drawer-chat-typing" hidden></p>
-          <form class="table-drawer-chat__form" id="table-drawer-chat-form">
-            <label class="visually-hidden" for="table-drawer-chat-input">הודעה</label>
-            <input id="table-drawer-chat-input" class="table-drawer-chat__input" type="text" maxlength="500" autocomplete="off" placeholder="כתבו תשובה…">
-            <button type="submit" class="admin-btn admin-btn--primary" id="table-drawer-chat-send">שלח</button>
-          </form>
-        </aside>
         </div>
 
         <div class="table-drawer__view table-drawer__menu" id="table-drawer-menu" hidden>
@@ -666,31 +646,6 @@
           <div class="table-menu__list" id="table-menu-list"></div>
         </div>
       </aside>
-    </div>
-
-    <div class="admin-modal" id="admin-global-chat" hidden aria-hidden="true">
-      <button type="button" class="admin-modal__backdrop" id="admin-global-chat-backdrop" aria-label="סגור"></button>
-      <div class="admin-modal__panel admin-global-chat__panel" role="dialog" aria-modal="true" aria-labelledby="admin-global-chat-title">
-        <header class="admin-global-chat__header">
-          <div>
-            <p class="admin-global-chat__eyebrow">🌐 צ'אט כללי</p>
-            <h2 class="admin-global-chat__title" id="admin-global-chat-title">צ'אט כללי של לחיים</h2>
-          </div>
-          <div class="admin-global-chat__header-actions">
-            <button type="button" class="admin-btn admin-btn--danger" id="admin-global-chat-reset">אפס צ'אט כללי</button>
-            <button type="button" class="admin-btn admin-btn--ghost" id="admin-global-chat-close">סגור</button>
-          </div>
-        </header>
-        <div class="admin-global-chat__thread">
-          <div class="admin-global-chat__messages" id="admin-global-chat-messages"></div>
-          <div class="admin-global-chat__typing" id="admin-global-chat-typing" hidden aria-live="polite"></div>
-        </div>
-        <form class="admin-global-chat__form" id="admin-global-chat-form">
-          <label class="visually-hidden" for="admin-global-chat-input">הודעה</label>
-          <input id="admin-global-chat-input" class="admin-global-chat__input" type="text" maxlength="500" autocomplete="off" placeholder="הודעה בשם Lechaim…">
-          <button type="submit" class="admin-btn admin-btn--primary" id="admin-global-chat-send">שלח</button>
-        </form>
-      </div>
     </div>
 
     <div class="admin-modal" id="admin-success-modal" hidden aria-hidden="true">
@@ -828,23 +783,59 @@
       <button type="button" class="admin-modal__backdrop" id="admin-courier-backdrop" aria-label="סגור"></button>
       <div class="admin-modal__panel admin-courier-modal__panel" role="dialog" aria-modal="true" aria-labelledby="admin-courier-title">
         <h2 class="admin-courier-modal__title" id="admin-courier-title">פרטים לשליח</h2>
-        <p class="admin-courier-modal__order" id="admin-courier-order"></p>
-        <dl class="admin-courier-modal__list">
-          <div class="admin-courier-modal__row">
-            <dt>שם</dt>
-            <dd id="admin-courier-name"></dd>
-          </div>
-          <div class="admin-courier-modal__row">
-            <dt>טלפון</dt>
-            <dd id="admin-courier-phone" dir="ltr"></dd>
-          </div>
-          <div class="admin-courier-modal__row">
-            <dt>כתובת</dt>
-            <dd id="admin-courier-address"></dd>
-          </div>
-        </dl>
+        <div class="admin-courier-cards">
+          <section class="admin-courier-card" aria-label="כרטיס בעברית">
+            <div class="admin-courier-card__head">
+              <h3 class="admin-courier-card__lang">עברית</h3>
+              <button type="button" class="admin-btn admin-btn--primary admin-btn--sm" id="admin-courier-copy-he">העתק</button>
+            </div>
+            <p class="admin-courier-modal__order" id="admin-courier-order-he"></p>
+            <dl class="admin-courier-modal__list">
+              <div class="admin-courier-modal__row">
+                <dt>שם</dt>
+                <dd id="admin-courier-name-he"></dd>
+              </div>
+              <div class="admin-courier-modal__row">
+                <dt>טלפון</dt>
+                <dd id="admin-courier-phone-he" dir="ltr"></dd>
+              </div>
+              <div class="admin-courier-modal__row">
+                <dt>כתובת</dt>
+                <dd id="admin-courier-address-he"></dd>
+              </div>
+              <div class="admin-courier-modal__row">
+                <dt>סכום כולל</dt>
+                <dd id="admin-courier-total-he"></dd>
+              </div>
+            </dl>
+          </section>
+          <section class="admin-courier-card" dir="ltr" lang="en" aria-label="English courier card">
+            <div class="admin-courier-card__head">
+              <h3 class="admin-courier-card__lang">English</h3>
+              <button type="button" class="admin-btn admin-btn--primary admin-btn--sm" id="admin-courier-copy-en">Copy</button>
+            </div>
+            <p class="admin-courier-modal__order" id="admin-courier-order-en"></p>
+            <dl class="admin-courier-modal__list">
+              <div class="admin-courier-modal__row">
+                <dt>Name</dt>
+                <dd id="admin-courier-name-en"></dd>
+              </div>
+              <div class="admin-courier-modal__row">
+                <dt>Phone</dt>
+                <dd id="admin-courier-phone-en" dir="ltr"></dd>
+              </div>
+              <div class="admin-courier-modal__row">
+                <dt>Address</dt>
+                <dd id="admin-courier-address-en"></dd>
+              </div>
+              <div class="admin-courier-modal__row">
+                <dt>Total</dt>
+                <dd id="admin-courier-total-en"></dd>
+              </div>
+            </dl>
+          </section>
+        </div>
         <div class="admin-modal__actions">
-          <button type="button" class="admin-btn admin-btn--primary" id="admin-courier-copy">העתק הכל</button>
           <button type="button" class="admin-btn admin-btn--ghost" id="admin-courier-close">סגור</button>
         </div>
       </div>
@@ -930,7 +921,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
   <script src="js/order-types.js" defer></script>
-  <script src="js/supabase-order-service.js?v=11" defer></script>
+  <script src="js/supabase-order-service.js?v=12" defer></script>
   <script src="js/menu-data.js?v=83" defer></script>
   <script src="js/opening-hours.js?v=6" defer></script>
   <script src="js/shabbat-menu-data.js" defer></script>
@@ -939,19 +930,15 @@
   <script src="js/order-engine.js" defer></script>
   <script src="js/print-engine.js?v=36" defer></script>
   <script src="js/a11y-focus-trap.js" defer></script>
-  <script src="js/table-chat-service.js?v=3" defer></script>
-  <script src="js/admin-table-chat.js?v=3" defer></script>
-  <script src="js/global-chat-service.js?v=6" defer></script>
-  <script src="js/admin-global-chat.js?v=7" defer></script>
-  <script src="js/admin-tables.js?v=61" defer></script>
-  <script src="js/admin-shabbat.js?v=1" defer></script>
+  <script src="js/admin-tables.js?v=66" defer></script>
+  <script src="js/admin-shabbat.js?v=4" defer></script>
   <script src="js/place-reservations.js?v=2" defer></script>
   <script src="js/admin-reservations.js?v=2" defer></script>
   <script src="js/admin-history.js" defer></script>
   <script src="js/admin-coupons.js" defer></script>
   <script src="js/admin-till.js?v=3" defer></script>
   <script src="js/admin-staff-hours.js" defer></script>
-  <script src="js/admin.js?v=53" defer></script>
+  <script src="js/admin.js?v=54" defer></script>
   <script src="js/admin-pwa.js" defer></script>
 </body>
 </html>

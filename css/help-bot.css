@@ -64,28 +64,12 @@
   background: #1e3a5f;
 }
 
-body:has(.dine-in-chat-fab:not([hidden])):not(:has(.dine-in-global-chat-fab:not([hidden]))) .help-bot-fab {
-  bottom: calc(8.6rem + env(safe-area-inset-bottom, 0px));
-}
-
-body:has(.dine-in-global-chat-fab:not([hidden])) .help-bot-fab {
-  bottom: calc(12.2rem + env(safe-area-inset-bottom, 0px));
-}
-
 .help-bot-panel {
   position: fixed;
   z-index: 432;
   inset-inline-end: 1rem;
   bottom: calc(9rem + env(safe-area-inset-bottom, 0px));
   width: min(calc(100vw - 1.5rem), 360px);
-}
-
-body:has(.dine-in-chat-fab:not([hidden])):not(:has(.dine-in-global-chat-fab:not([hidden]))) .help-bot-panel {
-  bottom: calc(12.1rem + env(safe-area-inset-bottom, 0px));
-}
-
-body:has(.dine-in-global-chat-fab:not([hidden])) .help-bot-panel {
-  bottom: calc(15.7rem + env(safe-area-inset-bottom, 0px));
 }
 
 body.help-bot-open {
@@ -349,20 +333,6 @@ a.help-bot-answer__action + a.help-bot-answer__action {
   background: #f7f0e4;
 }
 
-body.help-bot-open .dine-in-chat-fab,
-body.help-bot-open .dine-in-chat-panel,
-body.help-bot-open .dine-in-global-chat-fab,
-body.help-bot-open .dine-in-global-chat-panel {
-  display: none !important;
-}
-
-body.dine-in-global-chat-open .help-bot-fab,
-body.dine-in-global-chat-open .help-bot-panel,
-body:has(.dine-in-chat-fab.is-open) .help-bot-fab,
-body:has(.dine-in-chat-fab.is-open) .help-bot-panel {
-  display: none !important;
-}
-
 body.cart-open .help-bot-fab,
 body.cart-open .help-bot-panel,
 body.modal-open .help-bot-fab,
@@ -377,25 +347,13 @@ body.entry-pending .help-bot-fab {
   bottom: calc(1.35rem + env(safe-area-inset-bottom, 0px));
 }
 
-body.entry-pending:has(.dine-in-global-chat-fab:not([hidden])) .help-bot-fab {
-  bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
-}
-
 body.entry-pending .help-bot-panel {
   z-index: 10072;
   bottom: calc(5.2rem + env(safe-area-inset-bottom, 0px));
 }
 
-body.entry-pending:has(.dine-in-global-chat-fab:not([hidden])) .help-bot-panel {
-  bottom: calc(8.7rem + env(safe-area-inset-bottom, 0px));
-}
-
 body:has(#lechaim-help-bot-fab) .site-footer--compact {
   padding-bottom: calc(8.8rem + env(safe-area-inset-bottom, 0px));
-}
-
-body:has(.dine-in-global-chat-fab:not([hidden])) .site-footer--compact {
-  padding-bottom: calc(15.4rem + env(safe-area-inset-bottom, 0px));
 }
 
 @media (max-width: 640px) {
@@ -404,20 +362,8 @@ body:has(.dine-in-global-chat-fab:not([hidden])) .site-footer--compact {
     bottom: calc(4.6rem + env(safe-area-inset-bottom, 0px));
   }
 
-  body:has(.dine-in-chat-fab:not([hidden])):not(:has(.dine-in-global-chat-fab:not([hidden]))) .help-bot-fab {
-    bottom: calc(7.6rem + env(safe-area-inset-bottom, 0px));
-  }
-
-  body:has(.dine-in-global-chat-fab:not([hidden])) .help-bot-fab {
-    bottom: calc(11.2rem + env(safe-area-inset-bottom, 0px));
-  }
-
   body.entry-pending .help-bot-fab {
     bottom: calc(1.2rem + env(safe-area-inset-bottom, 0px));
-  }
-
-  body.entry-pending:has(.dine-in-global-chat-fab:not([hidden])) .help-bot-fab {
-    bottom: calc(4.7rem + env(safe-area-inset-bottom, 0px));
   }
 }
 
@@ -463,9 +409,5 @@ body:has(.dine-in-global-chat-fab:not([hidden])) .site-footer--compact {
 
   body.entry-pending .help-bot-fab {
     bottom: calc(1.1rem + env(safe-area-inset-bottom, 0px));
-  }
-
-  body.entry-pending:has(.dine-in-global-chat-fab:not([hidden])) .help-bot-fab {
-    bottom: calc(4.55rem + env(safe-area-inset-bottom, 0px));
   }
 }

@@ -5857,7 +5857,7 @@
     };
 
     syncTotals();
-    remoteTotalSyncTimer = window.setInterval(syncTotals, 4000);
+    remoteTotalSyncTimer = window.setInterval(syncTotals, 45000);
 
     try {
       sessionWatchUnsub = api.subscribeToOrders((payload) => {
@@ -5868,7 +5868,9 @@
           if (row.status === 'closed') {
             console.log('[session-watch] Realtime closed — returning to entry');
             returnCustomerToEntryGate();
+            return;
           }
+          syncTotals();
           return;
         }
 
@@ -5876,14 +5878,8 @@
           const row = payload.new || payload.old || payload.payload?.new || payload.payload?.old;
           if (row?.session_id != null && String(row.session_id) !== String(remoteId)) return;
           syncTotals();
-          return;
         }
-
-        if (table === 'order_items') {
-          /* Item rows may lack session_id — refresh this session's full order. */
-          syncTotals();
-        }
-      });
+      }, { sessionId: remoteId });
     } catch (err) {
       console.warn('[session-watch] subscribe failed', err);
     }

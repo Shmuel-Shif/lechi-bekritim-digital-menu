@@ -607,7 +607,7 @@
       api.getSession?.(sessionId).then((remote) => {
         if (remote && remote.status === 'closed') resetAfterAdminClose();
       }).catch(() => {});
-    }, 5000);
+    }, 45000);
 
     try {
       sessionWatchUnsub = api.subscribeToOrders((payload) => {
@@ -615,13 +615,17 @@
         if (table === 'order_sessions') {
           const row = payload.new || payload.payload?.new;
           if (!row || String(row.session_id) !== sessionId) return;
-          if (row.status === 'closed') resetAfterAdminClose();
+          if (row.status === 'closed') {
+            resetAfterAdminClose();
+            return;
+          }
+          syncRemoteReceiptItems();
           return;
         }
-        if (table === 'orders' || table === 'order_items') {
+        if (table === 'orders') {
           syncRemoteReceiptItems();
         }
-      });
+      }, { sessionId });
     } catch (err) {
       console.warn('[shabbat] subscribe failed', err);
     }
