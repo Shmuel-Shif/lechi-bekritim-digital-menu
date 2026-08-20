@@ -128,9 +128,11 @@
       }
       case 'butcher':
         return 'BUTCHER SHOP';
-      case 'shabbat':
-        /* Shabbat orders are not printed from the regular kitchen flow */
+      case 'shabbat': {
+        const no = order.publicOrderNo || order.public_order_no;
+        if (no != null && Number(no) > 0) return `SHABBAT #${Number(no)}`;
         return 'SHABBAT';
+      }
       case 'dine_in':
         if (order?.tableNumber != null && order.tableNumber !== '') {
           return `TABLE ${order.tableNumber}`;
@@ -173,12 +175,7 @@
 
     const lines = [];
     if (classified === 'shabbat') {
-      lines.push(
-        'SHABBAT ORDER',
-        `Customer: ${name}`,
-        `Phone: ${phone}`,
-        `Pickup: ${pickup}`,
-      );
+      /* Number is already on the SHABBAT # line (large), same as TAKEAWAY. */
     } else if (classified === 'butcher') {
       const type = String(order.pickupType || order.pickup_type || '').toUpperCase();
       const time = order.pickupTime || order.pickup_time || null;

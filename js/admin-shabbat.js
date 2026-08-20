@@ -261,6 +261,9 @@
       couponCode: session.coupon_code || null,
       discountPercent: session.discount_percent,
       discountAmount: session.discount_amount != null ? Number(session.discount_amount) : 0,
+      publicOrderNo: session.public_order_no == null
+        ? null
+        : Number(session.public_order_no),
       uiStatus: entryStatus({ orders }),
     };
   }
@@ -274,6 +277,7 @@
       orderType: 'shabbat',
       total: Number(entry?.total) || 0,
       order: {
+        publicOrderNo: entry?.publicOrderNo != null ? Number(entry.publicOrderNo) : null,
         customerName: name === '—' ? '' : name,
         customerPhone: phone === '—' ? '' : phone,
         customerNotes: entry?.customerNotes || '',
@@ -367,6 +371,11 @@
         role="button"
         tabindex="0"
       >
+        <span class="table-card__num">${
+          entry.publicOrderNo != null
+            ? `#${escapeHtml(String(entry.publicOrderNo))}`
+            : 'שבת'
+        }</span>
         <span class="table-card__badge">שבת</span>
         <span class="table-card__customer">${escapeHtml(entry.customerName)}</span>
         <span class="table-card__phone" dir="ltr">${escapeHtml(entry.customerPhone)}</span>
@@ -684,7 +693,7 @@
       customerNotes: entry.customerNotes,
       pickupType: 'TIME',
       pickupTime: entry.pickupTime || '14:00',
-      publicOrderNo: null,
+      publicOrderNo: entry.publicOrderNo != null ? Number(entry.publicOrderNo) : null,
       _skipLocalMarkPrinted: true,
     };
   }
@@ -709,6 +718,12 @@
     updateActionButtons(entry);
     let printedOk = false;
     try {
+      const hasNo = Number(synthetic.publicOrderNo) > 0;
+      if (!hasNo && typeof api?.ensurePublicOrderNo === 'function') {
+        const assigned = await api.ensurePublicOrderNo(entry.sessionId);
+        synthetic.publicOrderNo = assigned;
+        entry.publicOrderNo = assigned;
+      }
       const ok = await print.printOrder(synthetic);
       if (ok !== true) {
         showToast('ההדפסה נכשלה — נסה שוב');

@@ -103,7 +103,8 @@
   }
 
   /**
-   * Next customer-facing Takeaway order number (starts at 1001).
+   * Next customer-facing order number (starts at 1001).
+   * Shared by takeaway, delivery, and Shabbat sessions.
    */
   async function allocatePublicOrderNo(sb) {
     const { data, error } = await sb
@@ -187,11 +188,10 @@
         break;
       }
       case 'shabbat':
-        /* Fixed Friday pickup window — no ASAP / no public takeaway number */
+        /* Fixed Friday pickup window — no ASAP */
         row.pickup_type = 'TIME';
         row.pickup_time = row.pickup_time ? String(row.pickup_time) : '14:00';
         row.pickup_date = null;
-        row.public_order_no = null;
         row.customer_address = null;
         row.fulfillment_type = null;
         break;
@@ -245,7 +245,7 @@
 
     let lastError = null;
     for (let attempt = 0; attempt < 5; attempt += 1) {
-      if (orderType === 'takeaway') {
+      if (orderType === 'takeaway' || orderType === 'shabbat') {
         row.public_order_no = await allocatePublicOrderNo(sb);
       }
 
@@ -260,7 +260,7 @@
       /* Unique public_order_no race — retry with a fresh number */
       const isUniqueConflict = error.code === '23505'
         || /public_order_no|duplicate/i.test(String(error.message || ''));
-      if (orderType === 'takeaway' && isUniqueConflict) {
+      if ((orderType === 'takeaway' || orderType === 'shabbat') && isUniqueConflict) {
         lastError = error;
         continue;
       }
@@ -766,6 +766,7 @@
     'coupon_code',
     'discount_percent',
     'status',
+    'public_order_no',
   ].join(', ');
 
   const OPEN_SHABBAT_ORDER_COLS = [
@@ -1108,6 +1109,63 @@
 
     throwIfError(error, 'updateSessionStatus');
     return data;
+  }
+
+  /**
+   * Assign a public order number if the session does not have one yet.
+   * Used for older Shabbat cards created before numbers were allocated.
+   */
+  async function ensurePublicOrderNo(sessionId) {
+    const sb = getClient();
+    const id = String(sessionId || '');
+    if (!id) {
+      throw new Error('[LechaimSupabaseOrders.ensurePublicOrderNo] sessionId is required');
+    }
+
+    const { data: current, error: readErr } = await sb
+      .from(TABLE_SESSIONS)
+      .select('public_order_no')
+      .eq('session_id', id)
+      .single();
+    throwIfError(readErr, 'ensurePublicOrderNo.read');
+
+    const existing = Number(current?.public_order_no);
+    if (Number.isFinite(existing) && existing > 0) return existing;
+
+    let lastError = null;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const next = await allocatePublicOrderNo(sb);
+      const { data, error } = await sb
+        .from(TABLE_SESSIONS)
+        .update({ public_order_no: next })
+        .eq('session_id', id)
+        .is('public_order_no', null)
+        .select('public_order_no')
+        .single();
+
+      if (!error && data) {
+        const n = Number(data.public_order_no);
+        if (Number.isFinite(n) && n > 0) return n;
+      }
+
+      const { data: again } = await sb
+        .from(TABLE_SESSIONS)
+        .select('public_order_no')
+        .eq('session_id', id)
+        .single();
+      const assigned = Number(again?.public_order_no);
+      if (Number.isFinite(assigned) && assigned > 0) return assigned;
+
+      const isUniqueConflict = error?.code === '23505'
+        || /public_order_no|duplicate/i.test(String(error?.message || ''));
+      if (isUniqueConflict) {
+        lastError = error;
+        continue;
+      }
+      throwIfError(error, 'ensurePublicOrderNo');
+    }
+
+    throw lastError || new Error('[LechaimSupabaseOrders.ensurePublicOrderNo] failed');
   }
 
   function emitOrderEvent(listeners, table, payload) {
@@ -2133,6 +2191,7 @@
     markOrderApproved,
     markOrderPrinted,
     updateSessionStatus,
+    ensurePublicOrderNo,
     validateCoupon,
     incrementCouponUse,
     getCouponUsageReport,
