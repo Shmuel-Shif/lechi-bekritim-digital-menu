@@ -1,6 +1,7 @@
 /**
  * LECHAIM — Admin inventory & menu management UI
  * Catalog scopes: weekday / shabbat / butcher via LechaimInventory.getCatalog({ scope }).
+ * Warehouse catalog is isolated (LechaimStockCatalog) — not dish inventory.
  */
 (function () {
   'use strict';
@@ -24,6 +25,8 @@
   const searchInput = document.getElementById('admin-inventory-filter');
   const filtersEl = document.querySelector('.admin-filters');
   const scopesEl = document.querySelector('.admin-inventory-scopes');
+  const dishInventoryUi = document.getElementById('admin-inventory-dish-ui');
+  const stockPanel = document.getElementById('admin-stock-panel');
   const statTotal = document.getElementById('stat-total');
   const statAvailable = document.getElementById('stat-available');
   const statUnavailable = document.getElementById('stat-unavailable');
@@ -229,7 +232,21 @@
     return `€${price}`;
   }
 
+  function isWarehouseScope() {
+    return currentInventoryScope === 'warehouse';
+  }
+
+  function applyInventoryScopeUi() {
+    const warehouse = isWarehouseScope();
+    if (dishInventoryUi) dishInventoryUi.hidden = warehouse;
+    if (stockPanel) stockPanel.hidden = !warehouse;
+    if (warehouse) {
+      window.LechaimAdminStock?.render?.();
+    }
+  }
+
   function refreshCatalogCache() {
+    if (isWarehouseScope()) return catalogCache;
     catalogCache = LechaimInventory.getCatalog({ scope: currentInventoryScope });
     if (!catalogCache.length) {
       const report = LechaimInventory.diagnoseMenuGlobals?.() || {
@@ -345,6 +362,8 @@
   }
 
   function renderList() {
+    applyInventoryScopeUi();
+    if (isWarehouseScope()) return;
     if (!listEl) return;
 
     refreshCatalogCache();
@@ -376,6 +395,7 @@
   }
 
   function updateCard(productId) {
+    if (isWarehouseScope()) return;
     refreshCatalogCache();
     updateStats();
 
@@ -812,6 +832,7 @@
       if (!inventorySubscribed) {
         inventorySubscribed = true;
         LechaimInventory.subscribe((payload) => {
+          if (isWarehouseScope()) return;
           if (currentTab !== 'inventory') {
             refreshCatalogCache();
             updateStats();

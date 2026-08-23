@@ -4839,3 +4839,105 @@ body.admin-modal-open {
   }
 }
 
+/* Warehouse / raw-goods catalog — isolated from dish inventory cards */
+.stock-catalog__lead {
+  margin: 0 0 1rem;
+  color: var(--color-text-muted);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.stock-catalog {
+  display: grid;
+  gap: 1.15rem;
+}
+
+.stock-category {
+  background: var(--color-white);
+  border: 1px solid var(--color-border-strong, #d9d0c0);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 1px 0 rgba(30, 51, 84, 0.04);
+}
+
+.stock-category__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  background: #f7f1e6;
+  border-bottom: 1px solid var(--color-border-strong, #d9d0c0);
+}
+
+.stock-category__title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--color-navy);
+}
+
+.stock-category__emoji {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.stock-category__count {
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+.stock-category__list {
+  display: grid;
+}
+
+.stock-group + .stock-group {
+  border-top: 1px solid var(--color-border-strong, #d9d0c0);
+}
+
+.stock-group__title {
+  margin: 0;
+  padding: 0.65rem 1rem 0.15rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--color-text-muted);
+}
+
+.stock-category__empty {
+  margin: 0;
+  padding: 1.1rem 1rem;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+}
+
+.stock-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.85rem 1rem;
+  border-top: 1px solid rgba(30, 51, 84, 0.08);
+}
+
+.stock-row:first-child {
+  border-top: none;
+}
+
+.stock-row__name {
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--color-navy);
+}
+
+/* Reserved for qty / unit / min / alert / +/- — unhide in the next stage */
+.stock-row__slot[hidden] {
+  display: none;
+}
+

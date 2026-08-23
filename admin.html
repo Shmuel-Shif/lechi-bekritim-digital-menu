@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=49">
+  <link rel="stylesheet" href="css/admin.css?v=51">
   <link rel="icon" href="assets/logo/logo.webp" type="image/webp">
 </head>
 <body>
@@ -534,8 +534,10 @@
           <button type="button" class="admin-filter" data-inventory-scope="shabbat" role="tab" aria-selected="false">מלאי של שבת</button>
           <button type="button" class="admin-filter is-active" data-inventory-scope="weekday" role="tab" aria-selected="true">מלאי יום חול</button>
           <button type="button" class="admin-filter" data-inventory-scope="butcher" role="tab" aria-selected="false">מלאי חנות בשרים</button>
+          <button type="button" class="admin-filter" data-inventory-scope="warehouse" role="tab" aria-selected="false">📦 מלאי מחסן</button>
         </div>
 
+        <div id="admin-inventory-dish-ui">
         <div class="admin-stats" id="admin-stats" aria-live="polite">
           <div class="admin-stat">
             <span class="admin-stat__value" id="stat-total">0</span>
@@ -581,6 +583,9 @@
 
         <p class="admin-status" id="admin-status" aria-live="polite"></p>
         <div class="admin-list" id="admin-list"></div>
+        </div>
+
+        <div id="admin-stock-panel" hidden></div>
       </div>
 
       <!-- Coupons tab -->
@@ -621,7 +626,7 @@
             <h2 class="staff-panel__title">Enter personal code</h2>
             <label class="admin-field">
               <span>Employee code</span>
-              <input type="password" id="staff-clock-pin" inputmode="numeric" autocomplete="off" maxlength="12" dir="ltr">
+              <input type="password" id="staff-clock-pin" inputmode="numeric" autocomplete="off" maxlength="12" dir="ltr" placeholder="••••">
             </label>
             <div class="staff-clock-card__actions">
               <button type="button" class="admin-btn admin-btn--primary" id="staff-clock-in">Clock in</button>
@@ -652,7 +657,7 @@
             </label>
             <label class="admin-field staff-field--inline">
               <span>קוד עובד</span>
-              <input type="password" id="staff-shifts-pin" inputmode="numeric" autocomplete="off" maxlength="12" dir="ltr">
+              <input type="password" id="staff-shifts-pin" inputmode="numeric" autocomplete="off" maxlength="12" dir="ltr" placeholder="••••">
             </label>
             <button type="button" class="admin-btn admin-btn--primary" id="staff-shifts-load">הצג</button>
             <button type="button" class="admin-btn admin-btn--print" id="staff-shifts-print" hidden>הדפס</button>
@@ -672,7 +677,7 @@
             </label>
             <label class="admin-field staff-field--inline">
               <span>קוד עובד</span>
-              <input type="password" id="staff-summary-pin" inputmode="numeric" autocomplete="off" maxlength="12" dir="ltr">
+              <input type="password" id="staff-summary-pin" inputmode="numeric" autocomplete="off" maxlength="12" dir="ltr" placeholder="••••">
             </label>
             <button type="button" class="admin-btn admin-btn--primary" id="staff-summary-load">הצג</button>
             <button type="button" class="admin-btn admin-btn--print" id="staff-summary-print" hidden>הדפס</button>
@@ -1146,7 +1151,9 @@
   <script src="js/admin-till.js?v=3" defer></script>
   <script src="js/admin-staff-hours.js?v=4" defer></script>
   <script src="js/admin-settings.js?v=6" defer></script>
-  <script src="js/admin.js?v=55" defer></script>
+  <script src="js/stock-catalog.js?v=6" defer></script>
+  <script src="js/admin-stock.js?v=2" defer></script>
+  <script src="js/admin.js?v=56" defer></script>
   <script src="js/admin-pwa.js" defer></script>
 </body>
 </html>
