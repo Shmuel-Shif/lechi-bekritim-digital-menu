@@ -405,6 +405,7 @@
     return shiftsCache;
   }
 
+
   async function sha256Hex(text) {
     const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(text || '').trim()));
     return Array.from(new Uint8Array(buf))
@@ -414,7 +415,7 @@
 
   async function findEmployeeByPin(pin) {
     if (!/^\d{4,12}$/.test(String(pin || '').trim())) {
-      throw new Error('יש להזין קוד עובד תקין (4–12 ספרות)');
+      throw new Error('הזינו קוד עובד תקין (4–12 ספרות)');
     }
     const sb = getClient();
     if (!sb) throw new Error('Supabase לא מחובר');
@@ -431,7 +432,7 @@
 
   async function loadOpenShifts() {
     const sb = getClient();
-    if (!sb) throw new Error('Supabase לא מחובר');
+    if (!sb) throw new Error('Supabase is not connected');
     const { data, error } = await sb
       .from('staff_shifts')
       .select('id, employee_id, clock_in, clock_out, hourly_rate_snapshot')
@@ -474,17 +475,17 @@
   function renderOpenNow(openShifts) {
     if (!openNowEl) return;
     if (!openShifts.length) {
-      openNowEl.innerHTML = '<p class="staff-muted">אין עובדים במשמרת כרגע</p>';
+      openNowEl.innerHTML = '<p class="staff-muted">No one is clocked in right now</p>';
       return;
     }
     openNowEl.innerHTML = `
-      <h3 class="staff-panel__subtitle">עובדים כרגע</h3>
+      <h3 class="staff-panel__subtitle">Clocked in now</h3>
       <ul class="staff-open-cards">
         ${openShifts.map((shift) => `
           <li class="staff-open-card">
             <strong dir="ltr">${escapeHtml(employeeName(shift.employee_id))}</strong>
-            <span>כניסה: ${escapeHtml(formatTimeAthens(shift.clock_in))}</span>
-            <span class="staff-badge staff-badge--open">עובד כרגע</span>
+            <span>Clock in: ${escapeHtml(formatTimeAthens(shift.clock_in))}</span>
+            <span class="staff-badge staff-badge--open">On shift</span>
           </li>
         `).join('')}
       </ul>
@@ -726,7 +727,7 @@
         </tbody>
         <tfoot>
           <tr class="staff-total-row">
-            <td><strong>TOTAL</strong></td>
+            <td><strong>סה״כ</strong></td>
             <td>1 עובד</td>
             <td dir="ltr"><strong>${escapeHtml(formatMoney(total.pay))}</strong></td>
             <td dir="ltr"><strong>${escapeHtml(String(total.days))}</strong></td>
@@ -843,9 +844,9 @@
       }
     } catch (err) {
       console.error('[staff-hours] refresh failed', err);
-      const msg = err?.message || 'שגיאה בטעינה';
+      const msg = err?.message || 'הטעינה נכשלה';
       if (/relation .* does not exist|Could not find the table/i.test(msg)) {
-        showError('יש להריץ קודם את supabase-staff-hours.sql ב־Supabase SQL Editor');
+        showError('יש להריץ קודם את supabase-staff-hours.sql ב-SQL Editor של Supabase');
       } else {
         showError(msg);
       }
@@ -1001,18 +1002,18 @@
 
   function mapRpcError(err) {
     const msg = String(err?.message || err || '');
-    if (/pin_taken/i.test(msg)) return 'הקוד כבר בשימוש אצל עובד אחר';
+    if (/pin_taken/i.test(msg)) return 'הקוד הזה כבר בשימוש אצל עובד אחר';
     if (/pin_required|invalid_pin|pin_digits/i.test(msg)) return 'קוד אישי לא תקין (4–12 ספרות)';
-    if (/name_required/i.test(msg)) return 'חובה להזין שם';
+    if (/name_required/i.test(msg)) return 'יש למלא שם';
     if (/not_authenticated/i.test(msg)) return 'יש להתחבר לאדמין';
-    if (/employee_not_found/i.test(msg)) return 'העובד לא נמצא';
+    if (/employee_not_found/i.test(msg)) return 'עובד לא נמצא';
     return msg || 'שגיאה';
   }
 
   async function deleteEmployee(emp) {
     if (!emp?.id || busy) return;
     const ok = await showConfirm(
-      `למחוק את ${emp.name_en}?\nכל המשמרות שלו יימחקו גם כן.`,
+      `למחוק את ${emp.name_en}?\nכל המשמרות שלו יימחקו גם.`,
       'מחק'
     );
     if (!ok) return;
@@ -1075,7 +1076,7 @@
     const active = Boolean(document.getElementById('staff-employee-active')?.checked);
 
     if (!name) {
-      showFormError(employeeFormError, 'חובה להזין שם באנגלית');
+      showFormError(employeeFormError, 'שם באנגלית חובה');
       return;
     }
     if (!Number.isFinite(rate) || rate < 0) {
@@ -1083,7 +1084,7 @@
       return;
     }
     if (!id && (!pin || pin.length < 4)) {
-      showFormError(employeeFormError, 'חובה להזין קוד אישי (4–12 ספרות)');
+      showFormError(employeeFormError, 'קוד אישי חובה (4–12 ספרות)');
       return;
     }
     if (pin && !/^\d{4,12}$/.test(pin)) {
@@ -1152,7 +1153,7 @@
         .delete()
         .in('id', ids);
       if (error) throw error;
-      showToast(`היום ${label} אופס`);
+      showToast(`${label} אופס`);
       await loadShiftsForMonth(shiftsMonth?.value || currentMonthValue(), shiftsViewEmployee.id);
       renderShifts();
     } catch (err) {
@@ -1174,12 +1175,12 @@
     const timeOut = document.getElementById('staff-shift-out')?.value || '';
 
     if (!employeeId || !date || !timeIn) {
-      showFormError(shiftFormError, 'יש למלא עובד, תאריך ושעת כניסה');
+      showFormError(shiftFormError, 'חובה לבחור עובד, תאריך ושעת כניסה');
       return;
     }
     const clockInIso = athensDateTimeToIso(date, timeIn);
     if (!clockInIso) {
-      showFormError(shiftFormError, 'תאריך/שעת כניסה לא תקינים');
+      showFormError(shiftFormError, 'תאריך / שעת כניסה לא תקינים');
       return;
     }
     let clockOutIso = null;
@@ -1196,7 +1197,7 @@
         return;
       }
       if (new Date(clockOutIso) < new Date(clockInIso)) {
-        showFormError(shiftFormError, 'שעת יציאה חייבת להיות אחרי הכניסה');
+        showFormError(shiftFormError, 'שעת יציאה חייבת להיות אחרי שעת כניסה');
         return;
       }
     }
@@ -1247,7 +1248,7 @@
       console.error('[staff-hours] save shift', err);
       const msg = String(err?.message || '');
       if (/staff_shifts_one_open_per_employee|duplicate key/i.test(msg)) {
-        showFormError(shiftFormError, 'לעובד כבר יש משמרת פתוחה — סגרו אותה או ערכו אותה');
+        showFormError(shiftFormError, 'לעובד זה כבר יש משמרת פתוחה — סגרו אותה או ערכו אותה');
       } else {
         showFormError(shiftFormError, msg || 'לא ניתן לשמור');
       }
@@ -1260,12 +1261,12 @@
     if (busy) return;
     const pin = pinInput?.value?.trim() || '';
     if (!/^\d{4,12}$/.test(pin)) {
-      showError('יש להזין קוד תקין (4–12 ספרות)');
+      showError('Enter a valid code (4–12 digits)');
       return;
     }
     const sb = getClient();
     if (!sb) {
-      showError('Supabase לא מחובר');
+      showError('Supabase is not connected');
       return;
     }
     busy = true;
@@ -1280,26 +1281,26 @@
       if (!res.ok) {
         if (res.error === 'already_clocked_in') {
           showError(
-            `${res.employee_name || ''} · כניסה: ${formatTimeAthens(res.clock_in)} · סטטוס: עובד כרגע — לא ניתן לבצע כניסה נוספת`
+            `${res.employee_name || ''} · Clock in: ${formatTimeAthens(res.clock_in)} · Status: already on shift — cannot clock in again`
           );
         } else if (res.error === 'not_clocked_in') {
-          showError(`${res.employee_name || ''}: אין משמרת פתוחה ליציאה`);
+          showError(`${res.employee_name || ''}: no open shift to clock out`);
         } else if (res.error === 'invalid_pin') {
-          showError('קוד שגוי');
+          showError('Wrong code');
         } else if (res.error === 'inactive') {
-          showError(`${res.employee_name || ''}: העובד לא פעיל`);
+          showError(`${res.employee_name || ''}: employee is inactive`);
         } else {
-          showError(res.error || 'שגיאה');
+          showError(res.error || 'Error');
         }
         return;
       }
 
       if (pinInput) pinInput.value = '';
       if (res.action === 'in') {
-        showToast(`${res.employee_name || ''} · כניסה ${formatTimeAthens(res.clock_in)}`);
+        showToast(`${res.employee_name || ''} · Clock in ${formatTimeAthens(res.clock_in)}`);
       } else {
         showToast(
-          `${res.employee_name || ''} · יציאה ${formatTimeAthens(res.clock_out)} · ${formatHours(res.hours)} שעות`
+          `${res.employee_name || ''} · Clock out ${formatTimeAthens(res.clock_out)} · ${formatHours(res.hours)} hours`
         );
       }
       renderOpenNow(await loadOpenShifts());

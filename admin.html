@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=47">
+  <link rel="stylesheet" href="css/admin.css?v=49">
   <link rel="icon" href="assets/logo/logo.webp" type="image/webp">
 </head>
 <body>
@@ -91,9 +91,9 @@
         <div class="admin-tabs__group">
           <span class="admin-tabs__label">ניהול</span>
           <div class="admin-tabs__row">
+            <button type="button" class="admin-tab" data-tab="staff-hours">Attendance hours</button>
             <button type="button" class="admin-tab" data-tab="history">היסטוריה</button>
             <button type="button" class="admin-tab" data-tab="till">מכירות</button>
-            <button type="button" class="admin-tab" data-tab="staff-hours">שעות עובדים</button>
             <button type="button" class="admin-tab" data-tab="inventory">מלאי</button>
             <button type="button" class="admin-tab" data-tab="stats">קופונים</button>
             <button type="button" class="admin-tab" data-tab="settings">הגדרות</button>
@@ -601,13 +601,13 @@
         <header class="admin-header">
           <div class="admin-header__text">
             <p class="admin-header__eyebrow">ניהול</p>
-            <h1 class="admin-header__title">שעות עובדים</h1>
-            <p class="admin-header__subtitle">עובדים · כניסה/יציאה · משמרות · סיכום חודשי</p>
+            <h1 class="admin-header__title">Attendance hours</h1>
+            <p class="admin-header__subtitle">Clock in / Clock out · עובדים · משמרות · סיכום חודשי</p>
           </div>
         </header>
 
-        <div class="staff-hours-subtabs" role="tablist" aria-label="שעות עובדים">
-          <button type="button" class="admin-filter is-active" data-staff-panel="clock" role="tab" aria-selected="true">כניסה / יציאה</button>
+        <div class="staff-hours-subtabs" role="tablist" aria-label="Attendance hours">
+          <button type="button" class="admin-filter is-active" data-staff-panel="clock" role="tab" aria-selected="true">Clock in / Clock out</button>
           <button type="button" class="admin-filter" data-staff-panel="employees" role="tab" aria-selected="false">עובדים</button>
           <button type="button" class="admin-filter" data-staff-panel="shifts" role="tab" aria-selected="false">משמרות</button>
           <button type="button" class="admin-filter" data-staff-panel="summary" role="tab" aria-selected="false">סיכום חודשי</button>
@@ -616,16 +616,16 @@
         <p class="admin-error" id="staff-hours-error" role="alert" hidden></p>
         <p class="admin-toast" id="staff-hours-toast" role="status" aria-live="polite" hidden></p>
 
-        <section class="staff-panel" id="staff-panel-clock" data-staff-panel-view="clock">
+        <section class="staff-panel" id="staff-panel-clock" data-staff-panel-view="clock" lang="en" dir="ltr">
           <article class="staff-clock-card">
-            <h2 class="staff-panel__title">הזנת קוד אישי</h2>
+            <h2 class="staff-panel__title">Enter personal code</h2>
             <label class="admin-field">
-              <span>קוד עובד</span>
+              <span>Employee code</span>
               <input type="password" id="staff-clock-pin" inputmode="numeric" autocomplete="off" maxlength="12" dir="ltr" placeholder="••••">
             </label>
             <div class="staff-clock-card__actions">
-              <button type="button" class="admin-btn admin-btn--primary" id="staff-clock-in">כניסה</button>
-              <button type="button" class="admin-btn admin-btn--soft" id="staff-clock-out">יציאה</button>
+              <button type="button" class="admin-btn admin-btn--primary" id="staff-clock-in">Clock in</button>
+              <button type="button" class="admin-btn admin-btn--soft" id="staff-clock-out">Clock out</button>
             </div>
           </article>
           <div class="staff-open-list" id="staff-open-now"></div>
@@ -633,7 +633,7 @@
 
         <section class="staff-panel" id="staff-panel-employees" data-staff-panel-view="employees" hidden>
           <div class="staff-panel__toolbar">
-            <h2 class="staff-panel__title">ניהול עובדים</h2>
+            <h2 class="staff-panel__title">עובדים</h2>
             <button type="button" class="admin-btn admin-btn--primary" id="staff-employee-new">עובד חדש</button>
           </div>
           <div class="staff-table-wrap" id="staff-employees-table"></div>
@@ -1144,7 +1144,7 @@
   <script src="js/admin-history.js?v=2" defer></script>
   <script src="js/admin-coupons.js" defer></script>
   <script src="js/admin-till.js?v=3" defer></script>
-  <script src="js/admin-staff-hours.js" defer></script>
+  <script src="js/admin-staff-hours.js?v=3" defer></script>
   <script src="js/admin-settings.js?v=6" defer></script>
   <script src="js/admin.js?v=55" defer></script>
   <script src="js/admin-pwa.js" defer></script>

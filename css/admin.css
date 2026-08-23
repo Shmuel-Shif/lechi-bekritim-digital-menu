@@ -4016,6 +4016,11 @@ body.admin-modal-open {
   margin: 0 0 1rem;
 }
 
+#staff-panel-clock {
+  direction: ltr;
+  text-align: start;
+}
+
 .staff-panel__title {
   margin: 0;
   font-size: 1.15rem;
