@@ -7,6 +7,11 @@
 
   const TZ = 'Europe/Athens';
   const EMP_COLS = 'id, name_en, position, hourly_rate, bank_account, bank_name, active, created_at, updated_at';
+  const PUNCH_SOUNDS = [
+    'assets/audio/welcome.mp3',
+    'assets/audio/thank-you.mp3',
+  ];
+  let punchAudio = null;
 
   const viewEl = document.getElementById('admin-view-staff-hours');
   const errorEl = document.getElementById('staff-hours-error');
@@ -1257,6 +1262,20 @@
     }
   }
 
+  function playPunchSuccessSound() {
+    const src = PUNCH_SOUNDS[Math.floor(Math.random() * PUNCH_SOUNDS.length)];
+    try {
+      if (punchAudio) {
+        punchAudio.pause();
+      }
+      punchAudio = new Audio(src);
+      const play = punchAudio.play();
+      if (play && typeof play.catch === 'function') play.catch(() => {});
+    } catch (_) {
+      /* Punch already succeeded — sound is optional */
+    }
+  }
+
   async function punch(action) {
     if (busy) return;
     const pin = pinInput?.value?.trim() || '';
@@ -1296,6 +1315,7 @@
       }
 
       if (pinInput) pinInput.value = '';
+      playPunchSuccessSound();
       if (res.action === 'in') {
         showToast(`${res.employee_name || ''} · Clock in ${formatTimeAthens(res.clock_in)}`);
       } else {
