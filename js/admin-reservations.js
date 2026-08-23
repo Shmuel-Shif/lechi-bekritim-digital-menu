@@ -313,7 +313,9 @@
   function buildArrivalSlots() {
     const slots = [];
     const hours = global.LechaimOpeningHours;
-    const openMinutes = (hours?.OPEN_HOUR ?? 14) * 60;
+    const openMinutes = typeof hours?.getOpenMinutes === 'function'
+      ? hours.getOpenMinutes()
+      : (hours?.OPEN_HOUR ?? 14) * 60;
     const closeMinutes = typeof hours?.adminPlaceResSlotCloseMinutes === 'function'
       ? hours.adminPlaceResSlotCloseMinutes()
       : (21 * 60);

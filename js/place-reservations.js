@@ -59,18 +59,30 @@
     return String(n).padStart(2, '0');
   }
 
-  function buildArrivalSlots() {
+  function hoursRangeError() {
+    return global.LechaimAppSettings?.placeResTimeRequired?.('he')
+      || `נא לבחור שעה בין ${Hours()?.hoursRangeLabel?.(' ל־') || '14:00 ל־21:00'}`;
+  }
+
+  function buildArrivalSlots(ymd) {
     const slots = [];
-    const openMinutes = OPEN_HOUR * 60;
-    const lastMinutes = LAST_SLOT_HOUR * 60 + LAST_SLOT_MINUTE;
+    const hours = Hours();
+    const date = ymd ? parseYmdLocal(ymd) : new Date();
+    const openMinutes = typeof hours?.getOpenMinutes === 'function'
+      ? hours.getOpenMinutes(date)
+      : (hours?.OPEN_HOUR ?? OPEN_HOUR) * 60;
+    const lastMinutes = typeof hours?.placeResSlotCloseMinutes === 'function'
+      ? hours.placeResSlotCloseMinutes(date)
+      : ((hours?.PLACE_RES_LAST_SLOT_HOUR ?? LAST_SLOT_HOUR) * 60
+        + (hours?.PLACE_RES_LAST_SLOT_MINUTE ?? LAST_SLOT_MINUTE));
     for (let m = openMinutes; m <= lastMinutes; m += SLOT_STEP_MINUTES) {
       slots.push(`${pad2(Math.floor(m / 60))}:${pad2(m % 60)}`);
     }
     return slots;
   }
 
-  function isValidArrivalTime(value) {
-    return buildArrivalSlots().includes(String(value || '').trim());
+  function isValidArrivalTime(value, ymd) {
+    return buildArrivalSlots(ymd).includes(String(value || '').trim());
   }
 
   function normalizeDateStr(value) {
@@ -199,11 +211,11 @@
    * Counts pending + confirmed + arrived (soft holds).
    */
   async function getUnavailableSlots(dateStr, partySize) {
-    if (isPlaceResWeekend(dateStr)) return buildArrivalSlots().slice();
+    if (isPlaceResWeekend(dateStr)) return buildArrivalSlots(dateStr).slice();
     const sizeRaw = Math.floor(Number(partySize));
     const size = Number.isFinite(sizeRaw) && sizeRaw >= 1 ? sizeRaw : 1;
     const occupancy = await getOccupancyForDate(dateStr);
-    return buildArrivalSlots().filter((slot) => {
+    return buildArrivalSlots(dateStr).filter((slot) => {
       const occupied = occupiedSeatsForWindow(occupancy, slot);
       return occupied + size > CAPACITY_SEATS;
     });
@@ -216,7 +228,7 @@
       e.code = 'CAPACITY_EXCEEDED';
       return e;
     }
-    if (msg.includes('TIME_INVALID')) return new Error('נא לבחור שעה בין 14:00 ל־21:00');
+    if (msg.includes('TIME_INVALID')) return new Error(hoursRangeError());
     if (msg.includes('PHONE_INVALID')) return new Error('נא להזין טלפון תקין');
     if (msg.includes('PARTY_SIZE_INVALID')) {
       return new Error(`נא להזין מספר סועדים (1–${CAPACITY_SEATS})`);
@@ -253,8 +265,8 @@
     if (isPlaceResWeekend(reservation_date)) {
       throw new Error('לא ניתן להזמין מקום בשישי ובשבת — המסעדה סגורה');
     }
-    if (!isValidArrivalTime(arrival_time)) {
-      throw new Error('נא לבחור שעה בין 14:00 ל־21:00');
+    if (!isValidArrivalTime(arrival_time, reservation_date)) {
+      throw new Error(hoursRangeError());
     }
 
     const { data, error } = await sb.rpc('create_place_reservation_request', {
@@ -297,7 +309,7 @@
       throw new Error('לא ניתן להזמין מקום בשישי ובשבת — המסעדה סגורה');
     }
     const arrivalNormalized = minutesToTime(timeToMinutes(arrival_time));
-    if (!arrivalNormalized) throw new Error('נא לבחור שעה בין 14:00 ל־21:00');
+    if (!arrivalNormalized) throw new Error(hoursRangeError());
 
     const occupancy = await getOccupancyForDate(reservation_date);
     const others = occupiedSeatsForWindow(occupancy, arrivalNormalized);

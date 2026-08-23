@@ -19,6 +19,7 @@
       welcome: '✦ Welcome ✦',
       title: 'to Lechaim Restaurant in Crete',
       kosher: 'Mehadrin Kosher',
+      hoursSummary: 'Sun–Thu 14:00–21:00 · Fri–Sat closed',
       promptOrder: 'How would you like to order?',
       promptTable: 'Choose the number of the table you are seated at.',
       tableFind: 'The table number is on the table.',
@@ -37,9 +38,9 @@
       takeAway: 'Takeaway',
       takeAwayWithDelivery: 'Takeaway / Delivery',
       takeAwayHint: 'Order and pick up from the restaurant',
-      takeAwayHintWithDelivery: 'Pickup from the restaurant or delivery (€10, about 1.5 hours) · min. order €100',
+      takeAwayHintWithDelivery: 'Pickup from the restaurant or delivery (€10, 30–45 minutes) · min. order €100',
       deliveryOrder: 'Delivery',
-      deliveryOrderHint: 'Delivery €10 · about 1.5 hours · minimum order €100',
+      deliveryOrderHint: 'Delivery €10 · 30–45 minutes · minimum order €100',
       fulfillmentType: 'Order type',
       fulfillmentPickup: 'Takeaway',
       fulfillmentDelivery: 'Delivery',
@@ -130,6 +131,7 @@
       welcome: '✦ ברוכים הבאים ✦',
       title: 'למסעדת לחיים בכרתים',
       kosher: 'כשר למהדרין',
+      hoursSummary: 'א׳–ה׳ 14:00–21:00 · שישי–שבת סגור',
       promptOrder: 'איך תרצו להזמין?',
       promptTable: 'בחרו את מספר השולחן שעליו אתם יושבים.',
       tableFind: 'מספר השולחן נמצא על השולחן.',
@@ -148,9 +150,9 @@
       takeAway: 'איסוף עצמי',
       takeAwayWithDelivery: 'איסוף עצמי / משלוחים',
       takeAwayHint: 'הזמינו ואספו מהמסעדה',
-      takeAwayHintWithDelivery: 'איסוף מהמסעדה או משלוח בעלות €10 · זמן משלוח כשעה וחצי · מינימום הזמנה €100',
+      takeAwayHintWithDelivery: 'איסוף מהמסעדה או משלוח בעלות €10 · זמן משלוח 30–45 דקות · מינימום הזמנה €100',
       deliveryOrder: 'משלוח',
-      deliveryOrderHint: 'משלוח בעלות €10 · זמן משלוח כשעה וחצי · מינימום הזמנה €100',
+      deliveryOrderHint: 'משלוח בעלות €10 · זמן משלוח 30–45 דקות · מינימום הזמנה €100',
       fulfillmentType: 'סוג הזמנה',
       fulfillmentPickup: 'איסוף עצמי',
       fulfillmentDelivery: 'משלוח',
@@ -353,6 +355,10 @@
   let changingTable = false;
 
   function t(key) {
+    try {
+      const overlay = window.LechaimAppSettings?.copy?.(key, state.lang);
+      if (overlay) return overlay;
+    } catch (_) { /* keep static fallback */ }
     return (COPY[state.lang] || COPY.en)[key] || key;
   }
 
@@ -583,6 +589,7 @@
       teardownHomeReveal();
     }
     applyEntryCopy();
+    applyClosedDayOnHome();
   }
 
   scrollHintBtn?.addEventListener('click', () => {
@@ -611,7 +618,7 @@
 
   function fillPlaceResTimeSlots(unavailable = []) {
     if (!placeResTime) return;
-    const slots = window.LechaimPlaceReservations?.buildArrivalSlots?.()
+    const slots = window.LechaimPlaceReservations?.buildArrivalSlots?.(placeResDate?.value)
       || (() => {
         const list = [];
         for (let m = 14 * 60; m <= 20 * 60 + 30; m += 30) {
@@ -670,7 +677,7 @@
     }
 
     if (isPlaceResWeekendDate(dateStr)) {
-      fillPlaceResTimeSlots(api.buildArrivalSlots?.() || []);
+      fillPlaceResTimeSlots(api.buildArrivalSlots?.(dateStr) || []);
       showPlaceResError(t('placeResWeekendClosed'));
       return;
     }
@@ -683,7 +690,7 @@
       );
       if (token !== placeResSlotsToken) return;
       fillPlaceResTimeSlots(unavailable);
-      const slots = api.buildArrivalSlots?.() || [];
+      const slots = api.buildArrivalSlots?.(dateStr) || [];
       const openCount = slots.filter((s) => !unavailable.includes(s)).length;
       if (!openCount && Number.isFinite(partySize) && partySize >= 1) {
         showPlaceResError(t('placeResNoSlots'));
@@ -871,6 +878,36 @@
   /**
    * Takeaway only: Sun–Thu OPEN..CLOSE exclusive; closed Fri–Sat and outside hours.
    */
+  async function refreshWeeklyHours() {
+    if (typeof window.LechaimAppSettings?.load === 'function') {
+      try { await window.LechaimAppSettings.load(); } catch (_) { /* keep local */ }
+      return;
+    }
+    const api = window.LechaimSupabaseOrders;
+    if (typeof api?.getWeeklyHours === 'function') {
+      try {
+        const text = await api.getWeeklyHours();
+        if (text) Hours()?.setWeeklySchedule?.(JSON.parse(text));
+      } catch (_) { /* keep local */ }
+    }
+  }
+
+  function applyClosedDayOnHome() {
+    const closed = !isDineInOrderingOpen();
+    const label = state.lang === 'en' ? 'Closed today' : 'סגור היום';
+    const dineHint = gate.querySelector('[data-order-type="dine-in"] [data-entry-i18n="dineInHint"]');
+    const takeHint = gate.querySelector('[data-order-type="takeaway"] [data-entry-i18n="takeAwayHint"]');
+    const delHint = gate.querySelector('[data-order-type="delivery"] [data-entry-i18n="deliveryOrderHint"]');
+    if (closed) {
+      if (dineHint) dineHint.textContent = label;
+      if (takeHint) takeHint.textContent = label;
+      if (delHint) delHint.textContent = label;
+    }
+    gate.querySelectorAll('[data-order-type="dine-in"], [data-order-type="takeaway"], [data-order-type="delivery"]').forEach((btn) => {
+      btn.classList.toggle('is-day-closed', closed);
+    });
+  }
+
   function isTakeawayDayOpen() {
     if (!TAKEAWAY_DAY_HOURS_ENABLED) return true;
     if (typeof Hours()?.isWithinOrderingHours === 'function') {
@@ -1327,8 +1364,9 @@
     kosherLightboxLastFocus = null;
   }
 
-  function goToTable() {
+  async function goToTable() {
     state.orderType = 'dine-in';
+    await refreshWeeklyHours();
     if (!isDineInOrderingOpen()) {
       showOrderingClosedStep('dine-in');
       return;
@@ -1454,7 +1492,9 @@
 
   function buildPickupSlots() {
     const slots = [];
-    const openMinutes = (Hours()?.OPEN_HOUR ?? 14) * 60;
+    const openMinutes = typeof Hours()?.getOpenMinutes === 'function'
+      ? Hours().getOpenMinutes()
+      : (Hours()?.OPEN_HOUR ?? 14) * 60;
     const closeMinutes = typeof Hours()?.takeawaySlotCloseMinutes === 'function'
       ? Hours().takeawaySlotCloseMinutes()
       : (21 * 60 + 45);
@@ -1564,6 +1604,8 @@
     /* Pickup button stays pickup-only; delivery button is hidden when closed */
     if (takeAwayLabelEl) takeAwayLabelEl.textContent = t('takeAway');
     if (takeAwayHintEl) takeAwayHintEl.textContent = t('takeAwayHint');
+    const deliveryHintEl = deliveryBtnEl?.querySelector('[data-entry-i18n="deliveryOrderHint"]');
+    if (deliveryHintEl) deliveryHintEl.textContent = t('deliveryOrderHint');
     if (deliveryBtnEl) {
       deliveryBtnEl.hidden = Boolean(state.deliveriesClosed);
       deliveryBtnEl.setAttribute('aria-hidden', state.deliveriesClosed ? 'true' : 'false');
@@ -1681,6 +1723,7 @@
   async function goToPickup() {
     state.orderType = 'takeaway';
     state.tableNumber = null;
+    await refreshWeeklyHours();
     if (!isTakeawayDayOpen()) {
       showOrderingClosedStep('takeaway');
       return;
@@ -1693,6 +1736,7 @@
   async function goToDelivery() {
     state.orderType = 'takeaway';
     state.tableNumber = null;
+    await refreshWeeklyHours();
     await refreshDeliveriesClosedFlag();
     if (state.deliveriesClosed) {
       applyDeliveriesMode();
@@ -1702,7 +1746,8 @@
       showOrderingClosedStep('takeaway');
       return;
     }
-    const fee = Number(window.TAKEAWAY_DEFAULT_DELIVERY_FEE)
+    const fee = Number(window.LechaimAppSettings?.getDeliveryFee?.())
+      || Number(window.TAKEAWAY_DEFAULT_DELIVERY_FEE)
       || Number(window.BUTCHER_DEFAULT_DELIVERY_FEE)
       || 10;
     finishTakeaway({ fulfillmentType: 'delivery', deliveryFee: fee });
@@ -1752,7 +1797,10 @@
     state.deliveryFee = state.fulfillmentType === 'delivery'
       ? (Number.isFinite(feeRaw) && feeRaw >= 0
         ? feeRaw
-        : (Number(window.TAKEAWAY_DEFAULT_DELIVERY_FEE) || Number(window.BUTCHER_DEFAULT_DELIVERY_FEE) || 10))
+        : (Number(window.LechaimAppSettings?.getDeliveryFee?.())
+          || Number(window.TAKEAWAY_DEFAULT_DELIVERY_FEE)
+          || Number(window.BUTCHER_DEFAULT_DELIVERY_FEE)
+          || 10))
       : null;
     state.pickupType = details.pickupType === 'TIME' ? 'TIME' : (details.pickupType === 'ASAP' ? 'ASAP' : null);
     state.pickupTime = state.pickupType === 'TIME' ? (details.pickupTime || null) : null;
@@ -2114,7 +2162,9 @@
     state.deliveryFee = state.fulfillmentType === 'delivery'
       ? (session.deliveryFee != null
         ? Number(session.deliveryFee)
-        : (Number(window.TAKEAWAY_DEFAULT_DELIVERY_FEE) || 10))
+        : (Number(window.LechaimAppSettings?.getDeliveryFee?.())
+          || Number(window.TAKEAWAY_DEFAULT_DELIVERY_FEE)
+          || 10))
       : null;
     state.pickupType = session.pickupType === 'TIME' ? 'TIME' : 'ASAP';
     state.pickupTime = state.pickupType === 'TIME' ? (session.pickupTime || null) : null;
@@ -2287,6 +2337,8 @@
         return false;
       }
 
+      if (!isDineInOrderingOpen()) return false;
+
       state.orderType = 'dine-in';
       state.tableNumber = session.tableNumber;
       if (session.lang === 'he' || session.lang === 'en') {
@@ -2366,6 +2418,10 @@
       }
       if (type === 'dine-in') {
         state.orderType = 'dine-in';
+        if (!isDineInOrderingOpen()) {
+          showOrderingClosedStep('dine-in');
+          return;
+        }
         /* Existing active table → skip picker and resume (unless remote closed) */
         if (!changingTable && Session?.hasActiveDineInSession()) {
           const session = Session.getSession();
@@ -2391,6 +2447,10 @@
       }
       if (type === 'takeaway') {
         state.orderType = 'takeaway';
+        if (!isTakeawayDayOpen()) {
+          showOrderingClosedStep('takeaway');
+          return;
+        }
         /* Resume only a matching pickup session — delivery stays separate. */
         if (Session?.hasActiveTakeawaySession()) {
           (async () => {
@@ -2409,6 +2469,10 @@
       }
       if (type === 'delivery') {
         state.orderType = 'takeaway';
+        if (!isTakeawayDayOpen()) {
+          showOrderingClosedStep('takeaway');
+          return;
+        }
         /* Resume only a matching delivery session — pickup stays separate. */
         if (Session?.hasActiveTakeawaySession()) {
           (async () => {
@@ -2533,6 +2597,9 @@
   activateGateFocusTrap();
 
   async function bootRestaurantFlags() {
+    if (typeof window.LechaimAppSettings?.load === 'function') {
+      try { await window.LechaimAppSettings.load(); } catch (_) { /* keep fallbacks */ }
+    }
     await refreshDeliveriesClosedFlag();
     await refreshShabbatOrdersEnabledFlag();
     await refreshShopForceOpenFlag();
@@ -2560,7 +2627,16 @@
         }
       });
     }
-    Hours()?.onScheduleChange?.(routeShopHoursUi);
+    Hours()?.onScheduleChange?.(() => {
+      routeShopHoursUi();
+      applyEntryCopy();
+      applyClosedDayOnHome();
+    });
+    window.LechaimAppSettings?.onChange?.(() => {
+      applyEntryCopy();
+      applyDeliveriesMode();
+      applyClosedDayOnHome();
+    });
     Hours()?.onForceOpenExpired?.(() => {
       Hours()?.applyForceOpenFromFlag?.(false, null);
       routeShopHoursUi();
@@ -2573,6 +2649,9 @@
 
   (async function bootEntryGate() {
     /* dine-in.html: open table modal immediately — do not wait on restaurant flags */
+    if (typeof window.LechaimAppSettings?.load === 'function') {
+      try { await window.LechaimAppSettings.load(); } catch (_) { /* keep fallbacks */ }
+    }
     if (gate.dataset.mode === 'dine-in-only') {
       setLang('he');
       if (!isStaffOrderPage() && await tryResumeSession()) {

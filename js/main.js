@@ -511,6 +511,15 @@
     hours.onScheduleChange?.(refreshOrderingHoursUi);
     hours.onForceOpenExpired?.(refreshOrderingHoursUi);
     hours.onForceCloseExpired?.(refreshOrderingHoursUi);
+    window.LechaimAppSettings?.onChange?.(() => {
+      refreshOrderingHoursUi();
+      const notice = document.getElementById('delivery-fee-notice');
+      if (notice) notice.textContent = t('deliveryFeeNotice');
+      const feeText = document.getElementById('delivery-fee-text');
+      if (feeText) feeText.textContent = t('deliveryFeeNotice');
+      const minText = document.getElementById('delivery-min-order-text');
+      if (minText) minText.textContent = t('deliveryMinOrder');
+    });
 
     try {
       api?.subscribeRestaurantFlags?.((evt) => {
@@ -823,6 +832,10 @@
 
   /* ---------- i18n ---------- */
   function t(key) {
+    try {
+      const overlay = window.LechaimAppSettings?.copy?.(key, currentLang);
+      if (overlay) return overlay;
+    } catch (_) { /* keep TRANSLATIONS fallback */ }
     const keys = key.split('.');
     function lookup(lang) {
       let value = TRANSLATIONS[lang];
@@ -967,12 +980,16 @@
   }
 
   function getTakeawayDeliveryFee() {
+    const fromSettings = Number(window.LechaimAppSettings?.getDeliveryFee?.());
+    if (Number.isFinite(fromSettings) && fromSettings >= 0) return fromSettings;
     return Number(window.TAKEAWAY_DEFAULT_DELIVERY_FEE)
       || Number(window.BUTCHER_DEFAULT_DELIVERY_FEE)
       || 10;
   }
 
   function getDeliveryMinOrder() {
+    const fromSettings = Number(window.LechaimAppSettings?.getDeliveryMinOrder?.());
+    if (Number.isFinite(fromSettings) && fromSettings >= 0) return fromSettings;
     return Number(window.TAKEAWAY_DELIVERY_MIN_ORDER) || 100;
   }
 
@@ -1510,9 +1527,12 @@
 
   function buildTakeawayPickupSlots(selectedDate) {
     const slots = [];
-    const openMinutes = (Hours()?.OPEN_HOUR ?? 14) * 60;
+    const slotDate = selectedDate || new Date();
+    const openMinutes = typeof Hours()?.getOpenMinutes === 'function'
+      ? Hours().getOpenMinutes(slotDate)
+      : (Hours()?.OPEN_HOUR ?? 14) * 60;
     const closeMinutes = typeof Hours()?.takeawaySlotCloseMinutes === 'function'
-      ? Hours().takeawaySlotCloseMinutes()
+      ? Hours().takeawaySlotCloseMinutes(slotDate)
       : (21 * 60 + 45);
     const today = new Date();
     const todayIso = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
@@ -1885,7 +1905,10 @@
       showOrderFeedback('err', t('deliveryMinOrder'));
       return;
     }
-    if (textEl) textEl.textContent = t('deliveryMinOrder');
+    if (textEl) {
+      textEl.textContent = window.LechaimAppSettings?.deliveryMinOrderText?.(currentLang)
+        || t('deliveryMinOrder');
+    }
     if (okBtn) okBtn.textContent = t('gotIt');
     modal.hidden = false;
     modal.setAttribute('aria-hidden', 'false');
@@ -1921,7 +1944,10 @@
     const okBtn = document.getElementById('delivery-fee-ok');
     if (!modal || !isDeliveryContext()) return;
 
-    if (textEl) textEl.textContent = t('deliveryFeeNotice');
+    if (textEl) {
+      textEl.textContent = window.LechaimAppSettings?.deliveryNotice?.(currentLang)
+        || t('deliveryFeeNotice');
+    }
     if (okBtn) okBtn.textContent = t('gotIt');
 
     modal.hidden = false;

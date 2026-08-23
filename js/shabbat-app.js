@@ -8,7 +8,9 @@
   const DETAILS_KEY = 'lechaim-shabbat-customer';
   const LOCK_KEY = 'lechaim-shabbat-order-lock';
   const ENTERED_MENU_KEY = 'lechaim-shabbat-entered-menu';
-  const PICKUP_WINDOW = '14:00';
+  function pickupWindow() {
+    return window.LechaimAppSettings?.getShabbatPickupTime?.() || '14:00';
+  }
 
   const $ = (sel, ctx = document) => ctx.querySelector(sel);
 
@@ -96,6 +98,8 @@
   }
 
   function t(key) {
+    const overlay = window.LechaimAppSettings?.copy?.(key, lang);
+    if (overlay) return overlay;
     const pack = window.SHABBAT_TRANSLATIONS?.[lang] || window.SHABBAT_TRANSLATIONS?.he || {};
     if (key.startsWith('categories.')) {
       const id = key.slice('categories.'.length);
@@ -484,7 +488,7 @@
     ), 0);
     const lock = readLock();
     const name = customerDetails?.customerName || lock?.customerName || '';
-    const pickup = t('receiptPickupAt').replace('{time}', PICKUP_WINDOW);
+    const pickup = t('receiptPickupAt').replace('{time}', pickupWindow());
 
     if (receiptEyebrow) receiptEyebrow.textContent = t('receiptEyebrow');
     if (receiptTitle) receiptTitle.textContent = t('receiptTitle');
@@ -710,9 +714,11 @@
 
   function renderNotes() {
     if (!notesBody) return;
+    const pickup = pickupWindow();
     const notes = window.SHABBAT_MENU_DATA?.notes || [];
     notesBody.innerHTML = notes.map((note) => {
-      const text = lang === 'en' ? (note.en || note.he) : (note.he || note.en);
+      let text = lang === 'en' ? (note.en || note.he) : (note.he || note.en);
+      text = String(text || '').replace(/\d{1,2}:\d{2}/, pickup);
       return `<p>${escapeHtml(text)}</p>`;
     }).join('');
   }
@@ -1137,7 +1143,7 @@
         notes: details.customerNotes || null,
         language: lang,
         pickupType: 'TIME',
-        pickupTime: PICKUP_WINDOW,
+        pickupTime: pickupWindow(),
       });
       if (!session?.session_id) throw new Error('createSession failed');
       sessionId = session.session_id;
@@ -1315,6 +1321,7 @@
 
   async function init() {
     await refreshAdminShabbatOrdersFlag();
+    window.LechaimAppSettings?.onChange?.(applyI18n);
 
     if (!adminShabbatOrdersEnabled) {
       bootClosedUi();

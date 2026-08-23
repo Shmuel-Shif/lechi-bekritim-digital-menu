@@ -39,6 +39,18 @@ insert into public.restaurant_flags (flag_key, flag_value)
 values ('shabbat_orders_enabled', true)
 on conflict (flag_key) do nothing;
 
+-- Central settings (hours / delivery copy / Shabbat pickup) live in flag_text
+insert into public.restaurant_flags (flag_key, flag_value, flag_text)
+values
+  ('hours_open', true, '14:00'),
+  ('hours_close', true, '21:00'),
+  ('hours_weekly', true, '{"0":{"open":true,"from":"14:00","to":"21:00"},"1":{"open":true,"from":"14:00","to":"21:00"},"2":{"open":true,"from":"14:00","to":"21:00"},"3":{"open":true,"from":"14:00","to":"21:00"},"4":{"open":true,"from":"14:00","to":"21:00"},"5":{"open":false,"from":"14:00","to":"21:00"},"6":{"open":false,"from":"14:00","to":"21:00"}}'),
+  ('delivery_fee', true, '10'),
+  ('delivery_min_order', true, '100'),
+  ('delivery_eta', true, '30–45 דקות'),
+  ('shabbat_pickup_time', true, '14:00')
+on conflict (flag_key) do nothing;
+
 alter table public.restaurant_flags enable row level security;
 
 drop policy if exists "restaurant_flags_public_select" on public.restaurant_flags;

@@ -140,6 +140,15 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#lechai
   color: var(--color-navy, #1e3354);
 }
 
+.entry-gate__hours {
+  margin: 0.35rem 0 0;
+  font-family: var(--font-body, 'Heebo', sans-serif);
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--color-text-muted, #58677b);
+}
+
 .entry-gate__prompt {
   font-family: var(--font-body, 'Heebo', sans-serif);
   font-size: 0.95rem;
@@ -405,6 +414,10 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#lechai
   background: linear-gradient(135deg, #154d31 0%, #267748 55%, #35965c 100%);
   border-color: rgba(200, 240, 215, 0.45);
   box-shadow: 0 12px 28px rgba(26, 92, 58, 0.36);
+}
+
+.entry-gate__btn.is-day-closed {
+  opacity: 0.78;
 }
 
 .entry-gate__btn--soon {

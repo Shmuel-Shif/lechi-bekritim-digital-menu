@@ -36,6 +36,7 @@
   const viewStats = document.getElementById('admin-view-stats');
   const viewTill = document.getElementById('admin-view-till');
   const viewStaffHours = document.getElementById('admin-view-staff-hours');
+  const viewSettings = document.getElementById('admin-view-settings');
   const kitchenCloseBtn = document.getElementById('admin-kitchen-close-btn');
   const shopHoursBtn = document.getElementById('admin-shop-hours-btn');
   const kitchenBeepBtn = document.getElementById('admin-kitchen-beep-btn');
@@ -145,6 +146,7 @@
     else if (tab === 'shabbat') currentTab = 'shabbat';
     else if (tab === 'reservations') currentTab = 'reservations';
     else if (tab === 'history') currentTab = 'history';
+    else if (tab === 'settings') currentTab = 'settings';
     else currentTab = 'tables';
 
     tabsEl?.querySelectorAll('.admin-tab').forEach((btn) => {
@@ -164,6 +166,7 @@
     if (viewStaffHours) viewStaffHours.hidden = currentTab !== 'staff-hours';
     if (viewInventory) viewInventory.hidden = currentTab !== 'inventory';
     if (viewStats) viewStats.hidden = currentTab !== 'stats';
+    if (viewSettings) viewSettings.hidden = currentTab !== 'settings';
 
     /*
      * Keep order watchers (Realtime + chime) alive on every Admin tab.
@@ -199,6 +202,10 @@
 
     if (currentTab === 'staff-hours') {
       window.LechaimAdminStaffHours?.start?.();
+    }
+
+    if (currentTab === 'settings') {
+      window.LechaimAdminSettings?.start?.();
     }
   }
 
@@ -651,7 +658,7 @@
         ? (naturallyOpen
           ? `לסגור את החנות עכשיו?\nישיבה במקום ואיסוף עצמי ייסגרו.\nאם לא תלחצו פתח חנות, ב־${untilLabel} היא תחזור לשעות הפעילות.`
           : 'להחזיר את החנות לשעות הפעילות?\nמחוץ לשעות היא תיסגר.')
-        : `לפתוח את החנות עכשיו?\nישיבה במקום ואיסוף עצמי יהיו פתוחים גם מחוץ ל־14:00–21:00.\nאם לא תלחצו סגור חנות, ב־${untilLabel} היא תחזור לשעות הפעילות.`
+        : `לפתוח את החנות עכשיו?\nישיבה במקום ואיסוף עצמי יהיו פתוחים גם מחוץ ל־${hours?.hoursRangeLabel?.() || '14:00–21:00'}.\nאם לא תלחצו סגור חנות, ב־${untilLabel} היא תחזור לשעות הפעילות.`
     );
     if (!ok) return;
     if (shopHoursBtn) shopHoursBtn.disabled = true;
@@ -985,6 +992,7 @@
       && tab !== 'staff-hours'
       && tab !== 'inventory'
       && tab !== 'stats'
+      && tab !== 'settings'
     ) return;
     setTab(tab);
     if (tab === 'inventory') {

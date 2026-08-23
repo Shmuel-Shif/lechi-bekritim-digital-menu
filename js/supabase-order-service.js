@@ -190,7 +190,9 @@
       case 'shabbat':
         /* Fixed Friday pickup window — no ASAP */
         row.pickup_type = 'TIME';
-        row.pickup_time = row.pickup_time ? String(row.pickup_time) : '14:00';
+        row.pickup_time = row.pickup_time
+          ? String(row.pickup_time)
+          : (global.LechaimAppSettings?.getShabbatPickupTime?.() || '14:00');
         row.pickup_date = null;
         row.customer_address = null;
         row.fulfillment_type = null;
@@ -2119,6 +2121,112 @@
     return result;
   }
 
+  const APP_SETTING_KEYS = [
+    'hours_open',
+    'hours_close',
+    'hours_weekly',
+    'delivery_fee',
+    'delivery_min_order',
+    'delivery_eta',
+    'shabbat_pickup_time',
+  ];
+
+  const APP_SETTING_DEFAULTS = {
+    hours_open: '14:00',
+    hours_close: '21:00',
+    delivery_fee: '10',
+    delivery_min_order: '100',
+    delivery_eta: '30–45 דקות',
+    shabbat_pickup_time: '14:00',
+  };
+
+  /**
+   * Tunable settings stored as restaurant_flags.flag_text.
+   * Missing rows are omitted so callers can keep local fallbacks.
+   */
+  async function getAppSettings() {
+    const sb = getClient();
+    const { data, error } = await sb
+      .from('restaurant_flags')
+      .select('flag_key, flag_text')
+      .in('flag_key', APP_SETTING_KEYS);
+    throwIfError(error, 'getAppSettings');
+    const found = {};
+    (data || []).forEach((row) => {
+      const key = String(row?.flag_key || '');
+      if (!key) return;
+      const text = row.flag_text == null ? '' : String(row.flag_text).trim();
+      if (text) found[key] = text;
+    });
+    return found;
+  }
+
+  async function getWeeklyHours() {
+    const sb = getClient();
+    const { data, error } = await sb
+      .from('restaurant_flags')
+      .select('flag_text')
+      .eq('flag_key', 'hours_weekly')
+      .maybeSingle();
+    throwIfError(error, 'getWeeklyHours');
+    const text = data?.flag_text == null ? '' : String(data.flag_text).trim();
+    return text;
+  }
+
+  async function setAppSetting(flagKey, flagText) {
+    const key = String(flagKey || '').trim();
+    if (!APP_SETTING_KEYS.includes(key)) {
+      throw new Error(`setAppSetting: unknown key ${key}`);
+    }
+    const sb = getClient();
+    const { data: authData } = await sb.auth.getSession();
+    if (!authData?.session) {
+      throw new Error('setAppSetting: must be signed in as admin (RLS blocks anon write)');
+    }
+    const text = String(flagText == null ? '' : flagText).trim();
+    const { error } = await sb
+      .from('restaurant_flags')
+      .upsert({
+        flag_key: key,
+        flag_value: true,
+        flag_text: text || null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'flag_key' });
+    throwIfError(error, 'setAppSetting');
+    return text;
+  }
+
+  async function setHoursSettings(openText, closeText) {
+    await setAppSetting('hours_open', openText);
+    await setAppSetting('hours_close', closeText);
+    return { hours_open: String(openText || '').trim(), hours_close: String(closeText || '').trim() };
+  }
+
+  async function setWeeklyHours(weekly) {
+    const text = typeof weekly === 'string' ? weekly : JSON.stringify(weekly || {});
+    await setAppSetting('hours_weekly', text);
+    const firstOpen = Object.values(weekly || {}).find((row) => row && row.open);
+    if (firstOpen?.from && firstOpen?.to) {
+      await setHoursSettings(firstOpen.from, firstOpen.to);
+    }
+    return text;
+  }
+
+  async function setDeliverySettings(payload = {}) {
+    if (payload.fee != null) await setAppSetting('delivery_fee', payload.fee);
+    if (payload.minOrder != null) await setAppSetting('delivery_min_order', payload.minOrder);
+    if (payload.eta != null) await setAppSetting('delivery_eta', payload.eta);
+    return {
+      delivery_fee: String(payload.fee ?? '').trim(),
+      delivery_min_order: String(payload.minOrder ?? '').trim(),
+      delivery_eta: String(payload.eta ?? '').trim(),
+    };
+  }
+
+  async function setShabbatPickupTime(time) {
+    return setAppSetting('shabbat_pickup_time', time);
+  }
+
   let flagsChannel = null;
   const flagsListeners = new Set();
 
@@ -2214,5 +2322,13 @@
     setShopForceClose,
     subscribeRestaurantFlags,
     subscribeToOrders,
+    getAppSettings,
+    getWeeklyHours,
+    setAppSetting,
+    setHoursSettings,
+    setWeeklyHours,
+    setDeliverySettings,
+    setShabbatPickupTime,
+    APP_SETTING_DEFAULTS,
   };
 })(window);

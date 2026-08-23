@@ -181,6 +181,24 @@
     return { items, total };
   }
 
+  async function assignMissingOrderNumbers() {
+    const api = global.LechaimSupabaseOrders;
+    if (!api?.ensurePublicOrderNo) return;
+    const missing = cache.filter((entry) => !(Number(entry.publicOrderNo) > 0));
+    if (!missing.length) return;
+    let changed = false;
+    for (const entry of missing) {
+      try {
+        const n = await api.ensurePublicOrderNo(entry.sessionId);
+        if (Number(n) > 0) {
+          entry.publicOrderNo = Number(n);
+          changed = true;
+        }
+      } catch (_) { /* card stays usable without a number */ }
+    }
+    if (changed) renderGrid();
+  }
+
   function catalogPrepOrder() {
     const map = new Map();
     let index = 0;
@@ -238,8 +256,8 @@
     if (qtyEmptyEl) qtyEmptyEl.hidden = true;
     qtyListEl.innerHTML = rows.map((row) => `
       <li class="shabbat-qty-panel__row">
-        <span class="shabbat-qty-panel__name">${escapeHtml(row.name)}</span>
         <strong class="shabbat-qty-panel__qty">${escapeHtml(String(row.qty))}</strong>
+        <span class="shabbat-qty-panel__name">${escapeHtml(row.name)}</span>
       </li>
     `).join('');
   }
@@ -372,18 +390,20 @@
         tabindex="0"
       >
         <span class="table-card__num">${
-          entry.publicOrderNo != null
+          Number(entry.publicOrderNo) > 0
             ? `#${escapeHtml(String(entry.publicOrderNo))}`
-            : 'שבת'
+            : '—'
         }</span>
-        <span class="table-card__badge">שבת</span>
+        <span class="table-card__status">${escapeHtml(statusLabel(entry.uiStatus))}</span>
+        <span class="table-card__type">הזמנות לשבת</span>
+        <span class="table-card__badge table-card__badge--pickup">שבת</span>
         <span class="table-card__customer">${escapeHtml(entry.customerName)}</span>
         <span class="table-card__phone" dir="ltr">${escapeHtml(entry.customerPhone)}</span>
         ${cardActions}
-        <span class="table-card__status">${escapeHtml(statusLabel(entry.uiStatus))}</span>
+        <span class="table-card__pickup">איסוף: ${escapeHtml(entry.pickupTime || '14:00')}</span>
         <span class="table-card__total">${escapeHtml(formatMoney(entry.total))}</span>
         <span class="table-card__items">${entry.items.reduce((s, i) => s + i.qty, 0)} פריטים</span>
-        <span class="table-card__time">${escapeHtml(formatClock(entry.openedAt))}</span>
+        <span class="table-card__time">נפתח ${escapeHtml(formatClock(entry.openedAt))}</span>
       </article>
     `;
     }).join('');
@@ -607,6 +627,7 @@
       cache = (rows || []).map((row) => mapRow(row.session, row.orders));
       /* Keep empty admin-created cards (name only, no items yet) */
       renderGrid();
+      await assignMissingOrderNumbers();
       if (selectedId) {
         const selected = cache.find((row) => row.sessionId === selectedId);
         if (selected) {
@@ -1148,7 +1169,7 @@
         customerPhone: customerPhone || null,
         notes: notes || null,
         pickupType: 'TIME',
-        pickupTime: '14:00',
+        pickupTime: window.LechaimAppSettings?.getShabbatPickupTime?.() || '14:00',
         language: 'he',
       });
       closeNewModal();

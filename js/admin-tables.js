@@ -1370,9 +1370,7 @@
         ? 'אין הזמנות משלוח כרגע'
         : 'אין הזמנות איסוף עצמי כרגע';
     }
-    if (closeDeliveriesBtn) {
-      closeDeliveriesBtn.hidden = boardFilter !== 'delivery';
-    }
+    if (closeDeliveriesBtn) closeDeliveriesBtn.hidden = false;
 
     if (!showPickupBoard && !showButcher) {
       gridEl.innerHTML = board.map(renderCard).join('');

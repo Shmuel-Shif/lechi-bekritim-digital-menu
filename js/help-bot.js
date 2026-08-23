@@ -71,7 +71,7 @@
     helpBotAnswerOrder: 'מוסיפים לסל המוצרים מנות שאתם אוהבים, עוברים על הסל שהכל נכון ולא שכחתם שום דבר, לוחצים שלח הזמנה והמסעדה מיד מתחילה לעבוד על ההזמנה שלכם.\n\nרק נציג אחד מהשולחן יבצע את ההזמנה דרך המערכת.',
     helpBotAnswerHours: '{days} · {hours}\nשישי–שבת סגור.',
     helpBotAnswerLocation: 'Analipsi 700 14, Greece',
-    helpBotAnswerDelivery: 'עלות המשלוח היא €10 · זמן משלוח כשעה וחצי · מינימום הזמנה €100 (לא כולל משלוח)',
+    helpBotAnswerDelivery: 'עלות המשלוח היא €10 · זמן משלוח 30–45 דקות · מינימום הזמנה €100 (לא כולל משלוח)',
     helpBotAnswerPickup: 'הזמינו ואספו מהמסעדה.\n\nניתן לבצע הזמנות לאיסוף עצמי בימי א - ה בין השעות 14:00 - 21:00.\n\nלשליחת ההזמנה נדרשים פרטי לקוח ומועד.',
     helpBotAnswerButcher: 'חנות הבשר של לחיים\nבשר חלק כשר למהדרין • שחיטת ליובאוויטש • כשרות מהודרת\n\nאצלנו תוכלו להזמין מגוון נתחי בשר ועוף איכותיים, טריים וכשרים למהדרין.\n\nכל המוצרים נבחרים בקפידה ומסופקים תחת סטנדרטים גבוהים של איכות וכשרות.\n\nשימו לב: כל המוצרים קפואים. ניתן לסמן וי אם ברצונכם מופשר.',
     helpBotAnswerShabbat: 'הזמנות לשבת\nתפריט מיוחד לשבת קודש\n\nאיסוף ביום שישי בשעה 14:00',
@@ -118,6 +118,10 @@
   }
 
   function t(key) {
+    try {
+      const overlay = window.LechaimAppSettings?.copy?.(key, lang());
+      if (overlay) return overlay;
+    } catch (_) { /* keep fallbacks */ }
     return window.TRANSLATIONS?.[lang()]?.[key]
       || window.TRANSLATIONS?.he?.[key]
       || FALLBACK[key]
@@ -167,9 +171,9 @@
   }
 
   function hoursAnswer() {
-    const days = t('hoursDays');
-    const range = window.LechaimOpeningHours?.hoursRangeLabel?.('–') || '14:00–21:00';
-    return t('helpBotAnswerHours').replace('{days}', days).replace('{hours}', range);
+    return window.LechaimAppSettings?.hoursSummary?.(lang())
+      || window.LechaimOpeningHours?.hoursSummaryLabel?.(lang())
+      || t('helpBotAnswerHours');
   }
 
   function locationAnswer() {

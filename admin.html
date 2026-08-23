@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=32">
+  <link rel="stylesheet" href="css/admin.css?v=39">
   <link rel="icon" href="assets/logo/logo.webp" type="image/webp">
 </head>
 <body>
@@ -88,7 +88,7 @@
         <button type="button" class="admin-tab" data-tab="staff-hours">שעות עובדים</button>
         <button type="button" class="admin-tab" data-tab="inventory">מלאי</button>
         <button type="button" class="admin-tab" data-tab="stats">קופונים</button>
-        <button type="button" class="admin-tab" data-tab="settings" disabled title="בקרוב">הגדרות</button>
+        <button type="button" class="admin-tab" data-tab="settings">הגדרות</button>
       </nav>
 
       <p class="admin-error" id="admin-panel-error" role="alert" hidden></p>
@@ -112,12 +112,6 @@
               <button type="button" class="admin-btn admin-btn--kitchen-beep" id="admin-kitchen-beep-btn">
                 🔔 צפצף
               </button>
-              <button type="button" class="admin-btn admin-btn--primary" id="admin-shop-hours-btn">
-                פתח חנות
-              </button>
-              <button type="button" class="admin-btn admin-btn--danger" id="admin-kitchen-close-btn">
-                סגירת מטבח (ישיבה במקום)
-              </button>
             </div>
           </header>
           <div class="admin-legend" aria-hidden="true">
@@ -136,9 +130,6 @@
               <p class="admin-header__eyebrow">ניהול</p>
               <h1 class="admin-header__title" id="tables-takeaway-title">איסוף עצמי</h1>
               <p class="admin-header__subtitle" id="tables-takeaway-subtitle">הזמנות איסוף עצמי פעילות</p>
-            </div>
-            <div class="reservations-header-actions">
-              <button type="button" class="admin-btn admin-btn--ghost" id="takeaway-close-deliveries-btn" hidden>סגור משלוחים</button>
             </div>
           </header>
           <div class="tables-pickup-section">
@@ -186,7 +177,6 @@
               <p class="admin-header__subtitle">הזמנות שבת פעילות · אישור והדפסה</p>
             </div>
             <div class="reservations-header-actions">
-              <button type="button" class="admin-btn admin-btn--ghost" id="shabbat-orders-toggle-btn">הזמנות שבת פתוחות</button>
               <button type="button" class="admin-btn admin-btn--primary" id="shabbat-new-btn">כרטיס חדש</button>
             </div>
           </header>
@@ -332,6 +322,192 @@
             </button>
           </article>
         </div>
+      </div>
+
+      <!-- Settings tab -->
+      <div class="admin-view" id="admin-view-settings" hidden>
+        <section class="tables-category">
+          <header class="admin-header">
+            <div class="admin-header__text">
+              <p class="admin-header__eyebrow">ניהול</p>
+              <h1 class="admin-header__title">הגדרות</h1>
+            </div>
+          </header>
+
+          <div class="settings-shell" id="settings-shell">
+            <div class="settings-index" id="settings-index">
+              <section class="settings-item" data-settings-key="hours">
+                <button type="button" class="settings-index__row" data-settings-open="hours" aria-expanded="false">
+                  <span class="settings-index__copy">
+                    <span class="settings-index__title">שעות פעילות</span>
+                    <span class="settings-index__hint">ימים ושעות פתיחה</span>
+                  </span>
+                  <span class="settings-index__chevron" aria-hidden="true"></span>
+                </button>
+            <article class="settings-card settings-card--wide" id="settings-card-hours" hidden>
+              <header class="settings-card__head">
+                <h2 class="settings-card__title">שעות פעילות</h2>
+              </header>
+              <div class="settings-hours-days" id="settings-hours-days">
+                <label class="settings-hours-day" data-day="0">
+                  <input type="checkbox" class="settings-hours-open" checked>
+                  <span class="settings-hours-day__name">ראשון</span>
+                  <input type="time" class="settings-hours-from" dir="ltr" step="60" value="14:00">
+                  <input type="time" class="settings-hours-to" dir="ltr" step="60" value="21:00">
+                </label>
+                <label class="settings-hours-day" data-day="1">
+                  <input type="checkbox" class="settings-hours-open" checked>
+                  <span class="settings-hours-day__name">שני</span>
+                  <input type="time" class="settings-hours-from" dir="ltr" step="60" value="14:00">
+                  <input type="time" class="settings-hours-to" dir="ltr" step="60" value="21:00">
+                </label>
+                <label class="settings-hours-day" data-day="2">
+                  <input type="checkbox" class="settings-hours-open" checked>
+                  <span class="settings-hours-day__name">שלישי</span>
+                  <input type="time" class="settings-hours-from" dir="ltr" step="60" value="14:00">
+                  <input type="time" class="settings-hours-to" dir="ltr" step="60" value="21:00">
+                </label>
+                <label class="settings-hours-day" data-day="3">
+                  <input type="checkbox" class="settings-hours-open" checked>
+                  <span class="settings-hours-day__name">רביעי</span>
+                  <input type="time" class="settings-hours-from" dir="ltr" step="60" value="14:00">
+                  <input type="time" class="settings-hours-to" dir="ltr" step="60" value="21:00">
+                </label>
+                <label class="settings-hours-day" data-day="4">
+                  <input type="checkbox" class="settings-hours-open" checked>
+                  <span class="settings-hours-day__name">חמישי</span>
+                  <input type="time" class="settings-hours-from" dir="ltr" step="60" value="14:00">
+                  <input type="time" class="settings-hours-to" dir="ltr" step="60" value="21:00">
+                </label>
+                <label class="settings-hours-day" data-day="5">
+                  <input type="checkbox" class="settings-hours-open">
+                  <span class="settings-hours-day__name">שישי</span>
+                  <input type="time" class="settings-hours-from" dir="ltr" step="60" value="14:00">
+                  <input type="time" class="settings-hours-to" dir="ltr" step="60" value="21:00">
+                </label>
+                <label class="settings-hours-day" data-day="6">
+                  <input type="checkbox" class="settings-hours-open">
+                  <span class="settings-hours-day__name">שבת</span>
+                  <input type="time" class="settings-hours-from" dir="ltr" step="60" value="14:00">
+                  <input type="time" class="settings-hours-to" dir="ltr" step="60" value="21:00">
+                </label>
+              </div>
+              <div class="settings-card__actions">
+                <button type="button" class="admin-btn admin-btn--primary" id="settings-hours-save">שמור</button>
+              </div>
+            </article>
+              </section>
+
+              <section class="settings-item" data-settings-key="delivery">
+                <button type="button" class="settings-index__row" data-settings-open="delivery" aria-expanded="false">
+                  <span class="settings-index__copy">
+                    <span class="settings-index__title">משלוחים</span>
+                    <span class="settings-index__hint">עלות, זמן הגעה ומינימום הזמנה</span>
+                  </span>
+                  <span class="settings-status" id="settings-deliveries-status" data-open="1">פתוחים</span>
+                  <span class="settings-index__chevron" aria-hidden="true"></span>
+                </button>
+            <article class="settings-card" id="settings-card-delivery" hidden>
+              <header class="settings-card__head">
+                <h2 class="settings-card__title">משלוחים</h2>
+              </header>
+              <div class="settings-card__actions">
+                <button type="button" class="admin-btn admin-btn--ghost" id="takeaway-close-deliveries-btn">סגור משלוחים</button>
+              </div>
+              <div class="settings-card__fields">
+                <label class="admin-field">
+                  <span>מינימום הזמנה (€)</span>
+                  <input type="number" id="settings-delivery-min" min="0" step="1" inputmode="decimal" dir="ltr">
+                </label>
+                <label class="admin-field">
+                  <span>דמי משלוח (€)</span>
+                  <input type="number" id="settings-delivery-fee" min="0" step="1" inputmode="decimal" dir="ltr">
+                </label>
+                <label class="admin-field settings-card__field--wide">
+                  <span>זמן משלוח</span>
+                  <input type="text" id="settings-delivery-eta" maxlength="40">
+                </label>
+              </div>
+              <div class="settings-card__actions">
+                <button type="button" class="admin-btn admin-btn--primary" id="settings-delivery-save">שמור</button>
+              </div>
+            </article>
+              </section>
+
+              <section class="settings-item" data-settings-key="shop">
+                <button type="button" class="settings-index__row" data-settings-open="shop" aria-expanded="false">
+                  <span class="settings-index__copy">
+                    <span class="settings-index__title">מסעדה</span>
+                    <span class="settings-index__hint">ישיבה במקום ואיסוף עצמי</span>
+                  </span>
+                  <span class="settings-status" id="settings-shop-status" data-open="0">סגורה</span>
+                  <span class="settings-index__chevron" aria-hidden="true"></span>
+                </button>
+            <article class="settings-card" id="settings-card-shop" hidden>
+              <header class="settings-card__head">
+                <h2 class="settings-card__title">מסעדה</h2>
+              </header>
+              <p class="settings-card__hint">פותח או סוגר ישיבה במקום ואיסוף עצמי (לא חנות הבשר)</p>
+              <div class="settings-card__actions">
+                <button type="button" class="admin-btn admin-btn--primary" id="admin-shop-hours-btn">פתח חנות</button>
+              </div>
+            </article>
+              </section>
+
+              <section class="settings-item" data-settings-key="kitchen">
+                <button type="button" class="settings-index__row" data-settings-open="kitchen" aria-expanded="false">
+                  <span class="settings-index__copy">
+                    <span class="settings-index__title">מטבח</span>
+                    <span class="settings-index__hint">סגירת הזמנות ישיבה במקום</span>
+                  </span>
+                  <span class="settings-status" id="settings-kitchen-status" data-open="1">פתוח</span>
+                  <span class="settings-index__chevron" aria-hidden="true"></span>
+                </button>
+            <article class="settings-card" id="settings-card-kitchen" hidden>
+              <header class="settings-card__head">
+                <h2 class="settings-card__title">מטבח</h2>
+              </header>
+              <p class="settings-card__hint">ספירה לאחור לסגירת הזמנות ישיבה במקום בלבד</p>
+              <div class="settings-card__actions">
+                <button type="button" class="admin-btn admin-btn--danger" id="admin-kitchen-close-btn">סגירת מטבח (ישיבה במקום)</button>
+              </div>
+            </article>
+              </section>
+
+              <section class="settings-item" data-settings-key="shabbat">
+                <button type="button" class="settings-index__row" data-settings-open="shabbat" aria-expanded="false">
+                  <span class="settings-index__copy">
+                    <span class="settings-index__title">הזמנות לשבת</span>
+                    <span class="settings-index__hint">פתיחה ושעת איסוף ביום שישי</span>
+                  </span>
+                  <span class="settings-status" id="settings-shabbat-status" data-open="1">פתוחות</span>
+                  <span class="settings-index__chevron" aria-hidden="true"></span>
+                </button>
+            <article class="settings-card" id="settings-card-shabbat" hidden>
+              <header class="settings-card__head">
+                <h2 class="settings-card__title">הזמנות לשבת</h2>
+              </header>
+              <div class="settings-card__actions">
+                <button type="button" class="admin-btn admin-btn--ghost" id="shabbat-orders-toggle-btn">הזמנות שבת פתוחות</button>
+              </div>
+              <div class="settings-card__fields">
+                <label class="admin-field">
+                  <span>יום איסוף</span>
+                  <input type="text" value="יום שישי" disabled>
+                </label>
+                <label class="admin-field">
+                  <span>שעת איסוף</span>
+                  <input type="time" id="settings-shabbat-pickup" dir="ltr" step="60">
+                </label>
+              </div>
+              <div class="settings-card__actions">
+                <button type="button" class="admin-btn admin-btn--primary" id="settings-shabbat-save">שמור</button>
+              </div>
+            </article>
+              </section>
+            </div>
+          </div>
+        </section>
       </div>
 
       <!-- Inventory tab -->
@@ -933,24 +1109,26 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
   <script src="js/order-types.js" defer></script>
-  <script src="js/supabase-order-service.js?v=13" defer></script>
-  <script src="js/menu-data.js?v=83" defer></script>
-  <script src="js/opening-hours.js?v=6" defer></script>
+  <script src="js/supabase-order-service.js?v=15" defer></script>
+  <script src="js/menu-data.js?v=84" defer></script>
+  <script src="js/opening-hours.js?v=10" defer></script>
+  <script src="js/app-settings.js?v=6" defer></script>
   <script src="js/shabbat-menu-data.js" defer></script>
   <script src="js/inventory.js?v=43" defer></script>
   <script src="js/order-session.js?v=2" defer></script>
   <script src="js/order-engine.js" defer></script>
   <script src="js/print-engine.js?v=37" defer></script>
   <script src="js/a11y-focus-trap.js" defer></script>
-  <script src="js/admin-tables.js?v=66" defer></script>
-  <script src="js/admin-shabbat.js?v=6" defer></script>
-  <script src="js/place-reservations.js?v=2" defer></script>
-  <script src="js/admin-reservations.js?v=2" defer></script>
+  <script src="js/admin-tables.js?v=67" defer></script>
+  <script src="js/admin-shabbat.js?v=8" defer></script>
+  <script src="js/place-reservations.js?v=4" defer></script>
+  <script src="js/admin-reservations.js?v=3" defer></script>
   <script src="js/admin-history.js" defer></script>
   <script src="js/admin-coupons.js" defer></script>
   <script src="js/admin-till.js?v=3" defer></script>
   <script src="js/admin-staff-hours.js" defer></script>
-  <script src="js/admin.js?v=54" defer></script>
+  <script src="js/admin-settings.js?v=6" defer></script>
+  <script src="js/admin.js?v=55" defer></script>
   <script src="js/admin-pwa.js" defer></script>
 </body>
 </html>
