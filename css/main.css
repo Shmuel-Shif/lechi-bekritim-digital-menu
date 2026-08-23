@@ -2337,6 +2337,13 @@ body.cart-open {
   color: var(--color-navy, #152640);
 }
 
+.butcher-checkout__hint {
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1.35;
+  color: #6b6170;
+}
+
 .butcher-checkout__input {
   width: 100%;
   border: 1px solid rgba(21, 38, 64, 0.2);

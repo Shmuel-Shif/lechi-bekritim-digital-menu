@@ -61,6 +61,68 @@
     return null;
   }
 
+  function extractFirstUrl(raw) {
+    const text = String(raw || '').trim();
+    if (!text) return '';
+    const match = text.match(/https?:\/\/[^\s<>"']+/i);
+    if (match) return match[0].replace(/[.,;:)\]>]+$/, '');
+    const bare = text.match(
+      /(?:maps\.app\.goo\.gl|goo\.gl\/maps|maps\.google\.[^\s]+|www\.google\.[^\s]+\/maps|waze\.com\/[^\s]+|www\.waze\.com\/[^\s]+|maps\.apple\.com\/[^\s]+)[^\s<>"']*/i
+    );
+    return bare ? `https://${bare[0]}` : '';
+  }
+
+  function normalizeLocationUrl(raw) {
+    let candidate = extractFirstUrl(raw);
+    if (!candidate) {
+      const text = String(raw || '').trim();
+      if (/^[\w.-]+\.[a-z]{2,}([/?#].*)?$/i.test(text)) candidate = `https://${text}`;
+    }
+    if (!candidate) return '';
+    try {
+      const u = new URL(candidate);
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';
+      if (!u.hostname || u.hostname === 'localhost') return '';
+      return u.href;
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function splitCustomerAddress(raw) {
+    const text = String(raw || '').trim();
+    if (!text) return { address: '', locationUrl: '' };
+    const lines = text.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+    const rest = [];
+    let locationUrl = '';
+    lines.forEach((line) => {
+      const url = normalizeLocationUrl(line);
+      if (url && !locationUrl) locationUrl = url;
+      else if (!url) rest.push(line);
+    });
+    if (!locationUrl && rest.length) {
+      const last = rest[rest.length - 1];
+      locationUrl = normalizeLocationUrl(last);
+      if (locationUrl) {
+        rest[rest.length - 1] = last
+          .replace(/https?:\/\/[^\s<>"']+/i, '')
+          .replace(/(?:maps\.app\.goo\.gl|goo\.gl\/maps|waze\.com)[^\s<>"']*/i, '')
+          .trim();
+      }
+    }
+    return {
+      address: rest.filter(Boolean).join(', '),
+      locationUrl,
+    };
+  }
+
+  function composeCustomerAddress(address, locationUrl) {
+    const street = String(address || '').trim();
+    const url = normalizeLocationUrl(locationUrl);
+    if (street && url) return `${street}\n${url}`;
+    return street || url || '';
+  }
+
   function readRaw() {
     try {
       const raw = global.localStorage.getItem(STORAGE_KEY);
@@ -450,5 +512,8 @@
     clearSession,
     toMenuContext,
     isValidTable,
+    normalizeLocationUrl,
+    splitCustomerAddress,
+    composeCustomerAddress,
   };
 })(window);

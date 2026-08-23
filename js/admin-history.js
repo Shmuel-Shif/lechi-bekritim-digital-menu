@@ -253,8 +253,14 @@
     const customerHtml = session.customer_name
       ? `<p class="history-session-modal__meta"><strong>לקוח:</strong> ${escapeHtml(session.customer_name)}${session.customer_phone ? ` · ${escapeHtml(session.customer_phone)}` : ''}</p>`
       : '';
-    const addressHtml = session.customer_address
-      ? `<p class="history-session-modal__meta"><strong>כתובת:</strong> ${escapeHtml(session.customer_address)}</p>`
+    const addressParts = window.LechaimOrderSession?.splitCustomerAddress?.(session.customer_address)
+      || { address: String(session.customer_address || '').trim(), locationUrl: '' };
+    const addressHtml = (addressParts.address || addressParts.locationUrl)
+      ? `<p class="history-session-modal__meta"><strong>כתובת:</strong> ${escapeHtml(addressParts.address || '—')}${
+        addressParts.locationUrl
+          ? `<br><strong>מיקום:</strong> <a class="admin-location-link" href="${escapeHtml(addressParts.locationUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(addressParts.locationUrl)}</a>`
+          : ''
+      }</p>`
       : '';
     const couponHtml = session.coupon_code
       ? `<p class="history-session-modal__meta"><strong>קופון:</strong> ${escapeHtml(session.coupon_code)}${discount ? ` (−${formatMoney(discount)})` : ''}</p>`

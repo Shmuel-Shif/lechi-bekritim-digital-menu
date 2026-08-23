@@ -608,6 +608,13 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#lechai
   min-height: 4rem;
 }
 
+.entry-pickup__hint {
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1.35;
+  color: #6b6170;
+}
+
 .entry-pickup__select {
   margin-top: 0.15rem;
 }

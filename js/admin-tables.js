@@ -268,6 +268,42 @@
       .replace(/</g, '&lt;');
   }
 
+  function splitDeliveryAddress(raw) {
+    const api = window.LechaimOrderSession;
+    if (typeof api?.splitCustomerAddress === 'function') {
+      return api.splitCustomerAddress(raw);
+    }
+    return { address: String(raw || '').trim(), locationUrl: '' };
+  }
+
+  function locationLinkHtml(url, label) {
+    if (!url) return '';
+    return `<a class="admin-location-link" href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`;
+  }
+
+  function deliveryAddressRowsHtml(raw, options = {}) {
+    const parts = splitDeliveryAddress(raw);
+    const showEmpty = options.showEmpty === true;
+    if (!parts.address && !parts.locationUrl && !showEmpty) return '';
+    const addressLabel = options.addressLabel || 'כתובת';
+    const locationLabel = options.locationLabel || 'מיקום';
+    const openLabel = options.openLabel || 'פתח במפות';
+    const addr = parts.address || (showEmpty ? '—' : '');
+    const addrRow = addr
+      ? `<div class="table-drawer__pickup-row">
+          <span>${escapeHtml(addressLabel)}</span>
+          <strong dir="auto">${escapeHtml(addr)}</strong>
+        </div>`
+      : '';
+    const locRow = parts.locationUrl
+      ? `<div class="table-drawer__pickup-row">
+          <span>${escapeHtml(locationLabel)}</span>
+          <strong>${locationLinkHtml(parts.locationUrl, openLabel)}</strong>
+        </div>`
+      : '';
+    return `${addrRow}${locRow}`;
+  }
+
   /**
    * Convert local / Israeli / Greek phone to WhatsApp international digits.
    * 0587701009 → 972587701009 · 6946502236 → 306946502236
@@ -562,22 +598,24 @@
     const nameHe = String(order.customerName || '').trim() || '—';
     const phone = String(order.customerPhone || '').trim() || '—';
     const pickupTime = String(order.pickupTime || '14:00').trim();
-    const hasAddress = Boolean(String(order.customerAddress || '').trim());
-    const addressHe = hasAddress
-      ? String(order.customerAddress).trim()
-      : (entry?.orderType === 'shabbat' ? `איסוף שישי ${pickupTime}` : '—');
+    const parts = splitDeliveryAddress(order.customerAddress);
+    const hasAddress = Boolean(parts.address || parts.locationUrl);
+    const addressHe = parts.address
+      || (entry?.orderType === 'shabbat' ? `איסוף שישי ${pickupTime}` : (hasAddress ? '—' : '—'));
     const headingHe = `${kindHe}${no}`;
     const headingEn = `${kindEn}${no}`;
     const nameEn = transliterateCourierText(nameHe) || nameHe;
-    const addressEn = hasAddress
-      ? (transliterateCourierText(addressHe) || addressHe)
+    const addressEn = parts.address
+      ? (transliterateCourierText(parts.address) || parts.address)
       : (entry?.orderType === 'shabbat' ? `Friday pickup ${pickupTime}` : '—');
+    const locationUrl = parts.locationUrl || '';
     const total = formatMoney(calcOrderPaidTotal(order) || Number(entry?.total) || 0);
     const copyHe = [
       headingHe,
       `שם: ${nameHe}`,
       `טלפון: ${phone}`,
       `כתובת: ${addressHe}`,
+      ...(locationUrl ? [`מיקום: ${locationUrl}`] : []),
       `סכום כולל: ${total}`,
     ].join('\n');
     const copyEn = [
@@ -585,11 +623,12 @@
       `Name: ${nameEn}`,
       `Phone: ${phone}`,
       `Address: ${addressEn}`,
+      ...(locationUrl ? [`Location: ${locationUrl}`] : []),
       `Total: ${total}`,
     ].join('\n');
     return {
-      he: { heading: headingHe, name: nameHe, phone, address: addressHe, total, copyText: copyHe },
-      en: { heading: headingEn, name: nameEn, phone, address: addressEn, total, copyText: copyEn },
+      he: { heading: headingHe, name: nameHe, phone, address: addressHe, locationUrl, total, copyText: copyHe },
+      en: { heading: headingEn, name: nameEn, phone, address: addressEn, locationUrl, total, copyText: copyEn },
     };
   }
 
@@ -615,6 +654,17 @@
     setText(`admin-courier-name-${lang}`, details.name);
     setText(`admin-courier-phone-${lang}`, details.phone);
     setText(`admin-courier-address-${lang}`, details.address);
+    const locEl = document.getElementById(`admin-courier-location-${lang}`);
+    const locRow = locEl?.closest('.admin-courier-modal__row');
+    if (locEl) {
+      if (details.locationUrl) {
+        locEl.innerHTML = locationLinkHtml(details.locationUrl, details.locationUrl);
+        if (locRow) locRow.hidden = false;
+      } else {
+        locEl.textContent = '—';
+        if (locRow) locRow.hidden = true;
+      }
+    }
     setText(`admin-courier-total-${lang}`, details.total);
   }
 
@@ -1479,7 +1529,17 @@
         <span class="table-card__phone" dir="ltr">${escapeHtml(customerPhone || '—')}</span>
         ${cardActions}
         ${(entry.orderType === 'takeaway' || entry.orderType === 'butcher') && entry.order?.customerAddress
-          ? `<span class="table-card__pickup">כתובת: ${escapeHtml(entry.order.customerAddress)}</span>`
+          ? (() => {
+            const parts = splitDeliveryAddress(entry.order.customerAddress);
+            const street = parts.address || '';
+            const loc = parts.locationUrl
+              ? locationLinkHtml(parts.locationUrl, 'מיקום')
+              : '';
+            if (!street && !loc) return '';
+            return `<span class="table-card__pickup">${
+              street ? `כתובת: ${escapeHtml(street)}` : ''
+            }${street && loc ? ' · ' : ''}${loc}</span>`;
+          })()
           : ''}
         <span class="table-card__pickup">${isDelivery ? 'משלוח' : 'איסוף'}: ${escapeHtml(formatPickupLabel(entry.order))}</span>
       `
@@ -1720,10 +1780,7 @@
                 <strong>${escapeHtml(delivery ? 'משלוח' : 'איסוף עצמי')}</strong>
               </div>
               ${delivery
-                ? `<div class="table-drawer__pickup-row">
-                    <span>כתובת</span>
-                    <strong dir="auto">${escapeHtml(order.customerAddress || '—')}</strong>
-                  </div>
+                ? `${deliveryAddressRowsHtml(order.customerAddress, { showEmpty: true })}
                   <div class="table-drawer__pickup-row">
                     <span>עלות משלוח</span>
                     <strong>${escapeHtml(Number.isFinite(fee) ? formatMoney(fee) : '€10')}</strong>
@@ -1776,10 +1833,7 @@
                 <strong>${escapeHtml(order.customerName || '—')}</strong>
               </div>
               ${delivery || order.customerAddress
-                ? `<div class="table-drawer__pickup-row">
-                    <span>כתובת</span>
-                    <strong dir="auto">${escapeHtml(order.customerAddress || '—')}</strong>
-                  </div>`
+                ? deliveryAddressRowsHtml(order.customerAddress, { showEmpty: delivery })
                 : ''}
               <div class="table-drawer__pickup-row">
                 <span>טלפון</span>
@@ -3744,6 +3798,7 @@
       else if (action === 'courier') openCourierModal(entry);
       return;
     }
+    if (event.target.closest('.admin-location-link')) return;
     const card = event.target.closest('[data-entry-key]');
     if (!card) return;
     event.preventDefault();

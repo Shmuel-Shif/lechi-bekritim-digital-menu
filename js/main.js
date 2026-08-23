@@ -967,12 +967,22 @@
     return Boolean(resolved && (resolved.soldByPack || resolved.unitType === 'pack'));
   }
 
-  function getButcherPackWeightMin() {
+  function getButcherPackWeightMin(item) {
+    const custom = Number(item?.packWeightMinKg);
+    if (Number.isFinite(custom) && custom > 0) return custom;
     return Number(window.BUTCHER_PACK_WEIGHT_MIN_KG) || 0.98;
   }
 
-  function getButcherPackWeightMax() {
+  function getButcherPackWeightMax(item) {
+    const custom = Number(item?.packWeightMaxKg);
+    if (Number.isFinite(custom) && custom > 0) return custom;
     return Number(window.BUTCHER_PACK_WEIGHT_MAX_KG) || 1.2;
+  }
+
+  function packWeightValueText(item) {
+    if (currentLang === 'en' && item?.packWeightValueEn) return item.packWeightValueEn;
+    if (item?.packWeightValueHe) return item.packWeightValueHe;
+    return t('packWeightValue');
   }
 
   function getButcherDeliveryFee() {
@@ -1015,7 +1025,7 @@
         const perKg = Number(line.pricePerKg) > 0
           ? Number(line.pricePerKg)
           : getItemPricePerKg(item);
-        return sum + getPackEstRange(perKg, line.qty).max;
+        return sum + getPackEstRange(perKg, line.qty, item).max;
       }
       const price = getCartLineUnitPrice(line, item);
       return sum + ((price || 0) * (Number(line.qty) || 0));
@@ -1026,12 +1036,12 @@
     return `${t('currency')}${(Number(n) || 0).toFixed(2)}`;
   }
 
-  function getPackEstRange(pricePerKg, packs) {
+  function getPackEstRange(pricePerKg, packs, item) {
     const p = Math.max(1, Number(packs) || 1);
     const perKg = Number(pricePerKg) || 0;
     return {
-      min: perKg * getButcherPackWeightMin() * p,
-      max: perKg * getButcherPackWeightMax() * p,
+      min: perKg * getButcherPackWeightMin(item) * p,
+      max: perKg * getButcherPackWeightMax(item) * p,
     };
   }
 
@@ -1446,7 +1456,11 @@
       ? gate.isValidPhone(phone)
       : /^\d{9,15}$/.test(phone.replace(/\D/g, ''));
     if (!name || !phone || !phoneOk) return false;
-    if (ctx.fulfillmentType === 'delivery' && !String(ctx.customerAddress || '').trim()) return false;
+    if (ctx.fulfillmentType === 'delivery') {
+      const parts = window.LechaimOrderSession?.splitCustomerAddress?.(ctx.customerAddress)
+        || { address: String(ctx.customerAddress || '').trim(), locationUrl: '' };
+      if (!parts.address || !parts.locationUrl) return false;
+    }
     if (ctx.pickupType === 'ASAP') return true;
     return Boolean(
       ctx.pickupType === 'TIME'
@@ -1572,6 +1586,8 @@
     const pickupRadio = document.getElementById('takeaway-checkout-fulfillment-pickup');
     const addressField = document.getElementById('takeaway-checkout-address-field');
     const addressInput = document.getElementById('takeaway-checkout-address');
+    const locationField = document.getElementById('takeaway-checkout-location-field');
+    const locationInput = document.getElementById('takeaway-checkout-location');
 
     /* Entry already chose pickup or delivery — no need to re-pick type */
     if (fulfillment) fulfillment.hidden = lockedDelivery || lockedPickup || !allowDelivery;
@@ -1587,9 +1603,14 @@
     const deliveryOn = lockedDelivery
       || (allowDelivery && Boolean(deliveryRadio?.checked));
     if (addressField) addressField.hidden = !deliveryOn;
+    if (locationField) locationField.hidden = !deliveryOn;
     if (addressInput) {
       addressInput.required = deliveryOn;
       if (!deliveryOn) addressInput.value = '';
+    }
+    if (locationInput) {
+      locationInput.required = deliveryOn;
+      if (!deliveryOn) locationInput.value = '';
     }
   }
 
@@ -1623,16 +1644,20 @@
     const phoneInput = document.getElementById('takeaway-checkout-phone');
     const notesInput = document.getElementById('takeaway-checkout-notes');
     const addressInput = document.getElementById('takeaway-checkout-address');
+    const locationInput = document.getElementById('takeaway-checkout-location');
     const asapInput = document.getElementById('takeaway-checkout-asap');
     const dateInput = document.getElementById('takeaway-checkout-date');
     const pickupRadio = document.getElementById('takeaway-checkout-fulfillment-pickup');
     const deliveryRadio = document.getElementById('takeaway-checkout-fulfillment-delivery');
     const deliveryRow = document.getElementById('takeaway-checkout-fulfillment-delivery-row');
+    const addressParts = window.LechaimOrderSession?.splitCustomerAddress?.(ctx.customerAddress)
+      || { address: String(ctx.customerAddress || '').trim(), locationUrl: '' };
 
     if (nameInput) nameInput.value = String(ctx.customerName || '');
     if (phoneInput) phoneInput.value = String(ctx.customerPhone || '');
     if (notesInput) notesInput.value = String(ctx.customerNotes || '');
-    if (addressInput) addressInput.value = String(ctx.customerAddress || '');
+    if (addressInput) addressInput.value = addressParts.address;
+    if (locationInput) locationInput.value = addressParts.locationUrl;
     if (asapInput) asapInput.checked = ctx.pickupType === 'ASAP';
 
     const allowDelivery = window.LechaimEntryGate?.areDeliveriesOpen?.() !== false;
@@ -1688,6 +1713,8 @@
     const phone = String(document.getElementById('takeaway-checkout-phone')?.value || '').trim();
     const notes = String(document.getElementById('takeaway-checkout-notes')?.value || '').trim();
     const address = String(document.getElementById('takeaway-checkout-address')?.value || '').trim();
+    const locationRaw = String(document.getElementById('takeaway-checkout-location')?.value || '').trim();
+    const locationUrl = window.LechaimOrderSession?.normalizeLocationUrl?.(locationRaw) || '';
     const asapOn = Boolean(document.getElementById('takeaway-checkout-asap')?.checked);
     const pickupDate = String(document.getElementById('takeaway-checkout-date')?.value || '').trim();
     const pickupTime = String(document.getElementById('takeaway-checkout-time')?.value || '').trim();
@@ -1718,6 +1745,13 @@
       document.getElementById('takeaway-checkout-address')?.focus();
       return;
     }
+    if (fulfillment === 'delivery' && !locationUrl) {
+      showTakeawayCheckoutError(locationRaw
+        ? t('customerLocationInvalid')
+        : t('customerLocationRequired'));
+      document.getElementById('takeaway-checkout-location')?.focus();
+      return;
+    }
     if (!phone) {
       showTakeawayCheckoutError(t('butcherCheckoutPhoneRequired'));
       document.getElementById('takeaway-checkout-phone')?.focus();
@@ -1743,7 +1777,9 @@
       customerName: nameEn,
       customerPhone: phone,
       customerNotes: notes,
-      customerAddress: address,
+      customerAddress: fulfillment === 'delivery'
+        ? (window.LechaimOrderSession?.composeCustomerAddress?.(address, locationUrl) || address)
+        : address,
       fulfillmentType: fulfillment,
       deliveryFee: fulfillment === 'delivery' ? getTakeawayDeliveryFee() : null,
       pickupType: asapOn ? 'ASAP' : 'TIME',
@@ -3412,7 +3448,7 @@
     const byPack = !byWeight && isSoldByPack(item);
     const pricePerKg = getItemPricePerKg(item);
     const canAddToCart = price != null;
-    const packRange = byPack ? getPackEstRange(pricePerKg, 1) : null;
+    const packRange = byPack ? getPackEstRange(pricePerKg, 1, item) : null;
     const priceHtml = canAddToCart && price > 0
       ? ((byWeight || byPack)
         ? `<span class="food-price food-price--per-kg">${escapeHtml(tReplace('perKg', { price: formatEuroTotal(pricePerKg) }))}</span>`
@@ -3422,7 +3458,7 @@
       ? `<div class="food-pack-meta">
            <span class="food-pack-weight">
              <span class="food-pack-weight__label">${escapeHtml(t('packWeightLabel'))}</span>
-             <span class="food-pack-weight__value">${escapeHtml(t('packWeightValue'))}</span>
+             <span class="food-pack-weight__value">${escapeHtml(packWeightValueText(item))}</span>
            </span>
            <span class="food-pack-est">
              <span class="food-pack-est__label">${escapeHtml(t('packEstPriceLabel'))}</span>
@@ -6412,7 +6448,7 @@
         const perKg = Number(line.pricePerKg) > 0
           ? Number(line.pricePerKg)
           : getItemPricePerKg(item);
-        const range = getPackEstRange(perKg, line.qty);
+        const range = getPackEstRange(perKg, line.qty, item);
         min += range.min;
         max += range.max;
         return;
@@ -6479,7 +6515,8 @@
     const packRange = byPack
       ? getPackEstRange(
         Number(line.pricePerKg) > 0 ? Number(line.pricePerKg) : getItemPricePerKg(item),
-        line.qty
+        line.qty,
+        item
       )
       : null;
     const lineTotal = byPack ? null : price * line.qty;

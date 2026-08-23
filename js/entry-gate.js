@@ -46,6 +46,10 @@
       fulfillmentDelivery: 'Delivery',
       customerAddress: 'Address *',
       pickupAddressRequired: 'Please enter a delivery address',
+      customerLocation: 'Exact location link *',
+      customerLocationHint: 'Paste a Google Maps or Waze link',
+      pickupLocationRequired: 'Please paste an exact location link',
+      pickupLocationInvalid: 'The link is invalid. Please paste a Google Maps or Waze link',
       deliveryTime: 'Delivery time',
       shabbatOrders: 'Shabbat Orders',
       shabbatOrdersHint: 'Special menu for Shabbat',
@@ -158,6 +162,10 @@
       fulfillmentDelivery: 'משלוח',
       customerAddress: 'כתובת *',
       pickupAddressRequired: 'נא להזין כתובת למשלוח',
+      customerLocation: 'קישור למיקום מדויק *',
+      customerLocationHint: 'העתיקו קישור מ-Google Maps או Waze',
+      pickupLocationRequired: 'נא להדביק קישור למיקום המדויק',
+      pickupLocationInvalid: 'הקישור אינו תקין. נא להדביק קישור מ-Google Maps או Waze',
       deliveryTime: 'שעת משלוח',
       shabbatOrders: 'הזמנות לשבת',
       shabbatOrdersHint: 'תפריט מיוחד לשבת קודש',
@@ -282,6 +290,8 @@
   const pickupPhone = document.getElementById('entry-pickup-phone');
   const pickupAddress = document.getElementById('entry-pickup-address');
   const pickupAddressField = document.getElementById('entry-pickup-address-field');
+  const pickupLocation = document.getElementById('entry-pickup-location');
+  const pickupLocationField = document.getElementById('entry-pickup-location-field');
   const pickupTimeFieldset = document.getElementById('entry-pickup-time-fieldset');
   const fulfillmentFieldset = document.getElementById('entry-pickup-fulfillment')
     || document.querySelector('.entry-pickup__fulfillment');
@@ -1550,9 +1560,14 @@
 
     const isDelivery = getSelectedFulfillment() === 'delivery';
     if (pickupAddressField) pickupAddressField.hidden = !isDelivery;
+    if (pickupLocationField) pickupLocationField.hidden = !isDelivery;
     if (pickupAddress) {
       pickupAddress.required = isDelivery;
       if (!isDelivery) pickupAddress.value = '';
+    }
+    if (pickupLocation) {
+      pickupLocation.required = isDelivery;
+      if (!isDelivery) pickupLocation.value = '';
     }
     const timeLegend = pickupTimeFieldset?.querySelector('legend');
     if (timeLegend) timeLegend.textContent = isDelivery ? t('deliveryTime') : t('pickupTime');
@@ -1896,6 +1911,8 @@
     const notes = String(pickupNotes?.value || '').trim();
     const fulfillmentType = getSelectedFulfillment();
     const address = String(pickupAddress?.value || '').trim();
+    const locationUrl = window.LechaimOrderSession?.normalizeLocationUrl?.(pickupLocation?.value)
+      || '';
     const pickupType = pickupSelect?.checked ? 'TIME' : 'ASAP';
     const pickupTime = pickupType === 'TIME' ? String(pickupSlot?.value || '').trim() : null;
     const nameEn = transliterateToEnglish(nameRaw);
@@ -1908,6 +1925,13 @@
     if (fulfillmentType === 'delivery' && !address) {
       showPickupError(t('pickupAddressRequired'));
       pickupAddress?.focus();
+      return;
+    }
+    if (fulfillmentType === 'delivery' && !locationUrl) {
+      showPickupError(String(pickupLocation?.value || '').trim()
+        ? t('pickupLocationInvalid')
+        : t('pickupLocationRequired'));
+      pickupLocation?.focus();
       return;
     }
     if (!phone) {
@@ -1935,7 +1959,9 @@
       customerName: nameEn,
       customerPhone: phone,
       customerNotes: notes,
-      customerAddress: fulfillmentType === 'delivery' ? address : '',
+      customerAddress: fulfillmentType === 'delivery'
+        ? (window.LechaimOrderSession?.composeCustomerAddress?.(address, locationUrl) || address)
+        : '',
       fulfillmentType,
       pickupType,
       pickupTime,

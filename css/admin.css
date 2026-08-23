@@ -1362,6 +1362,17 @@ body {
   word-break: break-word;
 }
 
+.admin-location-link {
+  color: #1d4f8c;
+  font-weight: 700;
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+.admin-location-link:hover {
+  color: #123560;
+}
+
 .table-card--active .table-card__coupon,
 .table-card--pending_print .table-card__coupon,
 .table-card--preparing .table-card__coupon,
