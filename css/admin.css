@@ -1203,6 +1203,29 @@ body::before {
   line-height: 1.1;
 }
 
+.table-card__num--hug {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.22rem;
+  justify-self: center;
+  min-width: 2.6rem;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  border: 2px solid rgba(244, 212, 139, 0.95);
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 0 0 3px rgba(244, 212, 139, 0.28);
+}
+
+.table-card__hug {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.table-card--reserved .table-card__customer {
+  font-weight: 800;
+}
+
 .table-card__status {
   font-size: 0.82rem;
   font-weight: 800;
@@ -1438,7 +1461,8 @@ body::before {
 .table-card--free:not(.table-card--pickup) .table-card__type,
 .table-card--free:not(.table-card--pickup) .table-card__total,
 .table-card--free:not(.table-card--pickup) .table-card__items,
-.table-card--free:not(.table-card--pickup) .table-card__time {
+.table-card--free:not(.table-card--pickup) .table-card__time,
+.table-card--free:not(.table-card--pickup) .table-card__customer {
   visibility: hidden;
 }
 

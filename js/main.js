@@ -1818,8 +1818,28 @@
     return Boolean(window.LechaimOrderSession?.getSession?.()?.dineInNotesConfirmed);
   }
 
+  function dineInPlaceReservedFromState() {
+    const ctx = window.LechaimOrderContext || {};
+    const session = window.LechaimOrderSession?.getSession?.() || {};
+    return session.placeReserved === true
+      || ctx.placeReserved === true
+      || Boolean(String(session.customerName || ctx.customerName || '').trim());
+  }
+
+  function composePersistedDineInNotes(userNotes) {
+    const ctx = window.LechaimOrderContext || {};
+    const session = window.LechaimOrderSession?.getSession?.() || {};
+    const compose = window.LechaimOrderSession?.composeDineInNotes;
+    if (typeof compose !== 'function') return String(userNotes || '').trim();
+    return compose({
+      placeReserved: dineInPlaceReservedFromState(),
+      partySize: session.partySize ?? ctx.partySize,
+      userNotes,
+    });
+  }
+
   function applyDineInOrderNotes(notes) {
-    const text = String(notes || '').trim();
+    const text = composePersistedDineInNotes(notes);
     updateOrderContext({
       customerNotes: text,
       dineInNotesConfirmed: true,
@@ -1838,13 +1858,14 @@
     const input = document.getElementById('dinein-notes-input');
     if (input) input.value = '';
     if (!isDineInContext()) return;
+    const notes = composePersistedDineInNotes('');
     updateOrderContext({
-      customerNotes: '',
+      customerNotes: notes,
       dineInNotesConfirmed: false,
     });
     try {
       window.LechaimOrderSession?.patchSession?.({
-        customerNotes: '',
+        customerNotes: notes,
         dineInNotesConfirmed: false,
       });
     } catch (err) {
@@ -2706,10 +2727,18 @@
       sessionId: browseOnly ? null : (options.sessionId || null),
       openedAt: browseOnly ? null : (options.openedAt || null),
       status: browseOnly ? null : (options.status || null),
-      customerName: !browseOnly && startHasCustomer ? (options.customerName || '') : null,
+      customerName: !browseOnly && (startHasCustomer || startType === 'dine-in')
+        ? (options.customerName || '')
+        : null,
       customerPhone: !browseOnly && startHasCustomer ? (options.customerPhone || '') : null,
       customerNotes: !browseOnly && (startHasCustomer || startType === 'dine-in')
         ? (options.customerNotes || '')
+        : null,
+      placeReserved: !browseOnly && startType === 'dine-in'
+        ? options.placeReserved === true
+        : false,
+      partySize: !browseOnly && startType === 'dine-in'
+        ? (window.LechaimOrderSession?.normalizePartySize?.(options.partySize) ?? null)
         : null,
       dineInNotesConfirmed: !browseOnly && startType === 'dine-in'
         ? Boolean(options.dineInNotesConfirmed)
@@ -2802,16 +2831,26 @@
       sessionId: nextSessionId,
       openedAt: options.openedAt !== undefined ? options.openedAt : prev.openedAt,
       status: options.status !== undefined ? options.status : prev.status,
-      customerName: hasCustomer
+      customerName: (hasCustomer || orderType === 'dine-in')
         ? (options.customerName !== undefined ? options.customerName : prev.customerName)
         : null,
       customerPhone: hasCustomer
         ? (options.customerPhone !== undefined ? options.customerPhone : prev.customerPhone)
         : null,
       customerNotes: (hasCustomer || (!isTakeaway && !isButcher))
-        ? (tableChanged && !hasCustomer
-          ? ''
-          : (options.customerNotes !== undefined ? options.customerNotes : (prev.customerNotes || '')))
+        ? (options.customerNotes !== undefined
+          ? options.customerNotes
+          : (tableChanged && !hasCustomer ? '' : (prev.customerNotes || '')))
+        : null,
+      placeReserved: (!isTakeaway && !isButcher)
+        ? (options.placeReserved !== undefined
+          ? options.placeReserved === true
+          : (tableChanged ? false : Boolean(prev.placeReserved)))
+        : false,
+      partySize: (!isTakeaway && !isButcher)
+        ? (options.partySize !== undefined
+          ? (window.LechaimOrderSession?.normalizePartySize?.(options.partySize) ?? null)
+          : (tableChanged ? null : (prev.partySize != null ? prev.partySize : null)))
         : null,
       dineInNotesConfirmed: (!isTakeaway && !isButcher)
         ? (tableChanged
@@ -5094,9 +5133,13 @@
       openedAt: session.openedAt,
       status: session.status,
       lang: session.lang || currentLang,
-      customerName: isTakeaway || isButcher ? (session.customerName || '') : null,
+      customerName: session.customerName || '',
       customerPhone: isTakeaway || isButcher ? (session.customerPhone || '') : null,
       customerNotes: session.customerNotes || '',
+      placeReserved: !isTakeaway && !isButcher ? session.placeReserved === true : false,
+      partySize: !isTakeaway && !isButcher
+        ? (window.LechaimOrderSession?.normalizePartySize?.(session.partySize) ?? null)
+        : null,
       dineInNotesConfirmed: !isTakeaway && !isButcher
         ? Boolean(session.dineInNotesConfirmed)
         : false,
@@ -5457,8 +5500,8 @@
         orderType,
         tableNumber: orderType === 'dine_in' ? tableNumber : null,
         language: currentLang,
-        customerName: hasCustomer
-          ? (localSession?.customerName || ctx.customerName || null)
+        customerName: (hasCustomer || orderType === 'dine_in')
+          ? (String(localSession?.customerName || ctx.customerName || '').trim() || null)
           : null,
         customerPhone: hasCustomer
           ? (localSession?.customerPhone || ctx.customerPhone || null)
@@ -5552,12 +5595,15 @@
     const session = window.LechaimOrderSession?.getSession?.();
     const type = String(ctx.orderType || session?.orderType || '').toLowerCase();
     if (type !== 'dine-in' && type !== 'dinein' && type !== 'dine_in') return;
-    if (!ctx.dineInNotesConfirmed && !session?.dineInNotesConfirmed) return;
     const api = window.LechaimSupabaseOrders;
     if (typeof api?.updateSessionStatus !== 'function') return;
+    const name = String(ctx.customerName || session?.customerName || '').trim();
     const notes = String(ctx.customerNotes || session?.customerNotes || '').trim();
-    if (!notes) return;
-    await api.updateSessionStatus(remoteSessionId, { notes });
+    const patch = {};
+    if (name) patch.customerName = name;
+    if (notes) patch.notes = notes;
+    if (!Object.keys(patch).length) return;
+    await api.updateSessionStatus(remoteSessionId, patch);
   }
 
   function rememberPublicOrderNo(value) {

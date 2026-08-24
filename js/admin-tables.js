@@ -1500,8 +1500,25 @@
   }
 
   function formatDineInNotesLabel(order) {
-    const text = String(order?.customerNotes || '').trim();
+    const text = stripPlaceResFromNotes(order?.customerNotes);
     return text ? `הערות: ${text}` : 'אין הערות';
+  }
+
+  function stripPlaceResFromNotes(notes) {
+    const strip = window.LechaimOrderSession?.stripPlaceReservationNote;
+    if (typeof strip === 'function') return strip(notes);
+    return String(notes || '').trim();
+  }
+
+  function dineInReservationFromOrder(order) {
+    const name = String(order?.customerName || '').trim();
+    const party = window.LechaimOrderSession?.parsePlaceReservationParty?.(order?.customerNotes)
+      ?? null;
+    return {
+      name,
+      party,
+      reserved: Boolean(name),
+    };
   }
 
   function renderCard(entry) {
@@ -1513,6 +1530,7 @@
       && (entry.orderType === 'takeaway' || entry.orderType === 'butcher');
     const badgeText = fulfillmentBadgeLabel(entry.order, entry.orderType);
     const customerPhone = String(entry.order?.customerPhone || '').trim();
+    const dineRes = !isPickup && !free ? dineInReservationFromOrder(entry.order) : { name: '', party: null, reserved: false };
     const waBtn = isPickup && customerPhone
       ? `<button type="button" class="admin-btn admin-btn--whatsapp table-card__wa" data-table-action="whatsapp">${WA_ICON}<span>WhatsApp</span></button>`
       : '';
@@ -1543,23 +1561,27 @@
           : ''}
         <span class="table-card__pickup">${isDelivery ? 'משלוח' : 'איסוף'}: ${escapeHtml(formatPickupLabel(entry.order))}</span>
       `
-      : '';
+      : (dineRes.reserved
+        ? `<span class="table-card__customer">${escapeHtml(dineRes.name)}${
+          dineRes.party ? ` · ${escapeHtml(String(dineRes.party))}` : ''
+        }</span>`
+        : '');
     const tag = isPickup ? 'article' : 'button';
     const typeAttr = isPickup ? '' : ' type="button"';
     const roleAttr = isPickup ? ' role="button" tabindex="0"' : '';
     return `
       <${tag}${typeAttr}
-        class="table-card table-card--${escapeHtml(entry.uiStatus)}${isPickup ? ' table-card--pickup' : ''}"
+        class="table-card table-card--${escapeHtml(entry.uiStatus)}${isPickup ? ' table-card--pickup' : ''}${dineRes.reserved ? ' table-card--reserved' : ''}"
         data-entry-key="${escapeAttr(entryKey(entry))}"${roleAttr}
       >
-        <span class="table-card__num">${
+        <span class="table-card__num${dineRes.reserved ? ' table-card__num--hug' : ''}">${
           isPickup
             ? escapeHtml(
               entry.order?.publicOrderNo != null
                 ? `#${entry.order.publicOrderNo}`
                 : 'TA'
             )
-            : escapeHtml(String(entry.tableNumber))
+            : `${dineRes.reserved ? '<span class="table-card__hug" aria-hidden="true">🤗</span>' : ''}${escapeHtml(String(entry.tableNumber))}`
         }</span>
         <span class="table-card__status">${escapeHtml(statusLabel(entry.uiStatus))}</span>
         <span class="table-card__type">${escapeHtml(orderTypeLabel(entry.orderType, entry.order))}</span>
@@ -1863,11 +1885,27 @@
           </div>
         `;
       } else {
+        const dineRes = dineInReservationFromOrder(order);
+        const extraNotes = stripPlaceResFromNotes(order.customerNotes);
         drawerMeta.innerHTML = `
           <div class="table-drawer__pickup">
             <div class="table-drawer__pickup-grid">
+              ${dineRes.reserved
+                ? `<div class="table-drawer__pickup-row">
+                    <span>שם ההזמנה</span>
+                    <strong dir="auto">${escapeHtml(dineRes.name)}</strong>
+                  </div>`
+                : ''}
+              ${dineRes.party
+                ? `<div class="table-drawer__pickup-row">
+                    <span>סועדים</span>
+                    <strong>${escapeHtml(String(dineRes.party))}</strong>
+                  </div>`
+                : ''}
               <div class="table-drawer__pickup-row">
-                <strong class="table-drawer__customer-notes" dir="auto">${escapeHtml(formatDineInNotesLabel(order))}</strong>
+                <strong class="table-drawer__customer-notes" dir="auto">${escapeHtml(
+                  extraNotes ? `הערות: ${extraNotes}` : formatDineInNotesLabel(order)
+                )}</strong>
               </div>
             </div>
           </div>

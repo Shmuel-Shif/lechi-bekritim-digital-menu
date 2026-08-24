@@ -2,8 +2,8 @@
  * LECHAIM — Place reservation requests (customer form + admin approve/arrive/cancel).
  * Isolated from food orders / sessions / admin seat-hold `reservations` table.
  *
- * Capacity (enforced on create via RPC): CAPACITY_SEATS=60, AVG_SIT_MINUTES=75.
- * Customer slots: half-hour 14:00–21:00 (restaurant closes 22:00).
+ * Capacity (enforced on create via RPC): CAPACITY_SEATS=30, AVG_SIT_MINUTES=45.
+ * Customer slots: half-hour 14:00–21:00.
  * Capacity holds: pending + confirmed + arrived (cancelled does not hold).
  * Admin meter "תפוסה מאושרת": confirmed + arrived only.
  */
@@ -11,8 +11,8 @@
   'use strict';
 
   const TABLE = 'place_reservation_requests';
-  const CAPACITY_SEATS = 60;
-  const AVG_SIT_MINUTES = 75;
+  const CAPACITY_SEATS = 30;
+  const AVG_SIT_MINUTES = 45;
   const Hours = () => global.LechaimOpeningHours || null;
   const OPEN_HOUR = Hours()?.OPEN_HOUR ?? 14;
   const LAST_SLOT_HOUR = Hours()?.PLACE_RES_LAST_SLOT_HOUR ?? 21;

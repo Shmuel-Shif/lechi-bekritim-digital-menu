@@ -24,6 +24,9 @@
 
   const TABLE_MIN = 60;
   const TABLE_MAX = 73;
+  const PARTY_MIN = 1;
+  const PARTY_MAX = 30;
+  const PLACE_RES_NOTE_RE = /^הזמנת מקום(?: · (\d+) סועדים)?$/;
 
   function createSessionId() {
     if (global.crypto?.randomUUID) return `sess_${global.crypto.randomUUID()}`;
@@ -33,6 +36,38 @@
   function isValidTable(tableNumber) {
     const n = Number(tableNumber);
     return Number.isInteger(n) && n >= TABLE_MIN && n <= TABLE_MAX;
+  }
+
+  function normalizePartySize(value) {
+    const n = Math.floor(Number(value));
+    if (!Number.isFinite(n) || n < PARTY_MIN || n > PARTY_MAX) return null;
+    return n;
+  }
+
+  function formatPlaceReservationNote(partySize) {
+    const n = normalizePartySize(partySize);
+    return n ? `הזמנת מקום · ${n} סועדים` : 'הזמנת מקום';
+  }
+
+  function stripPlaceReservationNote(notes) {
+    return String(notes || '')
+      .split(/\n/)
+      .map((line) => line.trim())
+      .filter((line) => line && !PLACE_RES_NOTE_RE.test(line))
+      .join('\n')
+      .trim();
+  }
+
+  function composeDineInNotes({ placeReserved, partySize, userNotes } = {}) {
+    const user = stripPlaceReservationNote(userNotes);
+    if (!placeReserved) return user;
+    const prefix = formatPlaceReservationNote(partySize);
+    return user ? `${prefix}\n${user}` : prefix;
+  }
+
+  function parsePlaceReservationParty(notes) {
+    const match = String(notes || '').match(/הזמנת מקום · (\d+) סועדים/);
+    return match ? normalizePartySize(match[1]) : null;
   }
 
   function normalizeOrderType(value) {
@@ -185,6 +220,8 @@
       customerName: typeof session.customerName === 'string' ? session.customerName : '',
       customerPhone: typeof session.customerPhone === 'string' ? session.customerPhone : '',
       customerNotes: typeof session.customerNotes === 'string' ? session.customerNotes : '',
+      placeReserved: session.placeReserved === true,
+      partySize: normalizePartySize(session.partySize),
       dineInNotesConfirmed: session.dineInNotesConfirmed === true,
       customerAddress: typeof session.customerAddress === 'string' ? session.customerAddress : '',
       fulfillmentType: session.fulfillmentType === 'delivery' ? 'delivery' : (session.fulfillmentType === 'pickup' ? 'pickup' : null),
@@ -299,9 +336,18 @@
       lang: options.lang === 'he' || options.lang === 'en'
         ? options.lang
         : (existing?.lang || null),
-      customerNotes: sameTable && typeof existing.customerNotes === 'string'
-        ? existing.customerNotes
-        : (typeof options.customerNotes === 'string' ? options.customerNotes : ''),
+      customerName: typeof options.customerName === 'string'
+        ? options.customerName.trim()
+        : (sameTable ? (existing.customerName || '') : ''),
+      customerNotes: typeof options.customerNotes === 'string'
+        ? options.customerNotes
+        : (sameTable && typeof existing.customerNotes === 'string' ? existing.customerNotes : ''),
+      placeReserved: options.placeReserved !== undefined
+        ? options.placeReserved === true
+        : (sameTable ? existing.placeReserved === true : false),
+      partySize: options.partySize !== undefined
+        ? normalizePartySize(options.partySize)
+        : (sameTable ? normalizePartySize(existing.partySize) : null),
       dineInNotesConfirmed: sameTable
         ? Boolean(existing.dineInNotesConfirmed)
         : Boolean(options.dineInNotesConfirmed),
@@ -404,6 +450,8 @@
     if (typeof patch.customerName === 'string') next.customerName = patch.customerName;
     if (typeof patch.customerPhone === 'string') next.customerPhone = patch.customerPhone;
     if (typeof patch.customerNotes === 'string') next.customerNotes = patch.customerNotes;
+    if (patch.placeReserved !== undefined) next.placeReserved = patch.placeReserved === true;
+    if (patch.partySize !== undefined) next.partySize = normalizePartySize(patch.partySize);
     if (patch.dineInNotesConfirmed !== undefined) {
       next.dineInNotesConfirmed = Boolean(patch.dineInNotesConfirmed);
     }
@@ -480,6 +528,8 @@
       customerName: session.customerName || '',
       customerPhone: session.customerPhone || '',
       customerNotes: session.customerNotes || '',
+      placeReserved: session.placeReserved === true,
+      partySize: session.partySize != null ? session.partySize : null,
       dineInNotesConfirmed: Boolean(session.dineInNotesConfirmed),
       customerAddress: session.customerAddress || '',
       fulfillmentType: session.fulfillmentType || 'pickup',
@@ -512,6 +562,11 @@
     clearSession,
     toMenuContext,
     isValidTable,
+    normalizePartySize,
+    formatPlaceReservationNote,
+    stripPlaceReservationNote,
+    composeDineInNotes,
+    parsePlaceReservationParty,
     normalizeLocationUrl,
     splitCustomerAddress,
     composeCustomerAddress,

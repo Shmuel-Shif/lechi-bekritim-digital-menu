@@ -120,7 +120,7 @@
       placeResThanksClose: 'Close',
       placeResNameRequired: 'Please enter your full name',
       placeResPhoneRequired: 'Please enter a valid phone number',
-      placeResPartyRequired: 'Please enter number of guests (1–60)',
+      placeResPartyRequired: 'Please enter number of guests (1–30)',
       placeResDateRequired: 'Please choose a date',
       placeResWeekendClosed: 'The restaurant is closed on Friday and Saturday — please choose another date',
       placeResTimeRequired: 'Please choose a time between 14:00 and 21:00',
@@ -130,6 +130,17 @@
       placeResCapacityClose: 'Close',
       placeResSlotFull: 'Full',
       placeResNoSlots: 'No available times for this party size — try another date',
+      arriveAskTitle: 'Did you reserve a table?',
+      arriveYes: 'Yes',
+      arriveNo: 'No',
+      arriveYesHint: 'Please enter the reservation name you used when booking, and the number of guests.',
+      arriveName: 'Reservation name *',
+      arriveParty: 'Number of guests *',
+      arriveContinue: 'Continue to menu',
+      arriveNoTitle: "That's fine",
+      arriveNoText: "We're glad you came",
+      arriveNameRequired: 'Please enter the reservation name',
+      arrivePartyRequired: 'Please enter the number of guests (1–30)',
     },
     he: {
       welcome: '✦ ברוכים הבאים ✦',
@@ -236,7 +247,7 @@
       placeResThanksClose: 'סגור',
       placeResNameRequired: 'נא להזין שם מלא',
       placeResPhoneRequired: 'נא להזין מספר טלפון תקין',
-      placeResPartyRequired: 'נא להזין מספר סועדים (1–60)',
+      placeResPartyRequired: 'נא להזין מספר סועדים (1–30)',
       placeResDateRequired: 'נא לבחור תאריך',
       placeResWeekendClosed: 'לא ניתן להזמין מקום בשישי ובשבת — המסעדה סגורה',
       placeResTimeRequired: 'נא לבחור שעה בין 14:00 ל־21:00',
@@ -246,6 +257,17 @@
       placeResCapacityClose: 'סגור',
       placeResSlotFull: 'מלא',
       placeResNoSlots: 'אין שעות פנויות למספר הסועדים — נסו תאריך אחר',
+      arriveAskTitle: 'הזמנתם מקום?',
+      arriveYes: 'כן',
+      arriveNo: 'לא',
+      arriveYesHint: 'נא להזין את שם ההזמנה שאיתו הזמנתם את המקום ואת כמות האנשים',
+      arriveName: 'שם ההזמנה *',
+      arriveParty: 'כמות האנשים *',
+      arriveContinue: 'המשך לתפריט',
+      arriveNoTitle: 'זה גם בסדר',
+      arriveNoText: 'אנו שמחים שבאתם',
+      arriveNameRequired: 'נא להזין את שם ההזמנה',
+      arrivePartyRequired: 'נא להזין כמות אנשים (1–30)',
     },
   };
 
@@ -326,6 +348,15 @@
   const placeResCapacity = document.getElementById('entry-place-res-capacity');
   const placeResCapacityBackdrop = document.getElementById('entry-place-res-capacity-backdrop');
   const placeResCapacityClose = document.getElementById('entry-place-res-capacity-close');
+  const arriveModal = document.getElementById('entry-arrive-modal');
+  const arriveYesBtn = document.getElementById('entry-arrive-yes');
+  const arriveNoBtn = document.getElementById('entry-arrive-no');
+  const arriveForm = document.getElementById('entry-arrive-form');
+  const arriveName = document.getElementById('entry-arrive-name');
+  const arriveParty = document.getElementById('entry-arrive-party');
+  const arriveError = document.getElementById('entry-arrive-error');
+  const arriveYesBack = document.getElementById('entry-arrive-yes-back');
+  const arriveWelcomeContinue = document.getElementById('entry-arrive-welcome-continue');
   const tableModal = document.getElementById('entry-table-modal');
   const tableModalBackdrop = document.getElementById('entry-table-modal-backdrop');
   const tableModalPick = document.getElementById('entry-table-modal-pick');
@@ -340,6 +371,8 @@
   let kosherLightboxLastFocus = null;
   let placeResThanksTrapRelease = null;
   let placeResCapacityTrapRelease = null;
+  let arriveTrapRelease = null;
+  let pendingArriveTable = null;
   let placeResSlotsToken = 0;
 
   const state = {
@@ -405,6 +438,17 @@
           : text;
       }
     });
+    if (arriveModal && !gate.contains(arriveModal)) {
+      arriveModal.querySelectorAll('[data-entry-i18n]').forEach((el) => {
+        const key = el.getAttribute('data-entry-i18n');
+        if (key && COPY.en[key] != null) {
+          const text = t(key);
+          el.innerHTML = String(text).includes('\n')
+            ? String(text).split('\n').map((line) => line.replace(/</g, '&lt;')).join('<br>')
+            : text;
+        }
+      });
+    }
 
     if (gate.dataset.mode === 'dine-in-only') {
       const hint2 = document.getElementById('entry-table-hint-2');
@@ -631,7 +675,7 @@
     const slots = window.LechaimPlaceReservations?.buildArrivalSlots?.(placeResDate?.value)
       || (() => {
         const list = [];
-        for (let m = 14 * 60; m <= 20 * 60 + 30; m += 30) {
+        for (let m = 14 * 60; m <= 21 * 60; m += 30) {
           list.push(`${pad2(Math.floor(m / 60))}:${pad2(m % 60)}`);
         }
         return list;
@@ -824,7 +868,8 @@
       placeResPhone?.focus();
       return;
     }
-    if (!Number.isFinite(partySize) || partySize < 1 || partySize > 60) {
+    const maxParty = window.LechaimPlaceReservations?.CAPACITY_SEATS || 30;
+    if (!Number.isFinite(partySize) || partySize < 1 || partySize > maxParty) {
       showPlaceResError(t('placeResPartyRequired'));
       placeResParty?.focus();
       return;
@@ -1191,7 +1236,20 @@
     activateGateFocusTrap();
   }
 
+  function closeArriveModal() {
+    if (!arriveModal) return;
+    if (typeof arriveTrapRelease === 'function') arriveTrapRelease();
+    arriveTrapRelease = null;
+    arriveModal.hidden = true;
+    arriveModal.setAttribute('aria-hidden', 'true');
+    pendingArriveTable = null;
+    const otherOpen = (placeResThanks && !placeResThanks.hidden)
+      || (placeResCapacity && !placeResCapacity.hidden);
+    if (!otherOpen) setPlaceResModalOpen(false);
+  }
+
   function closeGate() {
+    closeArriveModal();
     releaseGateFocusTrap();
     document.body.classList.remove('entry-pending');
     gate.hidden = true;
@@ -1209,6 +1267,7 @@
         : (state.orderType || fromSession.orderType || null));
     const isTakeaway = orderType === 'takeaway';
     const isButcher = orderType === 'butcher';
+    const isDineIn = orderType === 'dine-in';
     const hasCustomer = isTakeaway || isButcher;
 
     return {
@@ -1223,7 +1282,7 @@
       sessionId: browseOnly ? null : (fromSession.sessionId || null),
       openedAt: browseOnly ? null : (fromSession.openedAt || null),
       status: browseOnly ? null : (fromSession.status || null),
-      customerName: hasCustomer
+      customerName: hasCustomer || isDineIn
         ? (extra.customerName ?? state.customerName ?? fromSession.customerName ?? '')
         : null,
       customerPhone: hasCustomer
@@ -1237,6 +1296,14 @@
       dineInNotesConfirmed: orderType === 'dine-in'
         ? Boolean(extra.dineInNotesConfirmed ?? fromSession.dineInNotesConfirmed)
         : false,
+      placeReserved: orderType === 'dine-in'
+        ? Boolean(extra.placeReserved ?? fromSession.placeReserved)
+        : false,
+      partySize: orderType === 'dine-in'
+        ? (window.LechaimOrderSession?.normalizePartySize?.(
+          extra.partySize !== undefined ? extra.partySize : fromSession.partySize
+        ) ?? null)
+        : null,
       customerAddress: isTakeaway
         ? (extra.customerAddress ?? state.customerAddress ?? fromSession.customerAddress ?? '')
         : null,
@@ -1300,6 +1367,7 @@
     }
 
     closeTableInfoModal();
+    closeArriveModal();
     if (placeResThanks && !placeResThanks.hidden) {
       if (typeof placeResThanksTrapRelease === 'function') placeResThanksTrapRelease();
       placeResThanksTrapRelease = null;
@@ -1768,7 +1836,22 @@
     finishTakeaway({ fulfillmentType: 'delivery', deliveryFee: fee });
   }
 
-  function finishWithTable(table) {
+  function dineInArrivalPayload(details = {}) {
+    const placeReserved = details.placeReserved === true;
+    const customerName = placeReserved ? String(details.customerName || '').trim() : '';
+    const partySize = placeReserved
+      ? (window.LechaimOrderSession?.normalizePartySize?.(details.partySize) ?? null)
+      : null;
+    const compose = window.LechaimOrderSession?.composeDineInNotes;
+    const customerNotes = typeof compose === 'function'
+      ? compose({ placeReserved, partySize, userNotes: '' })
+      : '';
+    return { placeReserved, customerName, partySize, customerNotes };
+  }
+
+  function completeDineInTable(table, details = {}) {
+    const n = Number(table);
+    if (!Number.isInteger(n) || n < TABLE_MIN || n > TABLE_MAX) return;
     if (isStaffOrderPage()) {
       try { localStorage.removeItem('lechaim-keri-cart'); } catch (_) { /* ignore */ }
     }
@@ -1776,15 +1859,39 @@
     state.tableNumber = table;
     highlightSelectedTable(table);
 
+    const prev = Session?.getSession?.();
+    const keepArrival = Boolean(
+      (changingTable || Session?.hasActiveDineInSession?.())
+      && prev
+      && (prev.orderType === 'dine-in' || prev.orderType === 'dinein')
+    );
+    const arrival = keepArrival
+      ? {
+        placeReserved: prev.placeReserved === true
+          || Boolean(String(prev.customerName || '').trim()),
+        customerName: String(prev.customerName || '').trim(),
+        partySize: prev.partySize != null ? prev.partySize : null,
+        customerNotes: prev.customerNotes || '',
+      }
+      : dineInArrivalPayload(details);
+
+    state.customerName = arrival.customerName;
+
     if (Session) {
-      const prev = Session.getSession?.();
       if (prev?.sessionId && Number(prev.tableNumber) !== Number(table)) {
         clearLocalSessionMapEntry(prev.sessionId);
       }
+      const opts = {
+        lang: state.lang,
+        customerName: arrival.customerName,
+        customerNotes: arrival.customerNotes,
+        placeReserved: arrival.placeReserved,
+        partySize: arrival.partySize,
+      };
       if (changingTable || Session.hasActiveDineInSession()) {
-        Session.updateTable(table, { lang: state.lang });
+        Session.updateTable(table, opts);
       } else {
-        Session.startDineIn(table, { lang: state.lang });
+        Session.startDineIn(table, opts);
       }
     }
 
@@ -1792,10 +1899,86 @@
       orderType: 'dine-in',
       tableNumber: table,
       lang: state.lang,
+      customerName: arrival.customerName,
+      customerNotes: arrival.customerNotes,
+      placeReserved: arrival.placeReserved,
+      partySize: arrival.partySize,
     }));
     if (isStaffOrderPage()) {
       void window.LechaimStaffOrder?.attachToTable?.(table);
     }
+  }
+
+  function setArriveStep(step) {
+    if (!arriveModal) return;
+    arriveModal.querySelectorAll('[data-arrive-step]').forEach((el) => {
+      el.hidden = el.getAttribute('data-arrive-step') !== step;
+    });
+    if (arriveError) {
+      arriveError.hidden = true;
+      arriveError.textContent = '';
+    }
+    const focusEl = step === 'yes'
+      ? arriveName
+      : step === 'no'
+        ? arriveWelcomeContinue
+        : arriveYesBtn;
+    window.setTimeout(() => focusEl?.focus(), 0);
+  }
+
+  function openArriveModal(table) {
+    pendingArriveTable = table;
+    if (!arriveModal) {
+      completeDineInTable(table, { placeReserved: false });
+      return;
+    }
+    if (arriveName) arriveName.value = '';
+    if (arriveParty) arriveParty.value = '';
+    setArriveStep('ask');
+    mountPlaceResOverlay(arriveModal);
+    setPlaceResModalOpen(true);
+    arriveModal.hidden = false;
+    arriveModal.setAttribute('aria-hidden', 'false');
+    if (typeof arriveTrapRelease === 'function') arriveTrapRelease();
+    const release = window.LechaimFocusTrap?.activate?.(arriveModal);
+    arriveTrapRelease = typeof release === 'function' ? release : null;
+    arriveYesBtn?.focus();
+  }
+
+  function submitArriveYes() {
+    const table = pendingArriveTable;
+    const name = String(arriveName?.value || '').trim();
+    const partySize = window.LechaimOrderSession?.normalizePartySize?.(arriveParty?.value);
+    if (!name) {
+      if (arriveError) {
+        arriveError.textContent = t('arriveNameRequired');
+        arriveError.hidden = false;
+      }
+      arriveName?.focus();
+      return;
+    }
+    if (partySize == null) {
+      if (arriveError) {
+        arriveError.textContent = t('arrivePartyRequired');
+        arriveError.hidden = false;
+      }
+      arriveParty?.focus();
+      return;
+    }
+    pendingArriveTable = null;
+    completeDineInTable(table, {
+      placeReserved: true,
+      customerName: name,
+      partySize,
+    });
+  }
+
+  function finishWithTable(table) {
+    if (isStaffOrderPage() || changingTable || Session?.hasActiveDineInSession()) {
+      completeDineInTable(table);
+      return;
+    }
+    openArriveModal(table);
   }
 
   function finishTakeaway(details = {}) {
@@ -2576,8 +2759,29 @@
   placeResThanksBackdrop?.addEventListener('click', closePlaceResThanks);
   placeResCapacityClose?.addEventListener('click', closePlaceResCapacity);
   placeResCapacityBackdrop?.addEventListener('click', closePlaceResCapacity);
+  arriveYesBtn?.addEventListener('click', () => setArriveStep('yes'));
+  arriveNoBtn?.addEventListener('click', () => setArriveStep('no'));
+  arriveYesBack?.addEventListener('click', () => setArriveStep('ask'));
+  arriveWelcomeContinue?.addEventListener('click', () => {
+    const table = pendingArriveTable;
+    pendingArriveTable = null;
+    completeDineInTable(table, { placeReserved: false });
+  });
+  arriveForm?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    submitArriveYes();
+  });
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
+    if (arriveModal && !arriveModal.hidden) {
+      event.preventDefault();
+      const yesStep = arriveModal.querySelector('[data-arrive-step="yes"]');
+      const noStep = arriveModal.querySelector('[data-arrive-step="no"]');
+      if ((yesStep && !yesStep.hidden) || (noStep && !noStep.hidden)) {
+        setArriveStep('ask');
+      }
+      return;
+    }
     if (placeResCapacity && !placeResCapacity.hidden) {
       closePlaceResCapacity();
       return;

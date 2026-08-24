@@ -376,8 +376,9 @@
     const close = getCloseMinutes(date);
     const open = getOpenMinutes(date);
     const remainder = close % 30;
-    const last = remainder === 0 ? close - 30 : close - remainder;
-    return Math.max(open, last);
+    const lastOnHalfHour = remainder === 0 ? close : close - remainder;
+    const lastCustomerSlot = 21 * 60;
+    return Math.max(open, Math.min(lastOnHalfHour, lastCustomerSlot));
   }
 
   function adminPlaceResSlotCloseMinutes(date) {

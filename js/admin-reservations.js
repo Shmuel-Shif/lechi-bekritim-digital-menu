@@ -358,7 +358,7 @@
       try {
         const occupancy = await api.getOccupancyForDate(dateStr);
         const size = Number.isFinite(partySize) && partySize >= 1 ? partySize : 1;
-        const cap = Number(api.CAPACITY_SEATS) || 60;
+        const cap = Number(api.CAPACITY_SEATS) || 30;
         unavailable = slots.filter((slot) => {
           const occupied = api.occupiedSeatsForWindow?.(occupancy, slot) || 0;
           return occupied + size > cap;
@@ -540,7 +540,7 @@
 
   function updateOccupancyMeter(occupied, capacity) {
     if (!occupancyValueEl) return;
-    const cap = capacity || global.LechaimPlaceReservations?.CAPACITY_SEATS || 60;
+    const cap = capacity || global.LechaimPlaceReservations?.CAPACITY_SEATS || 30;
     const val = Number.isFinite(occupied) ? occupied : 0;
     occupancyValueEl.textContent = `${val} / ${cap}`;
   }
@@ -741,9 +741,9 @@
       (typeof global.LechaimPlaceReservations?.getDailyOccupancy === 'function'
         ? global.LechaimPlaceReservations.getDailyOccupancy(viewDate).catch((err) => {
           console.warn('[admin-reservations] occupancy failed', err);
-          return { occupied: 0, capacity: 60 };
+          return { occupied: 0, capacity: 30 };
         })
-        : Promise.resolve({ occupied: 0, capacity: 60 })),
+        : Promise.resolve({ occupied: 0, capacity: 30 })),
     ]);
     cache = holds || [];
     futureHoldsCache = futureHolds || [];
