@@ -14,6 +14,7 @@
     { id: 'table', emoji: '🪑', labelKey: 'helpBotTopicTable' },
     { id: 'hours', emoji: '🕐', labelKey: 'helpBotTopicHours' },
     { id: 'location', emoji: '📍', labelKey: 'helpBotTopicLocation' },
+    { id: 'around', emoji: '🚶', labelKey: 'helpBotTopicAround' },
     { id: 'delivery', emoji: '🚚', labelKey: 'helpBotTopicDelivery' },
     { id: 'pickup', emoji: '🛍️', labelKey: 'helpBotTopicPickup' },
     { id: 'butcher', emoji: '🥩', labelKey: 'helpBotTopicButcher' },
@@ -26,14 +27,15 @@
     { id: 'staff', emoji: '💬', labelKey: 'helpBotTopicStaff' },
   ];
 
-  const TOPICS_HOME = ['delivery', 'pickup', 'butcher', 'shabbat', 'hours', 'location', 'baby', 'pay', 'veg', 'gluten', 'problem', 'staff'];
-  const TOPICS_DINE_IN = ['order', 'table', 'hours', 'delivery', 'pickup', 'butcher', 'shabbat', 'baby', 'pay', 'veg', 'gluten', 'problem', 'staff'];
+  const TOPICS_HOME = ['delivery', 'pickup', 'butcher', 'shabbat', 'hours', 'location', 'around', 'baby', 'pay', 'veg', 'gluten', 'problem', 'staff'];
+  const TOPICS_DINE_IN = ['order', 'table', 'hours', 'location', 'around', 'delivery', 'pickup', 'butcher', 'shabbat', 'baby', 'pay', 'veg', 'gluten', 'problem', 'staff'];
 
   const RELATED = {
     order: ['table', 'staff'],
     table: ['order', 'hours'],
     hours: ['order', 'shabbat', 'location', 'delivery'],
-    location: ['hours', 'delivery'],
+    location: ['hours', 'around'],
+    around: ['location', 'hours'],
     delivery: ['pickup', 'pay'],
     pickup: ['delivery', 'pay'],
     butcher: ['pickup', 'shabbat'],
@@ -58,6 +60,7 @@
     helpBotTopicTable: 'איזה שולחן אני?',
     helpBotTopicHours: 'מה שעות הפעילות?',
     helpBotTopicLocation: 'איפה אתם נמצאים?',
+    helpBotTopicAround: 'מה בסביבה שלנו',
     helpBotTopicDelivery: 'יש משלוחים?',
     helpBotTopicPickup: 'איך עושים איסוף עצמי?',
     helpBotTopicButcher: 'חנות הבשר',
@@ -388,6 +391,14 @@
       showTopics();
       return;
     }
+    if (id === 'around') {
+      closePanel();
+      window.setTimeout(() => {
+        window.LechaimAroundUs?.open?.();
+      }, 50);
+      return;
+    }
+
     if (id === 'problem' || id === 'staff') {
       showStaffTopic(id);
       return;

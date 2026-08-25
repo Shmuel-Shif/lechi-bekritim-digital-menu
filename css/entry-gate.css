@@ -23,7 +23,7 @@ body.entry-pending {
   overflow: hidden;
 }
 
-body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#lechaim-help-bot-fab):not(#lechaim-help-bot-panel) {
+body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#lechaim-help-bot-fab):not(#lechaim-help-bot-panel):not(#lechaim-around-us) {
   visibility: hidden;
   pointer-events: none;
 }
@@ -1126,6 +1126,18 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#lechai
 }
 
 .entry-gate.is-home .entry-gate__actions .entry-gate__btn--dine-in:hover {
+  background: #fff;
+  border-color: var(--entry-gold);
+  color: var(--entry-navy);
+}
+
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn--around {
+  background: #f7efe4;
+  color: var(--entry-navy);
+  border: 1.5px solid rgba(196, 160, 106, 0.75);
+}
+
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn--around:hover {
   background: #fff;
   border-color: var(--entry-gold);
   color: var(--entry-navy);
