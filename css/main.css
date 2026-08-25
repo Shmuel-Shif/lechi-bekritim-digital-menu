@@ -2686,21 +2686,80 @@ body.cart-open {
   font-size: 1rem;
 }
 
-body.app-confirm-open {
-  overflow: hidden;
+.app-confirm__panel--share {
+  width: min(100%, 400px);
+  gap: 0.85rem;
 }
 
-#google-review-open {
+.share-us-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.share-us-btn {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 0.35rem;
+  min-height: 4.4rem;
+  padding: 0.65rem 0.4rem;
+  border: 0;
+  border-radius: 14px;
+  color: #fff;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.2;
   text-align: center;
-  text-decoration: none;
-  box-sizing: border-box;
+  cursor: pointer;
 }
 
-#google-review-open:hover {
-  color: #fff;
+.share-us-btn svg {
+  display: block;
+  flex-shrink: 0;
+}
+
+.share-us-btn--instagram {
+  background: linear-gradient(135deg, #f58529, #dd2a7b 50%, #8134af);
+}
+
+.share-us-btn--whatsapp {
+  background: #25d366;
+}
+
+.share-us-btn--facebook {
+  background: #1877f2;
+}
+
+.share-us-btn--tiktok {
+  background: #111;
+}
+
+.share-us-btn--google {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  gap: 0.55rem;
+  min-height: 3.15rem;
+  background: #fff;
+  color: #3c4043;
+  border: 1px solid #dadce0;
+  box-shadow: 0 1px 2px rgba(60, 64, 67, 0.18);
+}
+
+.share-us-btn--google:hover {
+  filter: none;
+  background: #f8f9fa;
+  box-shadow: 0 1px 3px rgba(60, 64, 67, 0.22);
+}
+
+.share-us-btn:hover {
+  filter: brightness(1.08);
+}
+
+body.app-confirm-open {
+  overflow: hidden;
 }
 
 .order-receipt[hidden] {

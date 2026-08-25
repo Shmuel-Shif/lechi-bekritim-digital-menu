@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/main.css?v=49">
+  <link rel="stylesheet" href="css/main.css?v=51">
   <link rel="stylesheet" href="css/theme-lechaim.css?v=2">
   <link rel="stylesheet" href="css/entry-gate.css?v=10">
   <link rel="stylesheet" href="css/dine-in-map.css">
@@ -458,21 +458,38 @@
 
   <div class="app-confirm" id="google-review-modal" hidden aria-hidden="true">
     <button type="button" class="app-confirm__backdrop" id="google-review-backdrop" aria-label="סגור" data-i18n-aria="googleReviewClose"></button>
-    <div class="app-confirm__panel" role="dialog" aria-modal="true" aria-labelledby="google-review-title">
-      <p class="app-confirm__title" id="google-review-title" data-i18n="googleReviewTitle">תודה!</p>
+    <div class="app-confirm__panel app-confirm__panel--share" role="dialog" aria-modal="true" aria-labelledby="google-review-title">
+      <p class="app-confirm__title" id="google-review-title" data-i18n="googleReviewTitle">שתפו אותנו</p>
       <p class="app-confirm__text" id="google-review-sent" data-i18n="requestBillSuccess">בקשת החשבון נשלחה למלצר</p>
-      <p class="app-confirm__text app-confirm__text--soft" id="google-review-hint" data-i18n="googleReviewHint">אם נהניתם, ביקורת בגוגל עוזרת מאוד למסעדה.</p>
-      <div class="app-confirm__actions">
-        <a
-          class="cart-send-btn"
-          id="google-review-open"
-          href="https://maps.app.goo.gl/vMejA76qL8hCLQkF7?g_st=ac"
-          target="_blank"
-          rel="noopener noreferrer"
-          data-i18n="googleReviewCta"
-        >השאירו ביקורת בגוגל</a>
-        <button type="button" class="cart-clear-btn" id="google-review-close" data-i18n="googleReviewClose">סגור</button>
+      <p class="app-confirm__text app-confirm__text--soft" id="google-review-hint" data-i18n="googleReviewHint">סטורי, סטטוס או ביקורת — זה עוזר לנו המון.</p>
+      <div class="share-us-grid" role="group" aria-label="שתפו אותנו">
+        <button type="button" class="share-us-btn share-us-btn--instagram" data-share-platform="instagram">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.766 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
+          <span data-i18n="shareUsInstagram">אינסטגרם סטורי</span>
+        </button>
+        <button type="button" class="share-us-btn share-us-btn--whatsapp" data-share-platform="whatsapp">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.881 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+          <span data-i18n="shareUsWhatsapp">וואטסאפ סטטוס</span>
+        </button>
+        <button type="button" class="share-us-btn share-us-btn--facebook" data-share-platform="facebook">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M13 10V7.5c0-.83.67-1.5 1.5-1.5H17V3h-3.5C11.57 3 10 4.57 10 6.5V10H7v3h3v8h3v-8h2.5l.5-3H13z"/></svg>
+          <span data-i18n="shareUsFacebook">פייסבוק סטורי</span>
+        </button>
+        <button type="button" class="share-us-btn share-us-btn--tiktok" data-share-platform="tiktok">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M14.5 3v9.16a4.13 4.13 0 11-3.08-4 3.5 3.5 0 00-.42 1.63 2.13 2.13 0 102.13 2.13V3h2.12A6.88 6.88 0 0021 8.62V11a6.86 6.86 0 01-5.38-2.5V16A6.5 6.5 0 117.5 9.5c.35 0 .7.03 1.03.1v2.2A4.5 4.5 0 1012 16V3h2.5z"/></svg>
+          <span data-i18n="shareUsTiktok">טיקטוק</span>
+        </button>
+        <button type="button" class="share-us-btn share-us-btn--google" data-share-platform="google">
+          <svg class="share-us-btn__google-logo" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+          </svg>
+          <span data-i18n="shareUsGoogle">ביקורת בגוגל</span>
+        </button>
       </div>
+      <button type="button" class="cart-clear-btn" id="google-review-close" data-i18n="googleReviewClose">סגור</button>
     </div>
   </div>
 
@@ -481,14 +498,14 @@
   <script src="js/supabase-config.js" defer></script>
   <script src="js/order-types.js" defer></script>
   <script src="js/supabase-order-service.js?v=16" defer></script>
-  <script src="js/menu-data.js?v=89" defer></script>
+  <script src="js/menu-data.js?v=91" defer></script>
   <script src="js/opening-hours.js?v=11" defer></script>
   <script src="js/app-settings.js?v=6" defer></script>
   <script src="js/inventory.js?v=43" defer></script>
   <script src="js/order-session.js?v=4" defer></script>
   <script src="js/order-engine.js" defer></script>
   <script src="js/a11y-focus-trap.js" defer></script>
-  <script src="js/main.js?v=70" defer></script>
+  <script src="js/main.js?v=72" defer></script>
   <script src="js/place-reservations.js?v=6" defer></script>
   <script src="js/entry-gate.js?v=55" defer></script>
   <script src="js/dine-in-table-map.js?v=3" defer></script>

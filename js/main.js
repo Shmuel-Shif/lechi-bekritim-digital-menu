@@ -1950,6 +1950,90 @@
     document.body.classList.remove('app-confirm-open');
   }
 
+  function isAndroidUa() {
+    return /Android/i.test(navigator.userAgent || '');
+  }
+
+  function isAppleMobileUa() {
+    return /iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+  }
+
+  function openNewTab(url) {
+    if (!url) return;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
+  function openPlatform(appUrl, webUrl) {
+    if (!isAndroidUa() && !isAppleMobileUa()) {
+      openNewTab(webUrl);
+      return;
+    }
+    const started = Date.now();
+    const onHide = () => {
+      document.removeEventListener('visibilitychange', onHide);
+      window.clearTimeout(timer);
+    };
+    document.addEventListener('visibilitychange', onHide);
+    const timer = window.setTimeout(() => {
+      document.removeEventListener('visibilitychange', onHide);
+      if (document.hidden) return;
+      if (Date.now() - started < 1800) openNewTab(webUrl);
+    }, 1100);
+    window.location.href = appUrl;
+  }
+
+  function openInstagramApp() {
+    if (isAndroidUa()) {
+      window.location.href =
+        'intent://instagram.com/#Intent;scheme=https;package=com.instagram.android;'
+        + 'S.browser_fallback_url=' + encodeURIComponent('https://www.instagram.com/')
+        + ';end';
+      return;
+    }
+    openPlatform('instagram://app', 'https://www.instagram.com/');
+  }
+
+  function openWhatsAppApp() {
+    if (isAndroidUa()) {
+      window.location.href =
+        'intent://send/#Intent;scheme=whatsapp;package=com.whatsapp;'
+        + 'S.browser_fallback_url=' + encodeURIComponent('https://web.whatsapp.com/')
+        + ';end';
+      return;
+    }
+    openPlatform('whatsapp://app', 'https://web.whatsapp.com/');
+  }
+
+  function openFacebookApp() {
+    if (isAndroidUa()) {
+      window.location.href =
+        'intent://facebook.com/#Intent;scheme=https;package=com.facebook.katana;'
+        + 'S.browser_fallback_url=' + encodeURIComponent('https://www.facebook.com/')
+        + ';end';
+      return;
+    }
+    openPlatform('fb://', 'https://www.facebook.com/');
+  }
+
+  function openTikTokApp() {
+    if (isAndroidUa()) {
+      window.location.href =
+        'intent://www.tiktok.com/#Intent;scheme=https;package=com.zhiliaoapp.musically;'
+        + 'S.browser_fallback_url=' + encodeURIComponent('https://www.tiktok.com/')
+        + ';end';
+      return;
+    }
+    openPlatform('tiktok://', 'https://www.tiktok.com/');
+  }
+
+  function handleShareUs(platform) {
+    if (platform === 'google') openNewTab(GOOGLE_REVIEW_HREF);
+    else if (platform === 'instagram') openInstagramApp();
+    else if (platform === 'whatsapp') openWhatsAppApp();
+    else if (platform === 'facebook') openFacebookApp();
+    else if (platform === 'tiktok') openTikTokApp();
+  }
+
   function openGoogleReviewModal() {
     const modal = document.getElementById('google-review-modal');
     if (!modal) {
@@ -1957,19 +2041,10 @@
       return;
     }
 
-    const title = document.getElementById('google-review-title');
-    const sent = document.getElementById('google-review-sent');
-    const hint = document.getElementById('google-review-hint');
-    const openLink = document.getElementById('google-review-open');
-    const closeBtn = document.getElementById('google-review-close');
-    if (title) title.textContent = t('googleReviewTitle');
-    if (sent) sent.textContent = t('requestBillSuccess');
-    if (hint) hint.textContent = t('googleReviewHint');
-    if (openLink) {
-      openLink.textContent = t('googleReviewCta');
-      openLink.setAttribute('href', GOOGLE_REVIEW_HREF);
-    }
-    if (closeBtn) closeBtn.textContent = t('googleReviewClose');
+    modal.querySelectorAll('[data-i18n]').forEach((el) => {
+      const key = el.getAttribute('data-i18n');
+      if (key) el.textContent = t(key);
+    });
 
     modal.hidden = false;
     modal.setAttribute('aria-hidden', 'false');
@@ -1977,7 +2052,7 @@
     if (typeof googleReviewFocusTrapRelease === 'function') googleReviewFocusTrapRelease();
     const release = window.LechaimFocusTrap?.activate?.(modal);
     googleReviewFocusTrapRelease = typeof release === 'function' ? release : null;
-    (openLink || closeBtn)?.focus();
+    modal.querySelector('[data-share-platform]')?.focus();
   }
 
   function initGoogleReviewModal() {
@@ -1987,7 +2062,12 @@
     if (!modal) return;
     document.getElementById('google-review-close')?.addEventListener('click', closeGoogleReviewModal);
     document.getElementById('google-review-backdrop')?.addEventListener('click', closeGoogleReviewModal);
-    document.getElementById('google-review-open')?.addEventListener('click', closeGoogleReviewModal);
+    modal.querySelector('.share-us-grid')?.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-share-platform]');
+      if (!btn) return;
+      event.preventDefault();
+      handleShareUs(btn.getAttribute('data-share-platform'));
+    });
   }
 
   function isDeliveryContext() {
