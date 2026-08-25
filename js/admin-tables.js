@@ -117,6 +117,7 @@
     confirm: null,
     coupon: null,
     courier: null,
+    whatsapp: null,
   };
 
   function setFocusTrap(key, root) {
@@ -397,17 +398,84 @@
     ].join('\n');
   }
 
-  function openOrderWhatsApp(entry) {
-    const phone = toWhatsAppPhone(entry?.order?.customerPhone);
-    if (!phone) return;
-    const textEnc = encodeURIComponent(buildOrderWhatsAppText(entry));
+  function whatsappCustomerName(entry) {
+    return String(entry?.order?.customerName || '').trim() || 'לקוח';
+  }
+
+  function whatsappOrderNoSuffix(entry) {
+    const no = entry?.order?.publicOrderNo;
+    return no != null ? ` #${no}` : '';
+  }
+
+  function whatsappOrderTotal(entry) {
+    return formatMoney(calcOrderPaidTotal(entry?.order));
+  }
+
+  function isWhatsAppDeliveryEntry(entry) {
+    return isDeliveryOrder(entry?.order);
+  }
+
+  function isWhatsAppTemplateAllowed(template, delivery) {
+    if (template === 'confirm') return true;
+    if (delivery) return template === 'left' || template === 'outside';
+    return template === 'ready';
+  }
+
+  function buildWhatsAppCourierLeftText(entry) {
+    const name = whatsappCustomerName(entry);
+    const no = whatsappOrderNoSuffix(entry);
+    const total = whatsappOrderTotal(entry);
+    return [
+      `שלום ${name}`,
+      '',
+      `השליח יצא אליך עם ההזמנה${no}.`,
+      `סה"כ ${total}`,
+      'נתראה בקרוב 🚚',
+    ].join('\n');
+  }
+
+  function buildWhatsAppCourierOutsideText(entry) {
+    const name = whatsappCustomerName(entry);
+    const no = whatsappOrderNoSuffix(entry);
+    return [
+      `שלום ${name}`,
+      '',
+      'השליח בחוץ 🚪',
+      `נא לצאת לקבל את ההזמנה${no}.`,
+    ].join('\n');
+  }
+
+  function buildWhatsAppPickupReadyText(entry) {
+    const name = whatsappCustomerName(entry);
+    const no = whatsappOrderNoSuffix(entry);
+    const total = whatsappOrderTotal(entry);
+    return [
+      `שלום ${name}`,
+      '',
+      `ההזמנה${no} מוכנה לאיסוף.`,
+      `סה"כ ${total}`,
+      'מחכים לכם 🛍️',
+    ].join('\n');
+  }
+
+  function buildWhatsAppTemplateText(entry, template) {
+    if (template === 'left') return buildWhatsAppCourierLeftText(entry);
+    if (template === 'outside') return buildWhatsAppCourierOutsideText(entry);
+    if (template === 'ready') return buildWhatsAppPickupReadyText(entry);
+    return buildOrderWhatsAppText(entry);
+  }
+
+  function sendWhatsAppText(phoneRaw, text) {
+    const phone = toWhatsAppPhone(phoneRaw);
+    if (!phone) return false;
+    const textEnc = encodeURIComponent(String(text || ''));
     const textQuery = textEnc ? `&text=${textEnc}` : '';
 
     if (!isMobileDevice()) {
       openExternalUrl(
         `https://web.whatsapp.com/send?phone=${encodeURIComponent(phone)}${textQuery}`
       );
-      return;
+      return true;
     }
 
     const ua = navigator.userAgent || '';
@@ -418,10 +486,92 @@
         + '#Intent;scheme=whatsapp;package=com.whatsapp.w4b;'
         + `S.browser_fallback_url=${encodeURIComponent(fallback)};end`
       );
-      return;
+      return true;
     }
 
     openExternalUrl(`https://wa.me/${phone}?text=${textEnc}`);
+    return true;
+  }
+
+  const whatsappModal = document.getElementById('admin-whatsapp-modal');
+  const whatsappPreview = document.getElementById('admin-whatsapp-preview');
+  let whatsappModalEntry = null;
+  let whatsappModalTemplate = 'confirm';
+
+  function syncWhatsAppChoices(delivery) {
+    const title = document.getElementById('admin-whatsapp-title');
+    const hint = whatsappModal?.querySelector('.admin-wa-modal__hint');
+    if (title) title.textContent = delivery ? 'WhatsApp · משלוח' : 'WhatsApp · איסוף עצמי';
+    if (hint) {
+      hint.textContent = delivery
+        ? 'בחרו הודעה למשלוח — ואז שלחו ללקוח'
+        : 'בחרו הודעה לאיסוף — ואז שלחו ללקוח';
+    }
+    whatsappModal?.querySelectorAll('[data-wa-template]').forEach((btn) => {
+      const forMode = btn.getAttribute('data-wa-for');
+      if (forMode === 'delivery') btn.hidden = !delivery;
+      else if (forMode === 'pickup') btn.hidden = delivery;
+      else btn.hidden = false;
+    });
+  }
+
+  function setWhatsAppTemplate(template) {
+    const delivery = isWhatsAppDeliveryEntry(whatsappModalEntry);
+    const next = isWhatsAppTemplateAllowed(template, delivery) ? template : 'confirm';
+    whatsappModalTemplate = next;
+    whatsappModal?.querySelectorAll('[data-wa-template]').forEach((btn) => {
+      btn.classList.toggle('is-on', btn.getAttribute('data-wa-template') === next);
+    });
+    if (whatsappPreview) {
+      whatsappPreview.textContent = whatsappModalEntry
+        ? buildWhatsAppTemplateText(whatsappModalEntry, next)
+        : '';
+    }
+  }
+
+  function closeWhatsAppModal() {
+    if (!whatsappModal) return;
+    clearFocusTrap('whatsapp');
+    whatsappModal.hidden = true;
+    whatsappModal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('admin-modal-open');
+    whatsappModalEntry = null;
+    whatsappModalTemplate = 'confirm';
+  }
+
+  function openWhatsAppModal(entry) {
+    const phone = String(entry?.order?.customerPhone || '').trim();
+    if (!toWhatsAppPhone(phone)) {
+      showToast('אין מספר טלפון להודעת WhatsApp');
+      return;
+    }
+    if (!whatsappModal) {
+      sendWhatsAppText(phone, buildOrderWhatsAppText(entry));
+      return;
+    }
+    whatsappModalEntry = entry;
+    syncWhatsAppChoices(isWhatsAppDeliveryEntry(entry));
+    setWhatsAppTemplate('confirm');
+    whatsappModal.hidden = false;
+    whatsappModal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('admin-modal-open');
+    setFocusTrap('whatsapp', whatsappModal);
+    whatsappModal.querySelector('[data-wa-template="confirm"]')?.focus();
+  }
+
+  function confirmWhatsAppSend() {
+    const entry = whatsappModalEntry;
+    if (!entry) return;
+    const phone = entry.order?.customerPhone;
+    const text = buildWhatsAppTemplateText(entry, whatsappModalTemplate);
+    closeWhatsAppModal();
+    if (!sendWhatsAppText(phone, text)) {
+      showToast('אין מספר טלפון להודעת WhatsApp');
+    }
+  }
+
+  function openOrderWhatsApp(entry) {
+    openWhatsAppModal(entry);
   }
 
   async function copyTextToClipboard(text) {
@@ -742,6 +892,7 @@
   function statusLabel(uiStatus) {
     if (uiStatus === 'pending_print') return 'ממתין לאישור';
     if (uiStatus === 'preparing') return 'בהכנה';
+    if (uiStatus === 'waiter_called') return 'צריך מלצר';
     if (uiStatus === 'active') return 'פעיל';
     if (uiStatus === 'bill_requested') return 'ביקש חשבון';
     return 'פנוי';
@@ -803,6 +954,7 @@
 
   function resolveEntryUiStatus(synthetic) {
     if (!synthetic) return 'free';
+    if (synthetic.waiterCalled && synthetic.orderType === 'dinein') return 'waiter_called';
     const remote = synthetic._remoteOrders || [];
     if (hasOrdersNeedingApprove(remote)) return 'pending_print';
     if (hasOrdersNeedingPrint(remote)) return 'preparing';
@@ -1153,6 +1305,8 @@
       customerName: session.customer_name || null,
       customerPhone: session.customer_phone || null,
       customerNotes: session.notes || null,
+      waiterCalled: Boolean(session.waiter_called),
+      waiterNeed: session.waiter_need || '',
       customerAddress: session.customer_address || null,
       fulfillmentType: session.fulfillment_type === 'delivery' ? 'delivery' : (session.fulfillment_type === 'pickup' ? 'pickup' : null),
       pickupType: session.pickup_type || null,
@@ -1504,6 +1658,22 @@
     return text ? `הערות: ${text}` : 'אין הערות';
   }
 
+  const WAITER_NEED_LABELS = {
+    water: 'מים',
+    cutlery: 'סכום',
+    napkin: 'מפיות',
+    other: 'כללי / אחר',
+  };
+
+  function waiterNeedsLabel(order) {
+    const ids = String(order?.waiterNeed || '')
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean);
+    if (!ids.length) return 'קריאה למלצר';
+    return ids.map((id) => WAITER_NEED_LABELS[id] || id).join(' · ');
+  }
+
   function stripPlaceResFromNotes(notes) {
     const strip = window.LechaimOrderSession?.stripPlaceReservationNote;
     if (typeof strip === 'function') return strip(notes);
@@ -1585,6 +1755,11 @@
         }</span>
         <span class="table-card__status">${escapeHtml(statusLabel(entry.uiStatus))}</span>
         <span class="table-card__type">${escapeHtml(orderTypeLabel(entry.orderType, entry.order))}</span>
+        ${
+          entry.uiStatus === 'waiter_called'
+            ? `<span class="table-card__waiter">${escapeHtml(waiterNeedsLabel(entry.order))}</span>`
+            : ''
+        }
         ${pickupBlock}
         <span class="table-card__total">${free ? '€0' : escapeHtml(formatMoney(entry.total))}</span>
         <span class="table-card__items">${free ? '0 פריטים' : `${entry.itemCount} פריטים`}</span>
@@ -1887,7 +2062,14 @@
       } else {
         const dineRes = dineInReservationFromOrder(order);
         const extraNotes = stripPlaceResFromNotes(order.customerNotes);
+        const waiterOn = Boolean(order.waiterCalled);
         drawerMeta.innerHTML = `
+          ${waiterOn
+            ? `<div class="table-drawer__waiter">
+                <p class="table-drawer__waiter-title">השולחן קרא למלצר</p>
+                <p class="table-drawer__waiter-needs">${escapeHtml(waiterNeedsLabel(order))}</p>
+              </div>`
+            : ''}
           <div class="table-drawer__pickup">
             <div class="table-drawer__pickup-grid">
               ${dineRes.reserved
@@ -1956,6 +2138,7 @@
     }
 
     updateApprovePrintButton(entry);
+    updateWaiterArrivedButton(entry);
   }
 
   function updateApprovePrintButton(entry) {
@@ -1986,6 +2169,14 @@
       printBtn.hidden = false;
       printBtn.disabled = approvePrintBusy;
     }
+  }
+
+  function updateWaiterArrivedButton(entry) {
+    const btn = document.getElementById('table-waiter-arrived');
+    if (!btn) return;
+    const dineIn = entry?.orderType !== 'takeaway' && entry?.orderType !== 'butcher';
+    const on = dineIn && Boolean(entry?.order?.waiterCalled);
+    btn.hidden = !on;
   }
 
   async function handleApproveAndPrint(entry) {
@@ -2204,6 +2395,9 @@
 
       const prev = knownEntryStatuses.get(key);
       if (status === 'pending_print' && prev !== 'pending_print') {
+        customerEvent = true;
+      }
+      if (status === 'waiter_called' && prev !== 'waiter_called') {
         customerEvent = true;
       }
       /* bill_requested: visual only — no chime */
@@ -3637,6 +3831,22 @@
     await handlePrintCustomerBill(entry, coupon);
   }
 
+  async function handleWaiterArrived(entry) {
+    const sessionId = entry?.order?._supabaseSessionId;
+    const api = OrdersApi();
+    if (!sessionId || typeof api?.setWaiterCall !== 'function') {
+      showToast('לא ניתן לאשר הגעה');
+      return;
+    }
+    try {
+      await api.setWaiterCall(sessionId, null, false);
+      showToast('המלצר סומן כהגיע');
+    } catch (err) {
+      console.warn('[admin-tables] waiter arrived failed', err);
+      showToast('לא ניתן לאשר הגעה');
+    }
+  }
+
   async function handleAction(action) {
     if (!selectedKey) return;
 
@@ -3665,6 +3875,11 @@
 
     if (action === 'print-bill') {
       openCouponModal(entry);
+      return;
+    }
+
+    if (action === 'waiter-arrived') {
+      await handleWaiterArrived(entry);
       return;
     }
 
@@ -4001,6 +4216,14 @@
     courierCopyEnBtn?.addEventListener('click', () => { copyCourierDetails('en'); });
     document.getElementById('admin-courier-close')?.addEventListener('click', closeCourierModal);
     courierBackdrop?.addEventListener('click', closeCourierModal);
+    whatsappModal?.querySelector('.admin-wa-modal__choices')?.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-wa-template]');
+      if (!btn || btn.hidden) return;
+      setWhatsAppTemplate(btn.getAttribute('data-wa-template'));
+    });
+    document.getElementById('admin-whatsapp-send')?.addEventListener('click', confirmWhatsAppSend);
+    document.getElementById('admin-whatsapp-cancel')?.addEventListener('click', closeWhatsAppModal);
+    document.getElementById('admin-whatsapp-backdrop')?.addEventListener('click', closeWhatsAppModal);
 
     document.getElementById('admin-payment-cash')?.addEventListener('click', () => {
       const total = roundMoney(pendingPaymentTotal);
@@ -4132,6 +4355,10 @@
       }
       if (courierModal && !courierModal.hidden) {
         closeCourierModal();
+        return;
+      }
+      if (whatsappModal && !whatsappModal.hidden) {
+        closeWhatsAppModal();
         return;
       }
       if (successModal && !successModal.hidden) {

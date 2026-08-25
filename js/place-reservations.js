@@ -537,6 +537,27 @@
     return data;
   }
 
+  /**
+   * Customer dine-in check-in: mark today's matching request as arrived.
+   * Does not throw on "no match"; returns { matched, reason? }.
+   */
+  async function markArrivedByName(payload = {}) {
+    if (!isConfigured()) return { matched: false, reason: 'none' };
+    const sb = getClient();
+    const customer_name = String(payload.customerName ?? payload.customer_name ?? '').trim();
+    if (!customer_name) return { matched: false, reason: 'none' };
+    const partyRaw = payload.partySize ?? payload.party_size;
+    const party_size = Math.floor(Number(partyRaw));
+    const args = { p_customer_name: customer_name };
+    if (Number.isFinite(party_size) && party_size >= 1) {
+      args.p_party_size = party_size;
+    }
+    const { data, error } = await sb.rpc('mark_place_reservation_arrived', args);
+    if (error) throw new Error(error.message || 'עדכון הגעה נכשל');
+    if (data && typeof data === 'object' && !Array.isArray(data)) return data;
+    return { matched: false, reason: 'none' };
+  }
+
   global.LechaimPlaceReservations = {
     isConfigured,
     createRequest,
@@ -546,6 +567,7 @@
     setStatus,
     deleteRequest,
     updateRequest,
+    markArrivedByName,
     getOccupancyForDate,
     getUnavailableSlots,
     getDailyOccupancy,

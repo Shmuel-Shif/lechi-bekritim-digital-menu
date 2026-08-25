@@ -895,6 +895,7 @@ body::before {
 .admin-dot--pending { background: #2563eb; }
 .admin-dot--preparing { background: #6b7280; }
 .admin-dot--bill { background: #d97706; }
+.admin-dot--waiter { background: #dc2626; }
 
 /* ---------- Tables board ---------- */
 .tables-grid,
@@ -1595,6 +1596,74 @@ body::before {
   .table-card--bill_requested {
     animation: none;
   }
+}
+
+/* צריך מלצר — כרטיס אדום מלא */
+.table-card--waiter_called {
+  border-color: #991b1b;
+  background: linear-gradient(165deg, #ef4444 0%, #dc2626 55%, #b91c1c 100%);
+  box-shadow:
+    0 6px 18px rgba(220, 38, 38, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  animation: table-card-waiter-pulse 1.6s ease-in-out infinite;
+}
+
+.table-card--waiter_called .table-card__num,
+.table-card--waiter_called .table-card__status,
+.table-card--waiter_called .table-card__total,
+.table-card--waiter_called .table-card__customer {
+  color: #fff;
+}
+
+.table-card--waiter_called .table-card__type,
+.table-card--waiter_called .table-card__items,
+.table-card--waiter_called .table-card__time,
+.table-card--waiter_called .table-card__waiter {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.table-card--waiter_called:hover {
+  animation: none;
+  box-shadow:
+    0 8px 22px rgba(220, 38, 38, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.table-card__waiter {
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+@keyframes table-card-waiter-pulse {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .table-card--waiter_called {
+    animation: none;
+  }
+}
+
+.table-drawer__waiter {
+  padding: 0.75rem 0.85rem;
+  margin-bottom: 0.75rem;
+  border-radius: 12px;
+  background: rgba(185, 28, 28, 0.12);
+  border: 1px solid rgba(185, 28, 28, 0.28);
+}
+
+.table-drawer__waiter-title {
+  margin: 0 0 0.2rem;
+  font-weight: 800;
+  color: #991b1b;
+}
+
+.table-drawer__waiter-needs {
+  margin: 0;
+  font-weight: 700;
+  color: #7f1d1d;
 }
 
 /* ---------- Table drawer ---------- */
@@ -2633,6 +2702,88 @@ body.admin-modal-open {
   color: var(--color-navy);
   text-align: end;
   word-break: break-word;
+}
+
+.admin-wa-modal__panel {
+  width: min(100%, 420px);
+  text-align: start;
+  gap: 0.75rem;
+}
+
+.admin-wa-modal__title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--color-navy, #152640);
+}
+
+.admin-wa-modal__hint {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.admin-wa-modal__choices {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.admin-wa-modal__choice {
+  min-height: 2.75rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 12px;
+  border: 2px solid var(--color-cream-dark, #e6dfd0);
+  background: #fff;
+  color: var(--color-navy, #152640);
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 800;
+  cursor: pointer;
+  text-align: center;
+}
+
+.admin-wa-modal__choice:hover {
+  border-color: var(--color-gold, #c4a06a);
+}
+
+.admin-wa-modal__choice.is-on {
+  border-color: var(--color-navy, #152640);
+  background: rgba(30, 51, 84, 0.08);
+  box-shadow: inset 0 0 0 1px var(--color-navy, #152640);
+}
+
+.admin-wa-modal__choice[hidden] {
+  display: none !important;
+}
+
+.admin-wa-modal__preview {
+  margin: 0;
+  max-height: 14rem;
+  overflow: auto;
+  padding: 0.75rem 0.85rem;
+  border-radius: 12px;
+  border: 1px solid rgba(21, 38, 64, 0.12);
+  background: rgba(196, 160, 106, 0.12);
+  color: var(--color-navy, #152640);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  text-align: start;
+}
+
+.admin-wa-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.admin-wa-modal__actions .admin-btn {
+  flex: 1 1 8rem;
 }
 
 .admin-coupon-modal__title {

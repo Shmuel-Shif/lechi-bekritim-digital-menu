@@ -2619,6 +2619,14 @@ body.cart-open {
   color: var(--color-navy, #152640);
 }
 
+.app-confirm__coupon-hint {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--color-text-muted, #5c4318);
+}
+
 .app-confirm__coupon-row {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -2680,6 +2688,19 @@ body.cart-open {
 
 body.app-confirm-open {
   overflow: hidden;
+}
+
+#google-review-open {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+#google-review-open:hover {
+  color: #fff;
 }
 
 .order-receipt[hidden] {

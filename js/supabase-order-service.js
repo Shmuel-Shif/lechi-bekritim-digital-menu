@@ -15,6 +15,21 @@
   const TABLE_ITEMS = 'order_items';
 
   const OPEN_SESSION_STATUSES = ['active', 'bill_requested'];
+  const WAITER_NEED_IDS = ['water', 'cutlery', 'napkin', 'other'];
+
+  function normalizeWaiterNeed(value) {
+    if (value == null || value === '') return null;
+    const raw = Array.isArray(value) ? value : String(value).split(/[,|]/);
+    const ids = [];
+    const seen = new Set();
+    raw.forEach((part) => {
+      const id = String(part || '').trim().toLowerCase();
+      if (!WAITER_NEED_IDS.includes(id) || seen.has(id)) return;
+      seen.add(id);
+      ids.push(id);
+    });
+    return ids.length ? ids.join(',') : null;
+  }
 
   let client = null;
   let channel = null;
@@ -723,6 +738,8 @@
     'order_type',
     'status',
     'bill_requested',
+    'waiter_called',
+    'waiter_need',
     'table_number',
     'customer_name',
     'customer_phone',
@@ -742,6 +759,10 @@
     'updated_at',
     'closed_at',
   ].join(', ');
+  const OPEN_BOARD_SESSION_COLS_NO_WAITER = OPEN_BOARD_SESSION_COLS
+    .split(', ')
+    .filter((col) => col !== 'waiter_called' && col !== 'waiter_need')
+    .join(', ');
 
   const OPEN_BOARD_ORDER_COLS = [
     'id',
@@ -802,11 +823,20 @@
    */
   async function getOpenSessionsWithOrders() {
     const sb = getClient();
-    const { data: sessions, error: sessionErr } = await sb
+    let { data: sessions, error: sessionErr } = await sb
       .from(TABLE_SESSIONS)
       .select(OPEN_BOARD_SESSION_COLS)
       .in('status', OPEN_SESSION_STATUSES)
       .order('updated_at', { ascending: false });
+
+    if (sessionErr && /waiter_called|waiter_need/i.test(`${sessionErr.message || ''} ${sessionErr.details || ''}`)) {
+      console.warn('[LechaimSupabaseOrders] waiter columns missing — run supabase-waiter-call.sql');
+      ({ data: sessions, error: sessionErr } = await sb
+        .from(TABLE_SESSIONS)
+        .select(OPEN_BOARD_SESSION_COLS_NO_WAITER)
+        .in('status', OPEN_SESSION_STATUSES)
+        .order('updated_at', { ascending: false }));
+    }
 
     throwIfError(sessionErr, 'getOpenSessionsWithOrders.sessions');
     if (!sessions?.length) return [];
@@ -979,6 +1009,8 @@
       if (status === 'bill_requested') next.bill_requested = true;
       if (status === 'closed') {
         next.closed_at = patch.closedAt || patch.closed_at || new Date().toISOString();
+        next.waiter_called = false;
+        next.waiter_need = null;
       }
       if (status === 'active') {
         next.bill_requested = false;
@@ -1098,6 +1130,16 @@
       next.subtotal = Number.isFinite(sub) ? sub : null;
     }
 
+    if (patch.waiterCalled != null || patch.waiter_called != null) {
+      next.waiter_called = Boolean(patch.waiterCalled ?? patch.waiter_called);
+      if (!next.waiter_called && patch.waiterNeed === undefined && patch.waiter_need === undefined) {
+        next.waiter_need = null;
+      }
+    }
+    if (patch.waiterNeed !== undefined || patch.waiter_need !== undefined) {
+      next.waiter_need = normalizeWaiterNeed(patch.waiterNeed ?? patch.waiter_need);
+    }
+
     if (!Object.keys(next).length) {
       throw new Error('[LechaimSupabaseOrders.updateSessionStatus] empty patch');
     }
@@ -1111,6 +1153,13 @@
 
     throwIfError(error, 'updateSessionStatus');
     return data;
+  }
+
+  async function setWaiterCall(sessionId, needs, called = true) {
+    return updateSessionStatus(sessionId, {
+      waiterCalled: Boolean(called),
+      waiterNeed: called ? needs : null,
+    });
   }
 
   /**
@@ -2299,6 +2348,8 @@
     markOrderApproved,
     markOrderPrinted,
     updateSessionStatus,
+    setWaiterCall,
+    WAITER_NEED_IDS,
     ensurePublicOrderNo,
     validateCoupon,
     incrementCouponUse,

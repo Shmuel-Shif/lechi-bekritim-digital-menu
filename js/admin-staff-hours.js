@@ -58,6 +58,20 @@
   let client = null;
   let started = false;
   let currentPanel = 'clock';
+
+  function clearPinField(el) {
+    if (!el) return;
+    const type = el.getAttribute('type') || 'password';
+    el.value = '';
+    el.setAttribute('value', '');
+    try {
+      el.setAttribute('type', 'text');
+      el.value = '';
+      el.setAttribute('type', type);
+    } catch (_) {
+      el.value = '';
+    }
+  }
   let employeesCache = [];
   let shiftsCache = [];
   let shiftsViewEmployee = null;
@@ -773,8 +787,11 @@
 
     const rows = [];
     let totalHours = 0;
+    const ordered = [...shifts].sort((a, b) => (
+      new Date(a.clock_in).getTime() - new Date(b.clock_in).getTime()
+    ));
 
-    shifts.forEach((shift) => {
+    ordered.forEach((shift) => {
       const date = formatDateShortAthens(shift.clock_in);
       const timeIn = formatTimeAthens(shift.clock_in);
       if (!shift.clock_out) {
@@ -799,8 +816,8 @@
     const totalLabel = `Total: ${formatHours(Math.round(totalHours * 100) / 100)}`;
 
     /*
-     * Bar printer presents the last printed lines at the top of the torn slip.
-     * Build reading-order top→bottom, then reverse so Total ends at the bottom.
+     * Thermal bar printer: first line is the top of the torn slip.
+     * Name + headers at the top, oldest shift first, total at the bottom.
      */
     const readingOrder = [];
     if (emp?.name_en) readingOrder.push(emp.name_en);
@@ -810,7 +827,7 @@
     readingOrder.push('------------------------');
     readingOrder.push(totalLabel);
 
-    return `${readingOrder.reverse().join('\n')}\n`;
+    return `${readingOrder.join('\n')}\n`;
   }
 
   async function printEmployeeShifts(emp, shifts) {
@@ -874,6 +891,8 @@
       shiftsCache = [];
       renderShifts();
       showError(err?.message || 'שגיאה');
+    } finally {
+      clearPinField(shiftsPin);
     }
   }
 
@@ -893,6 +912,8 @@
       shiftsCache = [];
       renderSummary();
       showError(err?.message || 'שגיאה');
+    } finally {
+      clearPinField(summaryPin);
     }
   }
 
@@ -937,6 +958,7 @@
     if (!employeeModal) return;
     if (typeof empFocusTrap === 'function') empFocusTrap();
     empFocusTrap = null;
+    clearPinField(document.getElementById('staff-employee-pin'));
     employeeModal.hidden = true;
     employeeModal.setAttribute('aria-hidden', 'true');
     if (!document.querySelector('.admin-modal:not([hidden])')) {
@@ -1116,6 +1138,7 @@
         p_pin: pin || null,
       });
       if (error) throw error;
+      clearPinField(document.getElementById('staff-employee-pin'));
       closeEmployeeModal();
       showToast(id ? 'העובד עודכן' : 'העובד נוצר');
       await loadEmployees();
@@ -1314,7 +1337,6 @@
         return;
       }
 
-      if (pinInput) pinInput.value = '';
       playPunchSuccessSound();
       if (res.action === 'in') {
         showToast(`${res.employee_name || ''} · Clock in ${formatTimeAthens(res.clock_in)}`);
@@ -1329,6 +1351,8 @@
       showError(mapRpcError(err));
     } finally {
       busy = false;
+      clearPinField(pinInput);
+      pinInput?.focus();
     }
   }
 

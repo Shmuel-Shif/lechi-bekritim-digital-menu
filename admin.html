@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=52">
+  <link rel="stylesheet" href="css/admin.css?v=55">
   <link rel="icon" href="assets/logo/logo.webp" type="image/webp">
 </head>
 <body>
@@ -130,6 +130,7 @@
             <span class="admin-legend__item"><i class="admin-dot admin-dot--pending"></i> ממתין לאישור</span>
             <span class="admin-legend__item"><i class="admin-dot admin-dot--preparing"></i> בהכנה</span>
             <span class="admin-legend__item"><i class="admin-dot admin-dot--bill"></i> ביקש חשבון</span>
+            <span class="admin-legend__item"><i class="admin-dot admin-dot--waiter"></i> קריאה למלצר</span>
           </div>
           <div class="tables-grid" id="tables-grid"></div>
         </section>
@@ -626,7 +627,7 @@
             <h2 class="staff-panel__title">Enter personal code</h2>
             <label class="admin-field">
               <span>Employee code</span>
-              <input type="password" id="staff-clock-pin" inputmode="numeric" autocomplete="off" maxlength="12" dir="ltr" placeholder="••••">
+              <input type="password" id="staff-clock-pin" inputmode="numeric" autocomplete="one-time-code" maxlength="12" dir="ltr">
             </label>
             <div class="staff-clock-card__actions">
               <button type="button" class="admin-btn admin-btn--primary" id="staff-clock-in">Clock in</button>
@@ -657,7 +658,7 @@
             </label>
             <label class="admin-field staff-field--inline">
               <span>קוד עובד</span>
-              <input type="password" id="staff-shifts-pin" inputmode="numeric" autocomplete="off" maxlength="12" dir="ltr" placeholder="••••">
+              <input type="password" id="staff-shifts-pin" inputmode="numeric" autocomplete="one-time-code" maxlength="12" dir="ltr">
             </label>
             <button type="button" class="admin-btn admin-btn--primary" id="staff-shifts-load">הצג</button>
             <button type="button" class="admin-btn admin-btn--print" id="staff-shifts-print" hidden>הדפס</button>
@@ -677,7 +678,7 @@
             </label>
             <label class="admin-field staff-field--inline">
               <span>קוד עובד</span>
-              <input type="password" id="staff-summary-pin" inputmode="numeric" autocomplete="off" maxlength="12" dir="ltr" placeholder="••••">
+              <input type="password" id="staff-summary-pin" inputmode="numeric" autocomplete="one-time-code" maxlength="12" dir="ltr">
             </label>
             <button type="button" class="admin-btn admin-btn--primary" id="staff-summary-load">הצג</button>
             <button type="button" class="admin-btn admin-btn--print" id="staff-summary-print" hidden>הדפס</button>
@@ -709,7 +710,7 @@
           </label>
           <label class="admin-field">
             <span id="staff-employee-pin-label">קוד אישי *</span>
-            <input type="password" id="staff-employee-pin" inputmode="numeric" maxlength="12" dir="ltr" autocomplete="new-password" placeholder="4–12 ספרות">
+            <input type="password" id="staff-employee-pin" inputmode="numeric" maxlength="12" dir="ltr" autocomplete="new-password">
           </label>
           <label class="admin-field">
             <span>מספר חשבון בנק</span>
@@ -829,6 +830,9 @@
             </button>
             <button type="button" class="admin-btn admin-btn--print" data-table-action="print-order" id="table-print-order">
               הדפס
+            </button>
+            <button type="button" class="admin-btn admin-btn--approve" data-table-action="waiter-arrived" id="table-waiter-arrived" hidden>
+              המלצר הגיע
             </button>
             <button type="button" class="admin-btn admin-btn--soft" data-table-action="add-items">הוסף מנות</button>
             <button type="button" class="admin-btn admin-btn--bill" data-table-action="print-bill">חשבון</button>
@@ -1052,6 +1056,25 @@
       </div>
     </div>
 
+    <div class="admin-modal" id="admin-whatsapp-modal" hidden aria-hidden="true">
+      <button type="button" class="admin-modal__backdrop" id="admin-whatsapp-backdrop" aria-label="סגור"></button>
+      <div class="admin-modal__panel admin-wa-modal__panel" role="dialog" aria-modal="true" aria-labelledby="admin-whatsapp-title">
+        <h2 class="admin-wa-modal__title" id="admin-whatsapp-title">WhatsApp</h2>
+        <p class="admin-wa-modal__hint">בחרו הודעה — ואז שלחו ללקוח</p>
+        <div class="admin-wa-modal__choices" role="group" aria-label="סוג הודעה">
+          <button type="button" class="admin-wa-modal__choice is-on" data-wa-template="confirm">אישור הזמנה</button>
+          <button type="button" class="admin-wa-modal__choice" data-wa-template="left" data-wa-for="delivery">השליח יצא</button>
+          <button type="button" class="admin-wa-modal__choice" data-wa-template="outside" data-wa-for="delivery">השליח בחוץ</button>
+          <button type="button" class="admin-wa-modal__choice" data-wa-template="ready" data-wa-for="pickup">ההזמנה מוכנה</button>
+        </div>
+        <pre class="admin-wa-modal__preview" id="admin-whatsapp-preview" dir="auto"></pre>
+        <div class="admin-wa-modal__actions">
+          <button type="button" class="admin-btn admin-btn--whatsapp" id="admin-whatsapp-send">שלח בוואטסאפ</button>
+          <button type="button" class="admin-btn admin-btn--ghost" id="admin-whatsapp-cancel">ביטול</button>
+        </div>
+      </div>
+    </div>
+
     <div class="admin-modal" id="admin-coupon-modal" hidden aria-hidden="true">
       <button type="button" class="admin-modal__backdrop" id="admin-coupon-backdrop" aria-label="סגור"></button>
       <div class="admin-modal__panel admin-coupon-modal__panel" role="dialog" aria-modal="true" aria-labelledby="admin-coupon-title">
@@ -1132,8 +1155,8 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
   <script src="js/order-types.js" defer></script>
-  <script src="js/supabase-order-service.js?v=15" defer></script>
-  <script src="js/menu-data.js?v=85" defer></script>
+  <script src="js/supabase-order-service.js?v=16" defer></script>
+  <script src="js/menu-data.js?v=89" defer></script>
   <script src="js/opening-hours.js?v=11" defer></script>
   <script src="js/app-settings.js?v=6" defer></script>
   <script src="js/shabbat-menu-data.js" defer></script>
@@ -1142,14 +1165,14 @@
   <script src="js/order-engine.js" defer></script>
   <script src="js/print-engine.js?v=37" defer></script>
   <script src="js/a11y-focus-trap.js" defer></script>
-  <script src="js/admin-tables.js?v=69" defer></script>
+  <script src="js/admin-tables.js?v=73" defer></script>
   <script src="js/admin-shabbat.js?v=8" defer></script>
-  <script src="js/place-reservations.js?v=5" defer></script>
+  <script src="js/place-reservations.js?v=6" defer></script>
   <script src="js/admin-reservations.js?v=4" defer></script>
   <script src="js/admin-history.js?v=2" defer></script>
   <script src="js/admin-coupons.js" defer></script>
   <script src="js/admin-till.js?v=3" defer></script>
-  <script src="js/admin-staff-hours.js?v=4" defer></script>
+  <script src="js/admin-staff-hours.js?v=6" defer></script>
   <script src="js/admin-settings.js?v=6" defer></script>
   <script src="js/stock-catalog.js?v=6" defer></script>
   <script src="js/admin-stock.js?v=2" defer></script>

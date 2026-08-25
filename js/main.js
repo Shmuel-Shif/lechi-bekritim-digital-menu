@@ -76,6 +76,7 @@
   const appConfirmCouponLabel = $('#app-confirm-coupon-label');
   const appConfirmCouponInput = $('#app-confirm-coupon-input');
   const appConfirmCouponApply = $('#app-confirm-coupon-apply');
+  const appConfirmCouponHint = $('#app-confirm-coupon-hint');
   const appConfirmCouponStatus = $('#app-confirm-coupon-status');
   const appConfirmCouponTotals = $('#app-confirm-coupon-totals');
   let appConfirmKind = null;
@@ -1086,6 +1087,9 @@
   let butcherCheckoutBound = false;
   let dineInNotesFocusTrapRelease = null;
   let dineInNotesBound = false;
+  let googleReviewFocusTrapRelease = null;
+  let googleReviewBound = false;
+  const GOOGLE_REVIEW_HREF = 'https://maps.app.goo.gl/vMejA76qL8hCLQkF7?g_st=ac';
 
   function hasButcherCustomerDetails() {
     const ctx = window.LechaimOrderContext || {};
@@ -1936,6 +1940,56 @@
     document.getElementById('dinein-notes-backdrop')?.addEventListener('click', closeDineInNotesModal);
   }
 
+  function closeGoogleReviewModal() {
+    const modal = document.getElementById('google-review-modal');
+    if (!modal) return;
+    if (typeof googleReviewFocusTrapRelease === 'function') googleReviewFocusTrapRelease();
+    googleReviewFocusTrapRelease = null;
+    modal.hidden = true;
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('app-confirm-open');
+  }
+
+  function openGoogleReviewModal() {
+    const modal = document.getElementById('google-review-modal');
+    if (!modal) {
+      showOrderFeedback('ok', t('requestBillSuccess'));
+      return;
+    }
+
+    const title = document.getElementById('google-review-title');
+    const sent = document.getElementById('google-review-sent');
+    const hint = document.getElementById('google-review-hint');
+    const openLink = document.getElementById('google-review-open');
+    const closeBtn = document.getElementById('google-review-close');
+    if (title) title.textContent = t('googleReviewTitle');
+    if (sent) sent.textContent = t('requestBillSuccess');
+    if (hint) hint.textContent = t('googleReviewHint');
+    if (openLink) {
+      openLink.textContent = t('googleReviewCta');
+      openLink.setAttribute('href', GOOGLE_REVIEW_HREF);
+    }
+    if (closeBtn) closeBtn.textContent = t('googleReviewClose');
+
+    modal.hidden = false;
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('app-confirm-open');
+    if (typeof googleReviewFocusTrapRelease === 'function') googleReviewFocusTrapRelease();
+    const release = window.LechaimFocusTrap?.activate?.(modal);
+    googleReviewFocusTrapRelease = typeof release === 'function' ? release : null;
+    (openLink || closeBtn)?.focus();
+  }
+
+  function initGoogleReviewModal() {
+    if (googleReviewBound) return;
+    googleReviewBound = true;
+    const modal = document.getElementById('google-review-modal');
+    if (!modal) return;
+    document.getElementById('google-review-close')?.addEventListener('click', closeGoogleReviewModal);
+    document.getElementById('google-review-backdrop')?.addEventListener('click', closeGoogleReviewModal);
+    document.getElementById('google-review-open')?.addEventListener('click', closeGoogleReviewModal);
+  }
+
   function isDeliveryContext() {
     const ctx = window.LechaimOrderContext || {};
     return String(ctx.fulfillmentType || '') === 'delivery'
@@ -2572,6 +2626,7 @@
     initButcherCheckoutModal();
     initTakeawayCheckoutModal();
     initDineInNotesModal();
+    initGoogleReviewModal();
     syncButcherModeUi();
     maybeShowDeliveryFeeNotice();
   }
@@ -2620,6 +2675,8 @@
     if (kitchenCloseModal && !kitchenCloseModal.hidden) return true;
     const notes = document.getElementById('dinein-notes-modal');
     if (notes && !notes.hidden) return true;
+    const review = document.getElementById('google-review-modal');
+    if (review && !review.hidden) return true;
     return false;
   }
 
@@ -4414,6 +4471,11 @@
         closeDineInNotesModal();
         return;
       }
+      const googleReviewModal = document.getElementById('google-review-modal');
+      if (googleReviewModal && !googleReviewModal.hidden) {
+        closeGoogleReviewModal();
+        return;
+      }
       if (sidesModal && !sidesModal.hidden) {
         closeSidesModal();
         return;
@@ -4539,6 +4601,7 @@
     appConfirmCoupon.hidden = !show;
     if (show) {
       if (appConfirmCouponLabel) appConfirmCouponLabel.textContent = t('couponAsk');
+      if (appConfirmCouponHint) appConfirmCouponHint.textContent = t('couponOptionalHint');
       if (appConfirmCouponApply) appConfirmCouponApply.textContent = t('couponApply');
       if (appConfirmCouponInput) {
         appConfirmCouponInput.placeholder = t('couponPlaceholder');
@@ -4647,11 +4710,7 @@
     document.body.classList.add('app-confirm-open');
     setFocusTrap('confirm', appConfirm);
     requestAnimationFrame(() => {
-      if (kind === 'bill' && appConfirmCouponInput && appConfirmCoupon && !appConfirmCoupon.hidden) {
-        appConfirmCouponInput.focus();
-      } else {
-        appConfirmYes?.focus();
-      }
+      appConfirmYes?.focus();
     });
   }
 
@@ -4719,7 +4778,11 @@
       }
 
       syncBillRequestedToSupabaseQuietly(session, order, coupon);
-      showOrderFeedback('ok', t('requestBillSuccess'));
+      if (!isStaffOrderPage() && isDineInContext()) {
+        openGoogleReviewModal();
+      } else {
+        showOrderFeedback('ok', t('requestBillSuccess'));
+      }
       renderCart();
     } catch (err) {
       console.error('[cart] request bill failed', err);

@@ -133,13 +133,13 @@
       arriveAskTitle: 'Did you reserve a table?',
       arriveYes: 'Yes',
       arriveNo: 'No',
-      arriveYesHint: 'Please enter the reservation name you used when booking, and the number of guests.',
-      arriveName: 'Reservation name *',
+      arriveYesHint: 'Please enter the reservation name exactly as it was entered when booking, and the number of guests.',
+      arriveName: 'Reservation name (exactly as booked) *',
       arriveParty: 'Number of guests *',
       arriveContinue: 'Continue to menu',
       arriveNoTitle: "That's fine",
       arriveNoText: "We're glad you came",
-      arriveNameRequired: 'Please enter the reservation name',
+      arriveNameRequired: 'Please enter the reservation name exactly as it was booked',
       arrivePartyRequired: 'Please enter the number of guests (1–30)',
     },
     he: {
@@ -260,13 +260,13 @@
       arriveAskTitle: 'הזמנתם מקום?',
       arriveYes: 'כן',
       arriveNo: 'לא',
-      arriveYesHint: 'נא להזין את שם ההזמנה שאיתו הזמנתם את המקום ואת כמות האנשים',
-      arriveName: 'שם ההזמנה *',
+      arriveYesHint: 'נא להזין את שם ההזמנה בדיוק כמו שהוזן בעת הזמנת המקום, ואת כמות האנשים',
+      arriveName: 'שם ההזמנה (בדיוק כמו שהוזן) *',
       arriveParty: 'כמות האנשים *',
       arriveContinue: 'המשך לתפריט',
       arriveNoTitle: 'זה גם בסדר',
       arriveNoText: 'אנו שמחים שבאתם',
-      arriveNameRequired: 'נא להזין את שם ההזמנה',
+      arriveNameRequired: 'נא להזין את שם ההזמנה בדיוק כמו שהוזן',
       arrivePartyRequired: 'נא להזין כמות אנשים (1–30)',
     },
   };
@@ -1966,10 +1966,19 @@
       return;
     }
     pendingArriveTable = null;
+    markTodayReservationArrived(name, partySize);
     completeDineInTable(table, {
       placeReserved: true,
       customerName: name,
       partySize,
+    });
+  }
+
+  function markTodayReservationArrived(name, partySize) {
+    const api = window.LechaimPlaceReservations;
+    if (typeof api?.markArrivedByName !== 'function') return;
+    api.markArrivedByName({ customerName: name, partySize }).catch((err) => {
+      console.warn('[entry-gate] mark reservation arrived failed', err);
     });
   }
 

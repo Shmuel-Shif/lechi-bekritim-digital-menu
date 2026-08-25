@@ -411,3 +411,217 @@ body:has(#lechaim-help-bot-fab) .site-footer--compact {
     bottom: calc(1.1rem + env(safe-area-inset-bottom, 0px));
   }
 }
+
+/* When the waiter FAB is visible, keep the robot as a matching circle under it */
+body.waiter-fab-on .help-bot-fab {
+  width: 3.2rem;
+  height: 3.2rem;
+  min-height: 3.2rem;
+  min-width: 3.2rem;
+  max-width: 3.2rem;
+  padding: 0.18rem;
+  gap: 0;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+body.waiter-fab-on .help-bot-fab__label {
+  display: none;
+}
+
+body.waiter-fab-on .help-bot-fab__avatar {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+body.waiter-fab-on .help-bot-fab::after {
+  content: '?';
+  position: absolute;
+  top: -0.12rem;
+  inset-inline-start: -0.12rem;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  background: #c4a06a;
+  color: #152640;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.15rem;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(21, 38, 64, 0.28);
+}
+
+/* Call waiter — round FAB stacked above the help-bot robot */
+.waiter-call-fab[hidden],
+.waiter-call-panel[hidden] {
+  display: none !important;
+}
+
+.waiter-call-fab {
+  position: fixed;
+  z-index: 382;
+  inset-inline-end: 1rem;
+  bottom: calc(5.5rem + 3.2rem + 0.55rem + env(safe-area-inset-bottom, 0px));
+  width: 3.2rem;
+  height: 3.2rem;
+  padding: 0;
+  border: 2px solid #c4a06a;
+  border-radius: 50%;
+  background: #8a2f2f;
+  color: #fff8ee;
+  font: inherit;
+  box-shadow: 0 0 0 3px rgba(196, 160, 106, 0.22), 0 10px 28px rgba(21, 38, 64, 0.32);
+  cursor: pointer;
+}
+
+.waiter-call-fab__icon {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.waiter-call-fab:hover,
+.waiter-call-fab.is-open {
+  background: #6f2424;
+}
+
+.waiter-call-panel {
+  position: fixed;
+  z-index: 433;
+  inset-inline-end: 1rem;
+  bottom: calc(5.5rem + 3.2rem + 0.55rem + 3.2rem + 0.55rem + env(safe-area-inset-bottom, 0px));
+  width: min(calc(100vw - 1.5rem), 320px);
+}
+
+.waiter-call-panel__card {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.85rem 0.9rem 1rem;
+  background: #fff8ee;
+  border: 1px solid #e6dfd0;
+  border-radius: 16px;
+  box-shadow: 0 16px 40px rgba(21, 38, 64, 0.22);
+}
+
+.waiter-call-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.waiter-call-panel__title {
+  margin: 0;
+  flex: 1;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #152640;
+}
+
+.waiter-call-panel__close {
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(21, 38, 64, 0.08);
+  color: #152640;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.waiter-call-panel__hint {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #5c4318;
+}
+
+.waiter-call-panel__options {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.45rem;
+}
+
+.waiter-call-option {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.7rem;
+  width: 100%;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid rgba(21, 38, 64, 0.16);
+  border-radius: 12px;
+  background: #fff;
+  color: #152640;
+  font: inherit;
+  font-weight: 800;
+  font-size: 1rem;
+  text-align: start;
+  cursor: pointer;
+}
+
+.waiter-call-option__icon {
+  font-size: 1.25rem;
+  line-height: 1;
+  width: 1.6rem;
+  text-align: center;
+}
+
+.waiter-call-option:hover:not(:disabled),
+.waiter-call-option:focus-visible {
+  border-color: #8a2f2f;
+  background: rgba(138, 47, 47, 0.08);
+}
+
+.waiter-call-option:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.waiter-call-panel__status {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #1f6b3a;
+}
+
+.waiter-call-panel__status.is-error {
+  color: #8a2f2f;
+}
+
+body.app-confirm-open .waiter-call-fab,
+body.app-confirm-open .waiter-call-panel,
+body.cart-open .waiter-call-fab,
+body.cart-open .waiter-call-panel,
+body.modal-open .waiter-call-fab,
+body.modal-open .waiter-call-panel,
+body.order-receipt-open .waiter-call-fab,
+body.order-receipt-open .waiter-call-panel,
+body.help-bot-open .waiter-call-fab,
+body.help-bot-open .waiter-call-panel,
+body.entry-pending .waiter-call-fab,
+body.entry-pending .waiter-call-panel {
+  display: none !important;
+}
+
+@media (max-width: 768px) {
+  .waiter-call-fab {
+    inset-inline-end: 0.65rem;
+    bottom: calc(5.5rem + 3.2rem + 0.55rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .waiter-call-panel {
+    inset-inline-end: 0.65rem;
+    bottom: calc(5.5rem + 3.2rem + 0.55rem + 3.2rem + 0.55rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@media (max-width: 640px) {
+  .waiter-call-fab {
+    bottom: calc(4.6rem + 3.2rem + 0.55rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .waiter-call-panel {
+    bottom: calc(4.6rem + 3.2rem + 0.55rem + 3.2rem + 0.55rem + env(safe-area-inset-bottom, 0px));
+  }
+}

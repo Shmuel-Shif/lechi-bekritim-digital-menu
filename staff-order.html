@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/main.css?v=47">
+  <link rel="stylesheet" href="css/main.css?v=49">
   <link rel="stylesheet" href="css/theme-lechaim.css?v=2">
   <link rel="stylesheet" href="css/entry-gate.css?v=10">
   <link rel="stylesheet" href="css/dine-in-map.css">
@@ -313,7 +313,8 @@
     <div class="app-confirm__panel" role="dialog" aria-modal="true" aria-labelledby="app-confirm-text">
       <p class="app-confirm__text" id="app-confirm-text"></p>
       <div class="app-confirm__coupon" id="app-confirm-coupon" hidden>
-        <label class="app-confirm__coupon-label" id="app-confirm-coupon-label" for="app-confirm-coupon-input">יש לך קוד קופון?</label>
+        <label class="app-confirm__coupon-label" id="app-confirm-coupon-label" for="app-confirm-coupon-input">קוד קופון (לא חובה)</label>
+        <p class="app-confirm__coupon-hint" id="app-confirm-coupon-hint">אין קופון? פשוט לחצו «בקש חשבון».</p>
         <div class="app-confirm__coupon-row">
           <input
             type="text"
@@ -402,16 +403,16 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
   <script src="js/order-types.js" defer></script>
-  <script src="js/supabase-order-service.js?v=15" defer></script>
-  <script src="js/menu-data.js?v=85" defer></script>
+  <script src="js/supabase-order-service.js?v=16" defer></script>
+  <script src="js/menu-data.js?v=89" defer></script>
   <script src="js/opening-hours.js?v=11" defer></script>
   <script src="js/app-settings.js?v=6" defer></script>
   <script src="js/inventory.js?v=43" defer></script>
   <script src="js/order-session.js?v=4" defer></script>
   <script src="js/order-engine.js" defer></script>
   <script src="js/a11y-focus-trap.js" defer></script>
-  <script src="js/main.js?v=68" defer></script>
-  <script src="js/entry-gate.js?v=53" defer></script>
+  <script src="js/main.js?v=70" defer></script>
+  <script src="js/entry-gate.js?v=55" defer></script>
   <script src="js/dine-in-table-map.js?v=3" defer></script>
   <script src="js/staff-order.js?v=6" defer></script>
 </body>
