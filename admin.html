@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=55">
+  <link rel="stylesheet" href="css/admin.css?v=57">
   <link rel="icon" href="assets/logo/logo.webp" type="image/webp">
 </head>
 <body>
@@ -932,8 +932,12 @@
             <input type="text" id="reservation-name" name="customer_name" required autocomplete="name" maxlength="80">
           </label>
           <label class="admin-field">
-            <span>טלפון *</span>
-            <input type="tel" id="reservation-phone" name="customer_phone" required autocomplete="tel" dir="ltr" maxlength="20" inputmode="tel">
+            <span>וואטסאפ *</span>
+            <div class="admin-phone-row">
+              <select id="reservation-phone-cc" class="admin-phone-row__cc" dir="ltr" aria-label="קידומת מדינה"></select>
+              <input type="tel" id="reservation-phone" name="customer_phone" required autocomplete="tel" dir="ltr" maxlength="32" inputmode="tel" placeholder="07934 327776">
+            </div>
+            <span class="admin-field__hint">מספר מקומי בסדר — בחרו מדינה. בריטניה לדוגמה: 07934…</span>
           </label>
           <label class="admin-field" id="reservation-party-field">
             <span>מספר סועדים *</span>
@@ -1167,8 +1171,8 @@
   <script src="js/a11y-focus-trap.js" defer></script>
   <script src="js/admin-tables.js?v=73" defer></script>
   <script src="js/admin-shabbat.js?v=8" defer></script>
-  <script src="js/place-reservations.js?v=6" defer></script>
-  <script src="js/admin-reservations.js?v=4" defer></script>
+  <script src="js/place-reservations.js?v=8" defer></script>
+  <script src="js/admin-reservations.js?v=6" defer></script>
   <script src="js/admin-history.js?v=2" defer></script>
   <script src="js/admin-coupons.js" defer></script>
   <script src="js/admin-till.js?v=3" defer></script>

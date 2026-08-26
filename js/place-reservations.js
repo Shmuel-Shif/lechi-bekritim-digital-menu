@@ -19,6 +19,79 @@
   const LAST_SLOT_MINUTE = Hours()?.PLACE_RES_LAST_SLOT_MINUTE ?? 0;
   const SLOT_STEP_MINUTES = 30;
 
+  const PHONE_COUNTRIES = [
+    { dial: '972', he: 'ישראל +972', en: 'Israel +972' },
+    { dial: '30', he: 'יוון +30', en: 'Greece +30' },
+    { dial: '44', he: 'בריטניה +44', en: 'United Kingdom +44' },
+    { dial: '33', he: 'צרפת +33', en: 'France +33' },
+    { dial: '1', he: 'ארה״ב / קנדה +1', en: 'USA / Canada +1' },
+    { dial: '49', he: 'גרמניה +49', en: 'Germany +49' },
+    { dial: '32', he: 'בלגיה +32', en: 'Belgium +32' },
+    { dial: '31', he: 'הולנד +31', en: 'Netherlands +31' },
+    { dial: '39', he: 'איטליה +39', en: 'Italy +39' },
+    { dial: '34', he: 'ספרד +34', en: 'Spain +34' },
+    { dial: '353', he: 'אירלנד +353', en: 'Ireland +353' },
+    { dial: '41', he: 'שווייץ +41', en: 'Switzerland +41' },
+    { dial: '43', he: 'אוסטריה +43', en: 'Austria +43' },
+    { dial: '36', he: 'הונגריה +36', en: 'Hungary +36' },
+    { dial: '48', he: 'פולין +48', en: 'Poland +48' },
+    { dial: '27', he: 'דרום אפריקה +27', en: 'South Africa +27' },
+    { dial: '61', he: 'אוסטרליה +61', en: 'Australia +61' },
+  ];
+
+  /**
+   * WhatsApp E.164 digits. Local numbers without + are OK:
+   * 07934327776 → 447934327776 (UK), 058… → 972…, 69… → 30…
+   */
+  function toWhatsAppPhone(raw, dialCode) {
+    const original = String(raw || '').trim();
+    let digits = original.replace(/\D/g, '');
+    if (!digits) return '';
+    if (digits.startsWith('00')) digits = digits.slice(2);
+    if (!digits) return '';
+
+    const dial = String(dialCode || '').replace(/\D/g, '');
+    if (/^\s*\+|^\s*00/.test(original)) return digits;
+    if (dial) {
+      if (digits.startsWith(dial)) return digits;
+      const local = digits.startsWith('0') ? digits.replace(/^0+/, '') : digits;
+      return local ? `${dial}${local}` : '';
+    }
+
+    if (digits.startsWith('972')) return digits;
+    if (digits.startsWith('44') && digits.length >= 11) return digits;
+    if (digits.startsWith('30') && digits.length >= 11 && digits.length <= 15) return digits;
+
+    if (digits.startsWith('05') && digits.length === 10) return `972${digits.slice(1)}`;
+    if (digits.length === 9 && digits.startsWith('5')) return `972${digits}`;
+    if (digits.startsWith('07') && digits.length === 11) return `44${digits.slice(1)}`;
+    if (digits.startsWith('069') && digits.length === 11) return `30${digits.slice(1)}`;
+    if (digits.length === 10 && digits.startsWith('69')) return `30${digits}`;
+
+    if (!digits.startsWith('0') && digits.length >= 10 && digits.length <= 15) return digits;
+    return '';
+  }
+
+  function formatStoredPhone(raw, dialCode) {
+    const wa = toWhatsAppPhone(raw, dialCode);
+    return wa ? `+${wa}` : String(raw || '').trim();
+  }
+
+  function isValidPlaceResPhone(raw, dialCode) {
+    const wa = toWhatsAppPhone(raw, dialCode);
+    return wa.length >= 10 && wa.length <= 15;
+  }
+
+  function phoneCountryOptionsHtml(lang) {
+    const L = lang === 'en' ? 'en' : 'he';
+    const auto = L === 'en' ? 'Auto / local number' : 'זיהוי אוטומטי / מספר מקומי';
+    return [`<option value="">${auto}</option>`]
+      .concat(PHONE_COUNTRIES.map((row) => (
+        `<option value="${row.dial}">${row[L] || row.en}</option>`
+      )))
+      .join('');
+  }
+
   let client = null;
 
   function getConfig() {
@@ -246,7 +319,10 @@
   async function createRequest(payload = {}) {
     const sb = getClient();
     const customer_name = String(payload.customerName ?? payload.customer_name ?? '').trim();
-    const customer_phone = String(payload.customerPhone ?? payload.customer_phone ?? '').trim();
+    const customer_phone = formatStoredPhone(
+      payload.customerPhone ?? payload.customer_phone,
+      payload.phoneCountry ?? payload.phone_country
+    );
     const notesRaw = String(payload.notes ?? '').trim();
     const reservation_date = normalizeDateStr(
       payload.reservationDate ?? payload.reservation_date
@@ -255,7 +331,7 @@
     const party_size = Math.floor(Number(payload.partySize ?? payload.party_size));
 
     if (!customer_name) throw new Error('נא להזין שם מלא');
-    if (!customer_phone || customer_phone.replace(/\D/g, '').length < 8) {
+    if (!isValidPlaceResPhone(customer_phone)) {
       throw new Error('נא להזין טלפון תקין');
     }
     if (!Number.isFinite(party_size) || party_size < 1 || party_size > CAPACITY_SEATS) {
@@ -289,7 +365,10 @@
   async function createConfirmedRequest(payload = {}) {
     const sb = getClient();
     const customer_name = String(payload.customerName ?? payload.customer_name ?? '').trim();
-    const customer_phone = String(payload.customerPhone ?? payload.customer_phone ?? '').trim();
+    const customer_phone = formatStoredPhone(
+      payload.customerPhone ?? payload.customer_phone,
+      payload.phoneCountry ?? payload.phone_country
+    );
     const notesRaw = String(payload.notes ?? '').trim();
     const reservation_date = normalizeDateStr(
       payload.reservationDate ?? payload.reservation_date
@@ -298,7 +377,7 @@
     const party_size = Math.floor(Number(payload.partySize ?? payload.party_size));
 
     if (!customer_name) throw new Error('נא להזין שם מלא');
-    if (!customer_phone || customer_phone.replace(/\D/g, '').length < 8) {
+    if (!isValidPlaceResPhone(customer_phone)) {
       throw new Error('נא להזין טלפון תקין');
     }
     if (!Number.isFinite(party_size) || party_size < 1 || party_size > CAPACITY_SEATS) {
@@ -480,14 +559,17 @@
     if (!id) throw new Error('חסר מזהה בקשה');
 
     const customer_name = String(payload?.customer_name || '').trim();
-    const customer_phone = String(payload?.customer_phone || '').trim();
+    const customer_phone = formatStoredPhone(
+      payload?.customer_phone,
+      payload?.phoneCountry ?? payload?.phone_country
+    );
     const notes = String(payload?.notes || '').trim();
     const reservation_date = normalizeDateStr(payload?.reservation_date);
     const arrival_time = String(payload?.arrival_time || '').trim();
     const party_size = Math.floor(Number(payload?.party_size));
 
     if (!customer_name) throw new Error('נא להזין שם לקוח');
-    if (!customer_phone) throw new Error('נא להזין טלפון');
+    if (!isValidPlaceResPhone(customer_phone)) throw new Error('נא להזין טלפון');
     if (!reservation_date) throw new Error('תאריך לא תקין');
     if (isPlaceResWeekend(reservation_date)) {
       throw new Error('לא ניתן להזמין מקום בשישי ובשבת — המסעדה סגורה');
@@ -578,6 +660,11 @@
     isValidArrivalTime,
     isPlaceResWeekend,
     nextOpenPlaceResDate,
+    toWhatsAppPhone,
+    formatStoredPhone,
+    isValidPlaceResPhone,
+    phoneCountryOptionsHtml,
+    PHONE_COUNTRIES,
     CAPACITY_SEATS,
     AVG_SIT_MINUTES,
     OPEN_HOUR,

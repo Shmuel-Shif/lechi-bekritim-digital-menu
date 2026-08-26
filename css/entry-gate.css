@@ -615,6 +615,18 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#lechai
   color: #6b6170;
 }
 
+.entry-phone-row {
+  display: grid;
+  grid-template-columns: minmax(7.4rem, 0.46fr) 1fr;
+  gap: 0.45rem;
+}
+
+.entry-phone-row__cc {
+  min-width: 0;
+  font-size: 0.86rem;
+  padding-inline: 0.5rem;
+}
+
 .entry-pickup__select {
   margin-top: 0.15rem;
 }

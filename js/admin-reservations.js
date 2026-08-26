@@ -21,6 +21,7 @@
   const kindInput = document.getElementById('reservation-kind');
   const nameInput = document.getElementById('reservation-name');
   const phoneInput = document.getElementById('reservation-phone');
+  const phoneCcSelect = document.getElementById('reservation-phone-cc');
   const partyField = document.getElementById('reservation-party-field');
   const partyInput = document.getElementById('reservation-party');
   const notesInput = document.getElementById('reservation-notes');
@@ -121,20 +122,40 @@
   }
 
   /**
-   * Convert local / Israeli phone to WhatsApp international digits.
-   * 0587701009 → 972587701009
+   * WhatsApp E.164 digits. Local numbers without + are OK
+   * (07934327776 → UK +44, 05… → IL, 69… → GR).
    */
-  function toWhatsAppPhone(raw) {
-    let digits = String(raw || '').replace(/\D/g, '');
+  function toWhatsAppPhone(raw, dialCode) {
+    const api = global.LechaimPlaceReservations;
+    if (typeof api?.toWhatsAppPhone === 'function') {
+      return api.toWhatsAppPhone(raw, dialCode);
+    }
+    const original = String(raw || '').trim();
+    let digits = original.replace(/\D/g, '');
     if (!digits) return '';
-    if (digits.startsWith('972')) return digits;
-    if (digits.startsWith('0')) return `972${digits.slice(1)}`;
+    if (digits.startsWith('00')) digits = digits.slice(2);
+    if (/^\s*\+|^\s*00/.test(original)) return digits;
+    if (digits.startsWith('07') && digits.length === 11) return `44${digits.slice(1)}`;
+    if (digits.startsWith('05') && digits.length === 10) return `972${digits.slice(1)}`;
     if (digits.length === 9 && digits.startsWith('5')) return `972${digits}`;
+    if (digits.length === 10 && digits.startsWith('69')) return `30${digits}`;
     return digits;
+  }
+
+  function fillPhoneCountrySelect() {
+    if (!phoneCcSelect) return;
+    const html = global.LechaimPlaceReservations?.phoneCountryOptionsHtml?.('he');
+    if (!html) return;
+    const prev = phoneCcSelect.value;
+    phoneCcSelect.innerHTML = html;
+    if ([...phoneCcSelect.options].some((opt) => opt.value === prev)) {
+      phoneCcSelect.value = prev;
+    }
   }
 
   function buildConfirmedWhatsAppText(record) {
     const name = String(record?.customer_name || '').trim() || 'אורחים';
+    const nameEn = String(record?.customer_name || '').trim() || 'guests';
     const date = formatDateDisplay(record?.reservation_date);
     const time = formatTime(record?.arrival_time);
     const party = String(record?.party_size ?? '').trim() || '—';
@@ -144,17 +165,28 @@
       'הזמנת המקום שלכם אושרה.',
       '',
       `📅 תאריך: ${date}`,
-      '',
       `🕒 שעה: ${time}`,
-      '',
       `👥 מספר סועדים: ${party}`,
       '',
       'נשמח לראותכם במסעדת לחיים בכרתים.',
+      '',
+      '—',
+      '',
+      `Hello ${nameEn},`,
+      '',
+      'Your table reservation is confirmed.',
+      '',
+      `📅 Date: ${date}`,
+      `🕒 Time: ${time}`,
+      `👥 Guests: ${party}`,
+      '',
+      'We look forward to seeing you at Lechaim in Crete.',
     ].join('\n');
   }
 
   function buildGenericWhatsAppText(record) {
     const name = String(record?.customer_name || '').trim() || 'אורחים';
+    const nameEn = String(record?.customer_name || '').trim() || 'guests';
     const date = formatDateDisplay(record?.reservation_date);
     const time = formatTime(record?.arrival_time);
     const party = String(record?.party_size ?? '').trim() || '—';
@@ -164,12 +196,22 @@
       'פרטי הזמנת המקום שלכם:',
       '',
       `📅 תאריך: ${date}`,
-      '',
       `🕒 שעה: ${time}`,
-      '',
       `👥 מספר סועדים: ${party}`,
       '',
       'מסעדת לחיים בכרתים.',
+      '',
+      '—',
+      '',
+      `Hello ${nameEn},`,
+      '',
+      'Your table reservation details:',
+      '',
+      `📅 Date: ${date}`,
+      `🕒 Time: ${time}`,
+      `👥 Guests: ${party}`,
+      '',
+      'Lechaim Restaurant, Crete.',
     ].join('\n');
   }
 
@@ -414,9 +456,12 @@
     void fillPlaceArrivalSlots(arrivalSelect?.value || '');
   }
 
-  function isValidPhone(value) {
-    const digits = String(value || '').replace(/[^\d]/g, '');
-    return digits.length >= 9 && digits.length <= 15;
+  function isValidPhone(value, dialCode) {
+    const api = global.LechaimPlaceReservations;
+    if (typeof api?.isValidPlaceResPhone === 'function') {
+      return api.isValidPlaceResPhone(value, dialCode);
+    }
+    return toWhatsAppPhone(value, dialCode).length >= 10;
   }
 
   function showFormError(message) {
@@ -782,6 +827,8 @@
     if (idInput) idInput.value = editing ? record.id : '';
     if (nameInput) nameInput.value = editing ? (record.customer_name || '') : '';
     if (phoneInput) phoneInput.value = editing ? (record.customer_phone || '') : '';
+    fillPhoneCountrySelect();
+    if (phoneCcSelect) phoneCcSelect.value = '';
     if (notesInput) notesInput.value = editing ? (record.notes || '') : '';
     if (partyField) {
       partyField.hidden = modalKind !== 'place';
@@ -817,7 +864,11 @@
   function readFormPayload() {
     const kind = String(kindInput?.value || 'hold');
     const customer_name = String(nameInput?.value || '').trim();
-    const customer_phone = String(phoneInput?.value || '').trim();
+    const phoneRaw = String(phoneInput?.value || '').trim();
+    const phone_country = String(phoneCcSelect?.value || '').trim();
+    const customer_phone = global.LechaimPlaceReservations?.formatStoredPhone
+      ? global.LechaimPlaceReservations.formatStoredPhone(phoneRaw, phone_country)
+      : phoneRaw;
     const notes = String(notesInput?.value || '').trim();
     const reservation_date = String(dateInput?.value || '').trim();
     const arrival_time = String(arrivalSelect?.value || '').trim();
@@ -826,7 +877,7 @@
       nameInput?.focus();
       return null;
     }
-    if (!isValidPhone(customer_phone)) {
+    if (!isValidPhone(phoneRaw, phone_country)) {
       showFormError('נא להזין טלפון תקין');
       phoneInput?.focus();
       return null;
@@ -846,7 +897,7 @@
       arrivalSelect?.focus();
       return null;
     }
-    const payload = { kind, customer_name, customer_phone, notes, reservation_date, arrival_time };
+    const payload = { kind, customer_name, customer_phone, phone_country, notes, reservation_date, arrival_time };
     if (kind === 'place') {
       const party_size = Math.floor(Number(partyInput?.value));
       if (!Number.isFinite(party_size) || party_size < 1) {
@@ -1087,6 +1138,7 @@
   function bindOnce() {
     if (bindOnce.done) return;
     bindOnce.done = true;
+    fillPhoneCountrySelect();
     newBtn?.addEventListener('click', () => openModal(null, { kind: 'place' }));
     cancelBtn?.addEventListener('click', closeModal);
     backdrop?.addEventListener('click', closeModal);

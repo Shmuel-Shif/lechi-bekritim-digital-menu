@@ -111,14 +111,16 @@
       placeReservation: 'Reserve a table',
       promptPlaceRes: 'Table reservation request',
       placeResName: 'Full name *',
-      placeResPhone: 'Phone *',
+      placeResPhone: 'WhatsApp *',
+      placeResPhoneCc: 'Country code',
+      placeResPhoneHint: 'A local number is fine — pick your country. UK example: 07934…',
       placeResParty: 'Number of guests *',
       placeResDate: 'Date *',
       placeResTime: 'Time *',
       placeResNotes: 'Notes (optional)',
       placeResSubmit: 'Send request',
       placeResThanksTitle: 'Thank you!',
-      placeResThanksText: 'We received your reservation request. We will contact you to confirm.',
+      placeResThanksText: 'We received your reservation request. We will contact you on WhatsApp to confirm.',
       placeResThanksClose: 'Close',
       placeResNameRequired: 'Please enter your full name',
       placeResPhoneRequired: 'Please enter a valid phone number',
@@ -240,14 +242,16 @@
       placeReservation: 'הזמנת מקום',
       promptPlaceRes: 'בקשת הזמנת מקום',
       placeResName: 'שם מלא *',
-      placeResPhone: 'טלפון *',
+      placeResPhone: 'וואטסאפ *',
+      placeResPhoneCc: 'קידומת מדינה',
+      placeResPhoneHint: 'מספר מקומי בסדר — בחרו מדינה. בריטניה לדוגמה: 07934…',
       placeResParty: 'מספר סועדים *',
       placeResDate: 'תאריך *',
       placeResTime: 'שעה *',
       placeResNotes: 'הערות (אופציונלי)',
       placeResSubmit: 'שליחת בקשה',
       placeResThanksTitle: 'תודה!',
-      placeResThanksText: 'קיבלנו את בקשת הזמנת המקום. ניצור איתכם קשר לאישור.',
+      placeResThanksText: 'קיבלנו את בקשת הזמנת המקום. ניצור איתכם קשר בוואטסאפ לאישור.',
       placeResThanksClose: 'סגור',
       placeResNameRequired: 'נא להזין שם מלא',
       placeResPhoneRequired: 'נא להזין מספר טלפון תקין',
@@ -340,6 +344,7 @@
   const placeResForm = document.getElementById('entry-place-res-form');
   const placeResName = document.getElementById('entry-place-res-name');
   const placeResPhone = document.getElementById('entry-place-res-phone');
+  const placeResPhoneCc = document.getElementById('entry-place-res-phone-cc');
   const placeResParty = document.getElementById('entry-place-res-party');
   const placeResDate = document.getElementById('entry-place-res-date');
   const placeResTime = document.getElementById('entry-place-res-time');
@@ -528,6 +533,7 @@
 
     updateLangToggleUI();
     applyDocumentDir();
+    fillPlaceResPhoneCc();
   }
 
   function enterBrowseOnly() {
@@ -762,6 +768,18 @@
     }
   }
 
+  function fillPlaceResPhoneCc() {
+    if (!placeResPhoneCc) return;
+    const html = window.LechaimPlaceReservations?.phoneCountryOptionsHtml?.(state.lang);
+    if (!html) return;
+    const prev = placeResPhoneCc.value;
+    placeResPhoneCc.innerHTML = html;
+    if ([...placeResPhoneCc.options].some((opt) => opt.value === prev)) {
+      placeResPhoneCc.value = prev;
+    }
+    placeResPhoneCc.setAttribute('aria-label', t('placeResPhoneCc'));
+  }
+
   function resetPlaceResForm() {
     placeResForm?.reset();
     showPlaceResError('');
@@ -857,6 +875,7 @@
 
     const customerName = String(placeResName?.value || '').trim();
     const customerPhone = String(placeResPhone?.value || '').trim();
+    const phoneCountry = String(placeResPhoneCc?.value || '').trim();
     const partySize = Math.floor(Number(placeResParty?.value));
     const reservationDate = String(placeResDate?.value || '').trim();
     const arrivalTime = String(placeResTime?.value || '').trim();
@@ -867,7 +886,10 @@
       placeResName?.focus();
       return;
     }
-    if (!customerPhone || customerPhone.replace(/\D/g, '').length < 8) {
+    const phoneOk = typeof window.LechaimPlaceReservations?.isValidPlaceResPhone === 'function'
+      ? window.LechaimPlaceReservations.isValidPlaceResPhone(customerPhone, phoneCountry)
+      : (customerPhone.replace(/\D/g, '').length >= 8 && customerPhone.replace(/\D/g, '').length <= 15);
+    if (!customerPhone || !phoneOk) {
       showPlaceResError(t('placeResPhoneRequired'));
       placeResPhone?.focus();
       return;
@@ -909,6 +931,7 @@
       await window.LechaimPlaceReservations.createRequest({
         customerName,
         customerPhone,
+        phoneCountry,
         partySize,
         reservationDate,
         arrivalTime,
