@@ -113,7 +113,7 @@
       placeResName: 'Full name *',
       placeResPhone: 'WhatsApp *',
       placeResPhoneCc: 'Country code',
-      placeResPhoneHint: 'A local number is fine — pick your country. UK example: 07934…',
+      placeResPhoneHint: 'Choose a prefix on the left, then enter the number',
       placeResParty: 'Number of guests *',
       placeResDate: 'Date *',
       placeResTime: 'Time *',
@@ -244,7 +244,7 @@
       placeResName: 'שם מלא *',
       placeResPhone: 'וואטסאפ *',
       placeResPhoneCc: 'קידומת מדינה',
-      placeResPhoneHint: 'מספר מקומי בסדר — בחרו מדינה. בריטניה לדוגמה: 07934…',
+      placeResPhoneHint: 'בחרו קידומת משמאל, ואז הזינו את המספר',
       placeResParty: 'מספר סועדים *',
       placeResDate: 'תאריך *',
       placeResTime: 'שעה *',
@@ -770,7 +770,7 @@
 
   function fillPlaceResPhoneCc() {
     if (!placeResPhoneCc) return;
-    const html = window.LechaimPlaceReservations?.phoneCountryOptionsHtml?.(state.lang);
+    const html = window.LechaimPlaceReservations?.phoneCountryOptionsHtml?.(state.lang, { compact: true });
     if (!html) return;
     const prev = placeResPhoneCc.value;
     placeResPhoneCc.innerHTML = html;

@@ -82,12 +82,15 @@
     return wa.length >= 10 && wa.length <= 15;
   }
 
-  function phoneCountryOptionsHtml(lang) {
+  function phoneCountryOptionsHtml(lang, opts) {
+    const compact = Boolean(opts && opts.compact);
     const L = lang === 'en' ? 'en' : 'he';
-    const auto = L === 'en' ? 'Auto / local number' : 'זיהוי אוטומטי / מספר מקומי';
+    const auto = compact
+      ? '+'
+      : (L === 'en' ? 'Auto / local number' : 'זיהוי אוטומטי / מספר מקומי');
     return [`<option value="">${auto}</option>`]
       .concat(PHONE_COUNTRIES.map((row) => (
-        `<option value="${row.dial}">${row[L] || row.en}</option>`
+        `<option value="${row.dial}">${compact ? `+${row.dial}` : (row[L] || row.en)}</option>`
       )))
       .join('');
   }

@@ -616,15 +616,18 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#lechai
 }
 
 .entry-phone-row {
+  direction: ltr;
   display: grid;
-  grid-template-columns: minmax(7.4rem, 0.46fr) 1fr;
+  grid-template-columns: 5.4rem 1fr;
   gap: 0.45rem;
 }
 
 .entry-phone-row__cc {
   min-width: 0;
-  font-size: 0.86rem;
-  padding-inline: 0.5rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+  padding-inline: 0.35rem;
+  text-align: center;
 }
 
 .entry-pickup__select {
