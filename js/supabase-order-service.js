@@ -16,6 +16,12 @@
 
   const OPEN_SESSION_STATUSES = ['active', 'bill_requested'];
   const WAITER_NEED_IDS = ['water', 'cutlery', 'napkin', 'other'];
+  const KITCHEN_ITEM_STATUSES = ['waiting', 'preparing', 'ready'];
+
+  function normalizeKitchenStatus(value) {
+    const status = String(value || '').trim().toLowerCase();
+    return KITCHEN_ITEM_STATUSES.includes(status) ? status : 'waiting';
+  }
 
   function normalizeWaiterNeed(value) {
     if (value == null || value === '') return null;
@@ -758,10 +764,19 @@
     'created_at',
     'updated_at',
     'closed_at',
+    'kitchen_all_ready',
   ].join(', ');
   const OPEN_BOARD_SESSION_COLS_NO_WAITER = OPEN_BOARD_SESSION_COLS
     .split(', ')
     .filter((col) => col !== 'waiter_called' && col !== 'waiter_need')
+    .join(', ');
+  const OPEN_BOARD_SESSION_COLS_NO_KITCHEN_READY = OPEN_BOARD_SESSION_COLS
+    .split(', ')
+    .filter((col) => col !== 'kitchen_all_ready')
+    .join(', ');
+  const OPEN_BOARD_SESSION_COLS_NO_WAITER_NO_KITCHEN_READY = OPEN_BOARD_SESSION_COLS_NO_WAITER
+    .split(', ')
+    .filter((col) => col !== 'kitchen_all_ready')
     .join(', ');
 
   const OPEN_BOARD_ORDER_COLS = [
@@ -773,8 +788,9 @@
     'printed_at',
     'created_at',
     'updated_at',
-    'order_items(id, product_id, product_name, print_name, quantity, price, notes, parent_item_id, created_at, selected_weight, price_per_kg, unit_type, thaw_count)',
+    'order_items(id, product_id, product_name, print_name, quantity, price, notes, parent_item_id, created_at, selected_weight, price_per_kg, unit_type, thaw_count, kitchen_status)',
   ].join(', ');
+  const OPEN_BOARD_ORDER_COLS_NO_KITCHEN = OPEN_BOARD_ORDER_COLS.replace(', kitchen_status)', ')');
 
   const OPEN_SHABBAT_SESSION_COLS = [
     'session_id',
@@ -829,6 +845,15 @@
       .in('status', OPEN_SESSION_STATUSES)
       .order('updated_at', { ascending: false });
 
+    if (sessionErr && /kitchen_all_ready/i.test(`${sessionErr.message || ''} ${sessionErr.details || ''}`)) {
+      console.warn('[LechaimSupabaseOrders] kitchen_all_ready missing — run supabase-kitchen-all-ready.sql');
+      ({ data: sessions, error: sessionErr } = await sb
+        .from(TABLE_SESSIONS)
+        .select(OPEN_BOARD_SESSION_COLS_NO_KITCHEN_READY)
+        .in('status', OPEN_SESSION_STATUSES)
+        .order('updated_at', { ascending: false }));
+    }
+
     if (sessionErr && /waiter_called|waiter_need/i.test(`${sessionErr.message || ''} ${sessionErr.details || ''}`)) {
       console.warn('[LechaimSupabaseOrders] waiter columns missing — run supabase-waiter-call.sql');
       ({ data: sessions, error: sessionErr } = await sb
@@ -836,6 +861,13 @@
         .select(OPEN_BOARD_SESSION_COLS_NO_WAITER)
         .in('status', OPEN_SESSION_STATUSES)
         .order('updated_at', { ascending: false }));
+      if (sessionErr && /kitchen_all_ready/i.test(`${sessionErr.message || ''} ${sessionErr.details || ''}`)) {
+        ({ data: sessions, error: sessionErr } = await sb
+          .from(TABLE_SESSIONS)
+          .select(OPEN_BOARD_SESSION_COLS_NO_WAITER_NO_KITCHEN_READY)
+          .in('status', OPEN_SESSION_STATUSES)
+          .order('updated_at', { ascending: false }));
+      }
     }
 
     throwIfError(sessionErr, 'getOpenSessionsWithOrders.sessions');
@@ -847,6 +879,17 @@
       .select(OPEN_BOARD_ORDER_COLS)
       .in('session_id', ids)
       .order('order_number', { ascending: true });
+
+    if (error && /kitchen_status/i.test(`${error.message || ''} ${error.details || ''}`)) {
+      console.warn('[LechaimSupabaseOrders] kitchen_status missing — run supabase-kitchen-item-status.sql');
+      const retry = await sb
+        .from(TABLE_ORDERS)
+        .select(OPEN_BOARD_ORDER_COLS_NO_KITCHEN)
+        .in('session_id', ids)
+        .order('order_number', { ascending: true });
+      throwIfError(retry.error, 'getOpenSessionsWithOrders');
+      return groupOrdersBySession(sessions, retry.data);
+    }
 
     throwIfError(error, 'getOpenSessionsWithOrders');
     return groupOrdersBySession(sessions, data);
@@ -952,6 +995,60 @@
     }
 
     throw new Error('[LechaimSupabaseOrders.markOrderApproved] order not updated (check status column / RLS)');
+  }
+
+  /**
+   * Cook-facing dish status. Does not change print, prices, qty, or table close.
+   * @param {string} itemId
+   * @param {'waiting'|'preparing'|'ready'} status
+   */
+  async function updateItemKitchenStatus(itemId, status) {
+    const sb = getClient();
+    const id = String(itemId || '').trim();
+    const next = normalizeKitchenStatus(status);
+    if (!id) {
+      throw new Error('[LechaimSupabaseOrders.updateItemKitchenStatus] itemId is required');
+    }
+    if (!KITCHEN_ITEM_STATUSES.includes(String(status || '').trim().toLowerCase())) {
+      throw new Error('[LechaimSupabaseOrders.updateItemKitchenStatus] invalid status');
+    }
+
+    const { data, error } = await sb
+      .from(TABLE_ITEMS)
+      .update({ kitchen_status: next })
+      .eq('id', id)
+      .select('id, kitchen_status');
+
+    throwIfError(error, 'updateItemKitchenStatus');
+    if (!data?.length) {
+      throw new Error('[LechaimSupabaseOrders.updateItemKitchenStatus] item not updated (run supabase-kitchen-item-status.sql)');
+    }
+    return data[0];
+  }
+
+  /**
+   * Cook confirmed every active dish is ready.
+   * Updates kitchen_all_ready only — never status, bill_requested, print, or prices.
+   * @param {string} sessionId
+   */
+  async function markSessionKitchenAllReady(sessionId) {
+    const sb = getClient();
+    const id = String(sessionId || '').trim();
+    if (!id) {
+      throw new Error('[LechaimSupabaseOrders.markSessionKitchenAllReady] sessionId is required');
+    }
+
+    const { data, error } = await sb
+      .from(TABLE_SESSIONS)
+      .update({ kitchen_all_ready: true })
+      .eq('session_id', id)
+      .select('session_id, kitchen_all_ready');
+
+    throwIfError(error, 'markSessionKitchenAllReady');
+    if (!data?.length) {
+      throw new Error('[LechaimSupabaseOrders.markSessionKitchenAllReady] session not updated (run supabase-kitchen-all-ready.sql)');
+    }
+    return data[0];
   }
 
   /**
@@ -2347,6 +2444,10 @@
     getUnprintedOrdersWithItems,
     markOrderApproved,
     markOrderPrinted,
+    updateItemKitchenStatus,
+    markSessionKitchenAllReady,
+    normalizeKitchenStatus,
+    KITCHEN_ITEM_STATUSES,
     updateSessionStatus,
     setWaiterCall,
     WAITER_NEED_IDS,

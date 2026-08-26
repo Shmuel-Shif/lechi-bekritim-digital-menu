@@ -7,8 +7,6 @@
 
   const api = global.LechaimKitchenAlerts;
   const badgeEl = document.getElementById('tab-badge-kitchen');
-  const bannerEl = document.getElementById('kitchen-live-banner');
-  const bannerBtn = document.getElementById('kitchen-live-banner-btn');
   const emptyEl = document.getElementById('kitchen-alerts-empty');
   const listEl = document.getElementById('kitchen-alerts-list');
   const chatLog = document.getElementById('kitchen-chat-log');
@@ -114,23 +112,47 @@
     if (indicatorCount) indicatorCount.textContent = String(count);
   }
 
-  function paintBanner() {
-    const urgent = cache.filter((row) => isUrgent(row.alert_type));
-    const count = cache.length;
-    if (!bannerEl || !bannerBtn) return;
-    if (!count) {
-      bannerEl.hidden = true;
-      return;
-    }
-    bannerEl.hidden = false;
-    bannerEl.classList.toggle('is-urgent', urgent.length > 0);
-    if (urgent.length) {
-      const labels = [...new Set(urgent.map((row) => meta(row.alert_type).bannerHe))];
-      const time = clock(urgent[0].created_at);
-      bannerBtn.textContent = time ? `${labels.join(' / ')} · ${time}` : labels.join(' / ');
-    } else {
-      bannerBtn.textContent = `מטבח · ${count} התראות`;
-    }
+  function shortText(value, max) {
+    const text = String(value || '').trim();
+    if (text.length <= max) return text;
+    return `${text.slice(0, max - 1)}…`;
+  }
+
+  function goKitchenTab() {
+    document.querySelector('.admin-tab[data-tab="kitchen"]')?.click();
+  }
+
+  function pushNotify(title, body, urgent) {
+    const stack = document.getElementById('admin-notify-stack');
+    if (!stack) return;
+    const el = document.createElement('button');
+    el.type = 'button';
+    el.className = `admin-notify${urgent ? ' is-urgent' : ''}`;
+    el.innerHTML = `
+      <span class="admin-notify__app">LECHAIM</span>
+      <span class="admin-notify__title">${escapeHtml(title)}</span>
+      ${body ? `<span class="admin-notify__body">${escapeHtml(shortText(body, 72))}</span>` : ''}
+    `;
+    el.addEventListener('click', () => {
+      el.remove();
+      goKitchenTab();
+    });
+    stack.appendChild(el);
+    while (stack.children.length > 3) stack.firstElementChild.remove();
+    window.setTimeout(() => {
+      el.classList.add('is-out');
+      window.setTimeout(() => el.remove(), 260);
+    }, 6500);
+  }
+
+  function notifyAlert(row) {
+    if (!row) return;
+    pushNotify('קריאה מהמטבח', cardTitle(row), isUrgent(row.alert_type));
+  }
+
+  function notifyChat(row) {
+    const body = api?.chatTextFor?.(row, 'he') || row?.body_he || row?.body || 'הודעה חדשה';
+    pushNotify('הודעה מהמטבח', body, false);
   }
 
   function cardIcon(type) {
@@ -183,7 +205,6 @@
 
   function render() {
     setBadge();
-    paintBanner();
     const rows = [...cache].sort((a, b) => {
       const ua = isUrgent(a.alert_type) ? 0 : 1;
       const ub = isUrgent(b.alert_type) ? 0 : 1;
@@ -329,6 +350,7 @@
     renderChat();
     if (row.sender === 'kitchen' && !row.alert_id && !isChatOpen()) {
       playKitchenChime();
+      notifyChat(row);
     }
   }
 
@@ -371,6 +393,7 @@
     if (event === 'INSERT' && row?.status === 'open') {
       cache = [row, ...cache.filter((item) => item.id !== row.id)];
       if (isUrgent(row.alert_type)) playKitchenChime();
+      notifyAlert(row);
       render();
       syncNag();
       return;
@@ -394,6 +417,7 @@
     loadChat();
     unsubscribe = api?.subscribe?.(onRealtime);
     unsubscribeChat = api?.subscribeChat?.(onChatRealtime);
+    global.LechaimAdminKitchenBoard?.start?.();
   }
 
   function stop() {
@@ -404,6 +428,7 @@
     unsubscribe = null;
     if (typeof unsubscribeChat === 'function') unsubscribeChat();
     unsubscribeChat = null;
+    global.LechaimAdminKitchenBoard?.stop?.();
   }
 
   document.getElementById('admin-view-kitchen')?.addEventListener('click', (event) => {
@@ -421,11 +446,6 @@
     if (ackBtn) handleAck(ackBtn.dataset.kitchenAck);
   });
 
-  function goKitchenTab() {
-    document.querySelector('.admin-tab[data-tab="kitchen"]')?.click();
-  }
-
-  bannerBtn?.addEventListener('click', goKitchenTab);
   document.getElementById('admin-kitchen-indicator')?.addEventListener('click', goKitchenTab);
 
   chatSend?.addEventListener('click', sendChat);
@@ -440,5 +460,5 @@
   chatBackdrop?.addEventListener('click', closeChat);
   chatReset?.addEventListener('click', resetChat);
 
-  global.LechaimAdminKitchen = { start, stop, refresh };
+  global.LechaimAdminKitchen = { start, stop, refresh, notify: pushNotify };
 })(window);

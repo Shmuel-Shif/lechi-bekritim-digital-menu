@@ -24,15 +24,15 @@
       id: 'gas',
       labelHe: 'צריך גז',
       bannerHe: 'המטבח צריך גז',
-      section: 'urgent',
-      urgent: true,
+      section: 'ops',
+      urgent: false,
     },
     out_of_stock: {
       id: 'out_of_stock',
       labelHe: 'נגמר מלאי',
       bannerHe: 'נגמר במלאי',
-      section: 'stock',
-      urgent: false,
+      section: 'urgent',
+      urgent: true,
     },
     message: {
       id: 'message',
@@ -45,8 +45,8 @@
       id: 'close_kitchen',
       labelHe: 'סגירת מטבח',
       bannerHe: 'המטבח מבקש לסגור',
-      section: 'urgent',
-      urgent: true,
+      section: 'ops',
+      urgent: false,
     },
     fault: {
       id: 'fault',
@@ -54,27 +54,6 @@
       bannerHe: 'תקלה במטבח',
       section: 'fault',
       urgent: true,
-    },
-    no_orders: {
-      id: 'no_orders',
-      labelHe: 'אין הזמנות / בונים',
-      bannerHe: 'אין הזמנות / בונים',
-      section: 'pace',
-      urgent: false,
-    },
-    building: {
-      id: 'building',
-      labelHe: 'אין הזמנות / בונים',
-      bannerHe: 'אין הזמנות / בונים',
-      section: 'pace',
-      urgent: false,
-    },
-    pace: {
-      id: 'pace',
-      labelHe: 'אין הזמנות / בונים',
-      bannerHe: 'אין הזמנות / בונים',
-      section: 'pace',
-      urgent: false,
     },
   };
 

@@ -1,5 +1,5 @@
 /* LECHAIM Admin — Service Worker (PWA installability) */
-const CACHE = 'lechaim-admin-v132';
+const CACHE = 'lechaim-admin-v139';
 const PRECACHE = [
   './admin.html',
   './admin.webmanifest',
@@ -15,6 +15,7 @@ const PRECACHE = [
   './js/admin-reservations.js',
   './js/kitchen-alert-service.js',
   './js/admin-kitchen-alerts.js',
+  './js/admin-kitchen-board.js',
   './js/admin-pwa.js',
   './js/supabase-config.js',
   './js/supabase-order-service.js',

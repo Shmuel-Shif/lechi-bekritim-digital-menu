@@ -7,7 +7,6 @@
 
   const api = window.LechaimKitchenAlerts;
   const i18n = window.LechaimKitchenI18n;
-  const clockEl = document.getElementById('kt-clock');
   const statusEl = document.getElementById('kt-status');
   const flashEl = document.getElementById('kt-flash');
   const stockSheet = document.getElementById('kt-stock-sheet');
@@ -24,6 +23,7 @@
   const chatBtn = document.getElementById('kt-chat-btn');
   const chatBadge = document.getElementById('kt-chat-badge');
   const chatSheet = document.getElementById('kt-chat-sheet');
+  const tableSheet = document.getElementById('kt-table-sheet');
   const chatLog = document.getElementById('kt-chat-log');
   const chatInput = document.getElementById('kt-chat-input');
   const tiles = document.querySelectorAll('[data-kt-type]');
@@ -47,12 +47,6 @@
 
   function txt(key) {
     return i18n.t(lang, key);
-  }
-
-  function tickClock() {
-    if (!clockEl) return;
-    const d = new Date();
-    clockEl.textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
 
   function setStatus(text, kind) {
@@ -270,6 +264,7 @@
     if (closeSheet) closeSheet.hidden = true;
     if (faultSheet) faultSheet.hidden = true;
     if (chatSheet) chatSheet.hidden = true;
+    if (tableSheet) tableSheet.hidden = true;
     if (faultOther) faultOther.hidden = true;
   }
 
@@ -296,8 +291,7 @@
     if (!faultList || !i18n.faultItems) return;
     faultList.innerHTML = i18n.faultItems().map((row) => `
       <button type="button" class="kt-fault-item${row.id === 'other' ? ' kt-fault-item--other' : ''}" data-fault-id="${escapeAttr(row.id)}">
-        <span aria-hidden="true">${escapeHtml(row.icon || '')}</span>
-        <span>${escapeHtml(lang === 'he' ? row.he : row.el)}</span>
+        ${escapeHtml(lang === 'he' ? row.he : row.el)}
       </button>
     `).join('');
   }
@@ -312,7 +306,7 @@
     });
     const otherBtn = `
       <button type="button" class="kt-item kt-item--other" data-kt-other>
-        ➕ ${escapeHtml(txt('other'))}
+        ${escapeHtml(txt('other'))}
       </button>
     `;
     if (!rows.length) {
@@ -331,9 +325,7 @@
     document.documentElement.lang = lang === 'he' ? 'he' : 'el';
     document.documentElement.dir = lang === 'he' ? 'rtl' : 'ltr';
     const title = document.getElementById('kt-title');
-    const sub = document.getElementById('kt-sub');
     if (title) title.textContent = txt('title');
-    if (sub) sub.textContent = txt('sub');
     document.querySelectorAll('[data-kt-label]').forEach((el) => {
       el.textContent = txt(el.dataset.ktLabel);
     });
@@ -361,6 +353,8 @@
     if (chatTitle) chatTitle.textContent = txt('chat');
     if (chatSend) chatSend.textContent = txt('chatSend');
     if (chatInput) chatInput.placeholder = txt('chatPlaceholder');
+    chatBtn?.setAttribute('aria-label', txt('chat'));
+    window.LechaimKitchenBoard?.applyLang?.();
     langBtn?.querySelectorAll('[data-lang]').forEach((opt) => {
       opt.classList.toggle('is-active', opt.dataset.lang === lang);
     });
@@ -550,7 +544,7 @@
     btn.addEventListener('click', closeSheets);
   });
 
-  [stockSheet, otherSheet, closeSheet, faultSheet, chatSheet].forEach((sheet) => {
+  [stockSheet, otherSheet, closeSheet, faultSheet, chatSheet, tableSheet].forEach((sheet) => {
     sheet?.addEventListener('click', (event) => {
       if (event.target === sheet) closeSheets();
     });
@@ -617,8 +611,6 @@
   checkPendingAcks();
   window.setInterval(checkPendingAcks, 4000);
 
-  tickClock();
-  window.setInterval(tickClock, 15000);
   holdWakeLock();
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {

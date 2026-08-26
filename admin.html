@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=63">
+  <link rel="stylesheet" href="css/admin.css?v=69">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
 <body>
@@ -108,10 +108,6 @@
           </div>
         </div>
       </nav>
-
-      <div class="kitchen-live-banner" id="kitchen-live-banner" hidden>
-        <button type="button" class="kitchen-live-banner__btn" id="kitchen-live-banner-btn">מטבח</button>
-      </div>
 
       <p class="admin-error" id="admin-panel-error" role="alert" hidden></p>
       <p class="admin-toast" id="admin-toast" role="status" aria-live="polite" hidden></p>
@@ -271,8 +267,28 @@
             </div>
           </header>
 
-          <div class="kitchen-alerts-list" id="kitchen-alerts-list"></div>
-          <p class="tables-category__empty" id="kitchen-alerts-empty">אין בקשות פתוחות מהמטבח</p>
+          <nav class="kitchen-subnav" aria-label="מטבח">
+            <button type="button" class="admin-tab is-active" data-kitchen-pane="alerts">קריאות</button>
+            <button type="button" class="admin-tab" data-kitchen-pane="tables">שולחנות</button>
+          </nav>
+
+          <div id="kitchen-pane-alerts">
+            <div class="kitchen-alerts-list" id="kitchen-alerts-list"></div>
+            <p class="tables-category__empty" id="kitchen-alerts-empty">אין בקשות פתוחות מהמטבח</p>
+          </div>
+
+          <div id="kitchen-pane-tables" hidden>
+            <div class="kitchen-ready-grid" id="kitchen-ready-grid"></div>
+            <p class="tables-category__empty" id="kitchen-ready-empty">אין שולחנות פעילים</p>
+            <aside class="kitchen-ready-detail" id="kitchen-ready-detail" hidden>
+              <header class="kitchen-ready-detail__head">
+                <h2 id="kitchen-ready-detail-title">שולחן</h2>
+                <button type="button" class="admin-btn admin-btn--ghost" id="kitchen-ready-detail-close">סגור</button>
+              </header>
+              <p class="kitchen-ready-detail__meta" id="kitchen-ready-detail-meta"></p>
+              <div class="kitchen-ready-detail__items" id="kitchen-ready-detail-items"></div>
+            </aside>
+          </div>
         </section>
       </div>
 
@@ -1207,10 +1223,12 @@
     </section>
   </div>
 
+  <div class="admin-notify-stack" id="admin-notify-stack" aria-live="polite"></div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
   <script src="js/order-types.js" defer></script>
-  <script src="js/supabase-order-service.js?v=16" defer></script>
+  <script src="js/supabase-order-service.js?v=18" defer></script>
   <script src="js/menu-data.js?v=92" defer></script>
   <script src="js/opening-hours.js?v=11" defer></script>
   <script src="js/app-settings.js?v=6" defer></script>
@@ -1220,12 +1238,13 @@
   <script src="js/order-engine.js" defer></script>
   <script src="js/print-engine.js?v=37" defer></script>
   <script src="js/a11y-focus-trap.js" defer></script>
-  <script src="js/admin-tables.js?v=73" defer></script>
+  <script src="js/admin-tables.js?v=77" defer></script>
   <script src="js/admin-shabbat.js?v=8" defer></script>
   <script src="js/place-reservations.js?v=9" defer></script>
   <script src="js/admin-reservations.js?v=6" defer></script>
-  <script src="js/kitchen-alert-service.js?v=11" defer></script>
-  <script src="js/admin-kitchen-alerts.js?v=11" defer></script>
+  <script src="js/kitchen-alert-service.js?v=13" defer></script>
+  <script src="js/admin-kitchen-alerts.js?v=13" defer></script>
+  <script src="js/admin-kitchen-board.js?v=3" defer></script>
   <script src="js/admin-history.js?v=2" defer></script>
   <script src="js/admin-coupons.js" defer></script>
   <script src="js/admin-till.js?v=3" defer></script>

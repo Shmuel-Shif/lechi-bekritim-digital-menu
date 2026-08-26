@@ -884,6 +884,31 @@
     return `${mins} דק׳`;
   }
 
+  function kitchenItemStats(items) {
+    const stats = { waiting: 0, preparing: 0, ready: 0 };
+    (items || []).forEach((item) => {
+      const qty = Number(item?.qty) || 0;
+      if (qty <= 0) return;
+      const status = item.kitchenStatus === 'preparing' || item.kitchenStatus === 'ready'
+        ? item.kitchenStatus
+        : 'waiting';
+      stats[status] += qty;
+    });
+    return stats;
+  }
+
+  function kitchenStatsHtml(items) {
+    const stats = kitchenItemStats(items);
+    if (!(stats.waiting + stats.preparing + stats.ready)) return '';
+    return `
+      <span class="table-card__kstat">
+        ${stats.waiting ? `<span class="kstat kstat--wait">${escapeHtml(String(stats.waiting))} ממתינות</span>` : ''}
+        ${stats.preparing ? `<span class="kstat kstat--prep">${escapeHtml(String(stats.preparing))} בהכנה</span>` : ''}
+        ${stats.ready ? `<span class="kstat kstat--ready">${escapeHtml(String(stats.ready))} מוכנות</span>` : ''}
+      </span>
+    `;
+  }
+
   function formatMoney(amount) {
     const n = Number(amount) || 0;
     return `€${n % 1 === 0 ? n.toFixed(0) : n.toFixed(2)}`;
@@ -1236,6 +1261,9 @@
       pricePerKg: row.price_per_kg == null ? null : Number(row.price_per_kg),
       unitType: row.unit_type || null,
       thawCount: row.thaw_count == null ? null : Number(row.thaw_count),
+      kitchenStatus: window.LechaimSupabaseOrders?.normalizeKitchenStatus?.(row.kitchen_status) || 'waiting',
+      waveId: extras.waveId || null,
+      wavePrinted: Boolean(extras.wavePrinted),
     };
   }
 
@@ -1254,7 +1282,11 @@
       const isLateAdd = !isRemoteOrderPrinted(order);
       const lines = Array.isArray(order.order_items) ? order.order_items : [];
       lines.forEach((row) => {
-        const mapped = mapRemoteItem(row, { isLateAdd });
+        const mapped = mapRemoteItem(row, {
+          isLateAdd,
+          waveId: order.id ? String(order.id) : '',
+          wavePrinted: !isLateAdd,
+        });
         if (mapped.qty > 0) {
           items.push(mapped);
           total += mapped.price * mapped.qty;
