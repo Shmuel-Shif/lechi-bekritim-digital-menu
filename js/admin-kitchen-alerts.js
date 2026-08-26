@@ -10,6 +10,9 @@
   const bannerEl = document.getElementById('kitchen-live-banner');
   const bannerBtn = document.getElementById('kitchen-live-banner-btn');
   const emptyEl = document.getElementById('kitchen-alerts-empty');
+  const chatLog = document.getElementById('kitchen-chat-log');
+  const chatInput = document.getElementById('kitchen-chat-input');
+  const chatSend = document.getElementById('kitchen-chat-send');
   const lists = {
     urgent: document.getElementById('kitchen-alerts-urgent'),
     fault: document.getElementById('kitchen-alerts-fault'),
@@ -26,10 +29,13 @@
   };
 
   let cache = [];
+  let chat = [];
   let unsubscribe = null;
+  let unsubscribeChat = null;
   let active = false;
   let nagTimer = null;
   let audioCtx = null;
+  let sendingChat = false;
 
   function meta(type) {
     return api?.typeMeta?.(type) || { labelHe: type, bannerHe: type, section: 'message', urgent: false };
@@ -181,6 +187,65 @@
     }, 12000);
   }
 
+  function renderChat() {
+    if (!chatLog) return;
+    if (!chat.length) {
+      chatLog.innerHTML = '<p class="kitchen-chat__empty">אין הודעות עדיין</p>';
+      return;
+    }
+    chatLog.innerHTML = chat.map((row) => {
+      const fromAdmin = row.sender === 'admin';
+      return `
+        <div class="kitchen-chat__row ${fromAdmin ? 'is-admin' : 'is-kitchen'}">
+          ${escapeHtml(row.body || '')}
+          <small>${escapeHtml(clock(row.created_at))} · ${fromAdmin ? 'ניהול' : 'מטבח'}</small>
+        </div>
+      `;
+    }).join('');
+    chatLog.scrollTop = chatLog.scrollHeight;
+  }
+
+  async function loadChat() {
+    if (!api?.listChat) return;
+    try {
+      chat = await api.listChat();
+      renderChat();
+    } catch (err) {
+      console.warn('[admin-kitchen] chat list failed', err);
+      if (chatLog) {
+        chatLog.innerHTML = '<p class="kitchen-chat__empty">הריצו supabase-kitchen-chat.sql בסופאבייס כדי להפעיל את הצ׳ט</p>';
+      }
+    }
+  }
+
+  async function sendChat() {
+    const body = String(chatInput?.value || '').trim();
+    if (!body || sendingChat) return;
+    sendingChat = true;
+    if (chatSend) chatSend.disabled = true;
+    try {
+      const row = await api.insertChat({ sender: 'admin', body });
+      if (row?.id && !chat.some((item) => item.id === row.id)) chat.push(row);
+      if (chatInput) chatInput.value = '';
+      renderChat();
+    } catch (err) {
+      console.warn('[admin-kitchen] chat send failed', err);
+      window.alert(err?.message || 'שליחת ההודעה למטבח נכשלה');
+    } finally {
+      sendingChat = false;
+      if (chatSend) chatSend.disabled = false;
+    }
+  }
+
+  function onChatRealtime(payload) {
+    const event = payload?.eventType || payload?.event;
+    const row = payload?.new;
+    if (event !== 'INSERT' || !row?.id) return;
+    if (chat.some((item) => item.id === row.id)) return;
+    chat.push(row);
+    renderChat();
+  }
+
   async function refresh() {
     if (!api) return;
     try {
@@ -240,7 +305,9 @@
     if (active) return;
     active = true;
     refresh();
+    loadChat();
     unsubscribe = api?.subscribe?.(onRealtime);
+    unsubscribeChat = api?.subscribeChat?.(onChatRealtime);
   }
 
   function stop() {
@@ -249,6 +316,8 @@
     nagTimer = null;
     if (typeof unsubscribe === 'function') unsubscribe();
     unsubscribe = null;
+    if (typeof unsubscribeChat === 'function') unsubscribeChat();
+    unsubscribeChat = null;
   }
 
   document.getElementById('admin-view-kitchen')?.addEventListener('click', (event) => {
@@ -272,6 +341,14 @@
 
   bannerBtn?.addEventListener('click', goKitchenTab);
   document.getElementById('admin-kitchen-indicator')?.addEventListener('click', goKitchenTab);
+
+  chatSend?.addEventListener('click', sendChat);
+  chatInput?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      sendChat();
+    }
+  });
 
   global.LechaimAdminKitchen = { start, stop, refresh };
 })(window);

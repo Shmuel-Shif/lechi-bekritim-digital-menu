@@ -84,34 +84,44 @@ html, body {
   display: none;
 }
 
+.kt-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  min-height: 0;
+}
+
 .kt-grid {
   flex: 1 1 auto;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-template-rows: 1fr 1fr 1fr;
-  gap: 0.7rem;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-rows: 1fr 1fr;
+  gap: 0.5rem;
   min-height: 0;
   position: relative;
-  margin: 0.15rem clamp(0.35rem, 1.8vw, 1.1rem) 0.35rem;
 }
 
-.kt-close-kitchen {
-  appearance: none;
-  border: 0;
+.kt-tile__badge {
+  position: absolute;
+  top: 0.35rem;
+  inset-inline-end: 0.35rem;
+  min-width: 1.35rem;
+  height: 1.35rem;
   border-radius: 999px;
-  background: #5c2430;
+  background: #c4452d;
   color: #fff;
-  font: inherit;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 800;
-  padding: 0.4rem 0.7rem;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.3rem;
-  cursor: pointer;
-  white-space: nowrap;
+  padding: 0 0.28rem;
+  box-shadow: 0 0 0 2px rgba(16, 28, 48, 0.35);
+  z-index: 1;
 }
+
+.kt-tile__badge[hidden] { display: none; }
 
 .kt-clock {
   font-variant-numeric: tabular-nums;
@@ -120,35 +130,26 @@ html, body {
   direction: ltr;
 }
 
-.kt-close-kitchen:active {
-  transform: scale(0.98);
-  filter: brightness(0.92);
-}
-
-.kt-close-kitchen[disabled] {
-  opacity: 0.55;
-  pointer-events: none;
-}
-
 .kt-tile {
   appearance: none;
+  position: relative;
   border: 0;
-  border-radius: 1.15rem;
+  border-radius: 0.85rem;
   color: #fff;
   font: inherit;
-  font-size: clamp(0.92rem, 2.2vw, 1.55rem);
+  font-size: clamp(0.72rem, 1.6vw, 1.05rem);
   font-weight: 800;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.45rem;
+  gap: 0.22rem;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
   text-align: center;
-  line-height: 1.15;
-  padding: 0.7rem;
+  line-height: 1.12;
+  padding: 0.35rem 0.3rem 0.7rem;
   min-height: 0;
   height: 100%;
   width: 100%;
@@ -165,7 +166,7 @@ html, body {
 }
 
 .kt-tile__icon {
-  font-size: clamp(1.8rem, 5vw, 3.4rem);
+  font-size: clamp(1.15rem, 2.6vw, 1.7rem);
   line-height: 1;
 }
 
@@ -175,25 +176,102 @@ html, body {
 .kt-tile--fault { background: #6b3a52; }
 .kt-tile--pace { background: #3d4f6b; }
 .kt-tile--help { background: #2c4a3a; }
-.kt-tile--ice { background: #2a5568; }
 .kt-tile--problem { background: #6a4a2c; }
-.kt-tile--come { background: #3a4a5c; }
+.kt-tile--come {
+  background: #f0c14b;
+  color: #101c30;
+}
+.kt-tile--close { background: #5c2430; }
+.kt-tile--chat { background: #1b5c68; }
+
+.kt-tile__hint {
+  position: absolute;
+  left: 0.28rem;
+  right: 0.28rem;
+  bottom: 0.22rem;
+  border-radius: 999px;
+  background: rgba(16, 28, 48, 0.82);
+  color: #e7c98a;
+  font-size: clamp(0.58rem, 1.2vw, 0.74rem);
+  font-weight: 800;
+  padding: 0.1rem 0.32rem;
+  line-height: 1.2;
+}
+
+.kt-tile__hint[hidden] { display: none; }
+
+.kt-tile.is-acked .kt-tile__hint {
+  color: #8ee0ad;
+}
+.kt-tile.is-waiting {
+  box-shadow: inset 0 0 0 3px #e7c98a;
+  animation: kt-wait-pulse 1.4s ease-in-out infinite;
+}
+
+.kt-tile--chat.has-badge {
+  box-shadow: inset 0 0 0 3px #c4452d;
+}
+
+.kt-tile.is-acked {
+  box-shadow: inset 0 0 0 3px #8ee0ad;
+}
+
+@keyframes kt-wait-pulse {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.12); }
+}
 
 .kt-status {
-  position: absolute;
-  left: 0.5rem;
-  right: 0.5rem;
-  bottom: 0.55rem;
-  margin: 0;
+  flex: 0 0 auto;
+  margin: 0.2rem 0 0;
   text-align: center;
-  font-size: 1.05rem;
+  font-size: 0.92rem;
   font-weight: 700;
-  pointer-events: none;
-  text-shadow: 0 1px 6px rgba(8, 12, 20, 0.85);
+  min-height: 1.1rem;
 }
 
 .kt-status.is-ok { color: #8ee0ad; }
 .kt-status.is-err { color: #ffb4a8; }
+
+.kt-feed {
+  flex: 0 0 auto;
+  margin: 0.35rem clamp(0.35rem, 1.8vw, 1.1rem) 0.15rem;
+  max-height: 4.6rem;
+  overflow: hidden;
+  background: #18263c;
+  border: 1px solid rgba(196, 160, 106, 0.35);
+  border-radius: 0.75rem;
+  padding: 0.4rem 0.65rem;
+}
+
+.kt-feed[hidden] { display: none; }
+
+.kt-feed__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+}
+
+.kt-feed__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.kt-feed__row.is-out { color: #d7c4a4; }
+.kt-feed__row.is-in { color: #8ee0ad; }
+
+.kt-feed__time {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+  font-size: 0.8rem;
+  direction: ltr;
+}
 
 .kt-sheet {
   position: fixed;
@@ -218,6 +296,66 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 0.7rem;
+}
+
+.kt-sheet__panel--chat {
+  max-height: 92dvh;
+  min-height: 62dvh;
+}
+
+.kt-chat-log {
+  flex: 1;
+  min-height: 10rem;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.kt-chat-row {
+  max-width: 88%;
+  border-radius: 0.85rem;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.kt-chat-row.is-kitchen {
+  align-self: flex-end;
+  background: #22344f;
+  color: #d7c4a4;
+}
+
+.kt-chat-row.is-admin {
+  align-self: flex-start;
+  background: #2d4a3a;
+  color: #8ee0ad;
+}
+
+.kt-chat-row.is-acked {
+  color: #8ee0ad;
+}
+
+.kt-chat-row small {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+.kt-chat-compose {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  flex: 0 0 auto;
+}
+
+.kt-text--chat {
+  min-height: 4.2rem;
+  height: auto;
+  resize: vertical;
 }
 
 .kt-sheet__head {
@@ -259,6 +397,10 @@ html, body {
 }
 
 .kt-text { min-height: 6.5rem; resize: vertical; }
+
+.kt-text.kt-text--chat {
+  min-height: 4.2rem;
+}
 
 .kt-chips {
   display: flex;
@@ -391,14 +533,25 @@ html, body {
 
 .kt-flash[hidden] { display: none; }
 
-@media (orientation: portrait) {
+@media (orientation: landscape) {
   .kt-grid {
-    grid-template-columns: 1fr 1fr 1fr;
-    grid-template-rows: 1fr 1fr 1fr;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-rows: 1fr 1fr;
   }
 
   .kt-tile {
-    font-size: clamp(0.78rem, 2.8vw, 1.25rem);
+    font-size: clamp(0.72rem, 1.4vw, 1rem);
+  }
+}
+
+@media (orientation: portrait) {
+  .kt-grid {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: repeat(5, 1fr);
+  }
+
+  .kt-tile {
+    font-size: clamp(0.68rem, 2.4vw, 0.95rem);
   }
 
   .kt-top__end {

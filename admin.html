@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=60">
+  <link rel="stylesheet" href="css/admin.css?v=61">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
 <body>
@@ -267,6 +267,15 @@
               <button type="button" class="admin-btn admin-btn--danger" data-kitchen-close>סגירת מטבח (ישיבה במקום)</button>
             </div>
           </header>
+
+          <section class="kitchen-chat" id="kitchen-chat">
+            <h2 class="kitchen-alerts-section__title">צ׳ט עם המטבח</h2>
+            <div class="kitchen-chat__log" id="kitchen-chat-log"></div>
+            <div class="kitchen-chat__compose">
+              <textarea class="admin-textarea" id="kitchen-chat-input" maxlength="500" rows="2" placeholder="כתבו למטבח"></textarea>
+              <button type="button" class="admin-btn admin-btn--primary" id="kitchen-chat-send">שלח למטבח</button>
+            </div>
+          </section>
 
           <section class="kitchen-alerts-section" id="kitchen-sec-urgent" hidden>
             <h2 class="kitchen-alerts-section__title">דחוף</h2>
@@ -1222,8 +1231,8 @@
   <script src="js/admin-shabbat.js?v=8" defer></script>
   <script src="js/place-reservations.js?v=9" defer></script>
   <script src="js/admin-reservations.js?v=6" defer></script>
-  <script src="js/kitchen-alert-service.js?v=6" defer></script>
-  <script src="js/admin-kitchen-alerts.js?v=5" defer></script>
+  <script src="js/kitchen-alert-service.js?v=9" defer></script>
+  <script src="js/admin-kitchen-alerts.js?v=6" defer></script>
   <script src="js/admin-history.js?v=2" defer></script>
   <script src="js/admin-coupons.js" defer></script>
   <script src="js/admin-till.js?v=3" defer></script>

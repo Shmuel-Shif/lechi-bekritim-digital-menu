@@ -15,14 +15,14 @@
   const TYPES = {
     fire: {
       id: 'fire',
-      labelHe: 'אש',
+      labelHe: 'צריך אש',
       bannerHe: 'המטבח צריך אש',
       section: 'urgent',
       urgent: true,
     },
     gas: {
       id: 'gas',
-      labelHe: 'גז',
+      labelHe: 'צריך גז',
       bannerHe: 'המטבח צריך גז',
       section: 'urgent',
       urgent: true,
@@ -79,7 +79,9 @@
   };
 
   let client = null;
-  let channel = null;
+  const channels = {};
+  const CHAT_TABLE = 'kitchen_chat';
+  const CHAT_CHANNEL = 'lechaim-kitchen-chat';
 
   function getConfig() {
     return global.LECHAIM_SUPABASE_CONFIG || {};
@@ -147,6 +149,18 @@
     return data || [];
   }
 
+  async function listByIds(ids) {
+    const sb = getClient();
+    const list = (ids || []).map((id) => String(id || '').trim()).filter(Boolean).slice(0, 40);
+    if (!sb || !list.length) return [];
+    const { data, error } = await sb
+      .from(TABLE)
+      .select('id, alert_type, product_id, product_name, message, status, acknowledged_at')
+      .in('id', list);
+    if (error) throw error;
+    return data || [];
+  }
+
   async function acknowledge(id) {
     const sb = getClient();
     if (!sb) throw new Error('אין חיבור');
@@ -161,29 +175,68 @@
     if (error) throw error;
   }
 
-  function subscribe(onChange) {
+  async function insertChat(payload) {
+    const sb = getClient();
+    if (!sb) throw new Error('אין חיבור');
+    const sender = payload?.sender === 'admin' ? 'admin' : 'kitchen';
+    const body = String(payload?.body || '').trim().slice(0, 500);
+    if (!body) throw new Error('חסרה הודעה');
+    const row = {
+      sender,
+      body,
+      alert_id: payload?.alertId ? String(payload.alertId) : null,
+      alert_type: payload?.alertType ? String(payload.alertType).slice(0, 40) : null,
+      canned_id: payload?.cannedId ? String(payload.cannedId).slice(0, 40) : null,
+      extra: payload?.extra ? String(payload.extra).slice(0, 120) : null,
+    };
+    const { data, error } = await sb.from(CHAT_TABLE).insert(row).select('id, sender, body, alert_id, alert_type, canned_id, extra, created_at').single();
+    if (error) throw error;
+    return data;
+  }
+
+  async function listChat() {
+    const sb = getClient();
+    if (!sb) return [];
+    const { data, error } = await sb
+      .from(CHAT_TABLE)
+      .select('id, sender, body, alert_id, alert_type, canned_id, extra, created_at')
+      .order('created_at', { ascending: true })
+      .limit(80);
+    if (error) throw error;
+    return data || [];
+  }
+
+  function listen(tableName, channelName, onChange) {
     const sb = getClient();
     if (!sb || typeof onChange !== 'function') return () => {};
-    if (channel) {
-      sb.removeChannel(channel);
-      channel = null;
+    if (channels[channelName]) {
+      sb.removeChannel(channels[channelName]);
+      delete channels[channelName];
     }
-    channel = sb
-      .channel(CHANNEL)
+    channels[channelName] = sb
+      .channel(channelName)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: TABLE },
+        { event: '*', schema: 'public', table: tableName },
         (payload) => {
           onChange(payload);
         }
       )
       .subscribe();
     return () => {
-      if (channel) {
-        sb.removeChannel(channel);
-        channel = null;
+      if (channels[channelName]) {
+        sb.removeChannel(channels[channelName]);
+        delete channels[channelName];
       }
     };
+  }
+
+  function subscribe(onChange, channelName) {
+    return listen(TABLE, channelName || CHANNEL, onChange);
+  }
+
+  function subscribeChat(onChange) {
+    return listen(CHAT_TABLE, CHAT_CHANNEL, onChange);
   }
 
   global.LechaimKitchenAlerts = {
@@ -193,7 +246,11 @@
     getClient,
     insertAlert,
     listOpen,
+    listByIds,
     acknowledge,
+    insertChat,
+    listChat,
     subscribe,
+    subscribeChat,
   };
 })(window);

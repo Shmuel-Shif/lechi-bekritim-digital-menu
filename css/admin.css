@@ -5259,4 +5259,78 @@ body.admin-modal-open {
   justify-content: flex-end;
 }
 
+.kitchen-chat {
+  margin: 0 0 1.5rem;
+  background: #fff;
+  border: 1px solid var(--color-cream-dark, #e5ddd0);
+  border-radius: 0.85rem;
+  padding: 0.9rem 1rem 1rem;
+}
+
+.kitchen-chat__log {
+  min-height: 8rem;
+  max-height: 16rem;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0 0 0.75rem;
+  padding: 0.5rem;
+  background: #f7f3ec;
+  border-radius: 0.65rem;
+}
+
+.kitchen-chat__row {
+  max-width: 88%;
+  border-radius: 0.75rem;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+
+.kitchen-chat__row.is-kitchen {
+  align-self: flex-start;
+  background: #fff;
+  border: 1px solid #e5ddd0;
+}
+
+.kitchen-chat__row.is-admin {
+  align-self: flex-end;
+  background: #1e3354;
+  color: #f3ede3;
+}
+
+.kitchen-chat__row small {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  opacity: 0.7;
+}
+
+.kitchen-chat__compose {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.kitchen-chat__empty {
+  margin: 0.35rem;
+  opacity: 0.7;
+  font-size: 0.9rem;
+}
+
+.kitchen-chat textarea {
+  width: 100%;
+  min-height: 4.2rem;
+  resize: vertical;
+  border: 1px solid var(--color-border-strong, #d9cfc0);
+  background: var(--color-cream, #f7f3ec);
+  color: var(--color-navy, #1e3354);
+  border-radius: var(--radius-sm, 0.5rem);
+  padding: 0.7rem 0.85rem;
+  font: inherit;
+  font-size: 1rem;
+  box-sizing: border-box;
+}
+
 
