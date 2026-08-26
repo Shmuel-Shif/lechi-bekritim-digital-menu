@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="el" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#101c30">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="LECHAIM Κουζίνα">
+  <title>Κουζίνα | LECHAIM</title>
+  <link rel="manifest" href="kitchen.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@600;700;800&family=Heebo:wght@500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/kitchen-tablet.css?v=8">
+  <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
+</head>
+<body>
+  <main class="kt">
+    <header class="kt-top">
+      <div class="kt-brand">
+        <img src="assets/logo/logo-favicon.png" alt="" width="44" height="44">
+        <div>
+          <h1 class="kt-title" id="kt-title">ΚΟΥΖΙΝΑ</h1>
+          <p class="kt-sub" id="kt-sub">Ένα πάτημα → διαχείριση</p>
+        </div>
+      </div>
+      <div class="kt-top__end">
+        <button type="button" class="kt-lang" id="kt-lang" aria-label="Language">
+          <span class="kt-lang__opt is-active" data-lang="el">ΕΛ</span>
+          <span class="kt-lang__sep" aria-hidden="true">|</span>
+          <span class="kt-lang__opt" data-lang="he">עב</span>
+        </button>
+        <div class="kt-clock" id="kt-clock" dir="ltr"></div>
+        <button type="button" class="kt-close-kitchen" data-kt-type="close_kitchen">
+          <span aria-hidden="true">🚪</span>
+          <span data-kt-label="closeKitchen">ΚΛΕΙΣΙΜΟ ΚΟΥΖΙΝΑΣ</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="kt-grid">
+      <button type="button" class="kt-tile kt-tile--fire" data-kt-type="fire">
+        <span class="kt-tile__icon" aria-hidden="true">🔥</span>
+        <span data-kt-label="fire">ΦΩΤΙΑ</span>
+      </button>
+      <button type="button" class="kt-tile kt-tile--gas" data-kt-type="gas">
+        <span class="kt-tile__icon" aria-hidden="true">⛽</span>
+        <span data-kt-label="gas">ΓΚΑΖΙ</span>
+      </button>
+      <button type="button" class="kt-tile kt-tile--stock" data-kt-type="out_of_stock">
+        <span class="kt-tile__icon" aria-hidden="true">📦</span>
+        <span data-kt-label="stock">ΤΕΛΕΙΩΣΕ ΑΠΟΘΕΜΑ</span>
+      </button>
+      <button type="button" class="kt-tile kt-tile--fault" data-kt-type="fault">
+        <span class="kt-tile__icon" aria-hidden="true">🔧</span>
+        <span data-kt-label="fault">ΒΛΑΒΗ</span>
+      </button>
+      <button type="button" class="kt-tile kt-tile--pace" data-kt-type="pace">
+        <span class="kt-tile__icon" aria-hidden="true">🍽️</span>
+        <span data-kt-label="pace">ΧΩΡΙΣ / ΕΤΟΙΜΑΖΟΥΜΕ</span>
+      </button>
+      <button type="button" class="kt-tile kt-tile--help" data-kt-type="message" data-kt-canned="help">
+        <span class="kt-tile__icon" aria-hidden="true">🙋</span>
+        <span data-kt-label="help">ΒΟΗΘΕΙΑ</span>
+      </button>
+      <button type="button" class="kt-tile kt-tile--ice" data-kt-type="message" data-kt-canned="ice">
+        <span class="kt-tile__icon" aria-hidden="true">🧊</span>
+        <span data-kt-label="ice">ΠΑΓΟΣ</span>
+      </button>
+      <button type="button" class="kt-tile kt-tile--problem" data-kt-type="message" data-kt-canned="problem">
+        <span class="kt-tile__icon" aria-hidden="true">⚠️</span>
+        <span data-kt-label="problem">ΠΡΟΒΛΗΜΑ</span>
+      </button>
+      <button type="button" class="kt-tile kt-tile--come" data-kt-type="message" data-kt-canned="come">
+        <span class="kt-tile__icon" aria-hidden="true">📣</span>
+        <span data-kt-label="come">ΕΛΑ ΣΤΗΝ ΚΟΥΖΙΝΑ</span>
+      </button>
+    </div>
+
+    <p class="kt-status" id="kt-status" role="status"></p>
+  </main>
+
+  <div class="kt-sheet" id="kt-stock-sheet" hidden>
+    <div class="kt-sheet__panel" role="dialog" aria-labelledby="kt-stock-title">
+      <div class="kt-sheet__head">
+        <h2 class="kt-sheet__title" id="kt-stock-title">Τι τελείωσε;</h2>
+        <button type="button" class="kt-sheet__close" data-kt-close aria-label="Κλείσιμο">×</button>
+      </div>
+      <input class="kt-search" id="kt-stock-search" type="search" placeholder="Αναζήτηση" autocomplete="off">
+      <div class="kt-list" id="kt-stock-list"></div>
+    </div>
+  </div>
+
+  <div class="kt-sheet" id="kt-other-sheet" hidden>
+    <div class="kt-sheet__panel" role="dialog" aria-labelledby="kt-other-title">
+      <div class="kt-sheet__head">
+        <h2 class="kt-sheet__title" id="kt-other-title">Άλλο προϊόν</h2>
+        <button type="button" class="kt-sheet__close" data-kt-close aria-label="Κλείσιμο">×</button>
+      </div>
+      <input class="kt-search" id="kt-other-input" type="text" maxlength="120" autocomplete="off">
+      <button type="button" class="kt-send" id="kt-other-send">Αποστολή</button>
+    </div>
+  </div>
+
+  <div class="kt-sheet" id="kt-close-sheet" hidden>
+    <div class="kt-sheet__panel" role="dialog" aria-labelledby="kt-close-title">
+      <div class="kt-sheet__head">
+        <h2 class="kt-sheet__title" id="kt-close-title">Να σταλεί αίτημα κλεισίματος κουζίνας;</h2>
+        <button type="button" class="kt-sheet__close" data-kt-close aria-label="Κλείσιμο">×</button>
+      </div>
+      <button type="button" class="kt-send" id="kt-close-yes">Ναι, κλείσιμο</button>
+      <button type="button" class="kt-chip" id="kt-close-no" data-kt-close>Άκυρο</button>
+    </div>
+  </div>
+
+  <div class="kt-sheet" id="kt-fault-sheet" hidden>
+    <div class="kt-sheet__panel" role="dialog" aria-labelledby="kt-fault-title">
+      <div class="kt-sheet__head">
+        <h2 class="kt-sheet__title" id="kt-fault-title">Τι χάλασε;</h2>
+        <button type="button" class="kt-sheet__close" data-kt-close aria-label="Κλείσιμο">×</button>
+      </div>
+      <div class="kt-fault-grid" id="kt-fault-list"></div>
+      <div class="kt-fault-other" id="kt-fault-other" hidden>
+        <input class="kt-search" id="kt-fault-input" type="text" maxlength="120" autocomplete="off">
+        <button type="button" class="kt-send" id="kt-fault-send">Αποστολή</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="kt-flash" id="kt-flash" hidden></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+  <script src="js/supabase-config.js" defer></script>
+  <script src="js/menu-data.js?v=94" defer></script>
+  <script src="js/inventory.js?v=43" defer></script>
+  <script src="js/kitchen-i18n.js?v=6" defer></script>
+  <script src="js/kitchen-alert-service.js?v=6" defer></script>
+  <script src="js/kitchen-tablet.js?v=6" defer></script>
+</body>
+</html>

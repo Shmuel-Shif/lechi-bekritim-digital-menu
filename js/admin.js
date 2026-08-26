@@ -40,7 +40,7 @@
   const viewTill = document.getElementById('admin-view-till');
   const viewStaffHours = document.getElementById('admin-view-staff-hours');
   const viewSettings = document.getElementById('admin-view-settings');
-  const kitchenCloseBtn = document.getElementById('admin-kitchen-close-btn');
+  const viewKitchen = document.getElementById('admin-view-kitchen');
   const shopHoursBtn = document.getElementById('admin-shop-hours-btn');
   const kitchenBeepBtn = document.getElementById('admin-kitchen-beep-btn');
   const hugMeBtn = document.getElementById('admin-hug-me-btn');
@@ -134,6 +134,7 @@
       window.LechaimAdminTables?.closeDrawer?.();
       window.LechaimAdminShabbat?.stop?.();
       window.LechaimAdminReservations?.stop?.();
+      window.LechaimAdminKitchen?.stop?.();
     }
   }
 
@@ -150,6 +151,7 @@
     else if (tab === 'reservations') currentTab = 'reservations';
     else if (tab === 'history') currentTab = 'history';
     else if (tab === 'settings') currentTab = 'settings';
+    else if (tab === 'kitchen') currentTab = 'kitchen';
     else currentTab = 'tables';
 
     tabsEl?.querySelectorAll('.admin-tab').forEach((btn) => {
@@ -170,6 +172,7 @@
     if (viewInventory) viewInventory.hidden = currentTab !== 'inventory';
     if (viewStats) viewStats.hidden = currentTab !== 'stats';
     if (viewSettings) viewSettings.hidden = currentTab !== 'settings';
+    if (viewKitchen) viewKitchen.hidden = currentTab !== 'kitchen';
 
     /*
      * Keep order watchers (Realtime + chime) alive on every Admin tab.
@@ -178,6 +181,7 @@
     window.LechaimAdminTables?.start?.();
     window.LechaimAdminShabbat?.start?.();
     window.LechaimAdminReservations?.start?.();
+    window.LechaimAdminKitchen?.start?.();
     if (onBoard) {
       const filter = currentTab === 'pickup'
         ? 'pickup'
@@ -710,29 +714,35 @@
     }
   }
 
+  function kitchenCloseButtons() {
+    return document.querySelectorAll('[data-kitchen-close]');
+  }
+
   function updateKitchenCloseButton() {
-    if (!kitchenCloseBtn) return;
+    const buttons = kitchenCloseButtons();
+    if (!buttons.length) return;
+    let label = 'סגירת מטבח (ישיבה במקום)';
+    let danger = true;
     if (!dineInCloseAtMs) {
       stopAdminKitchenTick();
-      kitchenCloseBtn.textContent = 'סגירת מטבח (ישיבה במקום)';
-      kitchenCloseBtn.classList.add('admin-btn--danger');
-      kitchenCloseBtn.classList.remove('admin-btn--primary');
-      return;
-    }
-    const remain = dineInCloseAtMs - Date.now();
-    if (remain > 0) {
-      kitchenCloseBtn.textContent = `בטל סגירה (${formatAdminRemain(remain)})`;
-      kitchenCloseBtn.classList.add('admin-btn--danger');
-      kitchenCloseBtn.classList.remove('admin-btn--primary');
-      if (!kitchenCloseAdminTick) {
-        kitchenCloseAdminTick = window.setInterval(updateKitchenCloseButton, 1000);
-      }
     } else {
-      stopAdminKitchenTick();
-      kitchenCloseBtn.textContent = 'פתח הזמנות ישיבה במקום';
-      kitchenCloseBtn.classList.remove('admin-btn--danger');
-      kitchenCloseBtn.classList.add('admin-btn--primary');
+      const remain = dineInCloseAtMs - Date.now();
+      if (remain > 0) {
+        label = `בטל סגירה (${formatAdminRemain(remain)})`;
+        if (!kitchenCloseAdminTick) {
+          kitchenCloseAdminTick = window.setInterval(updateKitchenCloseButton, 1000);
+        }
+      } else {
+        stopAdminKitchenTick();
+        label = 'פתח הזמנות ישיבה במקום';
+        danger = false;
+      }
     }
+    buttons.forEach((btn) => {
+      btn.textContent = label;
+      btn.classList.toggle('admin-btn--danger', danger);
+      btn.classList.toggle('admin-btn--primary', !danger);
+    });
   }
 
   async function refreshKitchenCloseFlag() {
@@ -1014,6 +1024,7 @@
       && tab !== 'inventory'
       && tab !== 'stats'
       && tab !== 'settings'
+      && tab !== 'kitchen'
     ) return;
     setTab(tab);
     if (tab === 'inventory') {
@@ -1039,8 +1050,10 @@
     }
   });
 
-  kitchenCloseBtn?.addEventListener('click', () => {
-    handleKitchenCloseClick();
+  document.getElementById('admin-app')?.addEventListener('click', (event) => {
+    if (event.target.closest('[data-kitchen-close]')) {
+      handleKitchenCloseClick();
+    }
   });
 
   shopHoursBtn?.addEventListener('click', () => {
