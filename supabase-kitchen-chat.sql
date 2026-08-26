@@ -48,6 +48,16 @@ on public.kitchen_chat for insert
 to authenticated
 with check (sender = 'admin');
 
+alter table public.kitchen_chat
+  add column if not exists body_he text,
+  add column if not exists body_el text;
+
+drop policy if exists "kitchen_chat_admin_delete" on public.kitchen_chat;
+create policy "kitchen_chat_admin_delete"
+on public.kitchen_chat for delete
+to authenticated
+using (true);
+
 alter table public.kitchen_chat replica identity full;
 
 do $$

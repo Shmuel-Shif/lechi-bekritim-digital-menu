@@ -175,6 +175,81 @@
     if (error) throw error;
   }
 
+  const CHAT_SELECT = 'id, sender, body, body_he, body_el, alert_id, alert_type, canned_id, extra, created_at';
+  const CHAT_SELECT_BASIC = 'id, sender, body, alert_id, alert_type, canned_id, extra, created_at';
+  const translateCache = {};
+
+  function looksHebrew(text) {
+    return /[\u0590-\u05FF]/.test(String(text || ''));
+  }
+
+  function looksGreek(text) {
+    return /[\u0370-\u03FF\u1F00-\u1FFF]/.test(String(text || ''));
+  }
+
+  function fetchWithTimeout(url, ms) {
+    const ctrl = new AbortController();
+    const timer = window.setTimeout(() => ctrl.abort(), ms);
+    return fetch(url, { signal: ctrl.signal }).finally(() => window.clearTimeout(timer));
+  }
+
+  async function translateOnce(text, from, to) {
+    const q = String(text || '').trim().slice(0, 500);
+    if (!q || from === to) return q;
+    const cacheKey = `${from}|${to}|${q}`;
+    if (translateCache[cacheKey]) return translateCache[cacheKey];
+
+    try {
+      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(from)}&tl=${encodeURIComponent(to)}&dt=t&q=${encodeURIComponent(q)}`;
+      const res = await fetchWithTimeout(url, 2800);
+      if (res.ok) {
+        const data = await res.json();
+        const out = (data?.[0] || []).map((part) => part?.[0] || '').join('').trim();
+        if (out) {
+          translateCache[cacheKey] = out.slice(0, 500);
+          return translateCache[cacheKey];
+        }
+      }
+    } catch (_) { /* try fallback */ }
+
+    try {
+      const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(q)}&langpair=${encodeURIComponent(from)}|${encodeURIComponent(to)}`;
+      const res = await fetchWithTimeout(url, 2800);
+      if (res.ok) {
+        const data = await res.json();
+        const out = String(data?.responseData?.translatedText || '').trim();
+        if (out && !/INVALID LANGUAGE|MYMEMORY WARNING/i.test(out)) {
+          translateCache[cacheKey] = out.slice(0, 500);
+          return translateCache[cacheKey];
+        }
+      }
+    } catch (_) { /* keep original */ }
+
+    return q;
+  }
+
+  async function pairChatBodies(text, sender) {
+    const body = String(text || '').trim().slice(0, 500);
+    if (!body) return { body: '', bodyHe: '', bodyEl: '' };
+    const hebrew = looksHebrew(body);
+    const greek = looksGreek(body);
+    if (hebrew && !greek) {
+      return { body, bodyHe: body, bodyEl: await translateOnce(body, 'he', 'el') };
+    }
+    if (greek && !hebrew) {
+      return { body, bodyEl: body, bodyHe: await translateOnce(body, 'el', 'he') };
+    }
+    if (sender === 'admin') {
+      return { body, bodyHe: body, bodyEl: await translateOnce(body, 'he', 'el') };
+    }
+    return { body, bodyEl: body, bodyHe: await translateOnce(body, 'el', 'he') };
+  }
+
+  function chatTextFor(row, locale) {
+    if (locale === 'he') return String(row?.body_he || row?.bodyHe || row?.body || '');
+    return String(row?.body_el || row?.bodyEl || row?.body || '');
+  }
+
   async function insertChat(payload) {
     const sb = getClient();
     if (!sb) throw new Error('אין חיבור');
@@ -189,7 +264,15 @@
       canned_id: payload?.cannedId ? String(payload.cannedId).slice(0, 40) : null,
       extra: payload?.extra ? String(payload.extra).slice(0, 120) : null,
     };
-    const { data, error } = await sb.from(CHAT_TABLE).insert(row).select('id, sender, body, alert_id, alert_type, canned_id, extra, created_at').single();
+    if (payload?.bodyHe) row.body_he = String(payload.bodyHe).slice(0, 500);
+    if (payload?.bodyEl) row.body_el = String(payload.bodyEl).slice(0, 500);
+
+    let { data, error } = await sb.from(CHAT_TABLE).insert(row).select(CHAT_SELECT).single();
+    if (error && (row.body_he || row.body_el)) {
+      delete row.body_he;
+      delete row.body_el;
+      ({ data, error } = await sb.from(CHAT_TABLE).insert(row).select(CHAT_SELECT_BASIC).single());
+    }
     if (error) throw error;
     return data;
   }
@@ -197,13 +280,30 @@
   async function listChat() {
     const sb = getClient();
     if (!sb) return [];
-    const { data, error } = await sb
+    let { data, error } = await sb
       .from(CHAT_TABLE)
-      .select('id, sender, body, alert_id, alert_type, canned_id, extra, created_at')
+      .select(CHAT_SELECT)
       .order('created_at', { ascending: true })
       .limit(80);
+    if (error) {
+      ({ data, error } = await sb
+        .from(CHAT_TABLE)
+        .select(CHAT_SELECT_BASIC)
+        .order('created_at', { ascending: true })
+        .limit(80));
+    }
     if (error) throw error;
     return data || [];
+  }
+
+  async function clearChat() {
+    const sb = getClient();
+    if (!sb) throw new Error('אין חיבור');
+    const { error } = await sb
+      .from(CHAT_TABLE)
+      .delete()
+      .neq('id', '00000000-0000-0000-0000-000000000000');
+    if (error) throw error;
   }
 
   function listen(tableName, channelName, onChange) {
@@ -250,6 +350,9 @@
     acknowledge,
     insertChat,
     listChat,
+    clearChat,
+    pairChatBodies,
+    chatTextFor,
     subscribe,
     subscribeChat,
   };

@@ -12,7 +12,7 @@
   const CANNED = [
     { id: 'help', el: 'Χρειάζομαι βοήθεια', he: 'צריך עזרה' },
     { id: 'problem', el: 'Υπάρχει πρόβλημα', he: 'יש בעיה' },
-    { id: 'come', el: 'Έλα στην κουζίνα', he: 'בוא למטבח' },
+    { id: 'come', el: 'Έλα Σαμουήλ', he: 'בוא שמואל' },
   ];
 
   /** Equipment faults. Photo of the fault can be added later. */
@@ -83,7 +83,7 @@
       stock: 'ΤΕΛΕΙΩΣΕ ΑΠΟΘΕΜΑ',
       help: 'ΒΟΗΘΕΙΑ',
       problem: 'ΠΡΟΒΛΗΜΑ',
-      come: 'ΕΛΑ ΣΤΗΝ ΚΟΥΖΙΝΑ',
+      come: 'ΕΛΑ ΣΑΜΟΥΗΛ',
       fault: 'ΒΛΑΒΗ',
       pace: 'ΧΩΡΙΣ / ΕΤΟΙΜΑΖΟΥΜΕ',
       faultTitle: 'Τι χάλασε;',
@@ -127,7 +127,7 @@
       stock: 'נגמר מלאי',
       help: 'צריך עזרה',
       problem: 'יש בעיה',
-      come: 'בוא למטבח',
+      come: 'בוא שמואל',
       fault: 'תקלה',
       pace: 'אין הזמנות / בונים',
       faultTitle: 'מה התקלקל?',

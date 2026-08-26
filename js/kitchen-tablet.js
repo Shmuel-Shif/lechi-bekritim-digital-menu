@@ -117,27 +117,6 @@
     } catch (_) { /* ignore */ }
   }
 
-  function extraLabel(entry) {
-    if (lang === 'el') return entry?.extraEl || entry?.extra || '';
-    return entry?.extraHe || entry?.extra || '';
-  }
-
-  function entryLabel(entry) {
-    const extra = extraLabel(entry);
-    if (entry?.canned) return extra ? `${txt(entry.canned)} · ${extra}` : txt(entry.canned);
-    if (entry?.type === 'out_of_stock') {
-      return extra ? `${txt('stock')} · ${extra}` : txt('stock');
-    }
-    if (entry?.type === 'fault') {
-      return extra ? `${txt('fault')} · ${extra}` : txt('fault');
-    }
-    if (entry?.type === 'close_kitchen') return txt('closeKitchen');
-    if (entry?.type === 'pace' || entry?.type === 'no_orders' || entry?.type === 'building') {
-      return txt('pace');
-    }
-    return txt(entry?.type || '') || String(entry?.type || '');
-  }
-
   function tileFor(entry) {
     if (entry?.canned) return document.querySelector(`[data-kt-canned="${entry.canned}"]`);
     if (entry?.type) return document.querySelector(`[data-kt-type="${entry.type}"]`);
@@ -215,10 +194,8 @@
     }
     const seen = getSeenAt();
     const unread = thread.filter((row) => {
-      if (row.sender === 'admin') {
-        return new Date(row.created_at || 0).getTime() > seen;
-      }
-      return row.status === 'acked' && Number(row.ackedAt || 0) > seen;
+      if (row.sender !== 'admin' || row.alert_id) return false;
+      return new Date(row.created_at || 0).getTime() > seen;
     }).length;
     chatBadge.textContent = String(unread);
     chatBadge.hidden = unread <= 0;
@@ -227,34 +204,23 @@
 
   function chatLineText(row) {
     if (row.sender === 'admin') {
-      return row.body || '';
+      return api.chatTextFor?.(row, 'el') || row.body_el || row.body || '';
     }
-    const label = entryLabel({
-      type: row.alert_type || row.type,
-      canned: row.canned_id || row.canned,
-      extra: row.extra,
-      extraEl: row.extraEl,
-      extraHe: row.extraHe || row.extra,
-    });
-    if (row.alert_id || row.alert_type || row.canned_id) {
-      if (row.status === 'acked') return `${txt('approved')}: ${label}`;
-      return `${txt('sent')}: ${label}`;
-    }
-    return row.body || label;
+    return row.body || api.chatTextFor?.(row, 'el') || '';
   }
 
   function renderChat() {
     if (!chatLog) return;
-    if (!thread.length) {
+    const messages = thread.filter((row) => !row.alert_id);
+    if (!messages.length) {
       chatLog.innerHTML = `<p class="kt-status">${escapeHtml(txt('chatEmpty'))}</p>`;
       updateChatBadge();
       return;
     }
-    chatLog.innerHTML = thread.map((row) => {
+    chatLog.innerHTML = messages.map((row) => {
       const fromAdmin = row.sender === 'admin';
-      const acked = row.status === 'acked';
       return `
-        <div class="kt-chat-row${fromAdmin ? ' is-admin' : ' is-kitchen'}${acked ? ' is-acked' : ''}">
+        <div class="kt-chat-row${fromAdmin ? ' is-admin' : ' is-kitchen'}">
           ${escapeHtml(chatLineText(row))}
           <small>${escapeHtml(clockFromIso(row.created_at))}</small>
         </div>
@@ -264,66 +230,24 @@
     updateChatBadge();
   }
 
-  function upsertAlertChat(entry, status, notify) {
-    const existing = thread.find((row) => row.alert_id && row.alert_id === entry.id);
-    if (existing) {
-      existing.status = status;
-      existing.alert_type = entry.type || existing.alert_type;
-      existing.canned_id = entry.canned || existing.canned_id;
-      existing.extra = entry.extraHe || entry.extra || existing.extra;
-      existing.extraEl = entry.extraEl || existing.extraEl;
-      existing.extraHe = entry.extraHe || existing.extraHe;
-      if (status === 'acked' && notify) existing.ackedAt = Date.now();
-      renderChat();
-      return;
-    }
-    thread.push({
-      id: `local-${entry.id}`,
-      sender: 'kitchen',
-      alert_id: entry.id,
-      alert_type: entry.type,
-      canned_id: entry.canned,
-      extra: entry.extraHe || entry.extra,
-      extraEl: entry.extraEl,
-      extraHe: entry.extraHe,
-      status,
-      ackedAt: status === 'acked' && notify ? Date.now() : 0,
-      created_at: new Date().toISOString(),
-    });
-    renderChat();
-  }
-
   function rememberPending(entry) {
     pending = pending.filter((row) => row.id !== entry.id);
     pending.unshift(entry);
     pending = pending.slice(0, 20);
     saveStore();
     paintTile(entry, 'waiting');
-    upsertAlertChat(entry, 'sent');
   }
 
   function handleAck(id, silent) {
     const key = String(id || '');
     if (!key || seenAck.has(key)) return;
     const entry = pending.find((row) => row.id === key);
-    const chatRow = thread.find((row) => row.alert_id === key);
-    if (!entry && !chatRow) return;
+    if (!entry) return;
     seenAck.add(key);
-    if (entry) {
-      pending = pending.filter((row) => row.id !== key);
-      saveStore();
-      paintTile(entry, 'acked');
-      upsertAlertChat(entry, 'acked', !silent && !isChatOpen());
-    } else if (chatRow) {
-      chatRow.status = 'acked';
-      if (!silent && !isChatOpen()) chatRow.ackedAt = Date.now();
-      renderChat();
-    }
-    if (!silent) {
-      setStatus(txt('approved'), 'ok');
-      playAckChime();
-      if (isChatOpen()) markChatSeen();
-    }
+    pending = pending.filter((row) => row.id !== key);
+    saveStore();
+    paintTile(entry, 'acked');
+    if (!silent) playAckChime();
   }
 
   async function checkPendingAcks() {
@@ -464,7 +388,6 @@
     if (sending) return;
     sending = true;
     tiles.forEach((btn) => { btn.disabled = true; });
-    setStatus(txt('sending'));
     try {
       const row = await api.insertAlert(payload);
       const entry = {
@@ -476,24 +399,8 @@
         extraHe: meta?.extraHe || '',
       };
       if (entry.id) rememberPending(entry);
-      api.insertChat?.({
-        sender: 'kitchen',
-        body: (
-          entry.canned
-            ? i18n.t('he', entry.canned)
-            : entry.type === 'out_of_stock'
-              ? (entry.extraHe || i18n.t('he', 'stock'))
-              : entry.type === 'close_kitchen'
-                ? i18n.t('he', 'closeKitchen')
-                : i18n.t('he', entry.type)
-        ) || payload.message || payload.type,
-        alertId: entry.id,
-        alertType: entry.type,
-        cannedId: entry.canned,
-        extra: entry.extraHe || entry.extra,
-      }).catch(() => {});
       closeSheets();
-      setStatus(txt('sent'), 'ok');
+      setStatus('');
     } catch (err) {
       setStatus(err?.message || txt('fail'), 'err');
     } finally {
@@ -516,9 +423,16 @@
       return;
     }
     try {
-      const row = await api.insertChat({ sender: 'kitchen', body });
+      const pair = await api.pairChatBodies?.(body, 'kitchen') || { body, bodyHe: body, bodyEl: body };
+      const row = await api.insertChat({
+        sender: 'kitchen',
+        body: pair.body,
+        bodyHe: pair.bodyHe,
+        bodyEl: pair.bodyEl,
+      });
       if (row?.id && !thread.some((item) => item.id === row.id)) thread.push(row);
       if (chatInput) chatInput.value = '';
+      setStatus('');
       renderChat();
     } catch (err) {
       setStatus(err?.message || txt('fail'), 'err');
@@ -668,10 +582,16 @@
 
   api?.subscribeChat?.((payload) => {
     const event = payload?.eventType || payload?.event;
+    if (event === 'DELETE') {
+      const id = payload?.old?.id;
+      thread = id ? thread.filter((item) => item.id !== id) : [];
+      renderChat();
+      return;
+    }
     const row = payload?.new;
     if (event !== 'INSERT' || !row?.id) return;
+    if (row.alert_id) return;
     if (thread.some((item) => item.id === row.id)) return;
-    if (row.alert_id && thread.some((item) => item.alert_id === row.alert_id)) return;
     thread.push(row);
     renderChat();
     if (row.sender === 'admin') {
@@ -684,25 +604,7 @@
     if (!api?.listChat) return;
     try {
       const rows = await api.listChat();
-      const byAlert = new Map();
-      thread = [];
-      (rows || []).forEach((row) => {
-        if (row.alert_id && byAlert.has(row.alert_id)) return;
-        if (row.alert_id) byAlert.set(row.alert_id, true);
-        thread.push(row);
-      });
-      pending.forEach((entry) => {
-        if (!thread.some((row) => row.alert_id === entry.id)) {
-          upsertAlertChat(entry, 'sent');
-        }
-      });
-      const alertIds = thread.map((row) => row.alert_id).filter(Boolean);
-      if (alertIds.length && api.listByIds) {
-        const alerts = await api.listByIds(alertIds);
-        (alerts || []).forEach((alert) => {
-          if (alert.status === 'acknowledged') handleAck(alert.id, true);
-        });
-      }
+      thread = (rows || []).filter((row) => !row.alert_id);
       renderChat();
     } catch (_) {
       renderChat();

@@ -10,23 +10,16 @@
   const bannerEl = document.getElementById('kitchen-live-banner');
   const bannerBtn = document.getElementById('kitchen-live-banner-btn');
   const emptyEl = document.getElementById('kitchen-alerts-empty');
+  const listEl = document.getElementById('kitchen-alerts-list');
   const chatLog = document.getElementById('kitchen-chat-log');
   const chatInput = document.getElementById('kitchen-chat-input');
   const chatSend = document.getElementById('kitchen-chat-send');
-  const lists = {
-    urgent: document.getElementById('kitchen-alerts-urgent'),
-    fault: document.getElementById('kitchen-alerts-fault'),
-    stock: document.getElementById('kitchen-alerts-stock'),
-    pace: document.getElementById('kitchen-alerts-pace'),
-    message: document.getElementById('kitchen-alerts-messages'),
-  };
-  const sections = {
-    urgent: document.getElementById('kitchen-sec-urgent'),
-    fault: document.getElementById('kitchen-sec-fault'),
-    stock: document.getElementById('kitchen-sec-stock'),
-    pace: document.getElementById('kitchen-sec-pace'),
-    message: document.getElementById('kitchen-sec-messages'),
-  };
+  const chatOpen = document.getElementById('kitchen-chat-open');
+  const chatClose = document.getElementById('kitchen-chat-close');
+  const chatBackdrop = document.getElementById('kitchen-chat-backdrop');
+  const chatModal = document.getElementById('kitchen-chat-modal');
+  const chatBadge = document.getElementById('kitchen-chat-badge');
+  const chatReset = document.getElementById('kitchen-chat-reset');
 
   let cache = [];
   let chat = [];
@@ -36,6 +29,7 @@
   let nagTimer = null;
   let audioCtx = null;
   let sendingChat = false;
+  const CHAT_SEEN_KEY = 'lechaim-admin-kitchen-chat-seen';
 
   function meta(type) {
     return api?.typeMeta?.(type) || { labelHe: type, bannerHe: type, section: 'message', urgent: false };
@@ -43,10 +37,6 @@
 
   function isUrgent(type) {
     return Boolean(meta(type).urgent);
-  }
-
-  function sectionOf(type) {
-    return meta(type).section || 'message';
   }
 
   function clock(iso) {
@@ -90,7 +80,25 @@
     } catch (_) { /* ignore */ }
   }
 
-  function setBadge(count) {
+  function getChatSeenAt() {
+    try {
+      return Number(localStorage.getItem(CHAT_SEEN_KEY) || 0);
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  function unreadChatCount() {
+    if (chatModal && !chatModal.hidden) return 0;
+    const seen = getChatSeenAt();
+    return chat.filter((row) => {
+      if (row.sender !== 'kitchen' || row.alert_id) return false;
+      return new Date(row.created_at || 0).getTime() > seen;
+    }).length;
+  }
+
+  function setBadge() {
+    const count = cache.length + unreadChatCount();
     if (badgeEl) {
       badgeEl.textContent = String(count);
       badgeEl.dataset.count = String(count);
@@ -125,6 +133,20 @@
     }
   }
 
+  function cardIcon(type) {
+    return ({
+      fire: '🔥',
+      gas: '⛽',
+      out_of_stock: '📦',
+      fault: '🔧',
+      pace: '🍽️',
+      no_orders: '🍽️',
+      building: '🍽️',
+      close_kitchen: '🚪',
+      message: '📣',
+    })[String(type || '')] || '📣';
+  }
+
   function cardTitle(row) {
     if (row.alert_type === 'out_of_stock') {
       return `נגמר במלאי: ${row.product_name || row.product_id || 'מנה'}`;
@@ -145,14 +167,14 @@
     const startClose = row.alert_type === 'close_kitchen';
     return `
       <article class="kitchen-alert-card${urgent ? ' is-urgent' : ''}" data-alert-id="${escapeHtml(row.id)}">
-        <div class="kitchen-alert-card__top">
-          <span class="kitchen-alert-card__type">${escapeHtml(meta(row.alert_type).labelHe)}</span>
+        <span class="kitchen-alert-card__icon" aria-hidden="true">${cardIcon(row.alert_type)}</span>
+        <div class="kitchen-alert-card__main">
+          <p class="kitchen-alert-card__body">${escapeHtml(cardTitle(row))}</p>
           <span class="kitchen-alert-card__time">${escapeHtml(clock(row.created_at))}</span>
         </div>
-        <p class="kitchen-alert-card__body">${escapeHtml(cardTitle(row))}</p>
         <div class="kitchen-alert-card__actions">
           ${hideMenu ? `<button type="button" class="admin-btn admin-btn--soft" data-kitchen-hide="${escapeHtml(row.product_id)}">הורד מהתפריט</button>` : ''}
-          ${startClose ? '<button type="button" class="admin-btn admin-btn--danger" data-kitchen-run-close>התחל סגירה 30 דק׳</button>' : ''}
+          ${startClose ? '<button type="button" class="admin-btn admin-btn--danger" data-kitchen-run-close>סגירה 30 דק׳</button>' : ''}
           <button type="button" class="admin-btn admin-btn--primary" data-kitchen-ack="${escapeHtml(row.id)}">קיבלתי</button>
         </div>
       </article>
@@ -160,20 +182,15 @@
   }
 
   function render() {
-    setBadge(cache.length);
+    setBadge();
     paintBanner();
-    const grouped = { urgent: [], fault: [], stock: [], pace: [], message: [] };
-    cache.forEach((row) => {
-      const key = sectionOf(row.alert_type);
-      (grouped[key] || grouped.message).push(row);
+    const rows = [...cache].sort((a, b) => {
+      const ua = isUrgent(a.alert_type) ? 0 : 1;
+      const ub = isUrgent(b.alert_type) ? 0 : 1;
+      if (ua !== ub) return ua - ub;
+      return new Date(b.created_at || 0) - new Date(a.created_at || 0);
     });
-    Object.keys(lists).forEach((key) => {
-      const list = lists[key];
-      const section = sections[key];
-      const rows = grouped[key] || [];
-      if (list) list.innerHTML = rows.map(cardHtml).join('');
-      if (section) section.hidden = rows.length === 0;
-    });
+    if (listEl) listEl.innerHTML = rows.map(cardHtml).join('');
     if (emptyEl) emptyEl.hidden = cache.length > 0;
   }
 
@@ -189,26 +206,65 @@
 
   function renderChat() {
     if (!chatLog) return;
-    if (!chat.length) {
+    const messages = chat.filter((row) => !row.alert_id);
+    if (!messages.length) {
       chatLog.innerHTML = '<p class="kitchen-chat__empty">אין הודעות עדיין</p>';
+      updateChatBadge();
       return;
     }
-    chatLog.innerHTML = chat.map((row) => {
+    chatLog.innerHTML = messages.map((row) => {
       const fromAdmin = row.sender === 'admin';
       return `
         <div class="kitchen-chat__row ${fromAdmin ? 'is-admin' : 'is-kitchen'}">
-          ${escapeHtml(row.body || '')}
+          ${escapeHtml(fromAdmin ? (row.body || '') : (api.chatTextFor?.(row, 'he') || row.body_he || row.body || ''))}
           <small>${escapeHtml(clock(row.created_at))} · ${fromAdmin ? 'ניהול' : 'מטבח'}</small>
         </div>
       `;
     }).join('');
     chatLog.scrollTop = chatLog.scrollHeight;
+    updateChatBadge();
+  }
+
+  function isChatOpen() {
+    return Boolean(chatModal && !chatModal.hidden);
+  }
+
+  function markChatSeen() {
+    try {
+      localStorage.setItem(CHAT_SEEN_KEY, String(Date.now()));
+    } catch (_) { /* ignore */ }
+    updateChatBadge();
+  }
+
+  function updateChatBadge() {
+    const unread = unreadChatCount();
+    if (chatBadge) {
+      chatBadge.textContent = String(unread);
+      chatBadge.hidden = unread <= 0;
+    }
+    setBadge();
+  }
+
+  function openChat() {
+    if (!chatModal) return;
+    chatModal.hidden = false;
+    chatModal.setAttribute('aria-hidden', 'false');
+    markChatSeen();
+    renderChat();
+    chatInput?.focus();
+  }
+
+  function closeChat() {
+    if (!chatModal) return;
+    chatModal.hidden = true;
+    chatModal.setAttribute('aria-hidden', 'true');
+    markChatSeen();
   }
 
   async function loadChat() {
     if (!api?.listChat) return;
     try {
-      chat = await api.listChat();
+      chat = (await api.listChat()).filter((row) => !row.alert_id);
       renderChat();
     } catch (err) {
       console.warn('[admin-kitchen] chat list failed', err);
@@ -224,7 +280,13 @@
     sendingChat = true;
     if (chatSend) chatSend.disabled = true;
     try {
-      const row = await api.insertChat({ sender: 'admin', body });
+      const pair = await api.pairChatBodies?.(body, 'admin') || { body, bodyHe: body, bodyEl: body };
+      const row = await api.insertChat({
+        sender: 'admin',
+        body: pair.body,
+        bodyHe: pair.bodyHe,
+        bodyEl: pair.bodyEl,
+      });
       if (row?.id && !chat.some((item) => item.id === row.id)) chat.push(row);
       if (chatInput) chatInput.value = '';
       renderChat();
@@ -237,13 +299,37 @@
     }
   }
 
+  async function resetChat() {
+    if (!chat.length) return;
+    const ok = window.confirm('לאפס את הצ׳ט עם המטבח? כל ההודעות יימחקו.');
+    if (!ok) return;
+    try {
+      await api.clearChat();
+      chat = [];
+      renderChat();
+    } catch (err) {
+      console.warn('[admin-kitchen] chat reset failed', err);
+      window.alert(err?.message || 'איפוס הצ׳ט נכשל');
+    }
+  }
+
   function onChatRealtime(payload) {
     const event = payload?.eventType || payload?.event;
+    if (event === 'DELETE') {
+      const id = payload?.old?.id;
+      chat = id ? chat.filter((item) => item.id !== id) : [];
+      renderChat();
+      return;
+    }
     const row = payload?.new;
     if (event !== 'INSERT' || !row?.id) return;
+    if (row.alert_id) return;
     if (chat.some((item) => item.id === row.id)) return;
     chat.push(row);
     renderChat();
+    if (row.sender === 'kitchen' && !row.alert_id && !isChatOpen()) {
+      playKitchenChime();
+    }
   }
 
   async function refresh() {
@@ -349,6 +435,10 @@
       sendChat();
     }
   });
+  chatOpen?.addEventListener('click', openChat);
+  chatClose?.addEventListener('click', closeChat);
+  chatBackdrop?.addEventListener('click', closeChat);
+  chatReset?.addEventListener('click', resetChat);
 
   global.LechaimAdminKitchen = { start, stop, refresh };
 })(window);

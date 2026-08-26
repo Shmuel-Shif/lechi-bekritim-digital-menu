@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=61">
+  <link rel="stylesheet" href="css/admin.css?v=63">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
 <body>
@@ -261,43 +261,18 @@
             <div class="admin-header__text">
               <p class="admin-header__eyebrow">ניהול</p>
               <h1 class="admin-header__title">מטבח</h1>
-              <p class="admin-header__subtitle">אש, גז, מלאי, תקלות וכללי מהטאבלט במטבח — תמיד בעברית</p>
             </div>
             <div class="admin-header__actions">
+              <button type="button" class="admin-btn admin-btn--soft kitchen-chat-btn" id="kitchen-chat-open">
+                צ׳ט מטבח
+                <span class="kitchen-chat-btn__badge" id="kitchen-chat-badge" hidden>0</span>
+              </button>
               <button type="button" class="admin-btn admin-btn--danger" data-kitchen-close>סגירת מטבח (ישיבה במקום)</button>
             </div>
           </header>
 
-          <section class="kitchen-chat" id="kitchen-chat">
-            <h2 class="kitchen-alerts-section__title">צ׳ט עם המטבח</h2>
-            <div class="kitchen-chat__log" id="kitchen-chat-log"></div>
-            <div class="kitchen-chat__compose">
-              <textarea class="admin-textarea" id="kitchen-chat-input" maxlength="500" rows="2" placeholder="כתבו למטבח"></textarea>
-              <button type="button" class="admin-btn admin-btn--primary" id="kitchen-chat-send">שלח למטבח</button>
-            </div>
-          </section>
-
-          <section class="kitchen-alerts-section" id="kitchen-sec-urgent" hidden>
-            <h2 class="kitchen-alerts-section__title">דחוף</h2>
-            <div class="kitchen-alerts-list" id="kitchen-alerts-urgent"></div>
-          </section>
-          <section class="kitchen-alerts-section" id="kitchen-sec-fault" hidden>
-            <h2 class="kitchen-alerts-section__title">תקלות</h2>
-            <div class="kitchen-alerts-list" id="kitchen-alerts-fault"></div>
-          </section>
-          <section class="kitchen-alerts-section" id="kitchen-sec-stock" hidden>
-            <h2 class="kitchen-alerts-section__title">מלאי</h2>
-            <div class="kitchen-alerts-list" id="kitchen-alerts-stock"></div>
-          </section>
-          <section class="kitchen-alerts-section" id="kitchen-sec-pace" hidden>
-            <h2 class="kitchen-alerts-section__title">אין הזמנות / בונים</h2>
-            <div class="kitchen-alerts-list" id="kitchen-alerts-pace"></div>
-          </section>
-          <section class="kitchen-alerts-section" id="kitchen-sec-messages" hidden>
-            <h2 class="kitchen-alerts-section__title">כללי</h2>
-            <div class="kitchen-alerts-list" id="kitchen-alerts-messages"></div>
-          </section>
-          <p class="tables-category__empty" id="kitchen-alerts-empty">אין התראות פתוחות מהמטבח</p>
+          <div class="kitchen-alerts-list" id="kitchen-alerts-list"></div>
+          <p class="tables-category__empty" id="kitchen-alerts-empty">אין בקשות פתוחות מהמטבח</p>
         </section>
       </div>
 
@@ -1209,6 +1184,24 @@
       </div>
     </div>
 
+    <div class="admin-modal kitchen-chat-modal" id="kitchen-chat-modal" hidden aria-hidden="true">
+      <button type="button" class="admin-modal__backdrop" id="kitchen-chat-backdrop" aria-label="סגור"></button>
+      <div class="admin-modal__panel kitchen-chat-modal__panel" role="dialog" aria-modal="true" aria-labelledby="kitchen-chat-title">
+        <header class="kitchen-chat-modal__header">
+          <h2 class="kitchen-chat-modal__title" id="kitchen-chat-title">צ׳ט עם המטבח</h2>
+          <div class="kitchen-chat-modal__actions">
+            <button type="button" class="kitchen-chat-modal__reset" id="kitchen-chat-reset">אפס צ׳ט</button>
+            <button type="button" class="admin-btn admin-btn--ghost" id="kitchen-chat-close">סגור</button>
+          </div>
+        </header>
+        <div class="kitchen-chat__log" id="kitchen-chat-log"></div>
+        <div class="kitchen-chat__compose">
+          <input class="kitchen-chat__input" id="kitchen-chat-input" type="text" maxlength="500" placeholder="כתבו למטבח" autocomplete="off">
+          <button type="button" class="kitchen-chat__send" id="kitchen-chat-send">שלח</button>
+        </div>
+      </div>
+    </div>
+
     <section class="admin-boot" id="admin-boot">
       <p>טוען…</p>
     </section>
@@ -1231,8 +1224,8 @@
   <script src="js/admin-shabbat.js?v=8" defer></script>
   <script src="js/place-reservations.js?v=9" defer></script>
   <script src="js/admin-reservations.js?v=6" defer></script>
-  <script src="js/kitchen-alert-service.js?v=9" defer></script>
-  <script src="js/admin-kitchen-alerts.js?v=6" defer></script>
+  <script src="js/kitchen-alert-service.js?v=11" defer></script>
+  <script src="js/admin-kitchen-alerts.js?v=11" defer></script>
   <script src="js/admin-history.js?v=2" defer></script>
   <script src="js/admin-coupons.js" defer></script>
   <script src="js/admin-till.js?v=3" defer></script>
