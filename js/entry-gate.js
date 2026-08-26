@@ -109,18 +109,18 @@
       dineInClosedText: 'Dine-in orders can be placed Sunday–Thursday.\nBetween 14:00 – 21:00.',
       dineInClosedBrowse: 'View the menu',
       placeReservation: 'Reserve a table',
-      promptPlaceRes: 'Table reservation request',
-      placeResName: 'Full name *',
-      placeResPhone: 'WhatsApp *',
+      promptPlaceRes: 'Reserve a table',
+      placeResName: 'Name',
+      placeResPhone: 'WhatsApp',
       placeResPhoneCc: 'Country code',
-      placeResPhoneHint: 'Choose a prefix on the left, then enter the number',
-      placeResParty: 'Number of guests *',
-      placeResDate: 'Date *',
-      placeResTime: 'Time *',
-      placeResNotes: 'Notes (optional)',
-      placeResSubmit: 'Send request',
+      placeResParty: 'Guests',
+      placeResDate: 'Date',
+      placeResTime: 'Time',
+      placeResNotes: 'Note',
+      placeResNotesAdd: 'Add a note',
+      placeResSubmit: 'Send',
       placeResThanksTitle: 'Thank you!',
-      placeResThanksText: 'We received your reservation request. We will contact you on WhatsApp to confirm.',
+      placeResThanksText: 'Got it. We’ll confirm on WhatsApp.',
       placeResThanksClose: 'Close',
       placeResNameRequired: 'Please enter your full name',
       placeResPhoneRequired: 'Please enter a valid phone number',
@@ -240,18 +240,18 @@
       dineInClosedText: 'ניתן לבצע הזמנות לישיבה במקום בימי א - ה\nבין השעות 14:00 - 21:00.',
       dineInClosedBrowse: 'לצפייה בתפריט',
       placeReservation: 'הזמנת מקום',
-      promptPlaceRes: 'בקשת הזמנת מקום',
-      placeResName: 'שם מלא *',
-      placeResPhone: 'וואטסאפ *',
+      promptPlaceRes: 'הזמנת מקום',
+      placeResName: 'שם',
+      placeResPhone: 'וואטסאפ',
       placeResPhoneCc: 'קידומת מדינה',
-      placeResPhoneHint: 'בחרו קידומת משמאל, ואז הזינו את המספר',
-      placeResParty: 'מספר סועדים *',
-      placeResDate: 'תאריך *',
-      placeResTime: 'שעה *',
-      placeResNotes: 'הערות (אופציונלי)',
-      placeResSubmit: 'שליחת בקשה',
+      placeResParty: 'אנשים',
+      placeResDate: 'תאריך',
+      placeResTime: 'שעה',
+      placeResNotes: 'הערה',
+      placeResNotesAdd: 'הוסיפו הערה',
+      placeResSubmit: 'שלח',
       placeResThanksTitle: 'תודה!',
-      placeResThanksText: 'קיבלנו את בקשת הזמנת המקום. ניצור איתכם קשר בוואטסאפ לאישור.',
+      placeResThanksText: 'קיבלנו. נאשר בוואטסאפ.',
       placeResThanksClose: 'סגור',
       placeResNameRequired: 'נא להזין שם מלא',
       placeResPhoneRequired: 'נא להזין מספר טלפון תקין',
@@ -349,6 +349,8 @@
   const placeResDate = document.getElementById('entry-place-res-date');
   const placeResTime = document.getElementById('entry-place-res-time');
   const placeResNotes = document.getElementById('entry-place-res-notes');
+  const placeResNotesToggle = document.getElementById('entry-place-res-notes-toggle');
+  const placeResNotesField = document.getElementById('entry-place-res-notes-field');
   const placeResError = document.getElementById('entry-place-res-error');
   const placeResSubmit = document.getElementById('entry-place-res-submit');
   const placeResThanks = document.getElementById('entry-place-res-thanks');
@@ -783,6 +785,8 @@
   function resetPlaceResForm() {
     placeResForm?.reset();
     showPlaceResError('');
+    if (placeResNotesField) placeResNotesField.hidden = true;
+    if (placeResNotesToggle) placeResNotesToggle.hidden = false;
     if (placeResDate) {
       placeResDate.min = todayDateStr();
       placeResDate.value = defaultPlaceResDate();
@@ -2776,6 +2780,11 @@
     enterBrowseOnly();
   });
   placeResForm?.addEventListener('submit', submitPlaceResForm);
+  placeResNotesToggle?.addEventListener('click', () => {
+    if (placeResNotesField) placeResNotesField.hidden = false;
+    if (placeResNotesToggle) placeResNotesToggle.hidden = true;
+    placeResNotes?.focus();
+  });
   placeResDate?.addEventListener('change', () => {
     refreshPlaceResAvailableSlots();
   });

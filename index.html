@@ -10,9 +10,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/main.css?v=51">
   <link rel="stylesheet" href="css/theme-lechaim.css?v=2">
-  <link rel="stylesheet" href="css/entry-gate.css?v=15">
+  <link rel="stylesheet" href="css/entry-gate.css?v=17">
   <link rel="stylesheet" href="css/help-bot.css?v=16">
-  <link rel="icon" href="assets/logo/logo.webp" type="image/webp">
+  <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
 <body class="entry-pending">
   <!-- Entry gate: order type → table (dine-in) — language toggle always available -->
@@ -269,21 +269,38 @@
 
       <div class="entry-gate__step" id="entry-step-place-res" hidden>
         <form class="entry-pickup entry-place-res" id="entry-place-res-form" novalidate>
-          <label class="entry-pickup__field">
-            <span class="entry-pickup__label" data-entry-i18n="placeResName">שם מלא *</span>
-            <input
-              type="text"
-              id="entry-place-res-name"
-              class="entry-pickup__input"
-              name="customerName"
-              autocomplete="name"
-              required
-              maxlength="80"
-            >
-          </label>
+          <div class="entry-place-res__row entry-place-res__row--who">
+            <label class="entry-pickup__field">
+              <span class="entry-pickup__label" data-entry-i18n="placeResName">שם</span>
+              <input
+                type="text"
+                id="entry-place-res-name"
+                class="entry-pickup__input"
+                name="customerName"
+                autocomplete="name"
+                required
+                maxlength="80"
+              >
+            </label>
+            <label class="entry-pickup__field entry-place-res__party">
+              <span class="entry-pickup__label" data-entry-i18n="placeResParty">אנשים</span>
+              <input
+                type="number"
+                id="entry-place-res-party"
+                class="entry-pickup__input"
+                name="partySize"
+                inputmode="numeric"
+                required
+                min="1"
+                max="30"
+                step="1"
+                dir="ltr"
+              >
+            </label>
+          </div>
 
           <label class="entry-pickup__field">
-            <span class="entry-pickup__label" data-entry-i18n="placeResPhone">וואטסאפ *</span>
+            <span class="entry-pickup__label" data-entry-i18n="placeResPhone">וואטסאפ</span>
             <div class="entry-phone-row" dir="ltr">
               <select
                 id="entry-place-res-phone-cc"
@@ -304,50 +321,35 @@
                 dir="ltr"
               >
             </div>
-            <span class="entry-pickup__hint" data-entry-i18n="placeResPhoneHint">בחרו קידומת משמאל, ואז הזינו את המספר</span>
           </label>
 
-          <label class="entry-pickup__field">
-            <span class="entry-pickup__label" data-entry-i18n="placeResParty">מספר סועדים *</span>
-            <input
-              type="number"
-              id="entry-place-res-party"
-              class="entry-pickup__input"
-              name="partySize"
-              inputmode="numeric"
-              required
-              min="1"
-              max="30"
-              step="1"
-              dir="ltr"
-            >
-          </label>
+          <div class="entry-place-res__row entry-place-res__row--when">
+            <label class="entry-pickup__field">
+              <span class="entry-pickup__label" data-entry-i18n="placeResDate">תאריך</span>
+              <input
+                type="date"
+                id="entry-place-res-date"
+                class="entry-pickup__input"
+                name="reservationDate"
+                required
+                dir="ltr"
+              >
+            </label>
+            <label class="entry-pickup__field">
+              <span class="entry-pickup__label" data-entry-i18n="placeResTime">שעה</span>
+              <select
+                id="entry-place-res-time"
+                class="entry-pickup__input entry-pickup__select"
+                name="arrivalTime"
+                required
+                dir="ltr"
+              ></select>
+            </label>
+          </div>
 
-          <label class="entry-pickup__field">
-            <span class="entry-pickup__label" data-entry-i18n="placeResDate">תאריך *</span>
-            <input
-              type="date"
-              id="entry-place-res-date"
-              class="entry-pickup__input"
-              name="reservationDate"
-              required
-              dir="ltr"
-            >
-          </label>
-
-          <label class="entry-pickup__field">
-            <span class="entry-pickup__label" data-entry-i18n="placeResTime">שעה *</span>
-            <select
-              id="entry-place-res-time"
-              class="entry-pickup__input entry-pickup__select"
-              name="arrivalTime"
-              required
-              dir="ltr"
-            ></select>
-          </label>
-
-          <label class="entry-pickup__field">
-            <span class="entry-pickup__label" data-entry-i18n="placeResNotes">הערות (אופציונלי)</span>
+          <button type="button" class="entry-place-res__notes-toggle" id="entry-place-res-notes-toggle" data-entry-i18n="placeResNotesAdd">הוסיפו הערה</button>
+          <label class="entry-pickup__field" id="entry-place-res-notes-field" hidden>
+            <span class="entry-pickup__label" data-entry-i18n="placeResNotes">הערה</span>
             <textarea
               id="entry-place-res-notes"
               class="entry-pickup__input entry-pickup__textarea"
@@ -361,7 +363,7 @@
           <p class="entry-pickup__error" id="entry-place-res-error" role="alert" hidden></p>
 
           <button type="submit" class="entry-gate__btn entry-gate__btn--primary" id="entry-place-res-submit">
-            <span class="entry-gate__btn-label" data-entry-i18n="placeResSubmit">שליחת בקשה</span>
+            <span class="entry-gate__btn-label" data-entry-i18n="placeResSubmit">שלח</span>
           </button>
         </form>
         <button type="button" class="entry-gate__back" data-entry-back="order" data-entry-i18n="back">חזרה</button>
@@ -504,7 +506,7 @@
         aria-labelledby="entry-place-res-thanks-title"
       >
         <p class="entry-place-res-thanks__title" id="entry-place-res-thanks-title" data-entry-i18n="placeResThanksTitle">תודה!</p>
-        <p class="entry-place-res-thanks__text" data-entry-i18n="placeResThanksText">קיבלנו את בקשת הזמנת המקום. ניצור איתכם קשר לאישור.</p>
+        <p class="entry-place-res-thanks__text" data-entry-i18n="placeResThanksText">קיבלנו. נאשר בוואטסאפ.</p>
         <button type="button" class="entry-gate__btn entry-gate__btn--primary" id="entry-place-res-thanks-close" data-entry-i18n="placeResThanksClose">
           סגור
         </button>
@@ -1113,7 +1115,7 @@
   <script src="js/a11y-focus-trap.js" defer></script>
   <script src="js/main.js?v=72" defer></script>
   <script src="js/place-reservations.js?v=9" defer></script>
-  <script src="js/entry-gate.js?v=59" defer></script>
+  <script src="js/entry-gate.js?v=61" defer></script>
   <script src="js/around-us.js?v=6" defer></script>
   <script src="js/help-bot.js?v=19" defer></script>
   <script src="js/waiter-call.js?v=2" defer></script>
