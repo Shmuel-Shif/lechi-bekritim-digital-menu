@@ -11,6 +11,7 @@
   const typesApi = global.LechaimOrderTypes;
 
   const gridEl = document.getElementById('kt-tables-grid');
+  const prepEl = document.getElementById('kt-prep-board');
   const statusEl = document.getElementById('kt-status');
   const drawerEl = document.getElementById('kt-table-sheet');
   const drawerTitle = document.getElementById('kt-table-title');
@@ -31,6 +32,10 @@
   let sending = false;
   let primed = false;
   let audioCtx = null;
+  let prevPrepQty = new Map();
+  let prepPulseUntil = new Map();
+  let prepQtyPrimed = false;
+  let openPrepSides = new Set();
 
   function lang() {
     return i18n?.getLang?.() || 'el';
@@ -143,37 +148,27 @@
     return bonName(item);
   }
 
-  function extraNameSet() {
-    const names = new Set();
-    []
-      .concat(global.HOT_SIDE_ITEMS || [])
-      .concat(global.DONENESS_ITEMS || [])
-      .forEach((row) => {
-        if (row?.id) names.add(String(row.id).toLowerCase());
-        if (row?.name) names.add(String(row.name).trim().toLowerCase());
-        if (row?.printName) names.add(String(row.printName).trim().toLowerCase());
-      });
-    return names;
-  }
-
-  function isAddon(item) {
-    if (item?.linkedToMainItemId || item?.parent_item_id) return true;
+  function isKitchenModifier(item) {
     const id = String(item?.productId || item?.product_id || '');
-    if (
-      global.HOT_SIDE_IDS?.has?.(id)
-      || global.DONENESS_IDS?.has?.(id)
+    return Boolean(
+      global.DONENESS_IDS?.has?.(id)
       || global.SHAKE_BASE_IDS?.has?.(id)
       || global.LIMONANA_ALCOHOL_IDS?.has?.(id)
       || id.startsWith('doneness-')
       || id.startsWith('shake-base-')
       || id.startsWith('limonana-alcohol')
-    ) return true;
-    const names = extraNameSet();
-    if (id && names.has(id.toLowerCase())) return true;
-    const label = String(item?.printName || item?.print_name || item?.name || item?.product_name || '')
-      .trim()
-      .toLowerCase();
-    return Boolean(label && names.has(label));
+    );
+  }
+
+  function isStandaloneStarter(item) {
+    const id = String(item?.productId || item?.product_id || '');
+    return id === 'fries-classic' || id.startsWith('starter-');
+  }
+
+  function isAddon(item) {
+    if (isStandaloneStarter(item)) return false;
+    if (isKitchenModifier(item)) return true;
+    return Boolean(item?.linkedToMainItemId || item?.parent_item_id);
   }
 
   const BAR_ONLY_IDS = new Set(['fruit-plate', 'shabbat-fruit-plate']);
@@ -324,6 +319,7 @@
       linkedToMainItemId: row.parent_item_id ? String(row.parent_item_id) : null,
       createdAt: row.created_at || extras.createdAt || null,
       kitchenStatus: kitchenStatus(row.kitchen_status),
+      kitchenUrgent: Boolean(row.kitchen_urgent),
       wavePrinted: Boolean(extras.wavePrinted),
       wavePrintedAt: extras.printedAt || null,
     };
@@ -467,12 +463,25 @@
     list.forEach((item) => {
       if (!isAddon(item) || used.has(String(item.itemId))) return;
       const parent = groups.find((row) => String(row.main.itemId) === String(item.linkedToMainItemId));
-      const target = parent || groups[groups.length - 1];
-      if (!target) return;
-      target.sides.push(item);
+      if (parent) {
+        parent.sides.push(item);
+        used.add(String(item.itemId));
+        return;
+      }
+      if (isKitchenModifier(item)) {
+        const target = groups[groups.length - 1];
+        if (!target) return;
+        target.sides.push(item);
+        used.add(String(item.itemId));
+        return;
+      }
+      groups.push({ main: item, sides: [] });
       used.add(String(item.itemId));
     });
     groups.sort((a, b) => {
+      const aUrgent = a.main.kitchenUrgent && !isDishReady(a.main) ? 0 : 1;
+      const bUrgent = b.main.kitchenUrgent && !isDishReady(b.main) ? 0 : 1;
+      if (aUrgent !== bUrgent) return aUrgent - bUrgent;
       const aLate = a.main.isLate && !isDishReady(a.main) ? 0 : 1;
       const bLate = b.main.isLate && !isDishReady(b.main) ? 0 : 1;
       if (aLate !== bLate) return aLate - bLate;
@@ -483,6 +492,205 @@
 
   function isDishReady(item) {
     return (item?.kitchenStatus || 'waiting') === 'ready';
+  }
+
+  function isPrepModifier(item) {
+    const id = String(item?.productId || '');
+    return Boolean(
+      global.DONENESS_IDS?.has?.(id)
+      || global.SHAKE_BASE_IDS?.has?.(id)
+      || global.LIMONANA_ALCOHOL_IDS?.has?.(id)
+      || id.startsWith('doneness-')
+      || id.startsWith('shake-base-')
+      || id.startsWith('limonana-alcohol')
+    );
+  }
+
+  function prepProductKey(item) {
+    return String(item?.productId || '') || dishName(item);
+  }
+
+  function isPrepSideItem(item) {
+    if (!item || isStandaloneStarter(item) || isPrepModifier(item)) return false;
+    return Boolean(item.linkedToMainItemId);
+  }
+
+  function prepMenuOrder() {
+    const order = new Map();
+    let n = 0;
+    const add = (id) => {
+      const key = String(id || '');
+      if (!key || order.has(key)) return;
+      order.set(key, n);
+      n += 1;
+    };
+    (global.MENU_DATA?.categories || []).forEach((cat) => {
+      (cat.items || []).forEach((item) => add(item.id));
+      (cat.subsections || []).forEach((sub) => {
+        (sub.items || []).forEach((row) => add(row.id));
+      });
+    });
+    (global.HOT_SIDE_ITEMS || []).forEach((item) => add(item.id));
+    return order;
+  }
+
+  function prepSortIndex(key, order) {
+    if (order.has(key)) return order.get(key);
+    return 10000;
+  }
+
+  function prepDishLabel(item) {
+    const catalog = catalogPrintName(String(item?.productId || ''));
+    if (catalog && !hasHeOrEl(catalog)) return catalog;
+    return dishName(item);
+  }
+
+  function shouldCountPrepItem(item, byId) {
+    if (!item || Number(item.qty) <= 0) return false;
+    if (!item.wavePrinted) return false;
+    if (isPrepModifier(item)) return false;
+    if (isPrepSideItem(item)) {
+      const parent = byId.get(String(item.linkedToMainItemId));
+      if (parent) return !isDishReady(parent);
+      return !isDishReady(item);
+    }
+    if (isAddon(item)) return false;
+    return !isDishReady(item);
+  }
+
+  function sortPrepRows(rows, menuOrder) {
+    return rows
+      .filter((row) => row.qty > 0)
+      .sort((a, b) => prepSortIndex(a.key, menuOrder) - prepSortIndex(b.key, menuOrder)
+        || String(a.key).localeCompare(String(b.key)));
+  }
+
+  function buildPrepTotals(entries) {
+    const byId = new Map();
+    (entries || []).forEach((entry) => {
+      (entry.order?.items || []).forEach((item) => {
+        if (item?.itemId) byId.set(String(item.itemId), item);
+      });
+    });
+    const mains = new Map();
+    const sides = new Map();
+    (entries || []).forEach((entry) => {
+      (entry.order?.items || []).forEach((item) => {
+        if (!shouldCountPrepItem(item, byId)) return;
+        const side = isPrepSideItem(item);
+        const bucket = side ? sides : mains;
+        const key = prepProductKey(item);
+        const prev = bucket.get(key) || { key, qty: 0, sample: item, byParent: new Map() };
+        prev.qty += Number(item.qty) || 0;
+        if (side) {
+          const parent = byId.get(String(item.linkedToMainItemId));
+          const parentKey = parent ? prepProductKey(parent) : '_';
+          const parentRow = prev.byParent.get(parentKey) || { key: parentKey, qty: 0, sample: parent || item };
+          parentRow.qty += Number(item.qty) || 0;
+          prev.byParent.set(parentKey, parentRow);
+        }
+        bucket.set(key, prev);
+      });
+    });
+    const menuOrder = prepMenuOrder();
+    return {
+      mains: sortPrepRows([...mains.values()], menuOrder),
+      sides: sortPrepRows([...sides.values()], menuOrder),
+    };
+  }
+
+  function prepPulseKey(role, key) {
+    return `${role}:${key}`;
+  }
+
+  function prepRowHtml(row, role, now) {
+    const pulseKey = prepPulseKey(role, row.key);
+    const isNew = now < (prepPulseUntil.get(pulseKey) || 0);
+    const open = role === 'side' && openPrepSides.has(row.key);
+    const parents = role === 'side'
+      ? sortPrepRows([...row.byParent.values()], prepMenuOrder())
+      : [];
+    const breakHtml = open && parents.length
+      ? `<ul class="kt-prep__break">
+          ${parents.map((parent) => `
+            <li class="kt-prep__break-row">
+              <span>${escapeHtml(txt('prepFor').replace('{name}', prepDishLabel(parent.sample)))}</span>
+              <span>${escapeHtml(String(parent.qty))}</span>
+            </li>
+          `).join('')}
+        </ul>`
+      : '';
+    if (role === 'side') {
+      return `
+        <li>
+          <button type="button"
+            class="kt-prep__row is-side${isNew ? ' is-new' : ''}${open ? ' is-open' : ''}"
+            data-kt-prep-side="${escapeHtml(row.key)}"
+            aria-expanded="${open ? 'true' : 'false'}"
+          >
+            <span class="kt-prep__name">${escapeHtml(prepDishLabel(row.sample))}</span>
+            <span class="kt-prep__qty">${escapeHtml(String(row.qty))}</span>
+          </button>
+          ${breakHtml}
+        </li>
+      `;
+    }
+    return `
+      <li class="kt-prep__row${isNew ? ' is-new' : ''}">
+        <span class="kt-prep__name">${escapeHtml(prepDishLabel(row.sample))}</span>
+        <span class="kt-prep__qty">${escapeHtml(String(row.qty))}</span>
+      </li>
+    `;
+  }
+
+  function prepSectionHtml(title, rows, role, now) {
+    if (!rows.length) return '';
+    return `
+      <section class="kt-prep__section">
+        <h3 class="kt-prep__heading">${escapeHtml(title)}</h3>
+        <ul class="kt-prep__list">
+          ${rows.map((row) => prepRowHtml(row, role, now)).join('')}
+        </ul>
+      </section>
+    `;
+  }
+
+  function renderPrepBoard() {
+    if (!prepEl) return;
+    const { mains, sides } = buildPrepTotals(board);
+    const now = Date.now();
+    const nextQty = new Map();
+    const markPulse = (role, rows) => {
+      rows.forEach((row) => {
+        const pulseKey = prepPulseKey(role, row.key);
+        nextQty.set(pulseKey, row.qty);
+        const prev = prevPrepQty.get(pulseKey) || 0;
+        if (prepQtyPrimed && row.qty > prev) {
+          prepPulseUntil.set(pulseKey, now + 12000);
+        }
+      });
+    };
+    markPulse('main', mains);
+    markPulse('side', sides);
+    prevPrepQty = nextQty;
+    prepQtyPrimed = true;
+    [...prepPulseUntil.keys()].forEach((key) => {
+      if (!nextQty.has(key) || now >= (prepPulseUntil.get(key) || 0)) {
+        prepPulseUntil.delete(key);
+      }
+    });
+    if (!mains.length && !sides.length) {
+      prepEl.innerHTML = `
+        <h2 class="kt-prep__title">${escapeHtml(txt('prepTitle'))}</h2>
+        <p class="kt-prep__empty">${escapeHtml(txt('prepEmpty'))}</p>
+      `;
+      return;
+    }
+    prepEl.innerHTML = `
+      <h2 class="kt-prep__title">${escapeHtml(txt('prepTitle'))}</h2>
+      ${prepSectionHtml(txt('prepMains'), mains, 'main', now)}
+      ${prepSectionHtml(txt('prepSides'), sides, 'side', now)}
+    `;
   }
 
   function readyCounts(items) {
@@ -550,16 +758,25 @@
     }).filter((side) => Number(side.qty) > 0);
   }
 
+  function urgentMains(items) {
+    return countableItems(items).filter((item) => item.kitchenUrgent && !isDishReady(item));
+  }
+
+  function hasUrgent(entry) {
+    return urgentMains(entry?.order?.items).length > 0;
+  }
+
   function renderDish(item, sides) {
     const ready = isDishReady(item);
     const late = Boolean(item.isLate) && !ready;
+    const urgent = Boolean(item.kitchenUrgent) && !ready;
     const qty = Number(item.qty) || 1;
     const kids = (sides || []).map((side) => renderSide(side, ready)).join('');
     return `
-      <article class="kt-dish-group ${ready ? 'is-ready' : 'is-waiting'}${late ? ' is-late' : ''}">
+      <article class="kt-dish-group ${ready ? 'is-ready' : 'is-waiting'}${late ? ' is-late' : ''}${urgent ? ' is-urgent' : ''}">
         <div class="kt-dish kt-dish--main ${ready ? 'is-ready' : 'is-waiting'}" data-item-id="${escapeHtml(item.itemId)}">
           <div class="kt-dish__top">
-            <span class="kt-dish__name">${late ? `<span class="kt-new-tag">${escapeHtml(txt('dishNew'))}</span>` : ''}${escapeHtml(dishName(item))}${qty > 1 ? ` × ${escapeHtml(String(qty))}` : ''}</span>
+            <span class="kt-dish__name">${urgent ? `<span class="kt-urgent-tag">${escapeHtml(txt('dishUrgent'))}</span>` : ''}${late ? `<span class="kt-new-tag">${escapeHtml(txt('dishNew'))}</span>` : ''}${escapeHtml(dishName(item))}${qty > 1 ? ` × ${escapeHtml(String(qty))}` : ''}</span>
             ${dishActions(item)}
           </div>
         </div>
@@ -597,18 +814,24 @@
   function renderCard(entry) {
     const counts = readyCounts(entry.order?.items);
     const allDone = Boolean(entry.order?.kitchenAllReady) && counts.allReady;
-    const fresh = isFresh(entry) && !allDone;
-    const wave = !fresh && hasNewWave(entry) && !allDone;
-    const statusText = fresh
-      ? txt('tableFresh')
-      : (wave ? txt('tableWave') : statusLabel(entry.uiStatus));
+    const urgentList = urgentMains(entry.order?.items);
+    const urgent = !allDone && urgentList.length > 0;
+    const fresh = isFresh(entry) && !allDone && !urgent;
+    const wave = !fresh && !urgent && hasNewWave(entry) && !allDone;
+    const statusText = urgent
+      ? txt('tableUrgent')
+      : (fresh
+        ? txt('tableFresh')
+        : (wave ? txt('tableWave') : statusLabel(entry.uiStatus)));
+    const urgentLabel = urgentList.map((item) => dishName(item)).filter(Boolean).slice(0, 2).join(' · ');
     return `
       <button type="button"
-        class="kt-table-card is-${escapeHtml(cardTone(entry.uiStatus))}${fresh ? ' is-fresh' : ''}${wave ? ' is-wave' : ''}${allDone ? ' is-allready' : ''}"
+        class="kt-table-card is-${escapeHtml(cardTone(entry.uiStatus))}${fresh ? ' is-fresh' : ''}${wave ? ' is-wave' : ''}${urgent ? ' is-urgent' : ''}${allDone ? ' is-allready' : ''}"
         data-kt-table="${escapeHtml(String(entry.tableNumber))}"
       >
         <span class="kt-table-card__num">${escapeHtml(String(entry.tableNumber))}</span>
         <span class="kt-table-card__status">${escapeHtml(statusText)}</span>
+        ${urgentLabel ? `<span class="kt-table-card__urgent">${escapeHtml(urgentLabel)}</span>` : ''}
         <span class="kt-table-card__items">${escapeHtml(String(counts.ready))} / ${escapeHtml(String(counts.total))} ${escapeHtml(txt('readyCount'))}</span>
         ${allDone ? `<span class="kt-table-card__done">${escapeHtml(txt('allReadyDone'))}</span>` : ''}
         <span class="kt-table-card__time">${escapeHtml(formatElapsed(entry.openedAt))}</span>
@@ -622,6 +845,7 @@
         ? board.map(renderCard).join('')
         : `<p class="kt-news__empty">${escapeHtml(txt('tablesEmpty'))}</p>`;
     }
+    renderPrepBoard();
     if (openTable != null) fillDrawer(openTable);
   }
 
@@ -636,10 +860,8 @@
     if (drawerMeta) {
       const counts = readyCounts(entry.order.items);
       const allDone = Boolean(entry.order.kitchenAllReady) && counts.allReady;
-      const guest = String(entry.order.customerNotes || '').trim();
       drawerMeta.innerHTML = `
         <p class="kt-table-meta__row">${escapeHtml(statusLabel(entry.uiStatus))} · ${escapeHtml(String(counts.ready))} / ${escapeHtml(String(counts.total))} ${escapeHtml(txt('readyCount'))}</p>
-        ${guest ? `<p class="kt-table-meta__note"><strong>${escapeHtml(txt('customerNote'))}:</strong> <span data-kt-note="${escapeHtml(guest)}">${escapeHtml(guest)}</span></p>` : ''}
         ${allDone ? `<p class="kt-table-meta__done">${escapeHtml(txt('allReadyDone'))}</p>` : statsHtml(entry.order.items)}
       `;
     }
@@ -684,6 +906,7 @@
     });
     if (viewTables) viewTables.hidden = currentTab !== 'tables';
     if (viewAlerts) viewAlerts.hidden = currentTab !== 'alerts';
+    if (currentTab !== 'tables') closeDrawer();
   }
 
   async function loadBoard() {
@@ -792,11 +1015,15 @@
     if (!item || isAddon(item)) return;
     sending = true;
     try {
+      const makingReady = !isDishReady(item);
       const qty = Math.max(1, Number(item.qty) || 1);
       if (qty > 1) {
-        await peelOneUnit(item, entry.order.items, isDishReady(item) ? 'waiting' : 'ready');
+        await peelOneUnit(item, entry.order.items, makingReady ? 'ready' : 'waiting');
       } else {
-        await api.updateItemKitchenStatus(itemId, isDishReady(item) ? 'waiting' : 'ready');
+        await api.updateItemKitchenStatus(itemId, makingReady ? 'ready' : 'waiting');
+        if (makingReady && item.kitchenUrgent && api.updateItemKitchenUrgent) {
+          await api.updateItemKitchenUrgent(itemId, false);
+        }
       }
       setError('');
       await loadBoard();
@@ -874,6 +1101,11 @@
     if (!entry?.order) return;
     if (isFresh(entry)) {
       startKitchen(entry);
+      if (hasUrgent(entry)) fillDrawer(tableNumber);
+      return;
+    }
+    if (hasUrgent(entry)) {
+      fillDrawer(tableNumber);
       return;
     }
     if (hasNewWave(entry)) {
@@ -885,6 +1117,15 @@
   });
 
   document.addEventListener('click', (event) => {
+    const prepSide = event.target.closest('[data-kt-prep-side]');
+    if (prepSide) {
+      const key = String(prepSide.dataset.ktPrepSide || '');
+      if (!key) return;
+      if (openPrepSides.has(key)) openPrepSides.delete(key);
+      else openPrepSides.add(key);
+      renderPrepBoard();
+      return;
+    }
     const toggle = event.target.closest('[data-kt-dish-toggle]');
     if (toggle) {
       toggleItemReady(toggle.dataset.ktDishToggle);

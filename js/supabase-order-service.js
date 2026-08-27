@@ -814,9 +814,10 @@
     'printed_at',
     'created_at',
     'updated_at',
-    'order_items(id, product_id, product_name, print_name, quantity, price, notes, parent_item_id, created_at, selected_weight, price_per_kg, unit_type, thaw_count, kitchen_status)',
+    'order_items(id, product_id, product_name, print_name, quantity, price, notes, parent_item_id, created_at, selected_weight, price_per_kg, unit_type, thaw_count, kitchen_status, kitchen_urgent)',
   ].join(', ');
-  const OPEN_BOARD_ORDER_COLS_NO_KITCHEN = OPEN_BOARD_ORDER_COLS.replace(', kitchen_status)', ')');
+  const OPEN_BOARD_ORDER_COLS_NO_KITCHEN = OPEN_BOARD_ORDER_COLS.replace(', kitchen_status, kitchen_urgent)', ')');
+  const OPEN_BOARD_ORDER_COLS_NO_URGENT = OPEN_BOARD_ORDER_COLS.replace(', kitchen_urgent)', ')');
 
   const OPEN_SHABBAT_SESSION_COLS = [
     'session_id',
@@ -937,6 +938,17 @@
       .select(OPEN_BOARD_ORDER_COLS)
       .in('session_id', ids)
       .order('order_number', { ascending: true });
+
+    if (error && /kitchen_urgent/i.test(`${error.message || ''} ${error.details || ''}`)) {
+      console.warn('[LechaimSupabaseOrders] kitchen_urgent missing — run supabase-kitchen-urgent.sql');
+      const retryUrgent = await sb
+        .from(TABLE_ORDERS)
+        .select(OPEN_BOARD_ORDER_COLS_NO_URGENT)
+        .in('session_id', ids)
+        .order('order_number', { ascending: true });
+      throwIfError(retryUrgent.error, 'getOpenSessionsWithOrders');
+      return groupOrdersBySession(sessions, retryUrgent.data);
+    }
 
     if (error && /kitchen_status/i.test(`${error.message || ''} ${error.details || ''}`)) {
       console.warn('[LechaimSupabaseOrders] kitchen_status missing — run supabase-kitchen-item-status.sql');
@@ -1075,6 +1087,30 @@
     throwIfError(error, 'updateItemNotes');
     if (!data?.length) {
       throw new Error('[LechaimSupabaseOrders.updateItemNotes] item not updated');
+    }
+    return data[0];
+  }
+
+  /**
+   * Admin marks a dish as urgent for the kitchen tablet.
+   * Does not change qty, price, print, or table close.
+   * @param {string} itemId
+   * @param {boolean} urgent
+   */
+  async function updateItemKitchenUrgent(itemId, urgent) {
+    const sb = getClient();
+    const id = String(itemId || '').trim();
+    if (!id) {
+      throw new Error('[LechaimSupabaseOrders.updateItemKitchenUrgent] itemId is required');
+    }
+    const { data, error } = await sb
+      .from(TABLE_ITEMS)
+      .update({ kitchen_urgent: Boolean(urgent) })
+      .eq('id', id)
+      .select('id, kitchen_urgent');
+    throwIfError(error, 'updateItemKitchenUrgent');
+    if (!data?.length) {
+      throw new Error('[LechaimSupabaseOrders.updateItemKitchenUrgent] item not updated (run supabase-kitchen-urgent.sql)');
     }
     return data[0];
   }
@@ -2597,6 +2633,7 @@
     markOrderPrinted,
     updateItemKitchenStatus,
     updateItemNotes,
+    updateItemKitchenUrgent,
     markSessionKitchenAllReady,
     markSessionKitchenStarted,
     markSessionKitchenWaveAck,

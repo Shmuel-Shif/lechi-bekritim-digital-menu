@@ -37,37 +37,27 @@
     return div.innerHTML;
   }
 
-  function extraNameSet() {
-    const names = new Set();
-    []
-      .concat(global.HOT_SIDE_ITEMS || [])
-      .concat(global.DONENESS_ITEMS || [])
-      .forEach((row) => {
-        if (row?.id) names.add(String(row.id).toLowerCase());
-        if (row?.name) names.add(String(row.name).trim().toLowerCase());
-        if (row?.printName) names.add(String(row.printName).trim().toLowerCase());
-      });
-    return names;
-  }
-
-  function isAddon(item) {
-    if (item?.linkedToMainItemId || item?.parent_item_id) return true;
+  function isKitchenModifier(item) {
     const id = String(item?.productId || item?.product_id || '');
-    if (
-      global.HOT_SIDE_IDS?.has?.(id)
-      || global.DONENESS_IDS?.has?.(id)
+    return Boolean(
+      global.DONENESS_IDS?.has?.(id)
       || global.SHAKE_BASE_IDS?.has?.(id)
       || global.LIMONANA_ALCOHOL_IDS?.has?.(id)
       || id.startsWith('doneness-')
       || id.startsWith('shake-base-')
       || id.startsWith('limonana-alcohol')
-    ) return true;
-    const names = extraNameSet();
-    if (id && names.has(id.toLowerCase())) return true;
-    const label = String(item?.printName || item?.print_name || item?.name || item?.product_name || '')
-      .trim()
-      .toLowerCase();
-    return Boolean(label && names.has(label));
+    );
+  }
+
+  function isStandaloneStarter(item) {
+    const id = String(item?.productId || item?.product_id || '');
+    return id === 'fries-classic' || id.startsWith('starter-');
+  }
+
+  function isAddon(item) {
+    if (isStandaloneStarter(item)) return false;
+    if (isKitchenModifier(item)) return true;
+    return Boolean(item?.linkedToMainItemId || item?.parent_item_id);
   }
 
   const BAR_ONLY_IDS = new Set(['fruit-plate', 'shabbat-fruit-plate']);
@@ -192,6 +182,7 @@
       linkedToMainItemId: row.parent_item_id ? String(row.parent_item_id) : null,
       createdAt: row.created_at || null,
       kitchenStatus: api?.normalizeKitchenStatus?.(row.kitchen_status) || 'waiting',
+      kitchenUrgent: Boolean(row.kitchen_urgent),
       wavePrintedAt: extras?.printedAt || null,
     };
   }
@@ -289,12 +280,25 @@
     list.forEach((item) => {
       if (!isAddon(item) || used.has(String(item.itemId))) return;
       const parent = groups.find((row) => String(row.main.itemId) === String(item.linkedToMainItemId));
-      const target = parent || groups[groups.length - 1];
-      if (!target) return;
-      target.sides.push(item);
+      if (parent) {
+        parent.sides.push(item);
+        used.add(String(item.itemId));
+        return;
+      }
+      if (isKitchenModifier(item)) {
+        const target = groups[groups.length - 1];
+        if (!target) return;
+        target.sides.push(item);
+        used.add(String(item.itemId));
+        return;
+      }
+      groups.push({ main: item, sides: [] });
       used.add(String(item.itemId));
     });
     groups.sort((a, b) => {
+      const aUrgent = a.main.kitchenUrgent && !isReady(a.main) ? 0 : 1;
+      const bUrgent = b.main.kitchenUrgent && !isReady(b.main) ? 0 : 1;
+      if (aUrgent !== bUrgent) return aUrgent - bUrgent;
       const aLate = a.main.isLate && !isReady(a.main) ? 0 : 1;
       const bLate = b.main.isLate && !isReady(b.main) ? 0 : 1;
       if (aLate !== bLate) return aLate - bLate;
@@ -309,12 +313,17 @@
     const qty = Number(item.qty) > 1 || !isSide ? ` × ${escapeHtml(String(item.qty))}` : '';
     const label = isSide || isAddon(item) ? `+ ${bonName(item)}${qty}` : `${bonName(item)}${qty}`;
     const showCheck = !isSide && !isAddon(item);
+    const urgent = !isSide && !isAddon(item) && Boolean(item.kitchenUrgent) && !ready;
     const noteField = (isSide || isAddon(item))
       ? (item.notes ? `<small>${escapeHtml(item.notes)}</small>` : '')
       : `<textarea class="kitchen-ready-note" data-kitchen-note="${escapeHtml(item.itemId)}" rows="2" maxlength="180" placeholder="הערה למטבח — כפי בקשת הלקוח">${escapeHtml(item.notes || '')}</textarea>`;
+    const urgentBtn = (isSide || isAddon(item))
+      ? ''
+      : `<button type="button" class="kitchen-ready-urgent${item.kitchenUrgent && !ready ? ' is-on' : ''}" data-kitchen-urgent="${escapeHtml(item.itemId)}">${item.kitchenUrgent && !ready ? 'דחוף ✓' : 'דחוף'}</button>`;
     return `
-      <article class="kitchen-ready-dish${ready ? ' is-ready' : ''}${isSide || isAddon(item) ? ' is-side' : ''}${late ? ' is-late' : ''}">
+      <article class="kitchen-ready-dish${ready ? ' is-ready' : ''}${isSide || isAddon(item) ? ' is-side' : ''}${late ? ' is-late' : ''}${urgent ? ' is-urgent' : ''}">
         <span>${showCheck ? `${ready ? '✅' : '⬜'} ` : ''}${late ? '<em class="kitchen-ready-new">חדש</em> ' : ''}${escapeHtml(label)}</span>
+        ${urgentBtn}
         ${noteField}
       </article>
     `;
@@ -338,9 +347,8 @@
         : (hasNewWave(entry)
           ? 'גל חדש — ממתין לאישור במטבח'
           : `בהכנה · ${tally.ready} מתוך ${tally.total} מוכנים`));
-    const guest = String(entry.customerNotes || '').trim();
     if (detailMeta) {
-      detailMeta.innerHTML = `${escapeHtml(statusText)}${guest ? `<span class="kitchen-ready-customer">הערת לקוח: ${escapeHtml(guest)}</span>` : ''}`;
+      detailMeta.innerHTML = escapeHtml(statusText);
     }
     const editing = Boolean(
       detailItems
@@ -359,20 +367,27 @@
     detailEl.hidden = false;
   }
 
+  function hasUrgent(entry) {
+    return (entry?.items || []).some((item) => item.kitchenUrgent && !isAddon(item) && !isReady(item));
+  }
+
   function renderBoard() {
     const html = board.map((entry) => {
       const tally = counts(entry.items);
       const allDone = entry.kitchenAllReady && tally.allReady;
-      const fresh = !entry.kitchenStarted && !allDone;
-      const wave = !fresh && hasNewWave(entry) && !allDone;
-      const stateClass = allDone ? ' is-done' : (fresh ? ' is-fresh' : (wave ? ' is-wave' : ' is-cooking'));
+      const urgent = !allDone && hasUrgent(entry);
+      const fresh = !entry.kitchenStarted && !allDone && !urgent;
+      const wave = !fresh && !urgent && hasNewWave(entry) && !allDone;
+      const stateClass = allDone ? ' is-done' : (urgent ? ' is-urgent' : (fresh ? ' is-fresh' : (wave ? ' is-wave' : ' is-cooking')));
       const label = allDone
         ? '✅ הכל מוכן'
-        : (fresh
-          ? 'חדש במטבח'
-          : (wave
-            ? 'גל חדש'
-            : `בהכנה · ${escapeHtml(String(tally.ready))} מתוך ${escapeHtml(String(tally.total))}`));
+        : (urgent
+          ? 'דחוף'
+          : (fresh
+            ? 'חדש במטבח'
+            : (wave
+              ? 'גל חדש'
+              : `בהכנה · ${escapeHtml(String(tally.ready))} מתוך ${escapeHtml(String(tally.total))}`)));
       return `
         <button type="button" class="kitchen-ready-card${stateClass}" data-kitchen-table="${escapeHtml(String(entry.tableNumber))}">
           <strong>שולחן ${escapeHtml(String(entry.tableNumber))}</strong>
@@ -538,6 +553,23 @@
   detailItems?.addEventListener('focusout', (event) => {
     const input = event.target.closest('[data-kitchen-note]');
     if (input) saveDishNote(input);
+  });
+
+  detailItems?.addEventListener('click', async (event) => {
+    const btn = event.target.closest('[data-kitchen-urgent]');
+    if (!btn || !api?.updateItemKitchenUrgent) return;
+    const id = String(btn.dataset.kitchenUrgent || '');
+    const entry = board.find((row) => row.tableNumber === Number(openTable));
+    const item = (entry?.items || []).find((row) => String(row.itemId) === id);
+    if (!item || isAddon(item)) return;
+    const next = !Boolean(item.kitchenUrgent);
+    try {
+      await api.updateItemKitchenUrgent(id, next);
+      item.kitchenUrgent = next;
+      renderBoard();
+    } catch (err) {
+      console.warn('[admin-kitchen-board] urgent save failed', err);
+    }
   });
 
   global.LechaimAdminKitchenBoard = { start, stop, refresh: loadBoard };

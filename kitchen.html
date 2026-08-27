@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@600;700;800&family=Heebo:wght@500;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/kitchen-tablet.css?v=35">
+  <link rel="stylesheet" href="css/kitchen-tablet.css?v=38">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
 <body>
@@ -45,7 +45,23 @@
     </nav>
 
     <div class="kt-view" id="kt-view-tables">
-      <div class="kt-tables" id="kt-tables-grid"></div>
+      <div class="kt-tables-layout">
+        <div class="kt-tables-col">
+          <div class="kt-tables" id="kt-tables-grid"></div>
+          <div class="kt-sheet kt-sheet--incol" id="kt-table-sheet" hidden>
+            <div class="kt-sheet__panel kt-sheet__panel--table" role="dialog" aria-labelledby="kt-table-title">
+              <div class="kt-sheet__head">
+                <h2 class="kt-sheet__title" id="kt-table-title">Τραπέζι</h2>
+                <button type="button" class="kt-sheet__close" data-kt-close aria-label="Κλείσιμο">×</button>
+              </div>
+              <div class="kt-table-meta" id="kt-table-meta"></div>
+              <div class="kt-dishes" id="kt-table-items"></div>
+              <button type="button" class="kt-send" id="kt-all-ready" hidden data-kt-label="allReady">✅ Έτοιμα όλα</button>
+            </div>
+          </div>
+        </div>
+        <aside class="kt-prep" id="kt-prep-board" aria-live="polite"></aside>
+      </div>
     </div>
 
     <div class="kt-view" id="kt-view-alerts" hidden>
@@ -173,30 +189,18 @@
     </div>
   </div>
 
-  <div class="kt-sheet" id="kt-table-sheet" hidden>
-    <div class="kt-sheet__panel kt-sheet__panel--table" role="dialog" aria-labelledby="kt-table-title">
-      <div class="kt-sheet__head">
-        <h2 class="kt-sheet__title" id="kt-table-title">Τραπέζι</h2>
-        <button type="button" class="kt-sheet__close" data-kt-close aria-label="Κλείσιμο">×</button>
-      </div>
-      <div class="kt-table-meta" id="kt-table-meta"></div>
-      <div class="kt-dishes" id="kt-table-items"></div>
-      <button type="button" class="kt-send" id="kt-all-ready" hidden data-kt-label="allReady">✅ Έτοιμα όλα</button>
-    </div>
-  </div>
-
   <div class="kt-flash" id="kt-flash" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
   <script src="js/order-types.js" defer></script>
   <script src="js/order-session.js?v=4" defer></script>
-  <script src="js/supabase-order-service.js?v=22" defer></script>
+  <script src="js/supabase-order-service.js?v=23" defer></script>
   <script src="js/menu-data.js?v=94" defer></script>
   <script src="js/inventory.js?v=43" defer></script>
-  <script src="js/kitchen-i18n.js?v=17" defer></script>
+  <script src="js/kitchen-i18n.js?v=22" defer></script>
   <script src="js/kitchen-alert-service.js?v=13" defer></script>
   <script src="js/kitchen-tablet.js?v=23" defer></script>
-  <script src="js/kitchen-admin.js?v=18" defer></script>
+  <script src="js/kitchen-admin.js?v=25" defer></script>
 </body>
 </html>

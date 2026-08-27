@@ -5389,6 +5389,20 @@ body.admin-modal-open {
   color: #fff;
 }
 
+.kitchen-ready-card.is-urgent {
+  border-color: #15803d;
+  background: linear-gradient(165deg, #4ade80 0%, #22c55e 45%, #15803d 100%);
+  box-shadow:
+    0 6px 18px rgba(22, 163, 74, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+.kitchen-ready-card.is-urgent strong,
+.kitchen-ready-card.is-urgent span {
+  color: #fff;
+}
+
 .kitchen-ready-card.is-done strong,
 .kitchen-ready-card.is-done span {
   color: #fff;
@@ -5464,6 +5478,30 @@ body.admin-modal-open {
 .kitchen-ready-dish.is-late {
   background: #fff4e8;
   border: 1px solid #ea580c;
+}
+
+.kitchen-ready-dish.is-urgent {
+  background: #ecfdf5;
+  border: 1px solid #16a34a;
+}
+
+.kitchen-ready-urgent {
+  appearance: none;
+  margin: 0.2rem 0 0;
+  padding: 0.28rem 0.55rem;
+  border: 1px solid #16a34a;
+  border-radius: 999px;
+  background: #fff;
+  color: #15803d;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.kitchen-ready-urgent.is-on {
+  background: #16a34a;
+  color: #fff;
 }
 
 .kitchen-ready-new {
