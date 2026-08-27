@@ -135,6 +135,8 @@
       dishWait: 'Αναμονή',
       dishPrep: 'Σε ετοιμασία',
       dishReady: 'Έτοιμο',
+      dishNote: 'Σημείωση',
+      customerNote: 'Σημείωση πελάτη',
       startPrep: 'Έναρξη',
       markReady: 'Έτοιμο',
       waitCount: 'σε αναμονή',
@@ -211,6 +213,8 @@
       dishWait: 'ממתין',
       dishPrep: 'בהכנה',
       dishReady: 'מוכן',
+      dishNote: 'הערה',
+      customerNote: 'הערת לקוח',
       startPrep: 'התחל הכנה',
       markReady: 'מוכן',
       waitCount: 'ממתינות',
@@ -258,6 +262,101 @@
     return DISH_EL[String(id || '')] || '';
   }
 
+  const NOTE_PHRASES = [
+    [/בלי בצל(?:ים)?/g, 'χωρίς κρεμμύδι'],
+    [/בלי שום/g, 'χωρίς σκόρδο'],
+    [/לא חריף|בלי חריף|לא פיקנטי/g, 'όχι πικάντικο'],
+    [/חריף|פיקנטי/g, 'πικάντικο'],
+    [/בלי מלח/g, 'χωρίς αλάτι'],
+    [/מעט מלח/g, 'λίγο αλάτι'],
+    [/בלי גלוטן/g, 'χωρίς γλουτένη'],
+    [/טבעוני/g, 'vegan'],
+    [/צמחוני/g, 'χορτοφαγικό'],
+    [/בלי חלב|ללא חלב/g, 'χωρίς γαλακτοκομικά'],
+    [/בלי ביצ(?:ה|ות)/g, 'χωρίς αυγό'],
+    [/הרוטב בצד|רוטב בצד/g, 'σάλτσα στο πλάι'],
+    [/בלי רוטב/g, 'χωρίς σάλτσα'],
+    [/בלי ציפס|בלי צ['׳]יפס/g, 'χωρίς πατάτες'],
+    [/בלי שמן/g, 'χωρίς λάδι'],
+    [/שמן זית/g, 'ελαιόλαδο'],
+    [/אלרגי(?:ה|ות)?/g, 'αλλεργία'],
+    [/דחוף|מהר בבקשה/g, 'επείγον'],
+    [/לחוד|בנפרד/g, 'χωριστά'],
+    [/יחד/g, 'μαζί'],
+    [/תוספת /g, 'έξτρα '],
+    [/מעט |קצת /g, 'λίγο '],
+    [/הרבה /g, 'πολύ '],
+    [/בצד/g, 'στο πλάι'],
+    [/בלי /g, 'χωρίς '],
+  ];
+
+  const NOTE_CACHE_KEY = 'lechaim-note-el';
+  const noteCache = new Map();
+
+  try {
+    const stored = JSON.parse(localStorage.getItem(NOTE_CACHE_KEY) || '{}');
+    Object.keys(stored).forEach((key) => noteCache.set(key, stored[key]));
+  } catch (_) { /* ignore */ }
+
+  function saveNoteCache() {
+    try {
+      const obj = {};
+      [...noteCache.entries()].slice(-80).forEach(([key, value]) => {
+        obj[key] = value;
+      });
+      localStorage.setItem(NOTE_CACHE_KEY, JSON.stringify(obj));
+    } catch (_) { /* ignore */ }
+  }
+
+  function hasHebrew(text) {
+    return /[\u0590-\u05FF]/.test(String(text || ''));
+  }
+
+  function dictionaryToGreek(text) {
+    let out = String(text || '').trim();
+    NOTE_PHRASES.forEach(([pattern, el]) => {
+      out = out.replace(pattern, el);
+    });
+    return out.trim();
+  }
+
+  async function fetchGreek(text) {
+    const ctrl = new AbortController();
+    const timer = window.setTimeout(() => ctrl.abort(), 2500);
+    try {
+      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=el&dt=t&q=${encodeURIComponent(text)}`;
+      const res = await fetch(url, { signal: ctrl.signal });
+      if (!res.ok) return '';
+      const data = await res.json();
+      return (Array.isArray(data) && Array.isArray(data[0]) ? data[0] : [])
+        .map((row) => row && row[0])
+        .filter(Boolean)
+        .join('')
+        .trim();
+    } catch (_) {
+      return '';
+    } finally {
+      window.clearTimeout(timer);
+    }
+  }
+
+  async function toGreek(text) {
+    const raw = String(text || '').trim();
+    if (!raw) return '';
+    if (noteCache.has(raw)) return noteCache.get(raw);
+    const dict = dictionaryToGreek(raw);
+    if (!hasHebrew(dict)) {
+      noteCache.set(raw, dict);
+      saveNoteCache();
+      return dict;
+    }
+    const fetched = await fetchGreek(raw);
+    const next = fetched || dict || raw;
+    noteCache.set(raw, next);
+    saveNoteCache();
+    return next;
+  }
+
   function canned() {
     return CANNED.slice();
   }
@@ -277,6 +376,7 @@
     normalizeLang,
     t,
     dishEl,
+    toGreek,
     canned,
     faultItems,
   };

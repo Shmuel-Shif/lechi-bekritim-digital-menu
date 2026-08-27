@@ -122,12 +122,16 @@
     document.querySelector('.admin-tab[data-tab="kitchen"]')?.click();
   }
 
-  function pushNotify(title, body, urgent) {
+  function pushNotify(title, body, urgentOrOpts) {
     const stack = document.getElementById('admin-notify-stack');
     if (!stack) return;
+    const opts = urgentOrOpts && typeof urgentOrOpts === 'object'
+      ? urgentOrOpts
+      : { urgent: Boolean(urgentOrOpts) };
+    const tone = opts.tone || (opts.urgent ? 'urgent' : '');
     const el = document.createElement('button');
     el.type = 'button';
-    el.className = `admin-notify${urgent ? ' is-urgent' : ''}`;
+    el.className = `admin-notify${tone ? ` is-${tone}` : ''}`;
     el.innerHTML = `
       <span class="admin-notify__app">LECHAIM</span>
       <span class="admin-notify__title">${escapeHtml(title)}</span>

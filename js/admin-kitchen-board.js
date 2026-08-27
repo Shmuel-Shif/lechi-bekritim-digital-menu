@@ -29,9 +29,6 @@
   let active = false;
   let boardPrimed = false;
   let seenSessions = new Set();
-  let seenWaves = new Set();
-  let seenItemIds = new Set();
-  let seenItemQty = new Map();
   let pollTimer = null;
 
   function escapeHtml(str) {
@@ -71,6 +68,62 @@
       .trim()
       .toLowerCase();
     return Boolean(label && names.has(label));
+  }
+
+  const BAR_ONLY_IDS = new Set(['fruit-plate', 'shabbat-fruit-plate']);
+
+  function barProductIds() {
+    const ids = new Set(BAR_ONLY_IDS);
+    const wanted = new Set(['coldDrinks', 'hotDrinks', 'cocktails']);
+    (global.MENU_DATA?.categories || []).forEach((cat) => {
+      if (!wanted.has(String(cat?.id || ''))) return;
+      (cat.items || []).forEach((item) => {
+        if (item?.id) ids.add(String(item.id));
+      });
+      (cat.subsections || []).forEach((sub) => {
+        (sub.items || []).forEach((item) => {
+          if (item?.id) ids.add(String(item.id));
+        });
+      });
+    });
+    (global.SHAKE_BASE_ITEMS || []).forEach((item) => {
+      if (item?.id) ids.add(String(item.id));
+    });
+    (global.LIMONANA_ALCOHOL_ITEMS || []).forEach((item) => {
+      if (item?.id) ids.add(String(item.id));
+    });
+    if (global.HAMBURGER_DRINK_IDS && typeof global.HAMBURGER_DRINK_IDS.forEach === 'function') {
+      global.HAMBURGER_DRINK_IDS.forEach((id) => ids.add(String(id)));
+    }
+    return ids;
+  }
+
+  function isBarBonItem(item, byId, barIds, seen) {
+    if (!item) return false;
+    const pid = String(item.productId || '');
+    if (global.DONENESS_IDS?.has?.(pid)) return false;
+    if (pid && barIds.has(pid)) return true;
+    const walk = seen || new Set();
+    const id = String(item.itemId || '');
+    if (id) {
+      if (walk.has(id)) return Boolean(pid && barIds.has(pid));
+      walk.add(id);
+    }
+    if (!item.linkedToMainItemId) return false;
+    const parent = byId.get(String(item.linkedToMainItemId));
+    if (!parent) return false;
+    if (String(parent.productId) === String(global.HAMBURGER_MEAL_ID || 'hamburger-fries')) return true;
+    return isBarBonItem(parent, byId, barIds, walk);
+  }
+
+  function kitchenBonItems(items) {
+    const list = items || [];
+    const barIds = barProductIds();
+    const byId = new Map();
+    list.forEach((item) => {
+      if (item?.itemId) byId.set(String(item.itemId), item);
+    });
+    return list.filter((item) => !isBarBonItem(item, byId, barIds));
   }
 
   function compareItems(a, b) {
@@ -124,8 +177,8 @@
     return catalog || item?.name || item?.productId || '';
   }
 
-  function notify(title, body) {
-    global.LechaimAdminKitchen?.notify?.(title, body, false);
+  function notify(title, body, tone) {
+    global.LechaimAdminKitchen?.notify?.(title, body, tone ? { tone } : false);
   }
 
   function mapItem(row, extras) {
@@ -160,15 +213,17 @@
       });
     });
     if (!items.length) return null;
+    const kitchenItems = kitchenBonItems(items);
+    if (!kitchenItems.length) return null;
     const startedAt = session.kitchen_started_at || null;
     const startedRef = { kitchenStartedAt: startedAt };
-    items.forEach((item) => {
+    kitchenItems.forEach((item) => {
       item.isLate = Boolean(startedAt)
         && Math.max(ts(item.createdAt), ts(item.wavePrintedAt)) > ts(startedAt) + 800;
     });
-    items.forEach((item) => {
+    kitchenItems.forEach((item) => {
       if (!item.isLate || !item.linkedToMainItemId) return;
-      const parent = items.find((row) => String(row.itemId) === String(item.linkedToMainItemId));
+      const parent = kitchenItems.find((row) => String(row.itemId) === String(item.linkedToMainItemId));
       if (parent) parent.isLate = true;
     });
     return {
@@ -178,18 +233,18 @@
       kitchenStarted: Boolean(session.kitchen_started_at),
       kitchenStartedAt: startedAt,
       kitchenWaveAckAt: session.kitchen_wave_ack_at || startedAt,
+      customerNotes: (sessionApi?.stripPlaceReservationNote
+        ? sessionApi.stripPlaceReservationNote(session.notes)
+        : String(session.notes || '')).trim(),
       remoteOrders: orders || [],
-      items,
+      items: kitchenItems,
     };
   }
 
   function hasNewWave(entry) {
     if (!entry?.kitchenStarted) return false;
     const ack = ts(entry.kitchenWaveAckAt) || ts(entry.kitchenStartedAt);
-    const printedNewer = (entry.remoteOrders || []).some((row) => ts(row.printed_at) > ack + 800);
-    const unprintedNewer = (entry.remoteOrders || []).some((row) => !row?.printed_at && ts(row.created_at) > ack + 800);
-    const itemNewer = (entry.items || []).some((item) => ts(item.createdAt) > ack + 800);
-    return printedNewer || unprintedNewer || itemNewer;
+    return (entry.items || []).some((item) => ts(item.createdAt) > ack + 800);
   }
 
   function counts(items) {
@@ -254,10 +309,13 @@
     const qty = Number(item.qty) > 1 || !isSide ? ` × ${escapeHtml(String(item.qty))}` : '';
     const label = isSide || isAddon(item) ? `+ ${bonName(item)}${qty}` : `${bonName(item)}${qty}`;
     const showCheck = !isSide && !isAddon(item);
+    const noteField = (isSide || isAddon(item))
+      ? (item.notes ? `<small>${escapeHtml(item.notes)}</small>` : '')
+      : `<textarea class="kitchen-ready-note" data-kitchen-note="${escapeHtml(item.itemId)}" rows="2" maxlength="180" placeholder="הערה למטבח — כפי בקשת הלקוח">${escapeHtml(item.notes || '')}</textarea>`;
     return `
       <article class="kitchen-ready-dish${ready ? ' is-ready' : ''}${isSide || isAddon(item) ? ' is-side' : ''}${late ? ' is-late' : ''}">
         <span>${showCheck ? `${ready ? '✅' : '⬜'} ` : ''}${late ? '<em class="kitchen-ready-new">חדש</em> ' : ''}${escapeHtml(label)}</span>
-        ${item.notes ? `<small>${escapeHtml(item.notes)}</small>` : ''}
+        ${noteField}
       </article>
     `;
   }
@@ -273,16 +331,23 @@
     const tally = counts(entry.items);
     const allDone = entry.kitchenAllReady && tally.allReady;
     if (detailTitle) detailTitle.textContent = `שולחן ${entry.tableNumber}`;
+    const statusText = allDone
+      ? '✅ הכל מוכן במטבח'
+      : (!entry.kitchenStarted
+        ? 'חדש — ממתין למטבח'
+        : (hasNewWave(entry)
+          ? 'גל חדש — ממתין לאישור במטבח'
+          : `בהכנה · ${tally.ready} מתוך ${tally.total} מוכנים`));
+    const guest = String(entry.customerNotes || '').trim();
     if (detailMeta) {
-      detailMeta.textContent = allDone
-        ? '✅ הכל מוכן במטבח'
-        : (!entry.kitchenStarted
-          ? 'חדש — ממתין למטבח'
-          : (hasNewWave(entry)
-            ? 'גל חדש — ממתין לאישור במטבח'
-            : `בהכנה · ${tally.ready} מתוך ${tally.total} מוכנים`));
+      detailMeta.innerHTML = `${escapeHtml(statusText)}${guest ? `<span class="kitchen-ready-customer">הערת לקוח: ${escapeHtml(guest)}</span>` : ''}`;
     }
-    if (detailItems) {
+    const editing = Boolean(
+      detailItems
+      && detailItems.contains(document.activeElement)
+      && document.activeElement.hasAttribute('data-kitchen-note')
+    );
+    if (detailItems && !editing) {
       const groups = groupItems(entry.items);
       detailItems.innerHTML = groups.map((row) => `
         <div class="kitchen-ready-group">
@@ -330,49 +395,9 @@
           if (!seenSessions.has(entry.sessionId) && !entry.kitchenStarted) {
             notify('מטבח', `שולחן ${entry.tableNumber} — הזמנה חדשה`);
           }
-          let addedDish = false;
-          (entry.items || []).forEach((item) => {
-            if (isAddon(item)) return;
-            const qty = Number(item.qty) || 0;
-            const prevQty = seenItemQty.get(item.itemId) || 0;
-            if (seenItemIds.has(item.itemId) && qty <= prevQty) return;
-            addedDish = true;
-            notify('מטבח', `שולחן ${entry.tableNumber} — נוספה מנה: ${bonName(item)}`);
-          });
-          if (!addedDish && hasNewWave(entry)) {
-            let latest = 0;
-            (entry.remoteOrders || []).forEach((row) => {
-              latest = Math.max(latest, ts(row.printed_at));
-            });
-            (entry.items || []).forEach((item) => {
-              if (!isAddon(item)) latest = Math.max(latest, ts(item.createdAt));
-            });
-            const waveKey = `${entry.sessionId}:${latest}`;
-            if (!seenWaves.has(waveKey)) {
-              notify('מטבח', `שולחן ${entry.tableNumber} — גל חדש`);
-            }
-          }
         });
       }
       seenSessions = new Set(next.map((entry) => entry.sessionId));
-      seenWaves = new Set(next.filter(hasNewWave).map((entry) => {
-        let latest = 0;
-        (entry.remoteOrders || []).forEach((row) => {
-          latest = Math.max(latest, ts(row.printed_at));
-        });
-        (entry.items || []).forEach((item) => {
-          if (!isAddon(item)) latest = Math.max(latest, ts(item.createdAt));
-        });
-        return `${entry.sessionId}:${latest}`;
-      }));
-      seenItemIds = new Set(
-        next.flatMap((entry) => (entry.items || []).filter((item) => !isAddon(item)).map((item) => item.itemId))
-      );
-      seenItemQty = new Map(
-        next.flatMap((entry) => (entry.items || [])
-          .filter((item) => !isAddon(item))
-          .map((item) => [item.itemId, Number(item.qty) || 0]))
-      );
       boardPrimed = true;
       board = next;
       renderBoard();
@@ -404,13 +429,16 @@
       const prev = api?.normalizeKitchenStatus?.(payload?.old?.kitchen_status);
       const next = api?.normalizeKitchenStatus?.(payload?.new?.kitchen_status);
       if (prev !== next && (next === 'ready' || prev === 'ready')) {
-        const isExtra = isAddon({
+        const mapped = {
+          itemId: payload?.new?.id,
+          productId: payload?.new?.product_id,
           linkedToMainItemId: payload?.new?.parent_item_id,
           parent_item_id: payload?.new?.parent_item_id,
-          productId: payload?.new?.product_id,
           printName: payload?.new?.print_name,
           name: payload?.new?.product_name,
-        });
+        };
+        const isExtra = isAddon(mapped)
+          || isBarBonItem(mapped, new Map(), barProductIds());
         if (!isExtra) {
           const name = String(payload?.new?.product_name || payload?.new?.print_name || 'מנה');
           const qty = Number(payload?.new?.quantity) || 1;
@@ -431,7 +459,7 @@
       const was = hadOld ? Boolean(payload.old.kitchen_all_ready) : now;
       if (hadOld && !was && now) {
         const n = Number(payload?.new?.table_number);
-        notify('מטבח', Number.isInteger(n) ? `כל ההזמנה של שולחן ${n} מוכנה` : 'כל ההזמנה מוכנה');
+        notify('מטבח', Number.isInteger(n) ? `כל ההזמנה של שולחן ${n} מוכנה` : 'כל ההזמנה מוכנה', 'ready');
       }
       const hadStarted = payload?.old && Object.prototype.hasOwnProperty.call(payload.old, 'kitchen_started_at');
       if (hadStarted && !payload.old.kitchen_started_at && payload?.new?.kitchen_started_at) {
@@ -490,6 +518,26 @@
   document.getElementById('kitchen-ready-detail-close')?.addEventListener('click', () => {
     openTable = null;
     if (detailEl) detailEl.hidden = true;
+  });
+
+  async function saveDishNote(input) {
+    const id = String(input?.dataset?.kitchenNote || '');
+    if (!id || !api?.updateItemNotes) return;
+    const next = String(input.value || '').trim();
+    const entry = board.find((row) => row.tableNumber === Number(openTable));
+    const item = (entry?.items || []).find((row) => String(row.itemId) === id);
+    if (!item || String(item.notes || '') === next) return;
+    try {
+      await api.updateItemNotes(id, next);
+      item.notes = next;
+    } catch (err) {
+      console.warn('[admin-kitchen-board] note save failed', err);
+    }
+  }
+
+  detailItems?.addEventListener('focusout', (event) => {
+    const input = event.target.closest('[data-kitchen-note]');
+    if (input) saveDishNote(input);
   });
 
   global.LechaimAdminKitchenBoard = { start, stop, refresh: loadBoard };

@@ -410,6 +410,14 @@
         row.thaw_count = Math.floor(thawCount);
       }
 
+      const kitchenStatus = item.kitchenStatus ?? item.kitchen_status;
+      if (kitchenStatus) {
+        row.kitchen_status = normalizeKitchenStatus(kitchenStatus);
+      }
+
+      const createdAt = item.createdAt ?? item.created_at;
+      if (createdAt) row.created_at = createdAt;
+
       return row;
     });
 
@@ -1045,6 +1053,30 @@
     }
 
     throw new Error('[LechaimSupabaseOrders.markOrderApproved] order not updated (check status column / RLS)');
+  }
+
+  /**
+   * Kitchen dish note. Does not change qty, price, print, or table close.
+   * @param {string} itemId
+   * @param {string} notes
+   */
+  async function updateItemNotes(itemId, notes) {
+    const sb = getClient();
+    const id = String(itemId || '').trim();
+    if (!id) {
+      throw new Error('[LechaimSupabaseOrders.updateItemNotes] itemId is required');
+    }
+    const text = String(notes == null ? '' : notes).trim();
+    const { data, error } = await sb
+      .from(TABLE_ITEMS)
+      .update({ notes: text || null })
+      .eq('id', id)
+      .select('id, notes');
+    throwIfError(error, 'updateItemNotes');
+    if (!data?.length) {
+      throw new Error('[LechaimSupabaseOrders.updateItemNotes] item not updated');
+    }
+    return data[0];
   }
 
   /**
@@ -2564,6 +2596,7 @@
     markOrderApproved,
     markOrderPrinted,
     updateItemKitchenStatus,
+    updateItemNotes,
     markSessionKitchenAllReady,
     markSessionKitchenStarted,
     markSessionKitchenWaveAck,

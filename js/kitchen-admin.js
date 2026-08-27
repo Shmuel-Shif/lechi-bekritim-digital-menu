@@ -176,6 +176,62 @@
     return Boolean(label && names.has(label));
   }
 
+  const BAR_ONLY_IDS = new Set(['fruit-plate', 'shabbat-fruit-plate']);
+
+  function barProductIds() {
+    const ids = new Set(BAR_ONLY_IDS);
+    const wanted = new Set(['coldDrinks', 'hotDrinks', 'cocktails']);
+    (global.MENU_DATA?.categories || []).forEach((cat) => {
+      if (!wanted.has(String(cat?.id || ''))) return;
+      (cat.items || []).forEach((item) => {
+        if (item?.id) ids.add(String(item.id));
+      });
+      (cat.subsections || []).forEach((sub) => {
+        (sub.items || []).forEach((item) => {
+          if (item?.id) ids.add(String(item.id));
+        });
+      });
+    });
+    (global.SHAKE_BASE_ITEMS || []).forEach((item) => {
+      if (item?.id) ids.add(String(item.id));
+    });
+    (global.LIMONANA_ALCOHOL_ITEMS || []).forEach((item) => {
+      if (item?.id) ids.add(String(item.id));
+    });
+    if (global.HAMBURGER_DRINK_IDS && typeof global.HAMBURGER_DRINK_IDS.forEach === 'function') {
+      global.HAMBURGER_DRINK_IDS.forEach((id) => ids.add(String(id)));
+    }
+    return ids;
+  }
+
+  function isBarBonItem(item, byId, barIds, seen) {
+    if (!item) return false;
+    const pid = String(item.productId || '');
+    if (global.DONENESS_IDS?.has?.(pid)) return false;
+    if (pid && barIds.has(pid)) return true;
+    const walk = seen || new Set();
+    const id = String(item.itemId || '');
+    if (id) {
+      if (walk.has(id)) return Boolean(pid && barIds.has(pid));
+      walk.add(id);
+    }
+    if (!item.linkedToMainItemId) return false;
+    const parent = byId.get(String(item.linkedToMainItemId));
+    if (!parent) return false;
+    if (String(parent.productId) === String(global.HAMBURGER_MEAL_ID || 'hamburger-fries')) return true;
+    return isBarBonItem(parent, byId, barIds, walk);
+  }
+
+  function kitchenBonItems(items) {
+    const list = items || [];
+    const barIds = barProductIds();
+    const byId = new Map();
+    list.forEach((item) => {
+      if (item?.itemId) byId.set(String(item.itemId), item);
+    });
+    return list.filter((item) => !isBarBonItem(item, byId, barIds));
+  }
+
   function isFresh(entry) {
     return Boolean(entry?.order?.sessionId) && !entry.order.kitchenStarted;
   }
@@ -189,20 +245,14 @@
     const order = entry?.order;
     if (!order?.kitchenStarted) return false;
     const ack = ts(order.kitchenWaveAckAt) || ts(order.kitchenStartedAt);
-    const printedNewer = (order.remoteOrders || []).some((row) => ts(row.printed_at) > ack + 800);
-    const unprintedNewer = (order.remoteOrders || []).some((row) => !row?.printed_at && ts(row.created_at) > ack + 800);
-    const itemNewer = (order.items || []).some((item) => ts(item.createdAt) > ack + 800);
-    return printedNewer || unprintedNewer || itemNewer;
+    return (order.items || []).some((item) => ts(item.createdAt) > ack + 800);
   }
 
   function waveChimeKey(entry) {
     const order = entry?.order;
     if (!order?.sessionId || !hasNewWave(entry)) return '';
     let latest = 0;
-    (order.remoteOrders || []).forEach((row) => {
-      latest = Math.max(latest, ts(row.printed_at));
-    });
-    countableItems(order.items).forEach((item) => {
+    (order.items || []).forEach((item) => {
       latest = Math.max(latest, ts(item.createdAt));
     });
     return `${order.sessionId}:wave:${latest}`;
@@ -264,10 +314,12 @@
   function mapItem(row, extras) {
     return {
       itemId: String(row.id),
+      orderId: extras.orderId ? String(extras.orderId) : (row.order_id ? String(row.order_id) : ''),
       productId: String(row.product_id || ''),
       name: String(row.product_name || row.print_name || row.product_id || ''),
       printName: String(row.print_name || ''),
       qty: Number(row.quantity) || 0,
+      price: Number(row.price) || 0,
       notes: row.notes == null ? '' : String(row.notes),
       linkedToMainItemId: row.parent_item_id ? String(row.parent_item_id) : null,
       createdAt: row.created_at || extras.createdAt || null,
@@ -290,18 +342,20 @@
           wavePrinted,
           createdAt: row.created_at || order.created_at,
           printedAt: order.printed_at || null,
+          orderId: order.id,
         });
         if (mapped.qty > 0) items.push(mapped);
       });
     });
+    const kitchenItems = kitchenBonItems(items);
     const startedAt = session.kitchen_started_at || null;
     const startedRef = { kitchenStartedAt: startedAt };
-    items.forEach((item) => {
+    kitchenItems.forEach((item) => {
       item.isLate = isLateItem(item, startedRef);
     });
-    items.forEach((item) => {
+    kitchenItems.forEach((item) => {
       if (!item.isLate || !item.linkedToMainItemId) return;
-      const parent = items.find((row) => String(row.itemId) === String(item.linkedToMainItemId));
+      const parent = kitchenItems.find((row) => String(row.itemId) === String(item.linkedToMainItemId));
       if (parent) parent.isLate = true;
     });
     return {
@@ -313,7 +367,10 @@
       kitchenStarted: Boolean(session.kitchen_started_at),
       kitchenStartedAt: session.kitchen_started_at || null,
       kitchenWaveAckAt: session.kitchen_wave_ack_at || session.kitchen_started_at || null,
-      items,
+      customerNotes: (sessionApi?.stripPlaceReservationNote
+        ? sessionApi.stripPlaceReservationNote(session.notes)
+        : String(session.notes || '')).trim(),
+      items: kitchenItems,
       remoteOrders: orders || [],
     };
   }
@@ -448,31 +505,76 @@
     `;
   }
 
+  function noteHtml(text) {
+    const raw = String(text || '').trim();
+    if (!raw) return '';
+    return `<p class="kt-dish__notes" data-kt-note="${escapeHtml(raw)}">${escapeHtml(raw)}</p>`;
+  }
+
+  async function hydrateNotes(root) {
+    if (!root) return;
+    const nodes = [...root.querySelectorAll('[data-kt-note]')];
+    if (!nodes.length) return;
+    const showEl = lang() !== 'he';
+    await Promise.all(nodes.map(async (node) => {
+      const src = node.getAttribute('data-kt-note') || '';
+      if (!showEl) {
+        node.textContent = src;
+        return;
+      }
+      const translated = await i18n.toGreek?.(src);
+      node.textContent = translated || src;
+    }));
+  }
+
   function renderSide(item, groupReady) {
+    const qty = Number(item.qty) || 1;
     return `
       <div class="kt-dish kt-dish--side ${groupReady ? 'is-ready' : 'is-waiting'}">
-        <span class="kt-dish__name">+ ${escapeHtml(dishName(item))}${Number(item.qty) > 1 ? ` × ${escapeHtml(String(item.qty))}` : ''}</span>
-        ${item.notes ? `<p class="kt-dish__notes">${escapeHtml(item.notes)}</p>` : ''}
+        <span class="kt-dish__name">+ ${escapeHtml(dishName(item))}${qty > 1 ? ` × ${escapeHtml(String(qty))}` : ''}</span>
+        ${noteHtml(item.notes)}
       </div>
     `;
+  }
+
+  function unitSides(sides, parentQty, unitIndex) {
+    const units = Math.max(1, Number(parentQty) || 1);
+    return (sides || []).map((side) => {
+      const sq = Number(side.qty) || 1;
+      const per = sq / units;
+      if (Number.isInteger(per) && per >= 1) {
+        return { ...side, qty: per };
+      }
+      if (unitIndex === 0) return side;
+      return { ...side, qty: 0 };
+    }).filter((side) => Number(side.qty) > 0);
   }
 
   function renderDish(item, sides) {
     const ready = isDishReady(item);
     const late = Boolean(item.isLate) && !ready;
+    const qty = Number(item.qty) || 1;
     const kids = (sides || []).map((side) => renderSide(side, ready)).join('');
     return `
       <article class="kt-dish-group ${ready ? 'is-ready' : 'is-waiting'}${late ? ' is-late' : ''}">
         <div class="kt-dish kt-dish--main ${ready ? 'is-ready' : 'is-waiting'}" data-item-id="${escapeHtml(item.itemId)}">
           <div class="kt-dish__top">
-            <span class="kt-dish__name">${late ? `<span class="kt-new-tag">${escapeHtml(txt('dishNew'))}</span>` : ''}${escapeHtml(dishName(item))} × ${escapeHtml(String(item.qty))}</span>
+            <span class="kt-dish__name">${late ? `<span class="kt-new-tag">${escapeHtml(txt('dishNew'))}</span>` : ''}${escapeHtml(dishName(item))}${qty > 1 ? ` × ${escapeHtml(String(qty))}` : ''}</span>
             ${dishActions(item)}
           </div>
-          ${item.notes ? `<p class="kt-dish__notes">${escapeHtml(item.notes)}</p>` : ''}
         </div>
         ${kids ? `<div class="kt-dish__kids">${kids}</div>` : ''}
+        ${item.notes ? noteHtml(item.notes) : ''}
       </article>
     `;
+  }
+
+  function renderDishUnits(item, sides) {
+    const units = Math.max(1, Number(item.qty) || 1);
+    if (units <= 1) return renderDish(item, sides);
+    return Array.from({ length: units }, (_, index) => (
+      renderDish({ ...item, qty: 1 }, unitSides(sides, units, index))
+    )).join('');
   }
 
   const CHIME_KEY = 'lechaim-kitchen-chime-sessions';
@@ -534,8 +636,10 @@
     if (drawerMeta) {
       const counts = readyCounts(entry.order.items);
       const allDone = Boolean(entry.order.kitchenAllReady) && counts.allReady;
+      const guest = String(entry.order.customerNotes || '').trim();
       drawerMeta.innerHTML = `
         <p class="kt-table-meta__row">${escapeHtml(statusLabel(entry.uiStatus))} · ${escapeHtml(String(counts.ready))} / ${escapeHtml(String(counts.total))} ${escapeHtml(txt('readyCount'))}</p>
+        ${guest ? `<p class="kt-table-meta__note"><strong>${escapeHtml(txt('customerNote'))}:</strong> <span data-kt-note="${escapeHtml(guest)}">${escapeHtml(guest)}</span></p>` : ''}
         ${allDone ? `<p class="kt-table-meta__done">${escapeHtml(txt('allReadyDone'))}</p>` : statsHtml(entry.order.items)}
       `;
     }
@@ -543,10 +647,11 @@
       const scrollTop = drawerItems.scrollTop;
       const groups = groupItems(entry.order.items);
       drawerItems.innerHTML = groups.length
-        ? groups.map((row) => renderDish(row.main, row.sides)).join('')
+        ? groups.map((row) => renderDishUnits(row.main, row.sides)).join('')
         : `<p class="kt-news__empty">${escapeHtml(txt('dishesEmpty'))}</p>`;
       drawerItems.scrollTop = scrollTop;
     }
+    hydrateNotes(drawerEl);
     const allReadyBtn = document.getElementById('kt-all-ready');
     if (allReadyBtn) {
       const counts = readyCounts(entry.order.items);
@@ -631,15 +736,68 @@
     }, 250);
   }
 
+  async function peelOneUnit(item, allItems, unitStatus) {
+    const orderId = item.orderId;
+    const qty = Math.max(1, Number(item.qty) || 1);
+    if (qty <= 1 || !orderId || !api?.bumpOrderItemQuantity || !api?.createOrderItems) {
+      await api.updateItemKitchenStatus(item.itemId, unitStatus);
+      return;
+    }
+
+    const sides = (allItems || []).filter((row) => String(row.linkedToMainItemId || '') === String(item.itemId));
+    let peeled = false;
+    try {
+      await api.bumpOrderItemQuantity(item.itemId, -1);
+      peeled = true;
+      const created = await api.createOrderItems(orderId, [{
+        productId: item.productId,
+        productName: item.name,
+        printName: item.printName,
+        quantity: 1,
+        price: Number(item.price) || 0,
+        notes: item.notes || null,
+        kitchenStatus: unitStatus,
+        createdAt: item.createdAt || null,
+      }]);
+      const newMainId = created?.[0]?.id;
+
+      for (const side of sides) {
+        const sideQty = Number(side.qty) || 0;
+        const per = qty > 0 ? sideQty / qty : 0;
+        if (!(Number.isInteger(per) && per >= 1 && side.itemId && newMainId)) continue;
+        await api.bumpOrderItemQuantity(side.itemId, -per);
+        await api.createOrderItems(orderId, [{
+          productId: side.productId,
+          productName: side.name,
+          printName: side.printName,
+          quantity: per,
+          price: Number(side.price) || 0,
+          notes: side.notes || null,
+          parentItemId: newMainId,
+          createdAt: side.createdAt || item.createdAt || null,
+        }]);
+      }
+    } catch (err) {
+      if (peeled) {
+        try { await api.bumpOrderItemQuantity(item.itemId, 1); } catch (_) { /* ignore */ }
+      }
+      throw err;
+    }
+  }
+
   async function toggleItemReady(itemId) {
     if (sending) return;
-    const item = board
-      .flatMap((entry) => entry.order?.items || [])
-      .find((row) => String(row.itemId) === String(itemId));
+    const entry = board.find((row) => (row.order?.items || []).some((item) => String(item.itemId) === String(itemId)));
+    const item = (entry?.order?.items || []).find((row) => String(row.itemId) === String(itemId));
     if (!item || isAddon(item)) return;
     sending = true;
     try {
-      await api.updateItemKitchenStatus(itemId, isDishReady(item) ? 'waiting' : 'ready');
+      const qty = Math.max(1, Number(item.qty) || 1);
+      if (qty > 1) {
+        await peelOneUnit(item, entry.order.items, isDishReady(item) ? 'waiting' : 'ready');
+      } else {
+        await api.updateItemKitchenStatus(itemId, isDishReady(item) ? 'waiting' : 'ready');
+      }
       setError('');
       await loadBoard();
     } catch (err) {

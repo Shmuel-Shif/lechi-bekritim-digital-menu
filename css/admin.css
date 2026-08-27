@@ -5254,6 +5254,16 @@ body.admin-modal-open {
   box-shadow: 0 12px 32px rgba(196, 69, 45, 0.28);
 }
 
+.admin-notify.is-ready {
+  background: linear-gradient(165deg, #ef4444 0%, #dc2626 55%, #b91c1c 100%);
+  box-shadow: 0 12px 32px rgba(220, 38, 38, 0.42);
+  color: #fff;
+}
+
+.admin-notify.is-ready .admin-notify__app {
+  color: rgba(255, 255, 255, 0.88);
+}
+
 .admin-notify.is-out {
   animation: admin-notify-out 0.24s ease-in forwards;
 }
@@ -5427,6 +5437,28 @@ body.admin-modal-open {
 .kitchen-ready-dish small {
   font-weight: 600;
   color: var(--color-text-muted, #58677b);
+}
+
+.kitchen-ready-customer {
+  display: block;
+  margin-top: 0.35rem;
+  font-weight: 700;
+  color: #9a3412;
+}
+
+.kitchen-ready-note {
+  width: 100%;
+  margin: 0.25rem 0 0;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #e5ddd0;
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.88rem;
+  resize: vertical;
+  min-height: 2.4rem;
+  box-sizing: border-box;
+  background: #fff;
 }
 
 .kitchen-ready-dish.is-late {
