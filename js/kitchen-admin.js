@@ -143,6 +143,39 @@
     return bonName(item);
   }
 
+  function extraNameSet() {
+    const names = new Set();
+    []
+      .concat(global.HOT_SIDE_ITEMS || [])
+      .concat(global.DONENESS_ITEMS || [])
+      .forEach((row) => {
+        if (row?.id) names.add(String(row.id).toLowerCase());
+        if (row?.name) names.add(String(row.name).trim().toLowerCase());
+        if (row?.printName) names.add(String(row.printName).trim().toLowerCase());
+      });
+    return names;
+  }
+
+  function isAddon(item) {
+    if (item?.linkedToMainItemId || item?.parent_item_id) return true;
+    const id = String(item?.productId || item?.product_id || '');
+    if (
+      global.HOT_SIDE_IDS?.has?.(id)
+      || global.DONENESS_IDS?.has?.(id)
+      || global.SHAKE_BASE_IDS?.has?.(id)
+      || global.LIMONANA_ALCOHOL_IDS?.has?.(id)
+      || id.startsWith('doneness-')
+      || id.startsWith('shake-base-')
+      || id.startsWith('limonana-alcohol')
+    ) return true;
+    const names = extraNameSet();
+    if (id && names.has(id.toLowerCase())) return true;
+    const label = String(item?.printName || item?.print_name || item?.name || item?.product_name || '')
+      .trim()
+      .toLowerCase();
+    return Boolean(label && names.has(label));
+  }
+
   function isFresh(entry) {
     return Boolean(entry?.order?.sessionId) && !entry.order.kitchenStarted;
   }
@@ -156,7 +189,10 @@
     const order = entry?.order;
     if (!order?.kitchenStarted) return false;
     const ack = ts(order.kitchenWaveAckAt) || ts(order.kitchenStartedAt);
-    return (order.remoteOrders || []).some((row) => ts(row.printed_at) > ack + 800);
+    const printedNewer = (order.remoteOrders || []).some((row) => ts(row.printed_at) > ack + 800);
+    const unprintedNewer = (order.remoteOrders || []).some((row) => !row?.printed_at && ts(row.created_at) > ack + 800);
+    const itemNewer = (order.items || []).some((item) => ts(item.createdAt) > ack + 800);
+    return printedNewer || unprintedNewer || itemNewer;
   }
 
   function waveChimeKey(entry) {
@@ -166,12 +202,15 @@
     (order.remoteOrders || []).forEach((row) => {
       latest = Math.max(latest, ts(row.printed_at));
     });
+    countableItems(order.items).forEach((item) => {
+      latest = Math.max(latest, ts(item.createdAt));
+    });
     return `${order.sessionId}:wave:${latest}`;
   }
 
   function isLateItem(item, order) {
     if (!item || !order?.kitchenStartedAt) return false;
-    return ts(item.wavePrintedAt) > ts(order.kitchenStartedAt) + 800;
+    return Math.max(ts(item.createdAt), ts(item.wavePrintedAt)) > ts(order.kitchenStartedAt) + 800;
   }
 
   function cardTone(status) {
@@ -239,11 +278,13 @@
   }
 
   function flattenDineIn(session, orders) {
+    const list = [...(orders || [])];
+    const hasPrintedWave = list.some(isPrinted);
     const items = [];
-    [...(orders || [])].forEach((order) => {
+    list.forEach((order) => {
       const lines = Array.isArray(order.order_items) ? order.order_items : [];
       const wavePrinted = isPrinted(order);
-      if (!wavePrinted) return;
+      if (!wavePrinted && !hasPrintedWave) return;
       lines.forEach((row) => {
         const mapped = mapItem(row, {
           wavePrinted,
@@ -254,8 +295,14 @@
       });
     });
     const startedAt = session.kitchen_started_at || null;
+    const startedRef = { kitchenStartedAt: startedAt };
     items.forEach((item) => {
-      item.isLate = isLateItem(item, { kitchenStartedAt: startedAt });
+      item.isLate = isLateItem(item, startedRef);
+    });
+    items.forEach((item) => {
+      if (!item.isLate || !item.linkedToMainItemId) return;
+      const parent = items.find((row) => String(row.itemId) === String(item.linkedToMainItemId));
+      if (parent) parent.isLate = true;
     });
     return {
       sessionId: String(session.session_id),
@@ -283,10 +330,6 @@
       return 'preparing';
     }
     return 'active';
-  }
-
-  function isAddon(item) {
-    return Boolean(item?.linkedToMainItemId);
   }
 
   function compareItems(a, b) {
@@ -359,14 +402,18 @@
     const used = new Set();
     const groups = [];
     list.forEach((item) => {
-      if (item.linkedToMainItemId) return;
+      if (isAddon(item)) return;
       const sides = (sidesByParent.get(String(item.itemId)) || []).slice().sort(compareItems);
       sides.forEach((side) => used.add(String(side.itemId)));
       groups.push({ main: item, sides });
     });
     list.forEach((item) => {
-      if (!item.linkedToMainItemId || used.has(String(item.itemId))) return;
-      groups.push({ main: item, sides: [] });
+      if (!isAddon(item) || used.has(String(item.itemId))) return;
+      const parent = groups.find((row) => String(row.main.itemId) === String(item.linkedToMainItemId));
+      const target = parent || groups[groups.length - 1];
+      if (!target) return;
+      target.sides.push(item);
+      used.add(String(item.itemId));
     });
     groups.sort((a, b) => {
       const aLate = a.main.isLate && !isDishReady(a.main) ? 0 : 1;
@@ -389,7 +436,7 @@
   }
 
   function dishActions(item) {
-    if (!item?.itemId) return '';
+    if (!item?.itemId || isAddon(item)) return '';
     const ready = isDishReady(item);
     return `
       <button type="button"
@@ -461,17 +508,6 @@
         <span class="kt-table-card__num">${escapeHtml(String(entry.tableNumber))}</span>
         <span class="kt-table-card__status">${escapeHtml(statusText)}</span>
         <span class="kt-table-card__items">${escapeHtml(String(counts.ready))} / ${escapeHtml(String(counts.total))} ${escapeHtml(txt('readyCount'))}</span>
-        ${(() => {
-          const names = groupItems(entry.order?.items)
-            .map((row) => {
-              const late = row.main.isLate && !isDishReady(row.main);
-              return `${late ? `${txt('dishNew')} ` : ''}${dishName(row.main)}`;
-            })
-            .filter(Boolean)
-            .slice(0, 4)
-            .join(' · ');
-          return names ? `<span class="kt-table-card__dishes">${escapeHtml(names)}</span>` : '';
-        })()}
         ${allDone ? `<span class="kt-table-card__done">${escapeHtml(txt('allReadyDone'))}</span>` : ''}
         <span class="kt-table-card__time">${escapeHtml(formatElapsed(entry.openedAt))}</span>
       </button>
@@ -707,6 +743,7 @@
   });
 
   window.setInterval(() => renderBoard(), 30000);
+  window.setInterval(() => loadBoard(), 4000);
 
   if (api?.subscribeToOrders) {
     api.subscribeToOrders(() => scheduleRefresh());

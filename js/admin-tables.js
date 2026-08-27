@@ -3518,7 +3518,8 @@
           ))
           : null;
 
-        if (same?.id && typeof api.bumpOrderItemQuantity === 'function') {
+        const hasPrintedWave = remoteOrders.some((row) => row && row.printed_at);
+        if (same?.id && !hasPrintedWave && typeof api.bumpOrderItemQuantity === 'function') {
           await api.bumpOrderItemQuantity(same.id, qty);
           return true;
         }

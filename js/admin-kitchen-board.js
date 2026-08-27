@@ -30,6 +30,9 @@
   let boardPrimed = false;
   let seenSessions = new Set();
   let seenWaves = new Set();
+  let seenItemIds = new Set();
+  let seenItemQty = new Map();
+  let pollTimer = null;
 
   function escapeHtml(str) {
     const div = document.createElement('div');
@@ -37,8 +40,37 @@
     return div.innerHTML;
   }
 
+  function extraNameSet() {
+    const names = new Set();
+    []
+      .concat(global.HOT_SIDE_ITEMS || [])
+      .concat(global.DONENESS_ITEMS || [])
+      .forEach((row) => {
+        if (row?.id) names.add(String(row.id).toLowerCase());
+        if (row?.name) names.add(String(row.name).trim().toLowerCase());
+        if (row?.printName) names.add(String(row.printName).trim().toLowerCase());
+      });
+    return names;
+  }
+
   function isAddon(item) {
-    return Boolean(item?.linkedToMainItemId);
+    if (item?.linkedToMainItemId || item?.parent_item_id) return true;
+    const id = String(item?.productId || item?.product_id || '');
+    if (
+      global.HOT_SIDE_IDS?.has?.(id)
+      || global.DONENESS_IDS?.has?.(id)
+      || global.SHAKE_BASE_IDS?.has?.(id)
+      || global.LIMONANA_ALCOHOL_IDS?.has?.(id)
+      || id.startsWith('doneness-')
+      || id.startsWith('shake-base-')
+      || id.startsWith('limonana-alcohol')
+    ) return true;
+    const names = extraNameSet();
+    if (id && names.has(id.toLowerCase())) return true;
+    const label = String(item?.printName || item?.print_name || item?.name || item?.product_name || '')
+      .trim()
+      .toLowerCase();
+    return Boolean(label && names.has(label));
   }
 
   function compareItems(a, b) {
@@ -117,18 +149,27 @@
   }
 
   function flatten(session, orders) {
+    const list = [...(orders || [])];
+    const hasPrintedWave = list.some((order) => order?.printed_at);
     const items = [];
-    [...(orders || [])].forEach((order) => {
-      if (!order?.printed_at) return;
+    list.forEach((order) => {
+      if (!order?.printed_at && !hasPrintedWave) return;
       (order.order_items || []).forEach((row) => {
-        const mapped = mapItem(row, { printedAt: order.printed_at });
+        const mapped = mapItem(row, { printedAt: order.printed_at || null });
         if (mapped.qty > 0) items.push(mapped);
       });
     });
     if (!items.length) return null;
     const startedAt = session.kitchen_started_at || null;
+    const startedRef = { kitchenStartedAt: startedAt };
     items.forEach((item) => {
-      item.isLate = Boolean(startedAt) && ts(item.wavePrintedAt) > ts(startedAt) + 800;
+      item.isLate = Boolean(startedAt)
+        && Math.max(ts(item.createdAt), ts(item.wavePrintedAt)) > ts(startedAt) + 800;
+    });
+    items.forEach((item) => {
+      if (!item.isLate || !item.linkedToMainItemId) return;
+      const parent = items.find((row) => String(row.itemId) === String(item.linkedToMainItemId));
+      if (parent) parent.isLate = true;
     });
     return {
       sessionId: String(session.session_id),
@@ -145,7 +186,10 @@
   function hasNewWave(entry) {
     if (!entry?.kitchenStarted) return false;
     const ack = ts(entry.kitchenWaveAckAt) || ts(entry.kitchenStartedAt);
-    return (entry.remoteOrders || []).some((row) => ts(row.printed_at) > ack + 800);
+    const printedNewer = (entry.remoteOrders || []).some((row) => ts(row.printed_at) > ack + 800);
+    const unprintedNewer = (entry.remoteOrders || []).some((row) => !row?.printed_at && ts(row.created_at) > ack + 800);
+    const itemNewer = (entry.items || []).some((item) => ts(item.createdAt) > ack + 800);
+    return printedNewer || unprintedNewer || itemNewer;
   }
 
   function counts(items) {
@@ -182,14 +226,18 @@
     const used = new Set();
     const groups = [];
     list.forEach((item) => {
-      if (item.linkedToMainItemId) return;
+      if (isAddon(item)) return;
       const sides = (sidesByParent.get(String(item.itemId)) || []).slice().sort(compareItems);
       sides.forEach((side) => used.add(String(side.itemId)));
       groups.push({ main: item, sides });
     });
     list.forEach((item) => {
-      if (!item.linkedToMainItemId || used.has(String(item.itemId))) return;
-      groups.push({ main: item, sides: [] });
+      if (!isAddon(item) || used.has(String(item.itemId))) return;
+      const parent = groups.find((row) => String(row.main.itemId) === String(item.linkedToMainItemId));
+      const target = parent || groups[groups.length - 1];
+      if (!target) return;
+      target.sides.push(item);
+      used.add(String(item.itemId));
     });
     groups.sort((a, b) => {
       const aLate = a.main.isLate && !isReady(a.main) ? 0 : 1;
@@ -201,13 +249,14 @@
   }
 
   function dishHtml(item, isSide, groupReady) {
-    const ready = isSide ? Boolean(groupReady) : isReady(item);
-    const late = !isSide && Boolean(item.isLate) && !ready;
+    const ready = isSide || isAddon(item) ? Boolean(groupReady) : isReady(item);
+    const late = !isSide && !isAddon(item) && Boolean(item.isLate) && !ready;
     const qty = Number(item.qty) > 1 || !isSide ? ` × ${escapeHtml(String(item.qty))}` : '';
-    const label = isSide ? `+ ${bonName(item)}${qty}` : `${bonName(item)}${qty}`;
+    const label = isSide || isAddon(item) ? `+ ${bonName(item)}${qty}` : `${bonName(item)}${qty}`;
+    const showCheck = !isSide && !isAddon(item);
     return `
-      <article class="kitchen-ready-dish${ready ? ' is-ready' : ''}${isSide ? ' is-side' : ''}${late ? ' is-late' : ''}">
-        <span>${isSide ? '' : `${ready ? '✅' : '⬜'} `}${late ? '<em class="kitchen-ready-new">חדש</em> ' : ''}${escapeHtml(label)}</span>
+      <article class="kitchen-ready-dish${ready ? ' is-ready' : ''}${isSide || isAddon(item) ? ' is-side' : ''}${late ? ' is-late' : ''}">
+        <span>${showCheck ? `${ready ? '✅' : '⬜'} ` : ''}${late ? '<em class="kitchen-ready-new">חדש</em> ' : ''}${escapeHtml(label)}</span>
         ${item.notes ? `<small>${escapeHtml(item.notes)}</small>` : ''}
       </article>
     `;
@@ -281,10 +330,22 @@
           if (!seenSessions.has(entry.sessionId) && !entry.kitchenStarted) {
             notify('מטבח', `שולחן ${entry.tableNumber} — הזמנה חדשה`);
           }
-          if (hasNewWave(entry)) {
+          let addedDish = false;
+          (entry.items || []).forEach((item) => {
+            if (isAddon(item)) return;
+            const qty = Number(item.qty) || 0;
+            const prevQty = seenItemQty.get(item.itemId) || 0;
+            if (seenItemIds.has(item.itemId) && qty <= prevQty) return;
+            addedDish = true;
+            notify('מטבח', `שולחן ${entry.tableNumber} — נוספה מנה: ${bonName(item)}`);
+          });
+          if (!addedDish && hasNewWave(entry)) {
             let latest = 0;
             (entry.remoteOrders || []).forEach((row) => {
               latest = Math.max(latest, ts(row.printed_at));
+            });
+            (entry.items || []).forEach((item) => {
+              if (!isAddon(item)) latest = Math.max(latest, ts(item.createdAt));
             });
             const waveKey = `${entry.sessionId}:${latest}`;
             if (!seenWaves.has(waveKey)) {
@@ -299,8 +360,19 @@
         (entry.remoteOrders || []).forEach((row) => {
           latest = Math.max(latest, ts(row.printed_at));
         });
+        (entry.items || []).forEach((item) => {
+          if (!isAddon(item)) latest = Math.max(latest, ts(item.createdAt));
+        });
         return `${entry.sessionId}:${latest}`;
       }));
+      seenItemIds = new Set(
+        next.flatMap((entry) => (entry.items || []).filter((item) => !isAddon(item)).map((item) => item.itemId))
+      );
+      seenItemQty = new Map(
+        next.flatMap((entry) => (entry.items || [])
+          .filter((item) => !isAddon(item))
+          .map((item) => [item.itemId, Number(item.qty) || 0]))
+      );
       boardPrimed = true;
       board = next;
       renderBoard();
@@ -331,15 +403,24 @@
     if (table === 'order_items' && event === 'UPDATE') {
       const prev = api?.normalizeKitchenStatus?.(payload?.old?.kitchen_status);
       const next = api?.normalizeKitchenStatus?.(payload?.new?.kitchen_status);
-      if (prev !== next && (next === 'ready' || prev === 'ready') && !payload?.new?.parent_item_id) {
-        const name = String(payload?.new?.product_name || payload?.new?.print_name || 'מנה');
-        const qty = Number(payload?.new?.quantity) || 1;
-        const tableNo = findTableForItem(payload?.new?.id, payload?.new?.order_id);
-        const where = tableNo ? ` — שולחן ${tableNo}` : '';
-        if (next === 'ready') {
-          notify('מטבח', `${name} ×${qty} מוכן${where}`);
-        } else {
-          notify('מטבח', `${name} ×${qty} הוחזר להכנה${where}`);
+      if (prev !== next && (next === 'ready' || prev === 'ready')) {
+        const isExtra = isAddon({
+          linkedToMainItemId: payload?.new?.parent_item_id,
+          parent_item_id: payload?.new?.parent_item_id,
+          productId: payload?.new?.product_id,
+          printName: payload?.new?.print_name,
+          name: payload?.new?.product_name,
+        });
+        if (!isExtra) {
+          const name = String(payload?.new?.product_name || payload?.new?.print_name || 'מנה');
+          const qty = Number(payload?.new?.quantity) || 1;
+          const tableNo = findTableForItem(payload?.new?.id, payload?.new?.order_id);
+          const where = tableNo ? ` — שולחן ${tableNo}` : '';
+          if (next === 'ready') {
+            notify('מטבח', `${name} ×${qty} מוכן${where}`);
+          } else {
+            notify('מטבח', `${name} ×${qty} הוחזר להכנה${where}`);
+          }
         }
       }
     }
@@ -382,11 +463,15 @@
     if (api?.subscribeToOrders) {
       unsubscribe = api.subscribeToOrders(onRealtime);
     }
+    window.clearInterval(pollTimer);
+    pollTimer = window.setInterval(() => loadBoard(), 4000);
   }
 
   function stop() {
     active = false;
     window.clearTimeout(refreshTimer);
+    window.clearInterval(pollTimer);
+    pollTimer = null;
     if (typeof unsubscribe === 'function') unsubscribe();
     unsubscribe = null;
   }
