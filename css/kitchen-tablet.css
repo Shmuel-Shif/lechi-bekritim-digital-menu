@@ -679,6 +679,34 @@ body:has(#kt-table-sheet:not([hidden])) .kt-chat-fab {
   animation: kt-wait-pulse 1.5s ease-in-out infinite;
 }
 
+.kt-table-card.is-fresh {
+  --kt-accent: #1d4ed8;
+  border-color: #1d4ed8;
+  background: linear-gradient(165deg, #3b82f6 0%, #2563eb 55%, #1d4ed8 100%);
+  color: #fff;
+}
+
+.kt-table-card.is-fresh .kt-table-card__status,
+.kt-table-card.is-fresh .kt-table-card__items,
+.kt-table-card.is-fresh .kt-table-card__time,
+.kt-table-card.is-fresh .kt-table-card__dishes {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.kt-table-card.is-wave {
+  --kt-accent: #c2410c;
+  border-color: #c2410c;
+  background: linear-gradient(165deg, #fb923c 0%, #ea580c 55%, #c2410c 100%);
+  color: #fff;
+}
+
+.kt-table-card.is-wave .kt-table-card__status,
+.kt-table-card.is-wave .kt-table-card__items,
+.kt-table-card.is-wave .kt-table-card__time,
+.kt-table-card.is-wave .kt-table-card__dishes {
+  color: rgba(255, 255, 255, 0.9);
+}
+
 .kt-kstat {
   display: flex;
   flex-wrap: wrap;
@@ -729,6 +757,24 @@ body:has(#kt-table-sheet:not([hidden])) .kt-chat-fab {
 
 .kt-dish-group.is-waiting { --kt-accent: var(--kt-fire); }
 .kt-dish-group.is-ready { --kt-accent: var(--kt-ok); }
+.kt-dish-group.is-late {
+  --kt-accent: #ea580c;
+  background: #2a1c12;
+  border: 1px solid rgba(234, 88, 12, 0.45);
+}
+
+.kt-new-tag {
+  display: inline-block;
+  margin-inline-end: 0.35rem;
+  padding: 0.08rem 0.38rem;
+  border-radius: 999px;
+  background: #ea580c;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+}
 
 .kt-dish {
   display: grid;
@@ -746,7 +792,6 @@ body:has(#kt-table-sheet:not([hidden])) .kt-chat-fab {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: 0.35rem;
   padding: 0.35rem 0.45rem;
   border-radius: 0.55rem;

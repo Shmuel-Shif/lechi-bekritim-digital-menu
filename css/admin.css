@@ -5337,6 +5337,39 @@ body.admin-modal-open {
   color: var(--color-text-muted, #58677b);
 }
 
+.kitchen-ready-card.is-fresh {
+  border-color: #1d4ed8;
+  background: linear-gradient(165deg, #3b82f6 0%, #2563eb 55%, #1d4ed8 100%);
+  box-shadow:
+    0 6px 18px rgba(37, 99, 235, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+.kitchen-ready-card.is-fresh strong,
+.kitchen-ready-card.is-fresh span {
+  color: #fff;
+}
+
+.kitchen-ready-card.is-wave {
+  border-color: #c2410c;
+  background: linear-gradient(165deg, #fb923c 0%, #ea580c 55%, #c2410c 100%);
+  box-shadow:
+    0 6px 18px rgba(234, 88, 12, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+.kitchen-ready-card.is-wave strong,
+.kitchen-ready-card.is-wave span {
+  color: #fff;
+}
+
+.kitchen-ready-card.is-cooking {
+  border-color: #c4a06a;
+  background: #fff;
+}
+
 .kitchen-ready-card.is-done {
   border-color: #991b1b;
   background: linear-gradient(165deg, #ef4444 0%, #dc2626 55%, #b91c1c 100%);
@@ -5396,8 +5429,21 @@ body.admin-modal-open {
   color: var(--color-text-muted, #58677b);
 }
 
-.kitchen-ready-dish.is-ready {
-  background: rgba(47, 111, 71, 0.12);
+.kitchen-ready-dish.is-late {
+  background: #fff4e8;
+  border: 1px solid #ea580c;
+}
+
+.kitchen-ready-new {
+  display: inline-block;
+  margin-inline-end: 0.25rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  background: #ea580c;
+  color: #fff;
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 800;
 }
 
 .kitchen-ready-group {

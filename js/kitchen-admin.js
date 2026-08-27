@@ -30,8 +30,6 @@
   let refreshTimer = null;
   let sending = false;
   let primed = false;
-  let seenTableKeys = new Set();
-  let seenItemIds = new Set();
   let audioCtx = null;
 
   function lang() {
@@ -145,6 +143,37 @@
     return bonName(item);
   }
 
+  function isFresh(entry) {
+    return Boolean(entry?.order?.sessionId) && !entry.order.kitchenStarted;
+  }
+
+  function ts(value) {
+    const n = Date.parse(value || '');
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function hasNewWave(entry) {
+    const order = entry?.order;
+    if (!order?.kitchenStarted) return false;
+    const ack = ts(order.kitchenWaveAckAt) || ts(order.kitchenStartedAt);
+    return (order.remoteOrders || []).some((row) => ts(row.printed_at) > ack + 800);
+  }
+
+  function waveChimeKey(entry) {
+    const order = entry?.order;
+    if (!order?.sessionId || !hasNewWave(entry)) return '';
+    let latest = 0;
+    (order.remoteOrders || []).forEach((row) => {
+      latest = Math.max(latest, ts(row.printed_at));
+    });
+    return `${order.sessionId}:wave:${latest}`;
+  }
+
+  function isLateItem(item, order) {
+    if (!item || !order?.kitchenStartedAt) return false;
+    return ts(item.wavePrintedAt) > ts(order.kitchenStartedAt) + 800;
+  }
+
   function cardTone(status) {
     if (status === 'pending_print') return 'new';
     if (status === 'preparing') return 'waitprint';
@@ -205,6 +234,7 @@
       createdAt: row.created_at || extras.createdAt || null,
       kitchenStatus: kitchenStatus(row.kitchen_status),
       wavePrinted: Boolean(extras.wavePrinted),
+      wavePrintedAt: extras.printedAt || null,
     };
   }
 
@@ -215,9 +245,17 @@
       const wavePrinted = isPrinted(order);
       if (!wavePrinted) return;
       lines.forEach((row) => {
-        const mapped = mapItem(row, { wavePrinted, createdAt: row.created_at || order.created_at });
+        const mapped = mapItem(row, {
+          wavePrinted,
+          createdAt: row.created_at || order.created_at,
+          printedAt: order.printed_at || null,
+        });
         if (mapped.qty > 0) items.push(mapped);
       });
+    });
+    const startedAt = session.kitchen_started_at || null;
+    items.forEach((item) => {
+      item.isLate = isLateItem(item, { kitchenStartedAt: startedAt });
     });
     return {
       sessionId: String(session.session_id),
@@ -225,6 +263,9 @@
       createdAt: session.created_at || null,
       billRequested: Boolean(session.bill_requested || session.status === 'bill_requested'),
       kitchenAllReady: Boolean(session.kitchen_all_ready),
+      kitchenStarted: Boolean(session.kitchen_started_at),
+      kitchenStartedAt: session.kitchen_started_at || null,
+      kitchenWaveAckAt: session.kitchen_wave_ack_at || session.kitchen_started_at || null,
       items,
       remoteOrders: orders || [],
     };
@@ -244,9 +285,24 @@
     return 'active';
   }
 
+  function isAddon(item) {
+    return Boolean(item?.linkedToMainItemId);
+  }
+
+  function compareItems(a, b) {
+    const ta = Date.parse(a?.createdAt || '') || 0;
+    const tb = Date.parse(b?.createdAt || '') || 0;
+    if (ta !== tb) return ta - tb;
+    return String(a?.itemId || '').localeCompare(String(b?.itemId || ''));
+  }
+
+  function countableItems(items) {
+    return (items || []).filter((item) => Number(item.qty) > 0 && !isAddon(item));
+  }
+
   function itemStats(items) {
     const stats = { waiting: 0, preparing: 0, ready: 0 };
-    (items || []).forEach((item) => {
+    countableItems(items).forEach((item) => {
       const qty = Number(item.qty) || 0;
       if (qty <= 0) return;
       stats[item.kitchenStatus === 'preparing' || item.kitchenStatus === 'ready' ? item.kitchenStatus : 'waiting'] += qty;
@@ -284,7 +340,7 @@
         tableNumber: n,
         uiStatus: resolveUiStatus(match),
         order: match,
-        itemCount: match.items.reduce((sum, item) => sum + (Number(item.qty) || 0), 0),
+        itemCount: countableItems(match.items).reduce((sum, item) => sum + (Number(item.qty) || 0), 0),
         openedAt: match.createdAt || null,
       });
     }
@@ -292,7 +348,7 @@
   }
 
   function groupItems(items) {
-    const list = (items || []).filter((item) => Number(item.qty) > 0);
+    const list = (items || []).filter((item) => Number(item.qty) > 0).sort(compareItems);
     const sidesByParent = new Map();
     list.forEach((item) => {
       if (!item.linkedToMainItemId) return;
@@ -304,13 +360,19 @@
     const groups = [];
     list.forEach((item) => {
       if (item.linkedToMainItemId) return;
-      const sides = sidesByParent.get(String(item.itemId)) || [];
+      const sides = (sidesByParent.get(String(item.itemId)) || []).slice().sort(compareItems);
       sides.forEach((side) => used.add(String(side.itemId)));
       groups.push({ main: item, sides });
     });
     list.forEach((item) => {
       if (!item.linkedToMainItemId || used.has(String(item.itemId))) return;
       groups.push({ main: item, sides: [] });
+    });
+    groups.sort((a, b) => {
+      const aLate = a.main.isLate && !isDishReady(a.main) ? 0 : 1;
+      const bLate = b.main.isLate && !isDishReady(b.main) ? 0 : 1;
+      if (aLate !== bLate) return aLate - bLate;
+      return compareItems(a.main, b.main);
     });
     return groups;
   }
@@ -319,12 +381,8 @@
     return (item?.kitchenStatus || 'waiting') === 'ready';
   }
 
-  function activeItems(items) {
-    return (items || []).filter((item) => Number(item.qty) > 0);
-  }
-
   function readyCounts(items) {
-    const list = activeItems(items);
+    const list = countableItems(items);
     const ready = list.filter(isDishReady).reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
     const total = list.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
     return { ready, total, allReady: total > 0 && list.every(isDishReady) };
@@ -343,12 +401,10 @@
     `;
   }
 
-  function renderSide(item) {
-    const ready = isDishReady(item);
+  function renderSide(item, groupReady) {
     return `
-      <div class="kt-dish kt-dish--side ${ready ? 'is-ready' : 'is-waiting'}" data-item-id="${escapeHtml(item.itemId)}">
+      <div class="kt-dish kt-dish--side ${groupReady ? 'is-ready' : 'is-waiting'}">
         <span class="kt-dish__name">+ ${escapeHtml(dishName(item))}${Number(item.qty) > 1 ? ` × ${escapeHtml(String(item.qty))}` : ''}</span>
-        ${dishActions(item)}
         ${item.notes ? `<p class="kt-dish__notes">${escapeHtml(item.notes)}</p>` : ''}
       </div>
     `;
@@ -356,13 +412,13 @@
 
   function renderDish(item, sides) {
     const ready = isDishReady(item);
-    const kids = (sides || []).map(renderSide).join('');
-    const groupReady = ready && (sides || []).every(isDishReady);
+    const late = Boolean(item.isLate) && !ready;
+    const kids = (sides || []).map((side) => renderSide(side, ready)).join('');
     return `
-      <article class="kt-dish-group ${groupReady ? 'is-ready' : 'is-waiting'}">
+      <article class="kt-dish-group ${ready ? 'is-ready' : 'is-waiting'}${late ? ' is-late' : ''}">
         <div class="kt-dish kt-dish--main ${ready ? 'is-ready' : 'is-waiting'}" data-item-id="${escapeHtml(item.itemId)}">
           <div class="kt-dish__top">
-            <span class="kt-dish__name">${escapeHtml(dishName(item))} × ${escapeHtml(String(item.qty))}</span>
+            <span class="kt-dish__name">${late ? `<span class="kt-new-tag">${escapeHtml(txt('dishNew'))}</span>` : ''}${escapeHtml(dishName(item))} × ${escapeHtml(String(item.qty))}</span>
             ${dishActions(item)}
           </div>
           ${item.notes ? `<p class="kt-dish__notes">${escapeHtml(item.notes)}</p>` : ''}
@@ -372,20 +428,45 @@
     `;
   }
 
+  const CHIME_KEY = 'lechaim-kitchen-chime-sessions';
+
+  function loadChimed() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(CHIME_KEY) || '[]');
+      return new Set(Array.isArray(raw) ? raw.map(String) : []);
+    } catch (_) {
+      return new Set();
+    }
+  }
+
+  function saveChimed(set) {
+    try {
+      localStorage.setItem(CHIME_KEY, JSON.stringify([...set].slice(-80)));
+    } catch (_) { /* ignore */ }
+  }
+
   function renderCard(entry) {
     const counts = readyCounts(entry.order?.items);
     const allDone = Boolean(entry.order?.kitchenAllReady) && counts.allReady;
+    const fresh = isFresh(entry) && !allDone;
+    const wave = !fresh && hasNewWave(entry) && !allDone;
+    const statusText = fresh
+      ? txt('tableFresh')
+      : (wave ? txt('tableWave') : statusLabel(entry.uiStatus));
     return `
       <button type="button"
-        class="kt-table-card is-${escapeHtml(cardTone(entry.uiStatus))}${allDone ? ' is-allready' : ''}"
+        class="kt-table-card is-${escapeHtml(cardTone(entry.uiStatus))}${fresh ? ' is-fresh' : ''}${wave ? ' is-wave' : ''}${allDone ? ' is-allready' : ''}"
         data-kt-table="${escapeHtml(String(entry.tableNumber))}"
       >
         <span class="kt-table-card__num">${escapeHtml(String(entry.tableNumber))}</span>
-        <span class="kt-table-card__status">${escapeHtml(statusLabel(entry.uiStatus))}</span>
+        <span class="kt-table-card__status">${escapeHtml(statusText)}</span>
         <span class="kt-table-card__items">${escapeHtml(String(counts.ready))} / ${escapeHtml(String(counts.total))} ${escapeHtml(txt('readyCount'))}</span>
         ${(() => {
           const names = groupItems(entry.order?.items)
-            .map((row) => dishName(row.main))
+            .map((row) => {
+              const late = row.main.isLate && !isDishReady(row.main);
+              return `${late ? `${txt('dishNew')} ` : ''}${dishName(row.main)}`;
+            })
             .filter(Boolean)
             .slice(0, 4)
             .join(' · ');
@@ -423,10 +504,12 @@
       `;
     }
     if (drawerItems) {
+      const scrollTop = drawerItems.scrollTop;
       const groups = groupItems(entry.order.items);
       drawerItems.innerHTML = groups.length
         ? groups.map((row) => renderDish(row.main, row.sides)).join('')
         : `<p class="kt-news__empty">${escapeHtml(txt('dishesEmpty'))}</p>`;
+      drawerItems.scrollTop = scrollTop;
     }
     const allReadyBtn = document.getElementById('kt-all-ready');
     if (allReadyBtn) {
@@ -470,18 +553,33 @@
     try {
       const rows = await api.getOpenSessionsWithOrders();
       const next = buildBoard(rows);
-      if (primed) {
-        const newTable = next.some((entry) => !seenTableKeys.has(entry.tableNumber));
-        const newTicket = next.some((entry) =>
-          (entry.order?.items || []).some((item) => item.wavePrinted && !seenItemIds.has(String(item.itemId)))
-        );
-        if (newTable || newTicket) playNewTicketChime();
+      const chimed = loadChimed();
+      if (!primed) {
+        next.forEach((entry) => {
+          const id = String(entry.order?.sessionId || '');
+          if (id) chimed.add(id);
+          const waveKey = waveChimeKey(entry);
+          if (waveKey) chimed.add(waveKey);
+        });
+        saveChimed(chimed);
+      } else {
+        let ring = false;
+        next.forEach((entry) => {
+          const id = String(entry.order?.sessionId || '');
+          if (id && isFresh(entry) && !chimed.has(id)) {
+            ring = true;
+            chimed.add(id);
+          }
+          const waveKey = waveChimeKey(entry);
+          if (waveKey && !chimed.has(waveKey)) {
+            ring = true;
+            chimed.add(waveKey);
+          }
+        });
+        if (ring) playNewTicketChime();
+        saveChimed(chimed);
       }
       primed = true;
-      seenTableKeys = new Set(next.map((entry) => entry.tableNumber));
-      seenItemIds = new Set(
-        next.flatMap((entry) => (entry.order?.items || []).map((item) => String(item.itemId)))
-      );
       board = next;
       setError('');
       renderBoard();
@@ -502,13 +600,55 @@
     const item = board
       .flatMap((entry) => entry.order?.items || [])
       .find((row) => String(row.itemId) === String(itemId));
-    if (!item) return;
+    if (!item || isAddon(item)) return;
     sending = true;
     try {
       await api.updateItemKitchenStatus(itemId, isDishReady(item) ? 'waiting' : 'ready');
       setError('');
       await loadBoard();
     } catch (err) {
+      setError(err?.message || txt('statusFail'));
+    } finally {
+      sending = false;
+    }
+  }
+
+  async function startKitchen(entry) {
+    const sessionId = entry?.order?.sessionId;
+    if (!sessionId || sending || entry.order.kitchenStarted) return;
+    sending = true;
+    entry.order.kitchenStarted = true;
+    entry.order.kitchenStartedAt = entry.order.kitchenStartedAt || new Date().toISOString();
+    entry.order.kitchenWaveAckAt = new Date().toISOString();
+    renderBoard();
+    try {
+      await api.markSessionKitchenStarted(sessionId);
+      setError('');
+      await loadBoard();
+    } catch (err) {
+      entry.order.kitchenStarted = false;
+      entry.order.kitchenWaveAckAt = null;
+      renderBoard();
+      setError(err?.message || txt('statusFail'));
+    } finally {
+      sending = false;
+    }
+  }
+
+  async function ackKitchenWave(entry) {
+    const sessionId = entry?.order?.sessionId;
+    if (!sessionId || sending || !hasNewWave(entry)) return;
+    sending = true;
+    const prev = entry.order.kitchenWaveAckAt;
+    entry.order.kitchenWaveAckAt = new Date().toISOString();
+    renderBoard();
+    try {
+      await api.markSessionKitchenWaveAck(sessionId);
+      setError('');
+      await loadBoard();
+    } catch (err) {
+      entry.order.kitchenWaveAckAt = prev;
+      renderBoard();
       setError(err?.message || txt('statusFail'));
     } finally {
       sending = false;
@@ -535,7 +675,19 @@
   gridEl?.addEventListener('click', (event) => {
     const btn = event.target.closest('[data-kt-table]');
     if (!btn || btn.disabled) return;
-    fillDrawer(Number(btn.dataset.ktTable));
+    const tableNumber = Number(btn.dataset.ktTable);
+    const entry = board.find((row) => row.tableNumber === tableNumber);
+    if (!entry?.order) return;
+    if (isFresh(entry)) {
+      startKitchen(entry);
+      return;
+    }
+    if (hasNewWave(entry)) {
+      ackKitchenWave(entry);
+      return;
+    }
+    if (sending) return;
+    fillDrawer(tableNumber);
   });
 
   document.addEventListener('click', (event) => {

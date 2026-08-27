@@ -765,6 +765,8 @@
     'updated_at',
     'closed_at',
     'kitchen_all_ready',
+    'kitchen_started_at',
+    'kitchen_wave_ack_at',
   ].join(', ');
   const OPEN_BOARD_SESSION_COLS_NO_WAITER = OPEN_BOARD_SESSION_COLS
     .split(', ')
@@ -777,6 +779,22 @@
   const OPEN_BOARD_SESSION_COLS_NO_WAITER_NO_KITCHEN_READY = OPEN_BOARD_SESSION_COLS_NO_WAITER
     .split(', ')
     .filter((col) => col !== 'kitchen_all_ready')
+    .join(', ');
+  const OPEN_BOARD_SESSION_COLS_NO_KITCHEN_STARTED = OPEN_BOARD_SESSION_COLS
+    .split(', ')
+    .filter((col) => col !== 'kitchen_started_at' && col !== 'kitchen_wave_ack_at')
+    .join(', ');
+  const OPEN_BOARD_SESSION_COLS_NO_WAITER_NO_KITCHEN_STARTED = OPEN_BOARD_SESSION_COLS_NO_WAITER
+    .split(', ')
+    .filter((col) => col !== 'kitchen_started_at' && col !== 'kitchen_wave_ack_at')
+    .join(', ');
+  const OPEN_BOARD_SESSION_COLS_NO_KITCHEN_WAVE = OPEN_BOARD_SESSION_COLS
+    .split(', ')
+    .filter((col) => col !== 'kitchen_wave_ack_at')
+    .join(', ');
+  const OPEN_BOARD_SESSION_COLS_NO_WAITER_NO_KITCHEN_WAVE = OPEN_BOARD_SESSION_COLS_NO_WAITER
+    .split(', ')
+    .filter((col) => col !== 'kitchen_wave_ack_at')
     .join(', ');
 
   const OPEN_BOARD_ORDER_COLS = [
@@ -845,6 +863,24 @@
       .in('status', OPEN_SESSION_STATUSES)
       .order('updated_at', { ascending: false });
 
+    if (sessionErr && /kitchen_wave_ack_at/i.test(`${sessionErr.message || ''} ${sessionErr.details || ''}`)) {
+      console.warn('[LechaimSupabaseOrders] kitchen_wave_ack_at missing — re-run supabase-kitchen-started.sql');
+      ({ data: sessions, error: sessionErr } = await sb
+        .from(TABLE_SESSIONS)
+        .select(OPEN_BOARD_SESSION_COLS_NO_KITCHEN_WAVE)
+        .in('status', OPEN_SESSION_STATUSES)
+        .order('updated_at', { ascending: false }));
+    }
+
+    if (sessionErr && /kitchen_started_at/i.test(`${sessionErr.message || ''} ${sessionErr.details || ''}`)) {
+      console.warn('[LechaimSupabaseOrders] kitchen_started_at missing — run supabase-kitchen-started.sql');
+      ({ data: sessions, error: sessionErr } = await sb
+        .from(TABLE_SESSIONS)
+        .select(OPEN_BOARD_SESSION_COLS_NO_KITCHEN_STARTED)
+        .in('status', OPEN_SESSION_STATUSES)
+        .order('updated_at', { ascending: false }));
+    }
+
     if (sessionErr && /kitchen_all_ready/i.test(`${sessionErr.message || ''} ${sessionErr.details || ''}`)) {
       console.warn('[LechaimSupabaseOrders] kitchen_all_ready missing — run supabase-kitchen-all-ready.sql');
       ({ data: sessions, error: sessionErr } = await sb
@@ -861,6 +897,20 @@
         .select(OPEN_BOARD_SESSION_COLS_NO_WAITER)
         .in('status', OPEN_SESSION_STATUSES)
         .order('updated_at', { ascending: false }));
+      if (sessionErr && /kitchen_wave_ack_at/i.test(`${sessionErr.message || ''} ${sessionErr.details || ''}`)) {
+        ({ data: sessions, error: sessionErr } = await sb
+          .from(TABLE_SESSIONS)
+          .select(OPEN_BOARD_SESSION_COLS_NO_WAITER_NO_KITCHEN_WAVE)
+          .in('status', OPEN_SESSION_STATUSES)
+          .order('updated_at', { ascending: false }));
+      }
+      if (sessionErr && /kitchen_started_at/i.test(`${sessionErr.message || ''} ${sessionErr.details || ''}`)) {
+        ({ data: sessions, error: sessionErr } = await sb
+          .from(TABLE_SESSIONS)
+          .select(OPEN_BOARD_SESSION_COLS_NO_WAITER_NO_KITCHEN_STARTED)
+          .in('status', OPEN_SESSION_STATUSES)
+          .order('updated_at', { ascending: false }));
+      }
       if (sessionErr && /kitchen_all_ready/i.test(`${sessionErr.message || ''} ${sessionErr.details || ''}`)) {
         ({ data: sessions, error: sessionErr } = await sb
           .from(TABLE_SESSIONS)
@@ -1047,6 +1097,75 @@
     throwIfError(error, 'markSessionKitchenAllReady');
     if (!data?.length) {
       throw new Error('[LechaimSupabaseOrders.markSessionKitchenAllReady] session not updated (run supabase-kitchen-all-ready.sql)');
+    }
+    return data[0];
+  }
+
+  /**
+   * Cook tapped a new table card to start preparing.
+   * Sets kitchen_started_at only — never status, bill_requested, print, or prices.
+   * @param {string} sessionId
+   */
+  async function markSessionKitchenStarted(sessionId) {
+    const sb = getClient();
+    const id = String(sessionId || '').trim();
+    if (!id) {
+      throw new Error('[LechaimSupabaseOrders.markSessionKitchenStarted] sessionId is required');
+    }
+
+    const stamped = new Date().toISOString();
+    const { data, error } = await sb
+      .from(TABLE_SESSIONS)
+      .update({ kitchen_started_at: stamped, kitchen_wave_ack_at: stamped })
+      .eq('session_id', id)
+      .is('kitchen_started_at', null)
+      .select('session_id, kitchen_started_at, kitchen_wave_ack_at');
+
+    if (error && /kitchen_wave_ack_at/i.test(`${error.message || ''} ${error.details || ''}`)) {
+      const retry = await sb
+        .from(TABLE_SESSIONS)
+        .update({ kitchen_started_at: stamped })
+        .eq('session_id', id)
+        .is('kitchen_started_at', null)
+        .select('session_id, kitchen_started_at');
+      throwIfError(retry.error, 'markSessionKitchenStarted');
+      if (retry.data?.length) return retry.data[0];
+    } else {
+      throwIfError(error, 'markSessionKitchenStarted');
+      if (data?.length) return data[0];
+    }
+
+    const { data: existing, error: readErr } = await sb
+      .from(TABLE_SESSIONS)
+      .select('session_id, kitchen_started_at')
+      .eq('session_id', id)
+      .maybeSingle();
+    throwIfError(readErr, 'markSessionKitchenStarted.read');
+    if (existing?.kitchen_started_at) return existing;
+    throw new Error('[LechaimSupabaseOrders.markSessionKitchenStarted] session not updated (run supabase-kitchen-started.sql)');
+  }
+
+  /**
+   * Cook acknowledged a later printed wave on an already-started table.
+   * Sets kitchen_wave_ack_at only — never status, bill_requested, print, or prices.
+   * @param {string} sessionId
+   */
+  async function markSessionKitchenWaveAck(sessionId) {
+    const sb = getClient();
+    const id = String(sessionId || '').trim();
+    if (!id) {
+      throw new Error('[LechaimSupabaseOrders.markSessionKitchenWaveAck] sessionId is required');
+    }
+    const stamped = new Date().toISOString();
+    const { data, error } = await sb
+      .from(TABLE_SESSIONS)
+      .update({ kitchen_wave_ack_at: stamped })
+      .eq('session_id', id)
+      .select('session_id, kitchen_wave_ack_at');
+
+    throwIfError(error, 'markSessionKitchenWaveAck');
+    if (!data?.length) {
+      throw new Error('[LechaimSupabaseOrders.markSessionKitchenWaveAck] session not updated (re-run supabase-kitchen-started.sql)');
     }
     return data[0];
   }
@@ -2446,6 +2565,8 @@
     markOrderPrinted,
     updateItemKitchenStatus,
     markSessionKitchenAllReady,
+    markSessionKitchenStarted,
+    markSessionKitchenWaveAck,
     normalizeKitchenStatus,
     KITCHEN_ITEM_STATUSES,
     updateSessionStatus,
