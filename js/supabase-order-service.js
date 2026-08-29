@@ -392,6 +392,11 @@
         parent_item_id: item.parentItemId ?? item.parent_item_id ?? null,
       };
 
+      const notesEl = item.notesEl ?? item.notes_el;
+      if (notesEl != null && String(notesEl).trim() !== '') {
+        row.notes_el = String(notesEl).trim();
+      }
+
       const unitType = item.unitType ?? item.unit_type;
       if (unitType) row.unit_type = String(unitType);
 
@@ -814,8 +819,10 @@
     'printed_at',
     'created_at',
     'updated_at',
-    'order_items(id, product_id, product_name, print_name, quantity, price, notes, parent_item_id, created_at, selected_weight, price_per_kg, unit_type, thaw_count, kitchen_status, kitchen_urgent)',
+    'order_items(id, product_id, product_name, print_name, quantity, price, notes, notes_el, notes_version, notes_seen_version, parent_item_id, created_at, selected_weight, price_per_kg, unit_type, thaw_count, kitchen_status, kitchen_urgent)',
   ].join(', ');
+  const OPEN_BOARD_ORDER_COLS_NO_NOTE_VER = OPEN_BOARD_ORDER_COLS.replace(', notes_version, notes_seen_version', '');
+  const OPEN_BOARD_ORDER_COLS_NO_NOTES_EL = OPEN_BOARD_ORDER_COLS_NO_NOTE_VER.replace(', notes_el', '');
   const OPEN_BOARD_ORDER_COLS_NO_KITCHEN = OPEN_BOARD_ORDER_COLS.replace(', kitchen_status, kitchen_urgent)', ')');
   const OPEN_BOARD_ORDER_COLS_NO_URGENT = OPEN_BOARD_ORDER_COLS.replace(', kitchen_urgent)', ')');
 
@@ -938,6 +945,28 @@
       .select(OPEN_BOARD_ORDER_COLS)
       .in('session_id', ids)
       .order('order_number', { ascending: true });
+
+    if (error && /notes_version|notes_seen_version/i.test(`${error.message || ''} ${error.details || ''}`)) {
+      console.warn('[LechaimSupabaseOrders] notes version columns missing — run supabase-order-item-notes-seen.sql');
+      const retryVer = await sb
+        .from(TABLE_ORDERS)
+        .select(OPEN_BOARD_ORDER_COLS_NO_NOTE_VER)
+        .in('session_id', ids)
+        .order('order_number', { ascending: true });
+      throwIfError(retryVer.error, 'getOpenSessionsWithOrders');
+      return groupOrdersBySession(sessions, retryVer.data);
+    }
+
+    if (error && /notes_el/i.test(`${error.message || ''} ${error.details || ''}`)) {
+      console.warn('[LechaimSupabaseOrders] notes_el missing — run supabase-order-item-notes-el.sql');
+      const retryNotes = await sb
+        .from(TABLE_ORDERS)
+        .select(OPEN_BOARD_ORDER_COLS_NO_NOTES_EL)
+        .in('session_id', ids)
+        .order('order_number', { ascending: true });
+      throwIfError(retryNotes.error, 'getOpenSessionsWithOrders');
+      return groupOrdersBySession(sessions, retryNotes.data);
+    }
 
     if (error && /kitchen_urgent/i.test(`${error.message || ''} ${error.details || ''}`)) {
       console.warn('[LechaimSupabaseOrders] kitchen_urgent missing — run supabase-kitchen-urgent.sql');
@@ -1068,27 +1097,119 @@
   }
 
   /**
-   * Kitchen dish note. Does not change qty, price, print, or table close.
+   * Kitchen dish note. Writes Hebrew + saved Greek together.
+   * Does not change qty, price, print, or table close.
    * @param {string} itemId
-   * @param {string} notes
+   * @param {string} notes Hebrew original
+   * @param {string} [notesEl] Greek saved with the Hebrew. Empty clears both.
    */
-  async function updateItemNotes(itemId, notes) {
+  async function updateItemNotes(itemId, notes, notesEl) {
     const sb = getClient();
     const id = String(itemId || '').trim();
     if (!id) {
       throw new Error('[LechaimSupabaseOrders.updateItemNotes] itemId is required');
     }
     const text = String(notes == null ? '' : notes).trim();
+    const el = String(notesEl == null ? '' : notesEl).trim();
+    if (text && !el) {
+      throw new Error('[LechaimSupabaseOrders.updateItemNotes] notes_el required when notes is set');
+    }
     const { data, error } = await sb
       .from(TABLE_ITEMS)
-      .update({ notes: text || null })
+      .update({
+        notes: text || null,
+        notes_el: text ? el : null,
+      })
       .eq('id', id)
-      .select('id, notes');
+      .select('id, notes, notes_el');
     throwIfError(error, 'updateItemNotes');
     if (!data?.length) {
-      throw new Error('[LechaimSupabaseOrders.updateItemNotes] item not updated');
+      throw new Error('[LechaimSupabaseOrders.updateItemNotes] item not updated (run supabase-order-item-notes-el.sql)');
     }
     return data[0];
+  }
+
+  /**
+   * Kitchen ack for a dish note. Sets notes_seen_version = current notes_version.
+   * Does not change notes, notes_el, qty, print, or kitchen_status.
+   * @param {string} itemId
+   */
+  async function markItemNotesSeen(itemId) {
+    const sb = getClient();
+    const id = String(itemId || '').trim();
+    if (!id) {
+      throw new Error('[LechaimSupabaseOrders.markItemNotesSeen] itemId is required');
+    }
+    const { data: row, error: readErr } = await sb
+      .from(TABLE_ITEMS)
+      .select('id, notes_version')
+      .eq('id', id)
+      .maybeSingle();
+    throwIfError(readErr, 'markItemNotesSeen.read');
+    if (!row) {
+      throw new Error('[LechaimSupabaseOrders.markItemNotesSeen] item not found');
+    }
+    const version = Number(row.notes_version) || 0;
+    const { data, error } = await sb
+      .from(TABLE_ITEMS)
+      .update({ notes_seen_version: version })
+      .eq('id', id)
+      .eq('notes_version', version)
+      .select('id, notes_version, notes_seen_version');
+    if (error && /notes_version|notes_seen_version/i.test(`${error.message || ''} ${error.details || ''}`)) {
+      throw new Error('[LechaimSupabaseOrders.markItemNotesSeen] run supabase-order-item-notes-seen.sql');
+    }
+    throwIfError(error, 'markItemNotesSeen');
+    if (!data?.length) {
+      throw new Error('[LechaimSupabaseOrders.markItemNotesSeen] item not updated');
+    }
+    return data[0];
+  }
+
+  /**
+   * Translate a free-text dish note once (he → el) via Edge Function.
+   * Does not write to the database.
+   * @param {string} text
+   * @returns {Promise<string>}
+   */
+  function decodeHtmlEntities(value) {
+    return String(value || '')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>');
+  }
+
+  async function translateViaPublicApi(src) {
+    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(src)}&langpair=he|el`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const el = decodeHtmlEntities(String(data?.responseData?.translatedText || '')).trim();
+    if (!res.ok || !el || /^MYMEMORY WARNING/i.test(el)) {
+      throw new Error('translate_failed');
+    }
+    return el;
+  }
+
+  async function translateNoteHeToEl(text) {
+    const src = String(text == null ? '' : text).trim();
+    if (!src) {
+      throw new Error('[LechaimSupabaseOrders.translateNoteHeToEl] text is required');
+    }
+    try {
+      const sb = getClient();
+      const { data } = await sb.functions.invoke('translate-note', {
+        body: { text: src },
+      });
+      let payload = data;
+      if (typeof payload === 'string') {
+        try { payload = JSON.parse(payload); } catch (_) { payload = {}; }
+      }
+      const el = String(payload?.el || '').trim();
+      if (el) return el;
+    } catch (_) { /* Edge Function is optional — public fallback below */ }
+    return translateViaPublicApi(src);
   }
 
   /**
@@ -2633,6 +2754,8 @@
     markOrderPrinted,
     updateItemKitchenStatus,
     updateItemNotes,
+    markItemNotesSeen,
+    translateNoteHeToEl,
     updateItemKitchenUrgent,
     markSessionKitchenAllReady,
     markSessionKitchenStarted,

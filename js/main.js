@@ -17,6 +17,10 @@
     return document.body?.getAttribute('data-staff-order') === '1';
   }
 
+  function isDineInOnlyPage() {
+    return document.getElementById('entry-gate')?.getAttribute('data-mode') === 'dine-in-only';
+  }
+
   const header = $('#site-header');
   const categoryNavWrapper = $('#category-nav-wrapper');
   const categoryNavList = $('#category-nav-list');
@@ -91,6 +95,7 @@
   const TAKEAWAY_LOCK_KEY_LEGACY = 'lechaim-takeaway-order-lock';
   const TAKEAWAY_LOCK_KEY_PICKUP = 'lechaim-takeaway-order-lock-pickup';
   const TAKEAWAY_LOCK_KEY_DELIVERY = 'lechaim-takeaway-order-lock-delivery';
+  const DINEIN_TABLE_LOCK_KEY = 'lechaim-dinein-table-lock';
 
   let currentLang = 'he';
   let activeCategoryId = null;
@@ -694,6 +699,40 @@
     document.body.classList.add('takeaway-locked');
     updateCartToggleMode();
     updateTableHeader();
+  }
+
+  function writeDineInTableLock(lock) {
+    try {
+      localStorage.setItem(DINEIN_TABLE_LOCK_KEY, JSON.stringify(lock));
+    } catch (err) {
+      console.warn('[dine-in] failed to persist table lock', err);
+    }
+  }
+
+  function clearDineInTableLock() {
+    try {
+      localStorage.removeItem(DINEIN_TABLE_LOCK_KEY);
+    } catch (_) { /* ignore */ }
+  }
+
+  function lockDineInAfterSend() {
+    if (!isDineInOnlyPage() || isStaffOrderPage() || !isDineInContext()) return;
+    const tableNumber = Number(
+      window.LechaimOrderContext?.tableNumber
+      ?? window.LechaimOrderSession?.getTableNumber?.()
+    );
+    const sessionId = String(
+      window.LechaimOrderContext?.sessionId
+      || window.LechaimOrderSession?.getSession?.()?.sessionId
+      || ''
+    );
+    if (!Number.isInteger(tableNumber)) return;
+    writeDineInTableLock({
+      tableNumber,
+      sessionId,
+      remoteSessionId: lookupMappedSupabaseSessionId(sessionId) || null,
+      lockedAt: new Date().toISOString(),
+    });
   }
 
   function restoreTakeawayLockIfNeeded() {
@@ -4996,7 +5035,6 @@
     const qty = Number(item.qty) || 0;
     const price = (Number(item.price) || 0) * qty;
     const showPrice = !isSide || price > 0;
-    const notes = String(item.notes || '').trim();
     return `
       <div class="order-receipt__line${isSide ? ' is-side' : ''}">
         <span class="order-receipt__qty">${escapeHtml(isSide ? '+' : `${qty}×`)}</span>
@@ -5005,7 +5043,6 @@
         }</span>
         <span class="order-receipt__price">${showPrice ? escapeHtml(formatReceiptMoney(price)) : ''}</span>
       </div>
-      ${notes ? `<p class="order-receipt__notes">${escapeHtml(notes)}</p>` : ''}
     `;
   }
 
@@ -5232,6 +5269,7 @@
     remoteSessionTotalOverride = null;
     remoteSessionTotalSynced = false;
     clearTakeawayLock();
+    clearDineInTableLock();
     if (remoteTotalSyncTimer) {
       window.clearInterval(remoteTotalSyncTimer);
       remoteTotalSyncTimer = null;
@@ -5586,6 +5624,7 @@
 
       try {
         lockTakeawayAfterSend(waveItems);
+        lockDineInAfterSend();
         clearDineInNotesConfirmation();
         if (isStaffOrderPage() && typeof window.LechaimStaffOrder?.onOrderSent === 'function') {
           window.LechaimStaffOrder.onOrderSent();
@@ -6079,6 +6118,7 @@
       remoteTotalSyncTimer = null;
     }
     clearTakeawayLock();
+    clearDineInTableLock();
 
     try {
       if (wasTakeaway && window.LechaimOrderEngine?.closeTakeaway) {

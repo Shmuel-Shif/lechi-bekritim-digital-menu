@@ -98,6 +98,25 @@
       .replace(/"/g, '&quot;');
   }
 
+  function placesArticlesHtml() {
+    return PLACES.map((place) => (
+      `<article class="around-us__place">`
+      + `<div class="around-us__place-head">`
+      + `<span class="around-us__emoji" aria-hidden="true">${escapeHtml(place.emoji)}</span>`
+      + `<h3 class="around-us__name">${escapeHtml(placeText(place, 'title'))}</h3>`
+      + `</div>`
+      + `<p class="around-us__meta">${escapeHtml(placeText(place, 'hint'))}</p>`
+      + `<a class="around-us__maps" href="${escapeHtml(place.maps)}" target="_blank" rel="noopener noreferrer">`
+      + `${escapeHtml(t('maps'))}`
+      + `</a>`
+      + `</article>`
+    )).join('');
+  }
+
+  function placesListHtml() {
+    return `<div class="around-us__list around-us__list--embed">${placesArticlesHtml()}</div>`;
+  }
+
   function render() {
     if (!root) return;
     const title = root.querySelector('#lechaim-around-us-title');
@@ -109,20 +128,7 @@
     if (title) title.textContent = t('title');
     if (hint) hint.textContent = t('hint');
     if (closeBtn) closeBtn.setAttribute('aria-label', t('close'));
-    if (list) {
-      list.innerHTML = PLACES.map((place) => (
-        `<article class="around-us__place">`
-        + `<div class="around-us__place-head">`
-        + `<span class="around-us__emoji" aria-hidden="true">${escapeHtml(place.emoji)}</span>`
-        + `<h3 class="around-us__name">${escapeHtml(placeText(place, 'title'))}</h3>`
-        + `</div>`
-        + `<p class="around-us__meta">${escapeHtml(placeText(place, 'hint'))}</p>`
-        + `<a class="around-us__maps" href="${escapeHtml(place.maps)}" target="_blank" rel="noopener noreferrer">`
-        + `${escapeHtml(t('maps'))}`
-        + `</a>`
-        + `</article>`
-      )).join('');
-    }
+    if (list) list.innerHTML = placesArticlesHtml();
   }
 
   function close() {
@@ -182,7 +188,7 @@
     });
   }
 
-  global.LechaimAroundUs = { open, close };
+  global.LechaimAroundUs = { open, close, placesListHtml };
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);

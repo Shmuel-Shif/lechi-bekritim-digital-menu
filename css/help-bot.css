@@ -243,6 +243,35 @@ body.help-bot-open .help-bot-panel__card {
   background: #fff;
 }
 
+.help-bot-answer .around-us__list--embed {
+  margin-top: 0.7rem;
+}
+
+.help-bot-answer .around-us__place {
+  padding: 0.7rem 0.75rem 0.65rem;
+  border-radius: 12px;
+}
+
+.help-bot-answer .around-us__emoji {
+  flex-basis: 2.1rem;
+  width: 2.1rem;
+  height: 2.1rem;
+  font-size: 1.1rem;
+}
+
+.help-bot-answer .around-us__name {
+  font-size: 0.96rem;
+}
+
+.help-bot-answer .around-us__meta {
+  font-size: 0.8rem;
+}
+
+.help-bot-answer .around-us__maps {
+  min-height: 2.1rem;
+  font-size: 0.78rem;
+}
+
 .help-bot-answer__maps {
   display: inline-flex;
   margin-top: 0.7rem;

@@ -14,6 +14,56 @@
     return document.body?.getAttribute('data-staff-order') === '1';
   }
 
+  function isDineInOnlyPage() {
+    return document.getElementById('entry-gate')?.getAttribute('data-mode') === 'dine-in-only';
+  }
+
+  const DINEIN_TABLE_LOCK_KEY = 'lechaim-dinein-table-lock';
+
+  function readDineInTableLock() {
+    if (!isDineInOnlyPage() || isStaffOrderPage()) return null;
+    try {
+      const raw = localStorage.getItem(DINEIN_TABLE_LOCK_KEY);
+      const lock = raw ? JSON.parse(raw) : null;
+      if (!lock || typeof lock !== 'object') return null;
+      const tableNumber = Number(lock.tableNumber);
+      if (!Number.isInteger(tableNumber) || tableNumber < TABLE_MIN || tableNumber > TABLE_MAX) {
+        return null;
+      }
+      return {
+        tableNumber,
+        sessionId: lock.sessionId ? String(lock.sessionId) : '',
+        remoteSessionId: lock.remoteSessionId ? String(lock.remoteSessionId) : '',
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function writeDineInTableLock(lock) {
+    if (!isDineInOnlyPage() || isStaffOrderPage() || !lock) return;
+    try {
+      localStorage.setItem(DINEIN_TABLE_LOCK_KEY, JSON.stringify(lock));
+    } catch (_) { /* ignore */ }
+  }
+
+  function clearDineInTableLock() {
+    try {
+      localStorage.removeItem(DINEIN_TABLE_LOCK_KEY);
+    } catch (_) { /* ignore */ }
+  }
+
+  function rememberDineInSessionMap(localSessionId, remoteSessionId) {
+    if (!localSessionId || !remoteSessionId) return;
+    try {
+      const raw = localStorage.getItem('lechaim-supabase-session-map');
+      const map = raw ? JSON.parse(raw) : {};
+      if (!map || typeof map !== 'object') return;
+      map[String(localSessionId)] = String(remoteSessionId);
+      localStorage.setItem('lechaim-supabase-session-map', JSON.stringify(map));
+    } catch (_) { /* ignore */ }
+  }
+
   const COPY = {
     en: {
       welcome: '✦ Welcome ✦',
@@ -1228,6 +1278,10 @@
       occupied.delete(Number(state.tableNumber));
     }
 
+    /* This phone is already bound to a sent dine-in order — keep that table tappable */
+    const ownLock = readDineInTableLock();
+    if (ownLock) occupied.delete(Number(ownLock.tableNumber));
+
     tablesEl.querySelectorAll('.entry-gate__table').forEach((btn) => {
       const n = Number(btn.dataset.table);
       const isOccupied = occupied.has(n);
@@ -1474,6 +1528,15 @@
   }
 
   async function goToTable() {
+    if (!isStaffOrderPage()) {
+      const lock = await resolveDineInOnlyLock();
+      if (lock) {
+        enterLockedDineInTable(lock.tableNumber, {
+          remoteSessionId: lock.remoteSessionId,
+        });
+        return;
+      }
+    }
     state.orderType = 'dine-in';
     await refreshWeeklyHours();
     if (!isDineInOrderingOpen()) {
@@ -1786,8 +1849,13 @@
     const open = Hours()?.isWithinOrderingHours?.() === true;
     if (open) {
       if (stepPickupClosed && !stepPickupClosed.hidden) {
-        if (gate.dataset.mode === 'dine-in-only') goToTable();
-        else goToOrderType();
+        if (gate.dataset.mode === 'dine-in-only') {
+          if (readDineInTableLock()) {
+            void tryResumeSession();
+            return;
+          }
+          goToTable();
+        } else goToOrderType();
       }
       return;
     }
@@ -2014,6 +2082,15 @@
   }
 
   function finishWithTable(table) {
+    const lock = readDineInTableLock();
+    if (lock && Number(table) !== Number(lock.tableNumber)) {
+      showNotice(t('tableOccupied'));
+      return;
+    }
+    if (lock && Number(table) === Number(lock.tableNumber)) {
+      enterLockedDineInTable(table, { remoteSessionId: lock.remoteSessionId });
+      return;
+    }
     if (isStaffOrderPage() || changingTable || Session?.hasActiveDineInSession()) {
       completeDineInTable(table);
       return;
@@ -2190,6 +2267,12 @@
   }
 
   function reopenTablePicker() {
+    if (readDineInTableLock()) {
+      if (typeof window.LechaimMenu?.notifyTableLocked === 'function') {
+        window.LechaimMenu.notifyTableLocked();
+      }
+      return false;
+    }
     const order = window.LechaimOrderEngine?.getOrder?.();
     const locked = Boolean(order?.items?.some((item) => item && Number(item.qty) > 0));
     if (locked) {
@@ -2249,6 +2332,7 @@
    * Does not clear storage itself — main.js clears local state first.
    */
   function resetToEntry() {
+    clearDineInTableLock();
     started = true;
     changingTable = false;
     state.orderType = null;
@@ -2365,6 +2449,7 @@
 
   async function discardClosedLocalSession(session) {
     if (!session) return;
+    clearDineInTableLock();
     clearLocalSessionMapEntry(session.sessionId);
     try {
       Session?.clearSession?.();
@@ -2497,6 +2582,14 @@
     if (readPersistedCartCount(session?.orderType, fulfillment) > 0) return true;
     if (isTakeawaySessionType(session?.orderType) && hasTakeawayOrderLock(fulfillment)) return true;
     if (hasEngineOrderItemsForSession(session)) return true;
+    const lock = readDineInTableLock();
+    if (
+      lock
+      && session?.tableNumber != null
+      && Number(lock.tableNumber) === Number(session.tableNumber)
+    ) {
+      return true;
+    }
     return false;
   }
 
@@ -2562,12 +2655,122 @@
     return true;
   }
 
+  async function isRemoteDineInSessionOpen(remoteId) {
+    const api = window.LechaimSupabaseOrders;
+    if (!remoteId) return true;
+    if (!api?.isConfigured?.() || typeof api.getSession !== 'function') return true;
+    try {
+      const remote = await api.getSession(remoteId);
+      if (!remote) return false;
+      const status = String(remote?.status || '');
+      return status === 'active' || status === 'bill_requested';
+    } catch (err) {
+      console.warn('[entry-gate] dine-in lock session check failed', err);
+      return true;
+    }
+  }
+
+  async function resolveDineInOnlyLock() {
+    if (!isDineInOnlyPage() || isStaffOrderPage()) return null;
+    const lock = readDineInTableLock();
+    if (lock) {
+      const remoteId = lock.remoteSessionId
+        || (() => {
+          try {
+            const raw = localStorage.getItem('lechaim-supabase-session-map');
+            const map = raw ? JSON.parse(raw) : {};
+            return map?.[lock.sessionId] || '';
+          } catch (_) {
+            return '';
+          }
+        })();
+      if (remoteId && !(await isRemoteDineInSessionOpen(remoteId))) {
+        clearDineInTableLock();
+        return null;
+      }
+      return { ...lock, remoteSessionId: remoteId || lock.remoteSessionId };
+    }
+
+    /* Recover a sent order if the lock was missing but this phone still maps an open table */
+    try {
+      const raw = localStorage.getItem('lechaim-supabase-session-map');
+      const map = raw ? JSON.parse(raw) : {};
+      const ids = Object.entries(map || {}).filter(([, remoteId]) => remoteId);
+      const api = window.LechaimSupabaseOrders;
+      if (!ids.length || !api?.getSession) return null;
+      for (let i = ids.length - 1; i >= 0; i -= 1) {
+        const [localId, remoteId] = ids[i];
+        try {
+          const remote = await api.getSession(remoteId);
+          const status = String(remote?.status || '');
+          const tableNumber = Number(remote?.table_number);
+          const type = String(remote?.order_type || '');
+          if (
+            (status === 'active' || status === 'bill_requested')
+            && (type === 'dine_in' || type === 'dinein' || type === 'dine-in')
+            && Number.isInteger(tableNumber)
+            && tableNumber >= TABLE_MIN
+            && tableNumber <= TABLE_MAX
+          ) {
+            const recovered = {
+              tableNumber,
+              sessionId: String(localId),
+              remoteSessionId: String(remoteId),
+            };
+            writeDineInTableLock({ ...recovered, lockedAt: new Date().toISOString() });
+            return recovered;
+          }
+        } catch (_) { /* try next mapped session */ }
+      }
+    } catch (_) { /* ignore */ }
+    return null;
+  }
+
+  function enterLockedDineInTable(tableNumber, extras = {}) {
+    const n = Number(tableNumber);
+    if (!Number.isInteger(n) || n < TABLE_MIN || n > TABLE_MAX) return false;
+    const prev = Session?.getSession?.();
+    const sameTable = prev
+      && (prev.orderType === 'dine-in' || prev.orderType === 'dinein')
+      && Number(prev.tableNumber) === n;
+    if (Session) {
+      if (sameTable) Session.updateTable(n);
+      else Session.startDineIn(n);
+    }
+    const session = Session?.getSession?.();
+    if (extras.remoteSessionId && session?.sessionId) {
+      rememberDineInSessionMap(session.sessionId, extras.remoteSessionId);
+    }
+    state.orderType = 'dine-in';
+    state.tableNumber = n;
+    state.customerName = extras.customerName || session?.customerName || '';
+    if (session?.lang === 'he' || session?.lang === 'en') state.lang = session.lang;
+    setLang(state.lang);
+    enterMenu(buildMenuContext({
+      orderType: 'dine-in',
+      tableNumber: n,
+      lang: state.lang,
+      customerName: state.customerName,
+      customerNotes: extras.customerNotes || session?.customerNotes || '',
+    }));
+    return true;
+  }
+
   /**
    * Resume an open dine-in or butcher session into the menu (unless Supabase says closed).
    * Takeaway: never auto-enter the menu on refresh — show home and keep order state.
    * User resumes via the איסוף עצמי button → resumeTakeawaySession.
    */
   async function tryResumeSession() {
+    if (isDineInOnlyPage() && !isStaffOrderPage()) {
+      const lock = await resolveDineInOnlyLock();
+      if (lock) {
+        return enterLockedDineInTable(lock.tableNumber, {
+          remoteSessionId: lock.remoteSessionId,
+        });
+      }
+    }
+
     if (Session?.hasActiveDineInSession()) {
       const session = Session.getSession();
       if (!session) return false;
@@ -2753,8 +2956,15 @@
 
     const tableBtn = event.target.closest('[data-table]');
     if (tableBtn && stepTable && !stepTable.hidden) {
-      const occupiedBlocked = tableBtn.disabled
-        || (tableBtn.classList.contains('is-occupied') && !isStaffOrderPage());
+      const picked = Number(tableBtn.dataset.table);
+      const ownLock = readDineInTableLock();
+      if (ownLock && Number.isInteger(picked) && picked !== Number(ownLock.tableNumber)) {
+        showNotice(t('tableOccupied'));
+        return;
+      }
+      const occupiedBlocked = (tableBtn.disabled
+        || (tableBtn.classList.contains('is-occupied') && !isStaffOrderPage()))
+        && !(ownLock && picked === Number(ownLock.tableNumber));
       if (occupiedBlocked) {
         showNotice(t('tableOccupied'));
         return;

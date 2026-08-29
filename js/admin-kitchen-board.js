@@ -23,14 +23,119 @@
 
   let board = [];
   let openTable = null;
-  let currentPane = 'alerts';
+  let currentPane = 'tables';
   let refreshTimer = null;
   let unsubscribe = null;
   let active = false;
   let boardPrimed = false;
-  const openNotes = new Set();
   let seenSessions = new Set();
   let pollTimer = null;
+  let noteModalItemId = '';
+  let noteModalSelected = new Set();
+  let noteModalOther = false;
+  let noteFocusRelease = null;
+
+  const NOTE_JOIN = ' · ';
+  const NOTE_PRESETS = [
+    { id: 'no_cilantro', he: 'בלי כוסברה', el: 'Χωρίς κόλιανδρο' },
+    { id: 'no_cumin', he: 'בלי כמון', el: 'Χωρίς κύμινο' },
+    { id: 'no_olive_oil', he: 'בלי שמן זית', el: 'Χωρίς ελαιόλαδο' },
+    { id: 'no_chickpeas', he: 'בלי גרגירי חומוס', el: 'Χωρίς ρεβίθια' },
+    { id: 'no_salt', he: 'בלי מלח', el: 'Χωρίς αλάτι' },
+    { id: 'do_not_heat', he: 'לא לחמם', el: 'Να μη ζεσταθεί' },
+    { id: 'double_2', he: 'לשים כפול 2', el: 'Διπλή μερίδα' },
+    { id: 'must_be_hot', he: 'חשוב שיהיה חם', el: 'Να είναι ζεστό' },
+    { id: 'grilled_veg_side', he: 'ירקות על האש בצד', el: 'Λαχανικά σχάρας στο πλάι' },
+    { id: 'no_sweet_potato_puree', he: 'בלי פירה בטטה', el: 'Χωρίς πουρέ γλυκοπατάτας' },
+    { id: 'must_chimichurri', he: 'חובה צ\'ימיצ\'ורי', el: 'Υποχρεωτικά τσιμιτσούρι' },
+    { id: 'large_cut', he: 'נתח גדול', el: 'Μεγάλο κομμάτι' },
+    { id: 'side_rice', he: 'אורז', el: 'ρύζι' },
+    { id: 'side_fries', he: "צ'יפס", el: 'πατάτες' },
+    { id: 'side_beans', he: 'שעועית', el: 'φασολάκια' },
+    { id: 'side_puree', he: 'פירה', el: 'πουρές' },
+    { id: 'make_thin', he: 'שיהיה דק', el: 'Να είναι λεπτό' },
+    { id: 'no_strong_spice', he: 'בלי תיבול חזק', el: 'Χωρίς δυνατό καρύκευμα' },
+    { id: 'not_too_much_sauce', he: 'בלי הרבה רוטב', el: 'Χωρίς πολλή σάλτσα' },
+    { id: 'all_veg_side', he: 'כל הירקות בצד', el: 'Όλα τα λαχανικά στο πλάι' },
+    { id: 'add_half_beans', he: 'להוסיף גם חצי שעועית', el: 'Προσθέστε και μισή μερίδα φασολάκια' },
+    { id: 'add_half_rice', he: 'להוסיף גם חצי אורז', el: 'Προσθέστε και μισή μερίδα ρύζι' },
+    { id: 'add_half_puree', he: 'להוסיף גם חצי פירה', el: 'Προσθέστε και μισή μερίδα πουρέ' },
+    { id: 'add_half_fries', he: 'להוסיף גם חצי צ\'יפס', el: 'Προσθέστε και μισή μερίδα πατάτες' },
+    { id: 'no_veg_at_all', he: 'בלי ירק בכלל', el: 'Χωρίς λαχανικά καθόλου' },
+    { id: 'double_amount', he: 'כמות כפולה', el: 'Διπλή ποσότητα' },
+    { id: 'no_tomato', he: 'בלי עגבנייה', el: 'Χωρίς ντομάτα' },
+    { id: 'pargit_uncut', he: 'פרגית לא חתוכה', el: 'Περγκίτ χωρίς κόψιμο' },
+    { id: 'not_heavily_seasoned', he: 'לא מתובל חזק', el: 'Όχι πολύ καρυκευμένο' },
+    { id: 'no_lemon', he: 'בלי לימון', el: 'Χωρίς λεμόνι' },
+    { id: 'add_cilantro', he: 'להוסיף כוסברה', el: 'Προσθέστε κόλιανδρο' },
+    { id: 'fresh_lemon_side', he: 'לימון טרי בצד', el: 'Φρέσκο λεμόνι στο πλάι' },
+    { id: 'no-onion', he: 'בלי בצל', el: 'Χωρίς κρεμμύδι' },
+    { id: 'spicy', he: 'חריף', el: 'Πικάντικο' },
+    { id: 'not-spicy', he: 'לא חריף', el: 'Όχι πικάντικο' },
+    { id: 'sauce-side', he: 'רוטב בצד', el: 'Σάλτσα στο πλάι' },
+    { id: 'serve-apart', he: 'להגיש בנפרד', el: 'Σερβίρεται ξεχωριστά' },
+    { id: 'hold-late', he: 'להוציא מאוחר', el: 'Να βγει αργότερα' },
+    { id: 'no-oil', he: 'בלי שמן', el: 'Χωρίς λάδι' },
+    { id: 'no-salt', he: 'בלי מלח', el: 'Χωρίς αλάτι' },
+  ];
+  const NOTE_PRESET_BY_ID = new Map();
+  const NOTE_PRESET_BY_HE = new Map();
+  const NOTE_PRESET_BY_EL = new Map();
+  const NOTE_PRESETS_BY_CATEGORY = {
+    starters: ['no_cilantro', 'no_cumin', 'no_olive_oil', 'no_chickpeas', 'no_salt', 'do_not_heat', 'double_2', 'must_be_hot'],
+    specials: ['grilled_veg_side', 'no_sweet_potato_puree', 'must_chimichurri', 'no_cilantro', 'large_cut'],
+    mains: [
+      'side_rice', 'side_fries', 'side_beans', 'side_puree',
+      'make_thin', 'no_salt',
+      'no_strong_spice', 'not_too_much_sauce', 'all_veg_side',
+      'add_half_beans', 'add_half_rice', 'add_half_puree', 'add_half_fries', 'no_veg_at_all',
+    ],
+    salads: [
+      'double_amount', 'no_tomato', 'pargit_uncut', 'not_heavily_seasoned',
+      'no_salt', 'no_lemon', 'no_olive_oil', 'add_cilantro', 'fresh_lemon_side',
+    ],
+  };
+  let noteModalCategoryIds = [];
+  let noteModalSideFrom = null;
+
+  const HOT_SIDE_SWAP = [
+    { key: 'fries', ids: ['fries-side', 'fries-classic'], he: "צ'יפס", el: 'πατάτες' },
+    { key: 'rice', ids: ['rice', 'starter-rice'], he: 'אורז', el: 'ρύζι' },
+    { key: 'beans', ids: ['green-beans', 'starter-green-beans'], he: 'שעועית', el: 'φασολάκια' },
+    { key: 'puree', ids: ['puree', 'starter-puree'], he: 'פירה', el: 'πουρές' },
+  ];
+  const HOT_SIDE_SWAP_BY_ID = new Map();
+  HOT_SIDE_SWAP.forEach((row) => {
+    row.ids.forEach((id) => HOT_SIDE_SWAP_BY_ID.set(id, row));
+  });
+  HOT_SIDE_SWAP.forEach((from) => {
+    HOT_SIDE_SWAP.forEach((to) => {
+      if (from.key === to.key) return;
+      NOTE_PRESETS.push({
+        id: `side_swap_${from.key}_${to.key}`,
+        he: `במקום ${from.he} שיהיה ${to.he}`,
+        el: `Αντί για ${from.el}, ${to.el}`,
+      });
+    });
+  });
+  NOTE_PRESETS.forEach((row) => {
+    if (!NOTE_PRESET_BY_ID.has(row.id)) NOTE_PRESET_BY_ID.set(row.id, row);
+    if (!NOTE_PRESET_BY_HE.has(row.he)) NOTE_PRESET_BY_HE.set(row.he, row);
+    if (!NOTE_PRESET_BY_EL.has(row.el)) NOTE_PRESET_BY_EL.set(row.el, row);
+  });
+
+  const noteModal = document.getElementById('dish-note-modal');
+  const noteModalDish = document.getElementById('dish-note-dish-name');
+  const notePresetGrid = document.getElementById('dish-note-presets');
+  const noteSwapWrap = document.getElementById('dish-note-side-swap');
+  const noteSwapGrid = document.getElementById('dish-note-side-swap-presets');
+  const noteOtherBtn = document.getElementById('dish-note-other');
+  const noteFreeWrap = document.getElementById('dish-note-free-wrap');
+  const noteFreeInput = document.getElementById('dish-note-free');
+  const noteErrorEl = document.getElementById('dish-note-error');
+  const noteSaveBtn = document.getElementById('dish-note-save');
+  const noteCancelBtn = document.getElementById('dish-note-cancel');
+  const noteBackdrop = document.getElementById('dish-note-backdrop');
 
   function escapeHtml(str) {
     const div = document.createElement('div');
@@ -203,6 +308,7 @@
       printName: String(row.print_name || ''),
       qty: Number(row.quantity) || 0,
       notes: row.notes == null ? '' : String(row.notes),
+      notesEl: row.notes_el == null ? '' : String(row.notes_el),
       linkedToMainItemId: row.parent_item_id ? String(row.parent_item_id) : null,
       createdAt: row.created_at || null,
       kitchenStatus: api?.normalizeKitchenStatus?.(row.kitchen_status) || 'waiting',
@@ -339,20 +445,12 @@
     const label = isSide || isAddon(item) ? `+ ${bonName(item)}${qty}` : `${bonName(item)}${qty}`;
     const showCheck = !isSide && !isAddon(item);
     const urgent = !isSide && !isAddon(item) && Boolean(item.kitchenUrgent) && !ready;
-    const note = String(item.notes || '').trim();
+    const note = displayNoteHe(item);
     const itemId = String(item.itemId || '');
-    const noteOpen = openNotes.has(itemId);
-    const sideNote = (isSide || isAddon(item)) && note
-      ? `<small>${escapeHtml(note)}</small>`
-      : '';
+    const noteLine = note ? `<small>${escapeHtml(note)}</small>` : '';
     const noteBtn = (isSide || isAddon(item))
       ? ''
-      : `<button type="button" class="kitchen-ready-note-btn${note ? ' has-note' : ''}" data-kitchen-note-toggle="${escapeHtml(itemId)}" aria-expanded="${noteOpen ? 'true' : 'false'}">הערה</button>`;
-    const noteWrap = (isSide || isAddon(item))
-      ? ''
-      : `<div class="kitchen-ready-note-wrap"${noteOpen ? '' : ' hidden'}>
-          <input type="text" class="kitchen-ready-note" data-kitchen-note="${escapeHtml(itemId)}" maxlength="180" value="${escapeHtml(note)}" placeholder="הערה למטבח">
-        </div>`;
+      : `<button type="button" class="kitchen-ready-note-btn${note ? ' has-note' : ''}" data-kitchen-note-open="${escapeHtml(itemId)}">הערה</button>`;
     const urgentBtn = (isSide || isAddon(item) || ready)
       ? ''
       : `<button type="button" class="kitchen-ready-urgent${item.kitchenUrgent ? ' is-on' : ''}" data-kitchen-urgent="${escapeHtml(item.itemId)}">דחוף</button>`;
@@ -361,11 +459,10 @@
         ${showCheck ? `<span class="kitchen-ready-mark" aria-hidden="true">${ready ? '✓' : ''}</span>` : ''}
         <div class="kitchen-ready-dish__copy">
           <strong>${late ? '<em class="kitchen-ready-new">חדש</em> ' : ''}${escapeHtml(label)}</strong>
-          ${sideNote}
+          ${noteLine}
         </div>
         ${noteBtn}
         ${urgentBtn}
-        ${noteWrap}
       </article>
     `;
   }
@@ -391,15 +488,7 @@
     if (detailMeta) {
       detailMeta.innerHTML = escapeHtml(statusText);
     }
-    const editing = Boolean(
-      detailItems
-      && detailItems.contains(document.activeElement)
-      && (
-        document.activeElement.hasAttribute('data-kitchen-note')
-        || document.activeElement.closest('.kitchen-ready-note-wrap')
-      )
-    );
-    if (detailItems && !editing) {
+    if (detailItems && !noteModalItemId) {
       const groups = groupItems(entry.items);
       detailItems.innerHTML = groups.map((row) => {
         const ready = isReady(row.main);
@@ -585,41 +674,369 @@
 
   document.getElementById('kitchen-ready-detail-close')?.addEventListener('click', () => {
     openTable = null;
-    openNotes.clear();
     if (detailEl) detailEl.hidden = true;
   });
 
-  async function saveDishNote(input) {
-    const id = String(input?.dataset?.kitchenNote || '');
-    if (!id || !api?.updateItemNotes) return;
-    const next = String(input.value || '').trim();
+  function uniqueNoteIds(ids) {
+    const seen = new Set();
+    const next = [];
+    (ids || []).forEach((id) => {
+      const key = String(id || '');
+      if (!key || seen.has(key) || !NOTE_PRESET_BY_ID.has(key)) return;
+      seen.add(key);
+      next.push(key);
+    });
+    return next;
+  }
+
+  function catalogCategoryId(productId) {
+    const id = String(productId || '');
+    if (!id) return '';
+    const cats = global.MENU_DATA?.categories || [];
+    for (let i = 0; i < cats.length; i += 1) {
+      const cat = cats[i];
+      const catId = String(cat?.id || '');
+      if ((cat.items || []).some((row) => String(row?.id) === id)) return catId;
+      const subs = cat.subsections || [];
+      for (let s = 0; s < subs.length; s += 1) {
+        if ((subs[s].items || []).some((row) => String(row?.id) === id)) return catId;
+      }
+    }
+    return '';
+  }
+
+  function noteIdsForItem(item) {
+    const fromCatalog = catalogCategoryId(item?.productId);
+    const stored = String(item?.category || item?.category_id || '').trim();
+    const categoryId = NOTE_PRESETS_BY_CATEGORY[fromCatalog]
+      ? fromCatalog
+      : (NOTE_PRESETS_BY_CATEGORY[stored] ? stored : fromCatalog);
+    return uniqueNoteIds(NOTE_PRESETS_BY_CATEGORY[categoryId] || []);
+  }
+
+  function visibleNotePresets() {
+    const seen = new Set();
+    const list = [];
+    const add = (id) => {
+      const key = String(id || '');
+      if (!key || seen.has(key) || isSideSwapPresetId(key)) return;
+      const row = NOTE_PRESET_BY_ID.get(key);
+      if (!row) return;
+      seen.add(key);
+      list.push(row);
+    };
+    (noteModalCategoryIds || []).forEach(add);
+    [...noteModalSelected].forEach(add);
+    return list;
+  }
+
+  function isSideSwapPresetId(id) {
+    return String(id || '').startsWith('side_swap_');
+  }
+
+  function matchPresetByText(text) {
+    const raw = String(text || '').trim();
+    if (!raw) return null;
+    return NOTE_PRESET_BY_HE.get(raw) || NOTE_PRESET_BY_EL.get(raw) || null;
+  }
+
+  function parseStoredNote(he) {
+    const raw = String(he || '').trim();
+    const selected = new Set();
+    const leftover = [];
+    if (!raw) return { selected, freeHe: '' };
+    raw.split(/\s*·\s*|\s*,\s*/).map((part) => part.trim()).filter(Boolean).forEach((part) => {
+      const preset = matchPresetByText(part);
+      if (preset) selected.add(preset.id);
+      else leftover.push(part);
+    });
+    return { selected, freeHe: leftover.join(NOTE_JOIN) };
+  }
+
+  function displayNoteHe(item) {
+    const raw = String(item?.notes || '').trim();
+    if (!raw) return '';
+    const parsed = parseStoredNote(raw);
+    return composeNoteHe(parsed.selected, parsed.freeHe) || raw;
+  }
+
+  function attachedHotSide(item) {
+    if (!item?.itemId) return null;
     const entry = board.find((row) => row.tableNumber === Number(openTable));
-    const item = (entry?.items || []).find((row) => String(row.itemId) === id);
-    if (!item || String(item.notes || '') === next) return;
+    const kids = (entry?.items || []).filter((row) => (
+      String(row.linkedToMainItemId || '') === String(item.itemId)
+      && Number(row.qty) > 0
+      && !isKitchenModifier(row)
+    ));
+    const sides = kids
+      .map((row) => HOT_SIDE_SWAP_BY_ID.get(String(row.productId || '')))
+      .filter(Boolean);
+    if (!sides.length) return null;
+    const keys = new Set(sides.map((row) => row.key));
+    if (keys.size !== 1) return null;
+    return sides[0];
+  }
+
+  function swapPresetsForCurrentSide() {
+    if (!noteModalSideFrom) return [];
+    return HOT_SIDE_SWAP
+      .filter((to) => to.key !== noteModalSideFrom.key)
+      .map((to) => NOTE_PRESET_BY_ID.get(`side_swap_${noteModalSideFrom.key}_${to.key}`))
+      .filter(Boolean);
+  }
+
+  function swapChipLabel(preset) {
+    const match = String(preset?.id || '').match(/^side_swap_([a-z]+)_([a-z]+)$/);
+    if (!match) return preset?.he || '';
+    const from = HOT_SIDE_SWAP.find((row) => row.key === match[1]);
+    const to = HOT_SIDE_SWAP.find((row) => row.key === match[2]);
+    if (!from || !to) return preset?.he || '';
+    return `${from.he} → ${to.he}`;
+  }
+
+  function composeNoteHe(presetIds, freeHe) {
+    const labels = NOTE_PRESETS.filter((row) => presetIds.has(row.id)).map((row) => row.he);
+    const free = String(freeHe || '').trim();
+    if (free) labels.push(free);
+    return labels.join(NOTE_JOIN);
+  }
+
+  function composeNoteEl(presetIds, freeEl) {
+    const labels = NOTE_PRESETS.filter((row) => presetIds.has(row.id)).map((row) => row.el);
+    const free = String(freeEl || '').trim();
+    if (free) labels.push(free);
+    return labels.join(NOTE_JOIN);
+  }
+
+  function findOpenItem(itemId) {
+    const entry = board.find((row) => row.tableNumber === Number(openTable));
+    return (entry?.items || []).find((row) => String(row.itemId) === String(itemId || '')) || null;
+  }
+
+  function setNoteError(message) {
+    if (!noteErrorEl) return;
+    const text = String(message || '').trim();
+    noteErrorEl.textContent = text;
+    noteErrorEl.hidden = !text;
+  }
+
+  function renderNotePresets() {
+    if (!notePresetGrid) return;
+    notePresetGrid.innerHTML = visibleNotePresets().map((row) => `
+      <button type="button" class="dish-note-chip${noteModalSelected.has(row.id) ? ' is-on' : ''}" data-dish-note-preset="${escapeHtml(row.id)}">
+        <span class="dish-note-chip__mark" aria-hidden="true">${noteModalSelected.has(row.id) ? '✓' : ''}</span>
+        ${escapeHtml(row.he)}
+      </button>
+    `).join('');
+    const swapRows = swapPresetsForCurrentSide();
+    const extraSwaps = [...noteModalSelected]
+      .map((id) => NOTE_PRESET_BY_ID.get(id))
+      .filter((row) => row && isSideSwapPresetId(row.id) && !swapRows.some((item) => item.id === row.id));
+    const allSwaps = swapRows.concat(extraSwaps);
+    if (noteSwapWrap) noteSwapWrap.hidden = allSwaps.length === 0;
+    if (noteSwapGrid) {
+      noteSwapGrid.innerHTML = allSwaps.map((row) => `
+        <button type="button" class="dish-note-chip dish-note-chip--swap${noteModalSelected.has(row.id) ? ' is-on' : ''}" data-dish-note-preset="${escapeHtml(row.id)}">
+          <span class="dish-note-chip__mark" aria-hidden="true">${noteModalSelected.has(row.id) ? '✓' : ''}</span>
+          ${escapeHtml(swapChipLabel(row))}
+        </button>
+      `).join('');
+    }
+    if (noteOtherBtn) {
+      noteOtherBtn.classList.toggle('is-on', noteModalOther);
+      noteOtherBtn.setAttribute('aria-pressed', noteModalOther ? 'true' : 'false');
+      const mark = noteOtherBtn.querySelector('.dish-note-chip__mark');
+      if (mark) mark.textContent = noteModalOther ? '✓' : '';
+    }
+    if (noteFreeWrap) noteFreeWrap.hidden = !noteModalOther;
+  }
+
+  function closeNoteModal() {
+    noteModalItemId = '';
+    noteModalSelected = new Set();
+    noteModalCategoryIds = [];
+    noteModalSideFrom = null;
+    noteModalOther = false;
+    if (typeof noteFocusRelease === 'function') noteFocusRelease();
+    noteFocusRelease = null;
+    if (noteFreeInput) noteFreeInput.value = '';
+    if (noteSwapWrap) noteSwapWrap.hidden = true;
+    setNoteError('');
+    if (noteSaveBtn) {
+      noteSaveBtn.disabled = false;
+      noteSaveBtn.textContent = 'שמור הערה';
+    }
+    if (noteModal) {
+      noteModal.hidden = true;
+      noteModal.setAttribute('aria-hidden', 'true');
+    }
+    document.body.classList.remove('admin-modal-open');
+  }
+
+  function openNoteModal(itemId) {
+    const item = findOpenItem(itemId);
+    if (!item || !noteModal) return;
+    const parsed = parseStoredNote(item.notes);
+    noteModalItemId = String(item.itemId);
+    noteModalCategoryIds = noteIdsForItem(item);
+    noteModalSideFrom = attachedHotSide(item);
+    noteModalSelected = parsed.selected;
+    noteModalOther = Boolean(parsed.freeHe);
+    if (noteModalDish) noteModalDish.textContent = bonName(item);
+    if (noteFreeInput) noteFreeInput.value = parsed.freeHe;
+    setNoteError('');
+    renderNotePresets();
+    noteModal.hidden = false;
+    noteModal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('admin-modal-open');
+    if (typeof noteFocusRelease === 'function') noteFocusRelease();
+    const release = global.LechaimFocusTrap?.activate?.(noteModal);
+    noteFocusRelease = typeof release === 'function' ? release : null;
+    (noteModalOther ? noteFreeInput : notePresetGrid?.querySelector('button'))?.focus?.();
+  }
+
+  async function saveNoteModal() {
+    const id = noteModalItemId;
+    if (!id || !api?.updateItemNotes) return;
+    const item = findOpenItem(id);
+    if (!item) return;
+    let freeHe = noteModalOther ? String(noteFreeInput?.value || '').trim() : '';
+    if (freeHe) {
+      const known = matchPresetByText(freeHe);
+      if (known) {
+        noteModalSelected.add(known.id);
+        freeHe = '';
+        if (noteFreeInput) noteFreeInput.value = '';
+        noteModalOther = false;
+      }
+    }
+    const notesHe = composeNoteHe(noteModalSelected, freeHe);
+    if (!notesHe) {
+      try {
+        if (noteSaveBtn) {
+          noteSaveBtn.disabled = true;
+          noteSaveBtn.textContent = 'שומר…';
+        }
+        await api.updateItemNotes(id, '', '');
+        item.notes = '';
+        item.notesEl = '';
+        closeNoteModal();
+        renderBoard();
+      } catch (err) {
+        console.warn('[admin-kitchen-board] note clear failed', err);
+        setNoteError('לא הצלחנו לשמור את ההערה. נסה שוב.');
+        if (noteSaveBtn) {
+          noteSaveBtn.disabled = false;
+          noteSaveBtn.textContent = 'שמור הערה';
+        }
+      }
+      return;
+    }
+
+    let freeEl = '';
+    if (freeHe) {
+      if (!api.translateNoteHeToEl) {
+        setNoteError('לא הצלחנו לתרגם את ההערה. נסה שוב.');
+        return;
+      }
+      try {
+        if (noteSaveBtn) {
+          noteSaveBtn.disabled = true;
+          noteSaveBtn.textContent = 'מתרגם…';
+        }
+        setNoteError('');
+        freeEl = await api.translateNoteHeToEl(freeHe);
+      } catch (err) {
+        console.warn('[admin-kitchen-board] note translate failed', err);
+        const msg = String(err?.message || '');
+        setNoteError(/not_configured|Failed to send|FunctionsHttpError|Function not found/i.test(msg)
+          ? 'שירות התרגום לא זמין. בחרו הערה מוכנה, או בדקו את translate-note ב-Supabase.'
+          : 'לא הצלחנו לתרגם את ההערה. נסה שוב.');
+        if (noteSaveBtn) {
+          noteSaveBtn.disabled = false;
+          noteSaveBtn.textContent = 'שמור הערה';
+        }
+        return;
+      }
+    }
+
+    const notesEl = composeNoteEl(noteModalSelected, freeEl);
+    if (!notesEl) {
+      setNoteError('לא הצלחנו לתרגם את ההערה. נסה שוב.');
+      if (noteSaveBtn) {
+        noteSaveBtn.disabled = false;
+        noteSaveBtn.textContent = 'שמור הערה';
+      }
+      return;
+    }
+
     try {
-      await api.updateItemNotes(id, next);
-      item.notes = next;
+      if (noteSaveBtn) {
+        noteSaveBtn.disabled = true;
+        noteSaveBtn.textContent = 'שומר…';
+      }
+      await api.updateItemNotes(id, notesHe, notesEl);
+      item.notes = notesHe;
+      item.notesEl = notesEl;
+      closeNoteModal();
+      renderBoard();
     } catch (err) {
       console.warn('[admin-kitchen-board] note save failed', err);
+      const missing = /notes_el/i.test(String(err?.message || ''));
+      setNoteError(missing
+        ? 'חסרה עמודת notes_el — הריצו supabase-order-item-notes-el.sql'
+        : 'לא הצלחנו לשמור את ההערה. נסה שוב.');
+      if (noteSaveBtn) {
+        noteSaveBtn.disabled = false;
+        noteSaveBtn.textContent = 'שמור הערה';
+      }
     }
   }
 
-  detailItems?.addEventListener('focusout', (event) => {
-    const input = event.target.closest('[data-kitchen-note]');
-    if (input) saveDishNote(input);
+  function onNotePresetClick(event) {
+    const btn = event.target.closest('[data-dish-note-preset]');
+    if (!btn) return;
+    const id = String(btn.dataset.dishNotePreset || '');
+    if (!id) return;
+    if (noteModalSelected.has(id)) {
+      noteModalSelected.delete(id);
+    } else {
+      if (isSideSwapPresetId(id)) {
+        [...noteModalSelected].forEach((key) => {
+          if (isSideSwapPresetId(key)) noteModalSelected.delete(key);
+        });
+      }
+      noteModalSelected.add(id);
+    }
+    renderNotePresets();
+  }
+  notePresetGrid?.addEventListener('click', onNotePresetClick);
+  noteSwapGrid?.addEventListener('click', onNotePresetClick);
+
+  noteOtherBtn?.addEventListener('click', () => {
+    noteModalOther = !noteModalOther;
+    if (!noteModalOther && noteFreeInput) noteFreeInput.value = '';
+    renderNotePresets();
+    if (noteModalOther) noteFreeInput?.focus();
+  });
+
+  noteCancelBtn?.addEventListener('click', closeNoteModal);
+  noteBackdrop?.addEventListener('click', closeNoteModal);
+  noteSaveBtn?.addEventListener('click', () => {
+    saveNoteModal();
+  });
+  noteModal?.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeNoteModal();
+    }
   });
 
   detailItems?.addEventListener('click', async (event) => {
-    const noteBtn = event.target.closest('[data-kitchen-note-toggle]');
+    const noteBtn = event.target.closest('[data-kitchen-note-open]');
     if (noteBtn) {
-      const id = String(noteBtn.dataset.kitchenNoteToggle || '');
-      if (!id) return;
-      if (openNotes.has(id)) openNotes.delete(id);
-      else openNotes.add(id);
-      renderDetail();
-      if (openNotes.has(id)) {
-        detailItems.querySelector(`[data-kitchen-note="${id}"]`)?.focus();
-      }
+      const id = String(noteBtn.dataset.kitchenNoteOpen || '');
+      if (id) openNoteModal(id);
       return;
     }
 

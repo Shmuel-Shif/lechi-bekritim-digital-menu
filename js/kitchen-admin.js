@@ -32,6 +32,10 @@
   let sending = false;
   let primed = false;
   let audioCtx = null;
+  let prevNoteAlertVer = new Map();
+  let pendingNoteAlerts = [];
+  let noteToastTimer = null;
+  let noteToastHideTimer = null;
   let prevPrepQty = new Map();
   let prepPulseUntil = new Map();
   let prepQtyPrimed = false;
@@ -278,6 +282,102 @@
     return Boolean(order?.printed_at);
   }
 
+  function playNoteChime() {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      if (!audioCtx) audioCtx = new AudioCtx();
+      if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+      const now = audioCtx.currentTime;
+      [
+        { freq: 392, at: 0, dur: 0.16 },
+        { freq: 494, at: 0.18, dur: 0.16 },
+        { freq: 587, at: 0.36, dur: 0.28 },
+      ].forEach((tone) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.value = tone.freq;
+        gain.gain.setValueAtTime(0.0001, now + tone.at);
+        gain.gain.exponentialRampToValueAtTime(0.28, now + tone.at + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + tone.at + tone.dur);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now + tone.at);
+        osc.stop(now + tone.at + tone.dur + 0.02);
+      });
+    } catch (_) { /* ignore */ }
+  }
+
+  function hideNoteToast() {
+    const el = document.getElementById('kt-note-toast');
+    if (el) el.hidden = true;
+  }
+
+  function showNoteToast(alert) {
+    const el = document.getElementById('kt-note-toast');
+    if (!el || !alert?.item) return;
+    const table = Number(alert.tableNumber) || 0;
+    el.innerHTML = `
+      <p class="kt-note-toast__table">${escapeHtml(txt('tablePrefix'))} ${escapeHtml(String(table))}</p>
+      <p class="kt-note-toast__dish">${escapeHtml(dishName(alert.item))}</p>
+      <p class="kt-note-toast__text">${escapeHtml(kitchenNoteText(alert.item))}</p>
+      <button type="button" class="kt-note-toast__open" data-kt-note-open="${escapeHtml(String(table))}">${escapeHtml(txt('noteOpenTable'))}</button>
+    `;
+    el.hidden = false;
+    window.clearTimeout(noteToastHideTimer);
+    noteToastHideTimer = window.setTimeout(hideNoteToast, 8000);
+  }
+
+  function flushNoteAlerts() {
+    const batch = pendingNoteAlerts;
+    pendingNoteAlerts = [];
+    noteToastTimer = null;
+    if (!batch.length) return;
+    playNoteChime();
+    showNoteToast(batch[0]);
+  }
+
+  function queueNoteAlerts(alerts) {
+    if (!alerts?.length) return;
+    pendingNoteAlerts.push(...alerts);
+    window.clearTimeout(noteToastTimer);
+    noteToastTimer = window.setTimeout(flushNoteAlerts, 500);
+  }
+
+  function seedNoteAlertVersions(rows) {
+    const next = new Map();
+    (rows || []).forEach((entry) => {
+      (entry.order?.items || []).forEach((item) => {
+        const ver = Number(item.notesVersion) || 0;
+        if (item.itemId && ver > 0) next.set(String(item.itemId), ver);
+      });
+    });
+    prevNoteAlertVer = next;
+  }
+
+  function collectNewNoteAlerts(rows) {
+    const fresh = [];
+    const next = new Map();
+    (rows || []).forEach((entry) => {
+      (entry.order?.items || []).forEach((item) => {
+        const id = String(item.itemId || '');
+        const ver = Number(item.notesVersion) || 0;
+        if (!id) return;
+        if (ver > 0) next.set(id, ver);
+        const prev = prevNoteAlertVer.get(id) || 0;
+        if (isUnreadNote(item) && ver > prev) {
+          fresh.push({
+            tableNumber: entry.tableNumber,
+            item,
+          });
+        }
+      });
+    });
+    prevNoteAlertVer = next;
+    return fresh;
+  }
+
   function playNewTicketChime() {
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -324,6 +424,9 @@
       qty: Number(row.quantity) || 0,
       price: Number(row.price) || 0,
       notes: row.notes == null ? '' : String(row.notes),
+      notesEl: row.notes_el == null ? '' : String(row.notes_el),
+      notesVersion: Number(row.notes_version) || 0,
+      notesSeenVersion: Number(row.notes_seen_version) || 0,
       linkedToMainItemId: row.parent_item_id ? String(row.parent_item_id) : null,
       createdAt: row.created_at || extras.createdAt || null,
       kitchenStatus: kitchenStatus(row.kitchen_status),
@@ -806,26 +909,49 @@
     `;
   }
 
-  function noteHtml(text) {
-    const raw = String(text || '').trim();
-    if (!raw) return '';
-    return `<p class="kt-dish__notes" data-kt-note="${escapeHtml(raw)}">${escapeHtml(raw)}</p>`;
+  function kitchenNoteText(item) {
+    const savedEl = String(item?.notesEl || item?.notes_el || '').trim();
+    if (savedEl) return savedEl;
+    return String(item?.notes || '').trim();
   }
 
-  async function hydrateNotes(root) {
-    if (!root) return;
-    const nodes = [...root.querySelectorAll('[data-kt-note]')];
-    if (!nodes.length) return;
-    const showEl = lang() !== 'he';
-    await Promise.all(nodes.map(async (node) => {
-      const src = node.getAttribute('data-kt-note') || '';
-      if (!showEl) {
-        node.textContent = src;
-        return;
-      }
-      const translated = await i18n.toGreek?.(src);
-      node.textContent = translated || src;
-    }));
+  function isUnreadNote(item) {
+    if (!kitchenNoteText(item)) return false;
+    const version = Number(item?.notesVersion ?? item?.notes_version) || 0;
+    const seen = Number(item?.notesSeenVersion ?? item?.notes_seen_version) || 0;
+    return version > seen;
+  }
+
+  function unreadNoteItems(items) {
+    return (items || []).filter(isUnreadNote);
+  }
+
+  function unreadNoteCount(items) {
+    return unreadNoteItems(items).length;
+  }
+
+  function hasAnyKitchenNote(items) {
+    return (items || []).some((item) => Boolean(kitchenNoteText(item)));
+  }
+
+  function noteBadgeLabel(count) {
+    if (count <= 0) return '';
+    if (count === 1) return txt('noteNew');
+    return txt('noteNewMany').replace('{n}', String(count));
+  }
+
+  function noteHtml(item) {
+    const raw = kitchenNoteText(item);
+    if (!raw) return '';
+    const unread = isUnreadNote(item);
+    return `
+      <div class="kt-dish-note${unread ? ' is-unread' : ''}">
+        <p class="kt-dish-note__text">${escapeHtml(raw)}</p>
+        ${unread
+          ? `<button type="button" class="kt-dish-note__ack" data-kt-note-ack="${escapeHtml(item.itemId)}">${escapeHtml(txt('noteAck'))}</button>`
+          : ''}
+      </div>
+    `;
   }
 
   function renderSide(item, groupReady) {
@@ -833,7 +959,7 @@
     return `
       <div class="kt-dish kt-dish--side ${groupReady ? 'is-ready' : 'is-waiting'}">
         <span class="kt-dish__name">+ ${escapeHtml(dishName(item))}${qty > 1 ? ` × ${escapeHtml(String(qty))}` : ''}</span>
-        ${noteHtml(item.notes)}
+        ${noteHtml(item)}
       </div>
     `;
   }
@@ -874,7 +1000,7 @@
           </div>
         </div>
         ${kids ? `<div class="kt-dish__kids">${kids}</div>` : ''}
-        ${item.notes ? noteHtml(item.notes) : ''}
+        ${noteHtml(item)}
       </article>
     `;
   }
@@ -917,18 +1043,24 @@
         ? txt('tableFresh')
         : (wave ? txt('tableWave') : statusLabel(entry.uiStatus)));
     const urgentLabel = urgentList.map((item) => dishName(item)).filter(Boolean).slice(0, 2).join(' · ');
+    const noteBadge = noteBadgeLabel(unreadNoteCount(entry.order?.items));
+    const hasNotes = hasAnyKitchenNote(entry.order?.items);
+    const noteMark = hasNotes
+      ? `<span class="kt-table-card__note-mark" aria-hidden="true">!</span>`
+      : '';
     return `
       <button type="button"
-        class="kt-table-card is-${escapeHtml(cardTone(entry.uiStatus))}${fresh ? ' is-fresh' : ''}${wave ? ' is-wave' : ''}${urgent ? ' is-urgent' : ''}${allDone ? ' is-allready' : ''}"
+        class="kt-table-card is-${escapeHtml(cardTone(entry.uiStatus))}${fresh ? ' is-fresh' : ''}${wave ? ' is-wave' : ''}${urgent ? ' is-urgent' : ''}${allDone ? ' is-allready' : ''}${hasNotes ? ' has-notes' : ''}"
         data-kt-table="${escapeHtml(String(entry.tableNumber))}"
       >
         <span class="kt-table-card__num">${escapeHtml(String(entry.tableNumber))}</span>
         <span class="kt-table-card__status">${escapeHtml(statusText)}</span>
         ${urgentLabel ? `<span class="kt-table-card__urgent">${escapeHtml(urgentLabel)}</span>` : ''}
+        ${noteBadge ? `<span class="kt-table-card__note">${escapeHtml(noteBadge)}</span>` : ''}
         ${global.LechaimKitchenProgress?.barHtml?.(
           global.LechaimKitchenProgress.fromItems(entry.order?.items),
           { readyWord: txt('progressReady') }
-        ) || `<span class="kt-table-card__items">${escapeHtml(String(counts.ready))} / ${escapeHtml(String(counts.total))} ${escapeHtml(txt('readyCount'))}</span>`}
+        ) || `<span class="kt-table-card__items">${escapeHtml(String(counts.ready))} / ${escapeHtml(String(counts.total))} ${escapeHtml(txt('readyCount'))}${noteMark}</span>`}
         ${allDone ? `<span class="kt-table-card__done">${escapeHtml(txt('allReadyDone'))}</span>` : ''}
         <span class="kt-table-card__time">${escapeHtml(formatElapsed(entry.openedAt))}</span>
       </button>
@@ -969,7 +1101,6 @@
         : `<p class="kt-news__empty">${escapeHtml(txt('dishesEmpty'))}</p>`;
       drawerItems.scrollTop = scrollTop;
     }
-    hydrateNotes(drawerEl);
     const allReadyBtn = document.getElementById('kt-all-ready');
     if (allReadyBtn) {
       const counts = readyCounts(entry.order.items);
@@ -1022,6 +1153,7 @@
           if (waveKey) chimed.add(waveKey);
         });
         saveChimed(chimed);
+        seedNoteAlertVersions(next);
       } else {
         let ring = false;
         next.forEach((entry) => {
@@ -1038,6 +1170,7 @@
         });
         if (ring) playNewTicketChime();
         saveChimed(chimed);
+        queueNoteAlerts(collectNewNoteAlerts(next));
       }
       primed = true;
       board = next;
@@ -1101,6 +1234,29 @@
         try { await api.bumpOrderItemQuantity(item.itemId, 1); } catch (_) { /* ignore */ }
       }
       throw err;
+    }
+  }
+
+  async function ackItemNote(itemId) {
+    if (sending) return;
+    const id = String(itemId || '');
+    const entry = board.find((row) => (row.order?.items || []).some((item) => String(item.itemId) === id));
+    const item = (entry?.order?.items || []).find((row) => String(row.itemId) === id);
+    if (!item || !isUnreadNote(item) || !api?.markItemNotesSeen) return;
+    sending = true;
+    const prevSeen = item.notesSeenVersion;
+    item.notesSeenVersion = Number(item.notesVersion) || 0;
+    renderBoard();
+    try {
+      await api.markItemNotesSeen(id);
+      setError('');
+      await loadBoard();
+    } catch (err) {
+      item.notesSeenVersion = prevSeen;
+      renderBoard();
+      setError(err?.message || txt('noteAckFail'));
+    } finally {
+      sending = false;
     }
   }
 
@@ -1197,7 +1353,7 @@
     if (!entry?.order) return;
     if (isFresh(entry)) {
       startKitchen(entry);
-      if (hasUrgent(entry)) fillDrawer(tableNumber);
+      if (hasUrgent(entry) || unreadNoteCount(entry.order?.items)) fillDrawer(tableNumber);
       return;
     }
     if (hasUrgent(entry)) {
@@ -1229,6 +1385,21 @@
       if (openPrepMains.has(key)) openPrepMains.delete(key);
       else openPrepMains.add(key);
       renderPrepBoard();
+      return;
+    }
+    const noteOpen = event.target.closest('[data-kt-note-open]');
+    if (noteOpen) {
+      hideNoteToast();
+      const tableNumber = Number(noteOpen.dataset.ktNoteOpen);
+      if (Number.isFinite(tableNumber)) {
+        setTab('tables');
+        fillDrawer(tableNumber);
+      }
+      return;
+    }
+    const noteAck = event.target.closest('[data-kt-note-ack]');
+    if (noteAck) {
+      ackItemNote(noteAck.dataset.ktNoteAck);
       return;
     }
     const toggle = event.target.closest('[data-kt-dish-toggle]');

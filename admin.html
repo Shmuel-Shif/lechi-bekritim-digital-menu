@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=78">
+  <link rel="stylesheet" href="css/admin.css?v=80">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
 <body>
@@ -268,16 +268,11 @@
           </header>
 
           <nav class="kitchen-subnav" aria-label="מטבח">
-            <button type="button" class="admin-tab is-active" data-kitchen-pane="alerts">קריאות</button>
-            <button type="button" class="admin-tab" data-kitchen-pane="tables">שולחנות</button>
+            <button type="button" class="admin-tab is-active" data-kitchen-pane="tables">שולחנות</button>
+            <button type="button" class="admin-tab" data-kitchen-pane="alerts">קריאות</button>
           </nav>
 
-          <div id="kitchen-pane-alerts">
-            <div class="kitchen-alerts-list" id="kitchen-alerts-list"></div>
-            <p class="tables-category__empty" id="kitchen-alerts-empty">אין בקשות פתוחות מהמטבח</p>
-          </div>
-
-          <div id="kitchen-pane-tables" hidden>
+          <div id="kitchen-pane-tables">
             <div class="kitchen-ready-grid" id="kitchen-ready-grid"></div>
             <p class="tables-category__empty" id="kitchen-ready-empty">אין שולחנות פעילים</p>
             <aside class="kitchen-ready-detail" id="kitchen-ready-detail" hidden>
@@ -288,6 +283,11 @@
               <p class="kitchen-ready-detail__meta" id="kitchen-ready-detail-meta"></p>
               <div class="kitchen-ready-detail__items" id="kitchen-ready-detail-items"></div>
             </aside>
+          </div>
+
+          <div id="kitchen-pane-alerts" hidden>
+            <div class="kitchen-alerts-list" id="kitchen-alerts-list"></div>
+            <p class="tables-category__empty" id="kitchen-alerts-empty">אין בקשות פתוחות מהמטבח</p>
           </div>
         </section>
       </div>
@@ -904,6 +904,44 @@
       </aside>
     </div>
 
+    <div class="admin-modal" id="dish-note-modal" hidden aria-hidden="true">
+      <button type="button" class="admin-modal__backdrop" id="dish-note-backdrop" aria-label="סגור"></button>
+      <div
+        class="admin-modal__panel dish-note-modal__panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dish-note-title"
+      >
+        <h2 class="dish-note-modal__title" id="dish-note-title">הערה למנה</h2>
+        <p class="dish-note-modal__dish" id="dish-note-dish-name"></p>
+        <h3 class="dish-note-modal__label">בחר הערות מהירות</h3>
+        <div class="dish-note-modal__presets" id="dish-note-presets"></div>
+        <div class="dish-note-modal__swap" id="dish-note-side-swap" hidden>
+          <h3 class="dish-note-modal__label">החלפת תוספת</h3>
+          <div class="dish-note-modal__presets dish-note-modal__presets--swap" id="dish-note-side-swap-presets"></div>
+        </div>
+        <button type="button" class="dish-note-chip dish-note-chip--other" id="dish-note-other" aria-pressed="false">
+          <span class="dish-note-chip__mark" aria-hidden="true"></span>
+          אחר
+        </button>
+        <div class="dish-note-modal__free" id="dish-note-free-wrap" hidden>
+          <h3 class="dish-note-modal__label">הערה אחרת</h3>
+          <textarea
+            id="dish-note-free"
+            class="dish-note-modal__textarea"
+            maxlength="180"
+            rows="3"
+            placeholder="כתוב הערה חופשית בעברית"
+          ></textarea>
+        </div>
+        <p class="dish-note-modal__error" id="dish-note-error" hidden></p>
+        <div class="admin-modal__actions">
+          <button type="button" class="admin-btn admin-btn--ghost" id="dish-note-cancel">ביטול</button>
+          <button type="button" class="admin-btn admin-btn--primary" id="dish-note-save">שמור הערה</button>
+        </div>
+      </div>
+    </div>
+
     <div class="admin-modal" id="admin-success-modal" hidden aria-hidden="true">
       <button type="button" class="admin-modal__backdrop" id="admin-success-backdrop" aria-label="סגור"></button>
       <div class="admin-modal__panel admin-modal__panel--success" role="dialog" aria-modal="true" aria-labelledby="admin-success-text">
@@ -1228,7 +1266,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
   <script src="js/order-types.js" defer></script>
-  <script src="js/supabase-order-service.js?v=23" defer></script>
+  <script src="js/supabase-order-service.js?v=27" defer></script>
   <script src="js/menu-data.js?v=92" defer></script>
   <script src="js/opening-hours.js?v=12" defer></script>
   <script src="js/app-settings.js?v=6" defer></script>
@@ -1245,7 +1283,7 @@
   <script src="js/admin-reservations.js?v=6" defer></script>
   <script src="js/kitchen-alert-service.js?v=13" defer></script>
   <script src="js/admin-kitchen-alerts.js?v=14" defer></script>
-  <script src="js/admin-kitchen-board.js?v=19" defer></script>
+  <script src="js/admin-kitchen-board.js?v=24" defer></script>
   <script src="js/admin-history.js?v=2" defer></script>
   <script src="js/admin-coupons.js" defer></script>
   <script src="js/admin-till.js?v=3" defer></script>

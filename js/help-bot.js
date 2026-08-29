@@ -61,6 +61,7 @@
     helpBotTopicHours: 'מה שעות הפעילות?',
     helpBotTopicLocation: 'איפה אתם נמצאים?',
     helpBotTopicAround: 'מה בסביבה שלנו',
+    aroundUsHint: 'הכל במרחק הליכה באנליפסי',
     helpBotTopicDelivery: 'יש משלוחים?',
     helpBotTopicPickup: 'איך עושים איסוף עצמי?',
     helpBotTopicButcher: 'חנות הבשר',
@@ -392,10 +393,14 @@
       return;
     }
     if (id === 'around') {
-      closePanel();
-      window.setTimeout(() => {
-        window.LechaimAroundUs?.open?.();
-      }, 50);
+      view = 'answer';
+      currentTopicId = id;
+      renderAnswer({
+        topicId: id,
+        title: `🚶 ${t('helpBotTopicAround')}`,
+        body: t('aroundUsHint'),
+        extraHtml: window.LechaimAroundUs?.placesListHtml?.() || '',
+      });
       return;
     }
 
