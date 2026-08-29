@@ -978,6 +978,32 @@ html[dir='ltr'] .food-modal-body .food-card .food-content {
 }
 
 @media (max-width: 639px) {
+  .cart-item {
+    padding: 0.3rem 0.38rem;
+    margin-bottom: 0.26rem;
+  }
+
+  .cart-item--main {
+    padding: 0.32rem 0.4rem;
+  }
+
+  .cart-item--side {
+    margin-bottom: 0.08rem;
+    padding-inline-start: 0.45rem;
+  }
+
+  .cart-group {
+    margin-bottom: 0.42rem;
+  }
+
+  .cart-group-sides {
+    padding: 0.1rem 0.28rem 0.16rem;
+  }
+
+  .cart-session-total {
+    padding: 0.28rem 0.5rem;
+  }
+
   .site-header__bh {
     top: max(0.15rem, env(safe-area-inset-top, 0px));
     right: max(0.4rem, env(safe-area-inset-right, 0px)) !important;

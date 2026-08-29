@@ -656,9 +656,45 @@ html[dir="rtl"] .kt-prep {
   min-height: 0;
 }
 
+.kt-tables,
+.kt-prep__list,
+.kt-sheet__panel--table .kt-dishes {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(196, 160, 106, 0.55) transparent;
+}
+
+.kt-tables::-webkit-scrollbar,
+.kt-prep__list::-webkit-scrollbar,
+.kt-sheet__panel--table .kt-dishes::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.kt-tables::-webkit-scrollbar-track,
+.kt-prep__list::-webkit-scrollbar-track,
+.kt-sheet__panel--table .kt-dishes::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 0.4rem 0;
+}
+
+.kt-tables::-webkit-scrollbar-thumb,
+.kt-prep__list::-webkit-scrollbar-thumb,
+.kt-sheet__panel--table .kt-dishes::-webkit-scrollbar-thumb {
+  background: rgba(196, 160, 106, 0.42);
+  border-radius: 999px;
+}
+
+.kt-tables::-webkit-scrollbar-thumb:hover,
+.kt-prep__list::-webkit-scrollbar-thumb:hover,
+.kt-sheet__panel--table .kt-dishes::-webkit-scrollbar-thumb:hover {
+  background: rgba(196, 160, 106, 0.7);
+}
+
 .kt-prep {
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   background: var(--kt-panel);
   border: 1px solid var(--kt-line);
   border-radius: 16px;
@@ -667,19 +703,43 @@ html[dir="rtl"] .kt-prep {
 }
 
 .kt-prep__title {
-  margin: 0 0 0.6rem;
+  margin: 0 0 0.45rem;
   font-size: 0.98rem;
   font-weight: 800;
   line-height: 1.3;
   color: var(--kt-gold);
+  flex: 0 0 auto;
+}
+
+.kt-prep__cols {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
 }
 
 .kt-prep__section {
-  margin-top: 0.7rem;
+  min-height: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.kt-prep__section.is-fixed {
+  flex: 0 0 auto;
+}
+
+.kt-prep__section.is-fixed .kt-prep__list {
+  overflow: visible;
+}
+
+.kt-prep__section.is-mains {
+  flex: 1 1 auto;
 }
 
 .kt-prep__section:first-of-type {
-  margin-top: 0.1rem;
+  margin-top: 0;
 }
 
 .kt-prep__heading {
@@ -689,14 +749,19 @@ html[dir="rtl"] .kt-prep {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--kt-muted);
+  flex: 0 0 auto;
 }
 
 .kt-prep__list {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 0 0.1rem 0 0;
   display: grid;
+  align-content: start;
   gap: 0.38rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
 }
 
 .kt-prep__row {
@@ -728,6 +793,32 @@ button.kt-prep__row {
 
 .kt-prep__row.is-open {
   background: rgba(196, 160, 106, 0.12);
+}
+
+.kt-prep__row.is-wave {
+  background: linear-gradient(165deg, #fb923c 0%, #ea580c 55%, #c2410c 100%);
+  color: #fff;
+  outline: none;
+}
+
+.kt-prep__row.is-wave.is-open {
+  background: linear-gradient(165deg, #fb923c 0%, #ea580c 55%, #c2410c 100%);
+}
+
+.kt-prep__row.is-wave .kt-prep__qty {
+  color: #fff8f1;
+}
+
+.kt-prep__row.is-zero {
+  opacity: 0.42;
+}
+
+.kt-prep__empty-row {
+  margin: 0;
+  padding: 0.45rem 0.2rem;
+  color: var(--kt-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
 }
 
 .kt-prep__name {
@@ -824,6 +915,51 @@ button.kt-prep__row {
   font-variant-numeric: tabular-nums;
 }
 
+.kt-kprog {
+  display: grid;
+  gap: 0.28rem;
+  width: 100%;
+  max-width: 11.5rem;
+  justify-self: center;
+  margin-top: 0.12rem;
+}
+
+.kt-kprog__label {
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--kt-muted);
+}
+
+.kt-kprog__count {
+  display: inline-block;
+  unicode-bidi: isolate;
+}
+
+.kt-kprog__track {
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(243, 237, 227, 0.18);
+  overflow: hidden;
+}
+
+.kt-kprog__fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: rgba(243, 237, 227, 0.38);
+  transition: width 0.35s ease, background-color 0.35s ease;
+}
+
+.kt-kprog.is-mid .kt-kprog__fill {
+  background: var(--kt-gold);
+}
+
+.kt-kprog.is-ready .kt-kprog__fill {
+  background: var(--kt-ok);
+}
+
 .kt-table-card__status,
 .kt-table-card__items,
 .kt-table-card__time {
@@ -852,7 +988,8 @@ button.kt-prep__row {
 .kt-table-card.is-fresh .kt-table-card__status,
 .kt-table-card.is-fresh .kt-table-card__items,
 .kt-table-card.is-fresh .kt-table-card__time,
-.kt-table-card.is-fresh .kt-table-card__dishes {
+.kt-table-card.is-fresh .kt-table-card__dishes,
+.kt-table-card.is-fresh .kt-kprog__label {
   color: rgba(255, 255, 255, 0.88);
 }
 
@@ -866,7 +1003,8 @@ button.kt-prep__row {
 .kt-table-card.is-wave .kt-table-card__status,
 .kt-table-card.is-wave .kt-table-card__items,
 .kt-table-card.is-wave .kt-table-card__time,
-.kt-table-card.is-wave .kt-table-card__dishes {
+.kt-table-card.is-wave .kt-table-card__dishes,
+.kt-table-card.is-wave .kt-kprog__label {
   color: rgba(255, 255, 255, 0.9);
 }
 
@@ -880,7 +1018,8 @@ button.kt-prep__row {
 .kt-table-card.is-urgent .kt-table-card__status,
 .kt-table-card.is-urgent .kt-table-card__items,
 .kt-table-card.is-urgent .kt-table-card__time,
-.kt-table-card.is-urgent .kt-table-card__urgent {
+.kt-table-card.is-urgent .kt-table-card__urgent,
+.kt-table-card.is-urgent .kt-kprog__label {
   color: rgba(255, 255, 255, 0.92);
 }
 
@@ -912,7 +1051,7 @@ button.kt-prep__row {
 .kt-news,
 .kt-dishes {
   display: grid;
-  gap: 0.55rem;
+  gap: 0.4rem;
 }
 
 .kt-news__empty {
@@ -931,9 +1070,9 @@ button.kt-prep__row {
 
 .kt-dish-group {
   display: grid;
-  gap: 0.35rem;
-  padding: 0.65rem 0.7rem;
-  border-radius: 0.8rem;
+  gap: 0.22rem;
+  padding: 0.42rem 0.55rem;
+  border-radius: 0.7rem;
   background: #101c30;
   border-inline-start: 3px solid var(--kt-accent, var(--kt-gold));
 }
@@ -994,14 +1133,14 @@ button.kt-prep__row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.35rem 0.45rem;
-  border-radius: 0.55rem;
-  background: rgba(14, 22, 36, 0.65);
+  gap: 0.3rem;
+  padding: 0.04rem 0.15rem 0.08rem 0.55rem;
+  border-radius: 0;
+  background: transparent;
 }
 
 .kt-dish--side .kt-dish__name {
-  font-size: 0.92rem;
+  font-size: 0.86rem;
   font-weight: 700;
 }
 
@@ -1021,7 +1160,7 @@ button.kt-prep__row {
 
 .kt-dish__name {
   font-weight: 800;
-  font-size: 1.02rem;
+  font-size: 0.95rem;
 }
 
 .kt-dish__status {
@@ -1069,8 +1208,8 @@ button.kt-prep__row {
 .kt-ready {
   appearance: none;
   flex: 0 0 auto;
-  width: 1.85rem;
-  height: 1.85rem;
+  width: 1.55rem;
+  height: 1.55rem;
   padding: 0;
   border: 2px solid rgba(243, 237, 227, 0.55);
   background: transparent;
@@ -1105,7 +1244,8 @@ button.kt-prep__row {
 .kt-table-card.is-allready .kt-table-card__status,
 .kt-table-card.is-allready .kt-table-card__items,
 .kt-table-card.is-allready .kt-table-card__time,
-.kt-table-card.is-allready .kt-table-card__dishes {
+.kt-table-card.is-allready .kt-table-card__dishes,
+.kt-table-card.is-allready .kt-kprog__label {
   color: rgba(255, 255, 255, 0.88);
 }
 

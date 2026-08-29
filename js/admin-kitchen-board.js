@@ -28,6 +28,7 @@
   let unsubscribe = null;
   let active = false;
   let boardPrimed = false;
+  const openNotes = new Set();
   let seenSessions = new Set();
   let pollTimer = null;
 
@@ -116,7 +117,30 @@
     return list.filter((item) => !isBarBonItem(item, byId, barIds));
   }
 
+  function catalogMenuOrder() {
+    const order = new Map();
+    let n = 0;
+    const add = (id) => {
+      const key = String(id || '');
+      if (!key || order.has(key)) return;
+      order.set(key, n);
+      n += 1;
+    };
+    (global.MENU_DATA?.categories || []).forEach((cat) => {
+      (cat.items || []).forEach((item) => add(item.id));
+      (cat.subsections || []).forEach((sub) => {
+        (sub.items || []).forEach((row) => add(row.id));
+      });
+    });
+    (global.HOT_SIDE_ITEMS || []).forEach((item) => add(item.id));
+    return order;
+  }
+
   function compareItems(a, b) {
+    const order = catalogMenuOrder();
+    const ia = order.has(String(a?.productId || '')) ? order.get(String(a.productId)) : 10000;
+    const ib = order.has(String(b?.productId || '')) ? order.get(String(b.productId)) : 10000;
+    if (ia !== ib) return ia - ib;
     const ta = Date.parse(a?.createdAt || '') || 0;
     const tb = Date.parse(b?.createdAt || '') || 0;
     if (ta !== tb) return ta - tb;
@@ -183,6 +207,7 @@
       createdAt: row.created_at || null,
       kitchenStatus: api?.normalizeKitchenStatus?.(row.kitchen_status) || 'waiting',
       kitchenUrgent: Boolean(row.kitchen_urgent),
+      wavePrinted: Boolean(extras?.printedAt),
       wavePrintedAt: extras?.printedAt || null,
     };
   }
@@ -239,6 +264,14 @@
   }
 
   function counts(items) {
+    const progress = global.LechaimKitchenProgress?.fromItems?.(items);
+    if (progress) {
+      return {
+        ready: progress.readyKitchenUnits,
+        total: progress.totalKitchenUnits,
+        allReady: progress.allReady,
+      };
+    }
     const list = (items || []).filter((item) => Number(item.qty) > 0 && !isAddon(item));
     const ready = list.filter(isReady).reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
     const total = list.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
@@ -295,15 +328,7 @@
       groups.push({ main: item, sides: [] });
       used.add(String(item.itemId));
     });
-    groups.sort((a, b) => {
-      const aUrgent = a.main.kitchenUrgent && !isReady(a.main) ? 0 : 1;
-      const bUrgent = b.main.kitchenUrgent && !isReady(b.main) ? 0 : 1;
-      if (aUrgent !== bUrgent) return aUrgent - bUrgent;
-      const aLate = a.main.isLate && !isReady(a.main) ? 0 : 1;
-      const bLate = b.main.isLate && !isReady(b.main) ? 0 : 1;
-      if (aLate !== bLate) return aLate - bLate;
-      return compareItems(a.main, b.main);
-    });
+    groups.sort((a, b) => compareItems(a.main, b.main));
     return groups;
   }
 
@@ -314,17 +339,33 @@
     const label = isSide || isAddon(item) ? `+ ${bonName(item)}${qty}` : `${bonName(item)}${qty}`;
     const showCheck = !isSide && !isAddon(item);
     const urgent = !isSide && !isAddon(item) && Boolean(item.kitchenUrgent) && !ready;
-    const noteField = (isSide || isAddon(item))
-      ? (item.notes ? `<small>${escapeHtml(item.notes)}</small>` : '')
-      : `<textarea class="kitchen-ready-note" data-kitchen-note="${escapeHtml(item.itemId)}" rows="2" maxlength="180" placeholder="הערה למטבח — כפי בקשת הלקוח">${escapeHtml(item.notes || '')}</textarea>`;
-    const urgentBtn = (isSide || isAddon(item))
+    const note = String(item.notes || '').trim();
+    const itemId = String(item.itemId || '');
+    const noteOpen = openNotes.has(itemId);
+    const sideNote = (isSide || isAddon(item)) && note
+      ? `<small>${escapeHtml(note)}</small>`
+      : '';
+    const noteBtn = (isSide || isAddon(item))
       ? ''
-      : `<button type="button" class="kitchen-ready-urgent${item.kitchenUrgent && !ready ? ' is-on' : ''}" data-kitchen-urgent="${escapeHtml(item.itemId)}">${item.kitchenUrgent && !ready ? 'דחוף ✓' : 'דחוף'}</button>`;
+      : `<button type="button" class="kitchen-ready-note-btn${note ? ' has-note' : ''}" data-kitchen-note-toggle="${escapeHtml(itemId)}" aria-expanded="${noteOpen ? 'true' : 'false'}">הערה</button>`;
+    const noteWrap = (isSide || isAddon(item))
+      ? ''
+      : `<div class="kitchen-ready-note-wrap"${noteOpen ? '' : ' hidden'}>
+          <input type="text" class="kitchen-ready-note" data-kitchen-note="${escapeHtml(itemId)}" maxlength="180" value="${escapeHtml(note)}" placeholder="הערה למטבח">
+        </div>`;
+    const urgentBtn = (isSide || isAddon(item) || ready)
+      ? ''
+      : `<button type="button" class="kitchen-ready-urgent${item.kitchenUrgent ? ' is-on' : ''}" data-kitchen-urgent="${escapeHtml(item.itemId)}">דחוף</button>`;
     return `
-      <article class="kitchen-ready-dish${ready ? ' is-ready' : ''}${isSide || isAddon(item) ? ' is-side' : ''}${late ? ' is-late' : ''}${urgent ? ' is-urgent' : ''}">
-        <span>${showCheck ? `${ready ? '✅' : '⬜'} ` : ''}${late ? '<em class="kitchen-ready-new">חדש</em> ' : ''}${escapeHtml(label)}</span>
+      <article class="kitchen-ready-dish${ready ? ' is-ready' : ' is-wait'}${isSide || isAddon(item) ? ' is-side' : ''}${late ? ' is-late' : ''}${urgent ? ' is-urgent' : ''}">
+        ${showCheck ? `<span class="kitchen-ready-mark" aria-hidden="true">${ready ? '✓' : ''}</span>` : ''}
+        <div class="kitchen-ready-dish__copy">
+          <strong>${late ? '<em class="kitchen-ready-new">חדש</em> ' : ''}${escapeHtml(label)}</strong>
+          ${sideNote}
+        </div>
+        ${noteBtn}
         ${urgentBtn}
-        ${noteField}
+        ${noteWrap}
       </article>
     `;
   }
@@ -353,16 +394,24 @@
     const editing = Boolean(
       detailItems
       && detailItems.contains(document.activeElement)
-      && document.activeElement.hasAttribute('data-kitchen-note')
+      && (
+        document.activeElement.hasAttribute('data-kitchen-note')
+        || document.activeElement.closest('.kitchen-ready-note-wrap')
+      )
     );
     if (detailItems && !editing) {
       const groups = groupItems(entry.items);
-      detailItems.innerHTML = groups.map((row) => `
-        <div class="kitchen-ready-group">
+      detailItems.innerHTML = groups.map((row) => {
+        const ready = isReady(row.main);
+        const late = Boolean(row.main.isLate) && !ready;
+        const urgent = Boolean(row.main.kitchenUrgent) && !ready;
+        return `
+        <div class="kitchen-ready-group${ready ? ' is-ready' : ' is-wait'}${late ? ' is-late' : ''}${urgent ? ' is-urgent' : ''}">
           ${dishHtml(row.main, false)}
-          ${row.sides.map((side) => dishHtml(side, true, isReady(row.main))).join('')}
+          ${row.sides.map((side) => dishHtml(side, true, ready)).join('')}
         </div>
-      `).join('');
+      `;
+      }).join('');
     }
     detailEl.hidden = false;
   }
@@ -392,6 +441,10 @@
         <button type="button" class="kitchen-ready-card${stateClass}" data-kitchen-table="${escapeHtml(String(entry.tableNumber))}">
           <strong>שולחן ${escapeHtml(String(entry.tableNumber))}</strong>
           <span>${label}</span>
+          ${global.LechaimKitchenProgress?.barHtml?.(
+            global.LechaimKitchenProgress.fromItems(entry.items),
+            { compact: true, className: 'kitchen-ready-kprog' }
+          ) || ''}
         </button>
       `;
     }).join('');
@@ -532,6 +585,7 @@
 
   document.getElementById('kitchen-ready-detail-close')?.addEventListener('click', () => {
     openTable = null;
+    openNotes.clear();
     if (detailEl) detailEl.hidden = true;
   });
 
@@ -556,6 +610,19 @@
   });
 
   detailItems?.addEventListener('click', async (event) => {
+    const noteBtn = event.target.closest('[data-kitchen-note-toggle]');
+    if (noteBtn) {
+      const id = String(noteBtn.dataset.kitchenNoteToggle || '');
+      if (!id) return;
+      if (openNotes.has(id)) openNotes.delete(id);
+      else openNotes.add(id);
+      renderDetail();
+      if (openNotes.has(id)) {
+        detailItems.querySelector(`[data-kitchen-note="${id}"]`)?.focus();
+      }
+      return;
+    }
+
     const btn = event.target.closest('[data-kitchen-urgent]');
     if (!btn || !api?.updateItemKitchenUrgent) return;
     const id = String(btn.dataset.kitchenUrgent || '');

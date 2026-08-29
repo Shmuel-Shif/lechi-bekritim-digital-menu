@@ -1287,6 +1287,49 @@ body::before {
   color: var(--color-text-muted);
 }
 
+.table-kprog {
+  display: grid;
+  gap: 0.18rem;
+  width: 100%;
+  margin: 0.18rem 0 0.08rem;
+  pointer-events: none;
+}
+
+.table-kprog__label {
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1.2;
+  color: #5c6570;
+}
+
+.table-kprog__track,
+.kitchen-ready-kprog__track {
+  height: 5px;
+  border-radius: 999px;
+  background: #e6e8ec;
+  overflow: hidden;
+}
+
+.table-kprog__fill,
+.kitchen-ready-kprog__fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: #c5ccd4;
+  transition: width 0.35s ease, background-color 0.35s ease;
+}
+
+.table-kprog.is-mid .table-kprog__fill,
+.kitchen-ready-kprog.is-mid .kitchen-ready-kprog__fill {
+  background: #c4a06a;
+}
+
+.table-kprog.is-ready .table-kprog__fill,
+.kitchen-ready-kprog.is-ready .kitchen-ready-kprog__fill {
+  background: #3d8f63;
+}
+
 .table-card__kstat {
   display: flex;
   flex-wrap: wrap;
@@ -5341,10 +5384,35 @@ body.admin-modal-open {
   font-size: 1.15rem;
 }
 
+.kitchen-ready-kprog {
+  display: grid;
+  gap: 0.18rem;
+  width: 100%;
+  margin-top: 0.2rem;
+  pointer-events: none;
+}
+
+.kitchen-ready-kprog__label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #5c6570;
+}
+
+.kitchen-ready-kprog__count,
+.table-kprog__count {
+  display: inline-block;
+  unicode-bidi: isolate;
+}
+
 .kitchen-ready-card span {
   font-size: 0.84rem;
   font-weight: 700;
   color: var(--color-text-muted, #58677b);
+}
+
+.kitchen-ready-card .kitchen-ready-kprog__label {
+  font-size: 0.72rem;
+  font-weight: 800;
 }
 
 .kitchen-ready-card.is-fresh {
@@ -5436,21 +5504,117 @@ body.admin-modal-open {
 
 .kitchen-ready-detail__items {
   display: grid;
-  gap: 0.4rem;
+  gap: 0.28rem;
+  max-height: min(62vh, 34rem);
+  overflow: auto;
+  padding-inline-end: 0.15rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(21, 38, 64, 0.28) transparent;
+}
+
+.kitchen-ready-detail__items::-webkit-scrollbar {
+  width: 6px;
+}
+
+.kitchen-ready-detail__items::-webkit-scrollbar-thumb {
+  background: rgba(21, 38, 64, 0.28);
+  border-radius: 999px;
 }
 
 .kitchen-ready-dish {
   display: grid;
-  gap: 0.15rem;
-  padding: 0.55rem 0.65rem;
-  border-radius: 10px;
-  background: #f7f3ec;
+  grid-template-columns: 1.2rem minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.2rem 0.4rem;
+  padding: 0.18rem 0.1rem;
+  border-radius: 0;
+  background: transparent;
+  border: 0;
   font-weight: 800;
 }
 
+.kitchen-ready-note-btn {
+  appearance: none;
+  margin: 0;
+  padding: 0.16rem 0.42rem;
+  border: 1px solid #c4a06a;
+  border-radius: 999px;
+  background: #fff;
+  color: #8a6a2f;
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.kitchen-ready-note-btn.has-note,
+.kitchen-ready-note-btn[aria-expanded="true"] {
+  background: #c4a06a;
+  color: #fff;
+}
+
+.kitchen-ready-note-wrap {
+  grid-column: 2 / -1;
+}
+
+.kitchen-ready-note-wrap[hidden] {
+  display: none !important;
+}
+
 .kitchen-ready-dish small {
+  display: block;
   font-weight: 600;
   color: var(--color-text-muted, #58677b);
+}
+
+.kitchen-ready-mark {
+  width: 1.15rem;
+  height: 1.15rem;
+  border: 2px solid #c4b8a4;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  line-height: 1;
+  color: #fff;
+}
+
+.kitchen-ready-mark.is-blank {
+  visibility: hidden;
+}
+
+.kitchen-ready-dish.is-ready .kitchen-ready-mark {
+  background: #16a34a;
+  border-color: #16a34a;
+}
+
+.kitchen-ready-dish__copy {
+  min-width: 0;
+  display: grid;
+  gap: 0.12rem;
+}
+
+.kitchen-ready-dish__copy strong {
+  font-size: 0.88rem;
+  line-height: 1.25;
+}
+
+.kitchen-ready-state {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  padding: 0.12rem 0.38rem;
+  border-radius: 999px;
+  background: #ffedd5;
+  color: #9a3412;
+  white-space: nowrap;
+}
+
+.kitchen-ready-dish.is-ready .kitchen-ready-state {
+  background: #dcfce7;
+  color: #166534;
 }
 
 .kitchen-ready-customer {
@@ -5462,41 +5626,39 @@ body.admin-modal-open {
 
 .kitchen-ready-note {
   width: 100%;
-  margin: 0.25rem 0 0;
-  padding: 0.4rem 0.5rem;
+  margin: 0;
+  padding: 0.18rem 0.4rem;
   border: 1px solid #e5ddd0;
-  border-radius: 8px;
+  border-radius: 6px;
   font: inherit;
   font-weight: 600;
-  font-size: 0.88rem;
-  resize: vertical;
-  min-height: 2.4rem;
+  font-size: 0.75rem;
+  min-height: 0;
   box-sizing: border-box;
   background: #fff;
 }
 
-.kitchen-ready-dish.is-late {
-  background: #fff4e8;
-  border: 1px solid #ea580c;
-}
-
+.kitchen-ready-dish.is-ready,
+.kitchen-ready-dish.is-wait,
+.kitchen-ready-dish.is-late,
 .kitchen-ready-dish.is-urgent {
-  background: #ecfdf5;
-  border: 1px solid #16a34a;
+  background: transparent;
+  border: 0;
 }
 
 .kitchen-ready-urgent {
   appearance: none;
-  margin: 0.2rem 0 0;
-  padding: 0.28rem 0.55rem;
+  margin: 0;
+  padding: 0.16rem 0.42rem;
   border: 1px solid #16a34a;
   border-radius: 999px;
   background: #fff;
   color: #15803d;
   font: inherit;
-  font-size: 0.78rem;
+  font-size: 0.68rem;
   font-weight: 800;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .kitchen-ready-urgent.is-on {
@@ -5518,15 +5680,57 @@ body.admin-modal-open {
 
 .kitchen-ready-group {
   display: grid;
-  gap: 0.28rem;
-  padding: 0.45rem;
-  border-radius: 12px;
-  background: #f3eee6;
+  gap: 0;
+  padding: 0.32rem 0.45rem 0.34rem;
+  border-radius: 10px;
+  background: #fff7ed;
+  border-inline-start: 3px solid #ea580c;
+}
+
+.kitchen-ready-group.is-ready {
+  background: #f0fdf4;
+  border-inline-start-color: #16a34a;
+}
+
+.kitchen-ready-group.is-late {
+  background: #fff4e8;
+  border-inline-start-color: #ea580c;
+}
+
+.kitchen-ready-group.is-urgent {
+  background: #ecfdf5;
+  border-inline-start-color: #16a34a;
 }
 
 .kitchen-ready-dish.is-side {
-  margin-inline-start: 0.85rem;
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0;
+  padding: 0.02rem 0.1rem 0.08rem 1.6rem;
   font-weight: 700;
+  background: transparent;
+  border: 0;
+}
+
+.kitchen-ready-dish.is-side strong {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #4b5563;
+}
+
+.table-drawer__kready {
+  flex: 0 0 auto;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  padding: 0.08rem 0.35rem;
+  border-radius: 999px;
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.table-drawer__kready.is-on {
+  background: #dcfce7;
+  color: #166534;
 }
 
 .kitchen-alerts-list {

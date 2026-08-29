@@ -159,6 +159,8 @@
       prepMains: 'Πιάτα',
       prepSides: 'Συνοδευτικά',
       prepFor: 'για {name}',
+      prepTable: 'Τραπέζι {n}',
+      progressReady: 'έτοιμο',
     },
     he: {
       title: 'מטבח',
@@ -244,6 +246,8 @@
       prepMains: 'מנות',
       prepSides: 'תוספות',
       prepFor: 'ל{name}',
+      prepTable: 'שולחן {n}',
+      progressReady: 'מוכן',
     },
   };
 

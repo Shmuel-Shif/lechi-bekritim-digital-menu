@@ -40,6 +40,7 @@
   const cartDeliveryFeeRow = $('#cart-delivery-fee-row');
   const cartDeliveryFeeLabel = $('#cart-delivery-fee-label');
   const cartDeliveryFeePrice = $('#cart-delivery-fee-price');
+  const cartSessionTotal = $('#cart-session-total');
   const cartSessionTotalPrice = $('#cart-session-total-price');
   const cartBadge = $('#cart-badge');
   const cartClose = $('#cart-close');
@@ -4909,6 +4910,126 @@
     return `€${n.toFixed(2)}`;
   }
 
+  function receiptItemName(item) {
+    const productId = String(item?.productId || '');
+    const catalog = productId ? findItem(productId) : null;
+    if (catalog) return getItemName(catalog);
+    return String(item?.name || item?.printName || item?.productId || '').trim();
+  }
+
+  function receiptParentId(item) {
+    const parentId = item?.linkedToMainItemId || item?.parent_item_id;
+    return parentId ? String(parentId) : '';
+  }
+
+  function receiptItemKey(item) {
+    return [
+      String(item?.productId || item?.itemId || receiptItemName(item)),
+      String(item?.notes || '').trim(),
+      Number(item?.price) || 0,
+    ].join('|');
+  }
+
+  function receiptSidesSignature(sides, mainQty) {
+    const units = Math.max(1, Number(mainQty) || 1);
+    return (sides || []).map((side) => {
+      const per = (Number(side.qty) || 0) / units;
+      return `${receiptItemKey(side)}:${per}`;
+    }).sort().join(';');
+  }
+
+  function groupReceiptItems(items) {
+    const list = (items || []).filter((item) => item && Number(item.qty) > 0);
+    const sidesByParent = new Map();
+    list.forEach((item) => {
+      const parentId = receiptParentId(item);
+      if (!parentId) return;
+      if (!sidesByParent.has(parentId)) sidesByParent.set(parentId, []);
+      sidesByParent.get(parentId).push(item);
+    });
+    const used = new Set();
+    const groups = [];
+    list.forEach((item) => {
+      if (receiptParentId(item)) return;
+      const id = String(item.itemId || item.remoteItemId || '');
+      const sides = (sidesByParent.get(id) || []).slice();
+      sides.forEach((side) => used.add(String(side.itemId || side.remoteItemId || '')));
+      groups.push({ main: item, sides });
+    });
+    list.forEach((item) => {
+      const id = String(item.itemId || item.remoteItemId || '');
+      if (!receiptParentId(item) || used.has(id)) return;
+      groups.push({ main: item, sides: [] });
+    });
+    return mergeReceiptGroups(groups);
+  }
+
+  function mergeReceiptGroups(groups) {
+    const merged = new Map();
+    (groups || []).forEach((group) => {
+      const key = `${receiptItemKey(group.main)}::${receiptSidesSignature(group.sides, group.main.qty)}`;
+      const prev = merged.get(key);
+      if (!prev) {
+        merged.set(key, {
+          main: { ...group.main },
+          sides: (group.sides || []).map((side) => ({ ...side })),
+        });
+        return;
+      }
+      prev.main.qty = (Number(prev.main.qty) || 0) + (Number(group.main.qty) || 0);
+      const byKey = new Map(prev.sides.map((side) => [receiptItemKey(side), side]));
+      (group.sides || []).forEach((side) => {
+        const match = byKey.get(receiptItemKey(side));
+        if (match) {
+          match.qty = (Number(match.qty) || 0) + (Number(side.qty) || 0);
+        } else {
+          const copy = { ...side };
+          prev.sides.push(copy);
+          byKey.set(receiptItemKey(side), copy);
+        }
+      });
+    });
+    return [...merged.values()];
+  }
+
+  function renderReceiptLine(item, isSide) {
+    const qty = Number(item.qty) || 0;
+    const price = (Number(item.price) || 0) * qty;
+    const showPrice = !isSide || price > 0;
+    const notes = String(item.notes || '').trim();
+    return `
+      <div class="order-receipt__line${isSide ? ' is-side' : ''}">
+        <span class="order-receipt__qty">${escapeHtml(isSide ? '+' : `${qty}×`)}</span>
+        <span class="order-receipt__name">${escapeHtml(receiptItemName(item))}${
+          isSide && qty > 1 ? ` × ${escapeHtml(String(qty))}` : ''
+        }</span>
+        <span class="order-receipt__price">${showPrice ? escapeHtml(formatReceiptMoney(price)) : ''}</span>
+      </div>
+      ${notes ? `<p class="order-receipt__notes">${escapeHtml(notes)}</p>` : ''}
+    `;
+  }
+
+  function renderReceiptItemsHtml(items) {
+    const groups = groupReceiptItems(items);
+    if (!groups.length) {
+      return `<p class="order-receipt__empty">${escapeHtml(t('receiptEmpty'))}</p>`;
+    }
+    return `
+      <ul class="order-receipt__list">
+        ${groups.map((group) => `
+          <li class="order-receipt__group">
+            ${renderReceiptLine(group.main, false)}
+            ${group.sides.length
+              ? `<div class="order-receipt__sides">${
+                group.sides.map((side) => renderReceiptLine(side, true)).join('')
+              }</div>`
+              : ''}
+          </li>
+        `).join('')}
+      </ul>
+    `;
+  }
+
   let receiptViewingMode = false;
 
   function closeOrderReceipt() {
@@ -5041,21 +5162,7 @@
       if (!items.length) {
         orderReceiptBody.innerHTML = `<p class="order-receipt__empty">${escapeHtml(t('receiptEmpty'))}</p>`;
       } else {
-        orderReceiptBody.innerHTML = `
-          <ul class="order-receipt__list">
-            ${items.map((item) => {
-              const name = item.name || item.printName || item.productId || '';
-              const lineTotal = (Number(item.price) || 0) * (Number(item.qty) || 0);
-              return `
-                <li class="order-receipt__line">
-                  <span class="order-receipt__qty">${escapeHtml(String(item.qty))}×</span>
-                  <span class="order-receipt__name">${escapeHtml(name)}</span>
-                  <span class="order-receipt__price">${escapeHtml(formatReceiptMoney(lineTotal))}</span>
-                </li>
-              `;
-            }).join('')}
-          </ul>
-        `;
+        orderReceiptBody.innerHTML = renderReceiptItemsHtml(items);
       }
     }
 
@@ -6822,6 +6929,10 @@
       } else {
         cartSessionTotalPrice.textContent = formatEuroTotal(getSessionOrderTotal());
       }
+    }
+    if (cartSessionTotal) {
+      const sessionTotal = Number(getSessionOrderTotal()) || 0;
+      cartSessionTotal.hidden = empty || sessionTotal <= 0;
     }
 
     /* Bill depends on sent order items — update even while send is in progress */

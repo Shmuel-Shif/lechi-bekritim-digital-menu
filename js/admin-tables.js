@@ -1921,16 +1921,9 @@
         ${groups.map((group) => {
           const lateClass = group.main.isLateAdd ? ' table-drawer__item--late' : '';
           if (group.kind === 'main-group') {
-            const sideNames = group.sides
-              .map((side) => side.name || side.productId || '')
-              .filter(Boolean)
-              .join(', ');
             return `
               <li class="table-drawer__group${lateClass}">
                 ${renderDrawerItemLine(group.main)}
-                ${sideNames
-                  ? `<p class="table-drawer__served">מוגש עם: ${escapeHtml(sideNames)}</p>`
-                  : ''}
                 <div class="table-drawer__sides">
                   ${group.sides.map((side) => renderDrawerItemLine(side, { isSide: true })).join('')}
                 </div>

@@ -36,6 +36,7 @@
   let prepPulseUntil = new Map();
   let prepQtyPrimed = false;
   let openPrepSides = new Set();
+  let openPrepMains = new Set();
 
   function lang() {
     return i18n?.getLang?.() || 'el';
@@ -243,6 +244,13 @@
     return (order.items || []).some((item) => ts(item.createdAt) > ack + 800);
   }
 
+  function isUnackedWaveItem(item, entry) {
+    const order = entry?.order;
+    if (!item || !order?.kitchenStarted) return false;
+    const ack = ts(order.kitchenWaveAckAt) || ts(order.kitchenStartedAt);
+    return ts(item.createdAt) > ack + 800;
+  }
+
   function waveChimeKey(entry) {
     const order = entry?.order;
     if (!order?.sessionId || !hasNewWave(entry)) return '';
@@ -386,6 +394,10 @@
   }
 
   function compareItems(a, b) {
+    const order = prepMenuOrder();
+    const ia = prepSortIndex(String(a?.productId || ''), order);
+    const ib = prepSortIndex(String(b?.productId || ''), order);
+    if (ia !== ib) return ia - ib;
     const ta = Date.parse(a?.createdAt || '') || 0;
     const tb = Date.parse(b?.createdAt || '') || 0;
     if (ta !== tb) return ta - tb;
@@ -478,15 +490,7 @@
       groups.push({ main: item, sides: [] });
       used.add(String(item.itemId));
     });
-    groups.sort((a, b) => {
-      const aUrgent = a.main.kitchenUrgent && !isDishReady(a.main) ? 0 : 1;
-      const bUrgent = b.main.kitchenUrgent && !isDishReady(b.main) ? 0 : 1;
-      if (aUrgent !== bUrgent) return aUrgent - bUrgent;
-      const aLate = a.main.isLate && !isDishReady(a.main) ? 0 : 1;
-      const bLate = b.main.isLate && !isDishReady(b.main) ? 0 : 1;
-      if (aLate !== bLate) return aLate - bLate;
-      return compareItems(a.main, b.main);
-    });
+    groups.sort((a, b) => compareItems(a.main, b.main));
     return groups;
   }
 
@@ -508,6 +512,29 @@
 
   function prepProductKey(item) {
     return String(item?.productId || '') || dishName(item);
+  }
+
+  const FIXED_SIDE_DEFS = [
+    { key: 'chips', ids: ['fries-side'], labelId: 'fries-side' },
+    { key: 'puree', ids: ['puree'], labelId: 'puree' },
+    { key: 'beans', ids: ['green-beans'], labelId: 'green-beans' },
+    { key: 'rice', ids: ['rice'], labelId: 'rice' },
+  ];
+
+  function hamburgerMealId() {
+    return String(global.HAMBURGER_MEAL_ID || 'hamburger-fries');
+  }
+
+  function fixedSideKey(productId) {
+    const id = String(productId || '');
+    if (id === hamburgerMealId()) return 'chips';
+    const hit = FIXED_SIDE_DEFS.find((row) => row.ids.includes(id));
+    return hit ? hit.key : '';
+  }
+
+  function isFixedSideProduct(productId) {
+    const id = String(productId || '');
+    return FIXED_SIDE_DEFS.some((row) => row.ids.includes(id));
   }
 
   function isPrepSideItem(item) {
@@ -546,6 +573,8 @@
   }
 
   function shouldCountPrepItem(item, byId) {
+    const api = global.LechaimKitchenProgress;
+    if (api?.isRemainingUnit) return api.isRemainingUnit(item, byId);
     if (!item || Number(item.qty) <= 0) return false;
     if (!item.wavePrinted) return false;
     if (isPrepModifier(item)) return false;
@@ -565,6 +594,15 @@
         || String(a.key).localeCompare(String(b.key)));
   }
 
+  function emptyFixedSide(def) {
+    return {
+      key: def.key,
+      qty: 0,
+      sample: { productId: def.labelId },
+      byParent: new Map(),
+    };
+  }
+
   function buildPrepTotals(entries) {
     const byId = new Map();
     (entries || []).forEach((entry) => {
@@ -573,29 +611,48 @@
       });
     });
     const mains = new Map();
-    const sides = new Map();
+    const sides = new Map(FIXED_SIDE_DEFS.map((def) => [def.key, emptyFixedSide(def)]));
     (entries || []).forEach((entry) => {
       (entry.order?.items || []).forEach((item) => {
         if (!shouldCountPrepItem(item, byId)) return;
-        const side = isPrepSideItem(item);
-        const bucket = side ? sides : mains;
-        const key = prepProductKey(item);
-        const prev = bucket.get(key) || { key, qty: 0, sample: item, byParent: new Map() };
-        prev.qty += Number(item.qty) || 0;
-        if (side) {
-          const parent = byId.get(String(item.linkedToMainItemId));
-          const parentKey = parent ? prepProductKey(parent) : '_';
+        const productId = prepProductKey(item);
+        const qty = Number(item.qty) || 0;
+        const isHamburger = productId === hamburgerMealId();
+        const attachedSide = Boolean(item.linkedToMainItemId)
+          && !isPrepModifier(item)
+          && !isStandaloneStarter(item)
+          && Boolean(fixedSideKey(productId));
+        if (attachedSide || isHamburger) {
+          const bucketKey = isHamburger ? 'chips' : fixedSideKey(productId);
+          const prev = sides.get(bucketKey);
+          prev.qty += qty;
+          const parent = isHamburger
+            ? item
+            : (byId.get(String(item.linkedToMainItemId)) || item);
+          const parentKey = parent ? prepProductKey(parent) : productId;
           const parentRow = prev.byParent.get(parentKey) || { key: parentKey, qty: 0, sample: parent || item };
-          parentRow.qty += Number(item.qty) || 0;
+          parentRow.qty += qty;
           prev.byParent.set(parentKey, parentRow);
+          if (attachedSide) return;
         }
-        bucket.set(key, prev);
+        if (isPrepSideItem(item) || isFixedSideProduct(productId)) return;
+        const key = productId;
+        const prev = mains.get(key) || { key, qty: 0, sample: item, byParent: new Map(), byTable: new Map(), wave: false };
+        prev.qty += qty;
+        if (isUnackedWaveItem(item, entry)) prev.wave = true;
+        const tableNo = Number(entry.tableNumber);
+        if (Number.isInteger(tableNo)) {
+          const tableRow = prev.byTable.get(tableNo) || { tableNumber: tableNo, qty: 0 };
+          tableRow.qty += qty;
+          prev.byTable.set(tableNo, tableRow);
+        }
+        mains.set(key, prev);
       });
     });
     const menuOrder = prepMenuOrder();
     return {
       mains: sortPrepRows([...mains.values()], menuOrder),
-      sides: sortPrepRows([...sides.values()], menuOrder),
+      sides: FIXED_SIDE_DEFS.map((def) => sides.get(def.key)),
     };
   }
 
@@ -606,11 +663,17 @@
   function prepRowHtml(row, role, now) {
     const pulseKey = prepPulseKey(role, row.key);
     const isNew = now < (prepPulseUntil.get(pulseKey) || 0);
-    const open = role === 'side' && openPrepSides.has(row.key);
+    const isWave = role === 'main' && Boolean(row.wave);
+    const open = role === 'side'
+      ? openPrepSides.has(row.key)
+      : openPrepMains.has(row.key);
     const parents = role === 'side'
       ? sortPrepRows([...row.byParent.values()], prepMenuOrder())
       : [];
-    const breakHtml = open && parents.length
+    const tables = role === 'main'
+      ? [...(row.byTable?.values?.() || [])].sort((a, b) => a.tableNumber - b.tableNumber)
+      : [];
+    const breakHtml = role === 'side' && open && parents.length
       ? `<ul class="kt-prep__break">
           ${parents.map((parent) => `
             <li class="kt-prep__break-row">
@@ -619,8 +682,25 @@
             </li>
           `).join('')}
         </ul>`
-      : '';
+      : (role === 'main' && open && tables.length
+        ? `<ul class="kt-prep__break">
+            ${tables.map((table) => `
+              <li class="kt-prep__break-row">
+                <span>${escapeHtml(txt('prepTable').replace('{n}', String(table.tableNumber)))}</span>
+                <span>${escapeHtml(String(table.qty))}</span>
+              </li>
+            `).join('')}
+          </ul>`
+        : '');
     if (role === 'side') {
+      if (row.qty <= 0) {
+        return `
+          <li class="kt-prep__row is-side is-zero">
+            <span class="kt-prep__name">${escapeHtml(prepDishLabel(row.sample))}</span>
+            <span class="kt-prep__qty">0</span>
+          </li>
+        `;
+      }
       return `
         <li>
           <button type="button"
@@ -636,20 +716,30 @@
       `;
     }
     return `
-      <li class="kt-prep__row${isNew ? ' is-new' : ''}">
-        <span class="kt-prep__name">${escapeHtml(prepDishLabel(row.sample))}</span>
-        <span class="kt-prep__qty">${escapeHtml(String(row.qty))}</span>
+      <li>
+        <button type="button"
+          class="kt-prep__row${isWave ? ' is-wave' : ''}${!isWave && isNew ? ' is-new' : ''}${open ? ' is-open' : ''}"
+          data-kt-prep-main="${escapeHtml(row.key)}"
+          aria-expanded="${open ? 'true' : 'false'}"
+        >
+          <span class="kt-prep__name">${escapeHtml(prepDishLabel(row.sample))}</span>
+          <span class="kt-prep__qty">${escapeHtml(String(row.qty))}</span>
+        </button>
+        ${breakHtml}
       </li>
     `;
   }
 
   function prepSectionHtml(title, rows, role, now) {
-    if (!rows.length) return '';
+    const klass = role === 'side' ? ' is-fixed' : ' is-mains';
+    const body = rows.length
+      ? rows.map((row) => prepRowHtml(row, role, now)).join('')
+      : `<li class="kt-prep__empty-row">${escapeHtml(txt('prepEmpty'))}</li>`;
     return `
-      <section class="kt-prep__section">
+      <section class="kt-prep__section${klass}">
         <h3 class="kt-prep__heading">${escapeHtml(title)}</h3>
         <ul class="kt-prep__list">
-          ${rows.map((row) => prepRowHtml(row, role, now)).join('')}
+          ${body}
         </ul>
       </section>
     `;
@@ -679,21 +769,24 @@
         prepPulseUntil.delete(key);
       }
     });
-    if (!mains.length && !sides.length) {
-      prepEl.innerHTML = `
-        <h2 class="kt-prep__title">${escapeHtml(txt('prepTitle'))}</h2>
-        <p class="kt-prep__empty">${escapeHtml(txt('prepEmpty'))}</p>
-      `;
-      return;
-    }
     prepEl.innerHTML = `
       <h2 class="kt-prep__title">${escapeHtml(txt('prepTitle'))}</h2>
-      ${prepSectionHtml(txt('prepMains'), mains, 'main', now)}
-      ${prepSectionHtml(txt('prepSides'), sides, 'side', now)}
+      <div class="kt-prep__cols">
+        ${prepSectionHtml(txt('prepSides'), sides, 'side', now)}
+        ${prepSectionHtml(txt('prepMains'), mains, 'main', now)}
+      </div>
     `;
   }
 
   function readyCounts(items) {
+    const progress = global.LechaimKitchenProgress?.fromItems?.(items);
+    if (progress) {
+      return {
+        ready: progress.readyKitchenUnits,
+        total: progress.totalKitchenUnits,
+        allReady: progress.allReady,
+      };
+    }
     const list = countableItems(items);
     const ready = list.filter(isDishReady).reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
     const total = list.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
@@ -832,7 +925,10 @@
         <span class="kt-table-card__num">${escapeHtml(String(entry.tableNumber))}</span>
         <span class="kt-table-card__status">${escapeHtml(statusText)}</span>
         ${urgentLabel ? `<span class="kt-table-card__urgent">${escapeHtml(urgentLabel)}</span>` : ''}
-        <span class="kt-table-card__items">${escapeHtml(String(counts.ready))} / ${escapeHtml(String(counts.total))} ${escapeHtml(txt('readyCount'))}</span>
+        ${global.LechaimKitchenProgress?.barHtml?.(
+          global.LechaimKitchenProgress.fromItems(entry.order?.items),
+          { readyWord: txt('progressReady') }
+        ) || `<span class="kt-table-card__items">${escapeHtml(String(counts.ready))} / ${escapeHtml(String(counts.total))} ${escapeHtml(txt('readyCount'))}</span>`}
         ${allDone ? `<span class="kt-table-card__done">${escapeHtml(txt('allReadyDone'))}</span>` : ''}
         <span class="kt-table-card__time">${escapeHtml(formatElapsed(entry.openedAt))}</span>
       </button>
@@ -1123,6 +1219,15 @@
       if (!key) return;
       if (openPrepSides.has(key)) openPrepSides.delete(key);
       else openPrepSides.add(key);
+      renderPrepBoard();
+      return;
+    }
+    const prepMain = event.target.closest('[data-kt-prep-main]');
+    if (prepMain) {
+      const key = String(prepMain.dataset.ktPrepMain || '');
+      if (!key) return;
+      if (openPrepMains.has(key)) openPrepMains.delete(key);
+      else openPrepMains.add(key);
       renderPrepBoard();
       return;
     }
