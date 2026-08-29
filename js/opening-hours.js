@@ -5,8 +5,8 @@
  *
  * Fallback before settings load: Sun–Thu 14:00–22:00, Fri–Sat closed.
  *
- * "פתח חנות" force-opens until today's close (or midnight if after close).
- * "סגור חנות" force-closes until today's close. Next day the schedule resumes.
+ * "פתח חנות" force-opens until today's scheduled close, or until midnight
+ * on a closed day (Fri/Sat) and after close. Next day the schedule resumes.
  *
  * Butcher shop is exempt: always accepts orders (any day/hour).
  */
@@ -183,6 +183,7 @@
 
   function overrideExpiryMs(date = new Date()) {
     const rule = ruleForDate(date);
+    if (!rule.open) return nextMidnightMs(date);
     const closeMs = todayAtMinutes(rule.closeMinutes, date);
     if (date.getTime() < closeMs) return closeMs;
     return nextMidnightMs(date);
@@ -238,8 +239,8 @@
 
   function isWithinOrderingHours(date = new Date()) {
     if (isForceClose()) return false;
-    if (!isDayScheduledOpen(date)) return false;
     if (isForceOpen()) return true;
+    if (!isDayScheduledOpen(date)) return false;
     return isNaturallyOpen(date);
   }
 

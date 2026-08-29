@@ -46,8 +46,8 @@
       fulfillmentDelivery: 'Delivery',
       customerAddress: 'Address *',
       pickupAddressRequired: 'Please enter a delivery address',
-      customerLocation: 'Exact location link *',
-      customerLocationHint: 'Paste a Google Maps or Waze link',
+      customerLocation: 'Exact location link (optional)',
+      customerLocationHint: 'It really helps us find the delivery. Paste a Google Maps or Waze link',
       pickupLocationRequired: 'Please paste an exact location link',
       pickupLocationInvalid: 'The link is invalid. Please paste a Google Maps or Waze link',
       deliveryTime: 'Delivery time',
@@ -177,8 +177,8 @@
       fulfillmentDelivery: 'משלוח',
       customerAddress: 'כתובת *',
       pickupAddressRequired: 'נא להזין כתובת למשלוח',
-      customerLocation: 'קישור למיקום מדויק *',
-      customerLocationHint: 'העתיקו קישור מ-Google Maps או Waze',
+      customerLocation: 'קישור למיקום מדויק (אופציונלי)',
+      customerLocationHint: 'יעזור לנו ממש להבין איפה המשלוח. העתיקו קישור מ-Google Maps או Waze',
       pickupLocationRequired: 'נא להדביק קישור למיקום המדויק',
       pickupLocationInvalid: 'הקישור אינו תקין. נא להדביק קישור מ-Google Maps או Waze',
       deliveryTime: 'שעת משלוח',
@@ -2150,10 +2150,8 @@
       pickupAddress?.focus();
       return;
     }
-    if (fulfillmentType === 'delivery' && !locationUrl) {
-      showPickupError(String(pickupLocation?.value || '').trim()
-        ? t('pickupLocationInvalid')
-        : t('pickupLocationRequired'));
+    if (fulfillmentType === 'delivery' && String(pickupLocation?.value || '').trim() && !locationUrl) {
+      showPickupError(t('pickupLocationInvalid'));
       pickupLocation?.focus();
       return;
     }

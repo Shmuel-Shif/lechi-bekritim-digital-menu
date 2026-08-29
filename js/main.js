@@ -1749,10 +1749,8 @@
       document.getElementById('takeaway-checkout-address')?.focus();
       return;
     }
-    if (fulfillment === 'delivery' && !locationUrl) {
-      showTakeawayCheckoutError(locationRaw
-        ? t('customerLocationInvalid')
-        : t('customerLocationRequired'));
+    if (fulfillment === 'delivery' && locationRaw && !locationUrl) {
+      showTakeawayCheckoutError(t('customerLocationInvalid'));
       document.getElementById('takeaway-checkout-location')?.focus();
       return;
     }
