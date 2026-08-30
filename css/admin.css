@@ -5491,6 +5491,27 @@ body.admin-modal-open {
   font-weight: 800;
 }
 
+@keyframes kitchen-ready-face-pop {
+  0%, 100% { transform: scale(0.78); }
+  50% { transform: scale(1.32); }
+}
+
+@keyframes kitchen-ready-urgent-glow {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.16); }
+}
+
+@keyframes kitchen-ready-note-blink {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.2; transform: scale(1.18); }
+}
+
+.kitchen-ready-card__face {
+  font-size: 1.85rem;
+  line-height: 1;
+  animation: kitchen-ready-face-pop 0.8s ease-in-out infinite;
+}
+
 .kitchen-ready-card.is-fresh {
   border-color: #1d4ed8;
   background: linear-gradient(165deg, #3b82f6 0%, #2563eb 55%, #1d4ed8 100%);
@@ -5501,22 +5522,39 @@ body.admin-modal-open {
 }
 
 .kitchen-ready-card.is-fresh strong,
-.kitchen-ready-card.is-fresh span {
+.kitchen-ready-card.is-fresh span,
+.kitchen-ready-card.is-fresh .kitchen-ready-kprog__label {
   color: #fff;
 }
 
 .kitchen-ready-card.is-wave {
-  border-color: #c2410c;
-  background: linear-gradient(165deg, #fb923c 0%, #ea580c 55%, #c2410c 100%);
+  border-color: #ca8a04;
+  background: linear-gradient(165deg, #fde047 0%, #facc15 50%, #eab308 100%);
   box-shadow:
-    0 6px 18px rgba(234, 88, 12, 0.38),
-    inset 0 1px 0 rgba(255, 255, 255, 0.22);
-  color: #fff;
+    0 6px 18px rgba(234, 179, 8, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  color: #1a1404;
 }
 
 .kitchen-ready-card.is-wave strong,
-.kitchen-ready-card.is-wave span {
-  color: #fff;
+.kitchen-ready-card.is-wave span,
+.kitchen-ready-card.is-wave .kitchen-ready-kprog__label {
+  color: rgba(26, 20, 4, 0.82);
+}
+
+.kitchen-ready-card.is-note {
+  border-color: #7c2d12;
+  background: linear-gradient(165deg, #c2410c 0%, #9a3412 55%, #7c2d12 100%);
+  box-shadow:
+    0 6px 18px rgba(154, 52, 18, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  color: #fff7ed;
+}
+
+.kitchen-ready-card.is-note strong,
+.kitchen-ready-card.is-note span,
+.kitchen-ready-card.is-note .kitchen-ready-kprog__label {
+  color: #fff7ed;
 }
 
 .kitchen-ready-card.is-cooking {
@@ -5525,31 +5563,46 @@ body.admin-modal-open {
 }
 
 .kitchen-ready-card.is-done {
-  border-color: #991b1b;
-  background: linear-gradient(165deg, #ef4444 0%, #dc2626 55%, #b91c1c 100%);
-  box-shadow:
-    0 6px 18px rgba(220, 38, 38, 0.42),
-    inset 0 1px 0 rgba(255, 255, 255, 0.22);
-  color: #fff;
-}
-
-.kitchen-ready-card.is-urgent {
   border-color: #15803d;
-  background: linear-gradient(165deg, #4ade80 0%, #22c55e 45%, #15803d 100%);
+  background: linear-gradient(165deg, #4ade80 0%, #22c55e 50%, #15803d 100%);
   box-shadow:
     0 6px 18px rgba(22, 163, 74, 0.38),
     inset 0 1px 0 rgba(255, 255, 255, 0.22);
   color: #fff;
 }
 
+.kitchen-ready-card.is-urgent {
+  border-color: #991b1b;
+  background: linear-gradient(165deg, #ef4444 0%, #dc2626 40%, #991b1b 100%);
+  box-shadow:
+    0 6px 18px rgba(220, 38, 38, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  color: #fff;
+  animation: kitchen-ready-urgent-glow 0.85s ease-in-out infinite;
+}
+
 .kitchen-ready-card.is-urgent strong,
-.kitchen-ready-card.is-urgent span {
+.kitchen-ready-card.is-urgent span,
+.kitchen-ready-card.is-urgent .kitchen-ready-kprog__label {
   color: #fff;
 }
 
 .kitchen-ready-card.is-done strong,
-.kitchen-ready-card.is-done span {
+.kitchen-ready-card.is-done span,
+.kitchen-ready-card.is-done .kitchen-ready-kprog__label {
   color: #fff;
+}
+
+.kitchen-ready-card.has-notes .kitchen-ready-kprog__label::after {
+  content: '!';
+  display: inline-block;
+  margin-inline-start: 0.22rem;
+  color: #f59e0b;
+  font-size: 1.2rem;
+  font-weight: 900;
+  line-height: 0.85;
+  vertical-align: -0.08em;
+  animation: kitchen-ready-note-blink 1s ease-in-out infinite;
 }
 
 .kitchen-ready-detail {

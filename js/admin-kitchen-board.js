@@ -316,6 +316,8 @@
       qty: Number(row.quantity) || 0,
       notes: row.notes == null ? '' : String(row.notes),
       notesEl: row.notes_el == null ? '' : String(row.notes_el),
+      notesVersion: Number(row.notes_version) || 0,
+      notesSeenVersion: Number(row.notes_seen_version) || 0,
       linkedToMainItemId: row.parent_item_id ? String(row.parent_item_id) : null,
       createdAt: row.created_at || null,
       kitchenStatus: api?.normalizeKitchenStatus?.(row.kitchen_status) || 'waiting',
@@ -516,6 +518,23 @@
     return (entry?.items || []).some((item) => item.kitchenUrgent && !isAddon(item) && !isReady(item));
   }
 
+  function itemNoteText(item) {
+    return String(item?.notesEl || item?.notes || '').trim();
+  }
+
+  function isUnreadNote(item) {
+    if (!itemNoteText(item)) return false;
+    return (Number(item?.notesVersion) || 0) > (Number(item?.notesSeenVersion) || 0);
+  }
+
+  function hasUnreadNotes(entry) {
+    return (entry?.items || []).some(isUnreadNote);
+  }
+
+  function hasAnyNotes(entry) {
+    return (entry?.items || []).some((item) => Boolean(itemNoteText(item)));
+  }
+
   function renderBoard() {
     const html = board.map((entry) => {
       const tally = counts(entry.items);
@@ -523,7 +542,18 @@
       const urgent = !allDone && hasUrgent(entry);
       const fresh = !entry.kitchenStarted && !allDone && !urgent;
       const wave = !fresh && !urgent && hasNewWave(entry) && !allDone;
-      const stateClass = allDone ? ' is-done' : (urgent ? ' is-urgent' : (fresh ? ' is-fresh' : (wave ? ' is-wave' : ' is-cooking')));
+      const note = !allDone && !urgent && !fresh && !wave && hasUnreadNotes(entry);
+      const hasNotes = hasAnyNotes(entry);
+      const stateClass = allDone && !wave
+        ? ' is-done'
+        : (urgent
+          ? ' is-urgent'
+          : (fresh
+            ? ' is-fresh'
+            : (wave
+              ? ' is-wave'
+              : (note ? ' is-note' : ' is-cooking'))));
+      const face = urgent ? '🫨' : (fresh ? '🥳' : (wave ? '😇' : (note ? '🤓' : '')));
       const label = allDone
         ? '✅ הכל מוכן'
         : (urgent
@@ -532,9 +562,12 @@
             ? 'חדש במטבח'
             : (wave
               ? 'גל חדש'
-              : `בהכנה · ${escapeHtml(String(tally.ready))} מתוך ${escapeHtml(String(tally.total))}`)));
+              : (note
+                ? 'הערה חדשה'
+                : `בהכנה · ${escapeHtml(String(tally.ready))} מתוך ${escapeHtml(String(tally.total))}`))));
       return `
-        <button type="button" class="kitchen-ready-card${stateClass}" data-kitchen-table="${escapeHtml(String(entry.tableNumber))}">
+        <button type="button" class="kitchen-ready-card${stateClass}${hasNotes ? ' has-notes' : ''}" data-kitchen-table="${escapeHtml(String(entry.tableNumber))}">
+          ${face ? `<span class="kitchen-ready-card__face" aria-hidden="true">${face}</span>` : ''}
           <strong>שולחן ${escapeHtml(String(entry.tableNumber))}</strong>
           <span>${label}</span>
           ${global.LechaimKitchenProgress?.barHtml?.(
