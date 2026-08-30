@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@600;700;800&family=Heebo:wght@500;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/kitchen-tablet.css?v=51">
+  <link rel="stylesheet" href="css/kitchen-tablet.css?v=55">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
 <body>
@@ -42,6 +42,10 @@
       </button>
       <button type="button" class="kt-tab" data-kt-tab="alerts">
         <span data-kt-label="tabAlerts">Κλήσεις</span>
+      </button>
+      <button type="button" class="kt-tab kt-tab--chat" id="kt-chat-btn" aria-label="Συνομιλία">
+        <span data-kt-label="chat">Συνομιλία</span>
+        <span class="kt-tab__badge" id="kt-chat-badge" hidden>0</span>
       </button>
     </nav>
 
@@ -120,13 +124,6 @@
     </div>
 
     <p class="kt-status" id="kt-status" role="status"></p>
-
-    <button type="button" class="kt-chat-fab" id="kt-chat-btn" aria-label="Συνομιλία">
-      <svg class="kt-chat-fab__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path fill="currentColor" d="M4.5 5.25h15A1.75 1.75 0 0 1 21.25 7v8.2a1.75 1.75 0 0 1-1.75 1.75H11.1L7 20.4a.75.75 0 0 1-1.2-.6v-2.85H4.5A1.75 1.75 0 0 1 2.75 15.2V7A1.75 1.75 0 0 1 4.5 5.25Z"/>
-      </svg>
-      <span class="kt-chat-fab__badge" id="kt-chat-badge" hidden>0</span>
-    </button>
   </main>
 
   <div class="kt-sheet" id="kt-chat-sheet" hidden>
@@ -204,6 +201,6 @@
   <script src="js/kitchen-progress.js?v=2" defer></script>
   <script src="js/kitchen-alert-service.js?v=13" defer></script>
   <script src="js/kitchen-tablet.js?v=24" defer></script>
-  <script src="js/kitchen-admin.js?v=39" defer></script>
+  <script src="js/kitchen-admin.js?v=40" defer></script>
 </body>
 </html>

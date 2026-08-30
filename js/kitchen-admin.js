@@ -1131,7 +1131,7 @@
     const urgentPulse = urgent && showUrgentVisual(entry);
     const wave = !urgentPulse && hasWavePulse(entry);
     const fresh = isFresh(entry) && !allDone && !urgentPulse && !wave;
-    const noteTone = !allDone && !urgentPulse && !wave && hasAnyKitchenNote(entry.order?.items);
+    const noteTone = !allDone && !urgentPulse && !wave && unreadNoteCount(entry.order?.items) > 0;
     const statusText = urgentPulse
       ? txt('tableUrgent')
       : (wave
