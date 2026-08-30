@@ -236,6 +236,9 @@
       publicOrderNo: Number.isFinite(Number(session.publicOrderNo)) && Number(session.publicOrderNo) > 0
         ? Number(session.publicOrderNo)
         : null,
+      orderMode: session.orderMode === 'shared' || session.orderMode === 'representative'
+        ? session.orderMode
+        : null,
     };
   }
 
@@ -348,9 +351,12 @@
       partySize: options.partySize !== undefined
         ? normalizePartySize(options.partySize)
         : (sameTable ? normalizePartySize(existing.partySize) : null),
-      dineInNotesConfirmed: sameTable
-        ? Boolean(existing.dineInNotesConfirmed)
-        : Boolean(options.dineInNotesConfirmed),
+      dineInNotesConfirmed: options.dineInNotesConfirmed !== undefined
+        ? Boolean(options.dineInNotesConfirmed)
+        : (sameTable ? Boolean(existing.dineInNotesConfirmed) : false),
+      orderMode: options.orderMode === 'shared' || options.orderMode === 'representative'
+        ? options.orderMode
+        : (sameTable ? existing.orderMode : null),
     });
 
     writeRaw(session);

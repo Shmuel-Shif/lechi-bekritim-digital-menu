@@ -587,7 +587,9 @@ body.cart-open .dine-in-global-chat-panel,
 body.modal-open .dine-in-global-chat-fab,
 body.modal-open .dine-in-global-chat-panel,
 body.order-receipt-open .dine-in-global-chat-fab,
-body.order-receipt-open .dine-in-global-chat-panel {
+body.order-receipt-open .dine-in-global-chat-panel,
+body.table-order-open .dine-in-global-chat-fab,
+body.table-order-open .dine-in-global-chat-panel {
   display: none !important;
 }
 

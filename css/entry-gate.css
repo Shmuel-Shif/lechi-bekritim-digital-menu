@@ -236,6 +236,10 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#lechai
   hyphens: none;
 }
 
+.entry-table-modal__hint[hidden] {
+  display: none !important;
+}
+
 .entry-table-modal__hint:last-of-type {
   margin-bottom: 0;
 }
@@ -271,6 +275,15 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#lechai
   grid-template-columns: 1fr 1fr;
   gap: 0.65rem;
   width: 100%;
+}
+
+.entry-table-modal__actions.is-shared-only {
+  grid-template-columns: 1fr;
+}
+
+.entry-table-modal__actions .entry-gate__btn[hidden],
+.entry-table-modal__browse[hidden] {
+  display: none !important;
 }
 
 .entry-table-modal__actions .entry-gate__btn {
@@ -540,6 +553,37 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#lechai
   background: linear-gradient(165deg, #3d9a5f 0%, #2f6f47 100%);
   border-color: #245a38;
   color: #fff;
+}
+
+.entry-gate__table.is-occupied.is-joinable {
+  cursor: pointer;
+  font-size: inherit;
+  font-weight: 800;
+  letter-spacing: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.12rem;
+  line-height: 1;
+}
+
+.entry-gate__table.is-occupied.is-joinable:hover {
+  transform: translateY(-1px);
+  border-color: #1d7a42;
+}
+
+.entry-gate__table-num {
+  font-size: 1.15em;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.entry-gate__table-live {
+  font-size: 0.62em;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  opacity: 0.95;
 }
 
 @media (max-width: 360px) {
@@ -1025,25 +1069,39 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#lechai
 }
 
 .entry-gate.is-home .entry-gate__lang {
-  padding: 0.14rem;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.18rem;
   border: 0;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
   backdrop-filter: blur(8px);
-  gap: 0;
+  gap: 0.12rem;
 }
 
 .entry-gate.is-home .entry-gate__lang .lang-toggle__option {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 2.4rem;
-  padding: 0.32rem 0.55rem;
+  min-width: 2.15rem;
+  min-height: 2.15rem;
+  padding: 0.28rem;
   border-radius: 999px;
-  font-size: 0.72rem;
+  font-size: 1.15rem;
   font-weight: 700;
+  line-height: 1;
   opacity: 0.5;
+}
+
+.lang-flag {
+  display: block;
+  width: 1.35rem;
+  height: 0.98rem;
+  object-fit: cover;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(21, 38, 64, 0.12);
 }
 
 .entry-gate.is-home .entry-gate__lang .lang-toggle__option--active {

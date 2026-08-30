@@ -32,6 +32,9 @@
   let sending = false;
   let primed = false;
   let audioCtx = null;
+  let suppressRingUntil = 0;
+  let prevContentKeys = new Set();
+  let rangThisRefresh = false;
   let prevNoteAlertVer = new Map();
   let pendingNoteAlerts = [];
   let noteToastTimer = null;
@@ -310,16 +313,6 @@
     }
   }
 
-  function waveChimeKey(entry) {
-    const order = entry?.order;
-    if (!order?.sessionId || !hasNewWave(entry)) return '';
-    let latest = 0;
-    (order.items || []).forEach((item) => {
-      latest = Math.max(latest, ts(item.createdAt));
-    });
-    return `${order.sessionId}:wave:${latest}`;
-  }
-
   function isLateItem(item, order) {
     if (!item || !order?.kitchenStartedAt) return false;
     return Math.max(ts(item.createdAt), ts(item.wavePrintedAt)) > ts(order.kitchenStartedAt) + 800;
@@ -389,7 +382,8 @@
     pendingNoteAlerts = [];
     noteToastTimer = null;
     if (!batch.length) return;
-    playNoteChime();
+    if (!rangThisRefresh) playNoteChime();
+    rangThisRefresh = false;
     showNoteToast(batch[0]);
   }
 
@@ -1083,21 +1077,50 @@
     )).join('');
   }
 
-  const CHIME_KEY = 'lechaim-kitchen-chime-sessions';
-
-  function loadChimed() {
-    try {
-      const raw = JSON.parse(localStorage.getItem(CHIME_KEY) || '[]');
-      return new Set(Array.isArray(raw) ? raw.map(String) : []);
-    } catch (_) {
-      return new Set();
-    }
+  function hushRing(ms) {
+    suppressRingUntil = Date.now() + (ms || 2800);
   }
 
-  function saveChimed(set) {
-    try {
-      localStorage.setItem(CHIME_KEY, JSON.stringify([...set].slice(-80)));
-    } catch (_) { /* ignore */ }
+  function boardContentKeys(rows) {
+    const keys = [];
+    (rows || []).forEach((entry) => {
+      const sid = String(entry.order?.sessionId || '');
+      if (sid) keys.push(`s:${sid}`);
+      (entry.order?.items || []).forEach((item) => {
+        const id = String(item.itemId || '');
+        if (!id) return;
+        keys.push(`i:${id}:q${Number(item.qty) || 0}`);
+        const ver = Number(item.notesVersion) || 0;
+        if (ver > 0) keys.push(`n:${id}:v${ver}`);
+      });
+    });
+    return keys;
+  }
+
+  function ringIfNewContent(rows) {
+    const keys = boardContentKeys(rows);
+    const next = new Set(keys);
+    if (!primed) {
+      prevContentKeys = next;
+      rangThisRefresh = false;
+      return;
+    }
+    const added = keys.some((key) => !prevContentKeys.has(key));
+    prevContentKeys = next;
+    if (!added || Date.now() < suppressRingUntil) {
+      rangThisRefresh = false;
+      return;
+    }
+    rangThisRefresh = true;
+    playNewTicketChime();
+  }
+
+  function updateTablesBadge() {
+    const el = document.getElementById('kt-tables-badge');
+    if (!el) return;
+    const n = board.length;
+    el.textContent = String(n);
+    el.hidden = n <= 0;
   }
 
   function renderCard(entry) {
@@ -1149,6 +1172,7 @@
     }
     renderPrepBoard();
     schedulePulseExpiry();
+    updateTablesBadge();
     if (openTable != null) fillDrawer(openTable);
   }
 
@@ -1219,33 +1243,12 @@
     try {
       const rows = await api.getOpenSessionsWithOrders();
       const next = buildBoard(rows);
-      const chimed = loadChimed();
       if (!primed) {
-        next.forEach((entry) => {
-          const id = String(entry.order?.sessionId || '');
-          if (id) chimed.add(id);
-          const waveKey = waveChimeKey(entry);
-          if (waveKey) chimed.add(waveKey);
-        });
-        saveChimed(chimed);
         seedNoteAlertVersions(next);
         seedWavePulses(next);
+        ringIfNewContent(next);
       } else {
-        let ring = false;
-        next.forEach((entry) => {
-          const id = String(entry.order?.sessionId || '');
-          if (id && isFresh(entry) && !chimed.has(id)) {
-            ring = true;
-            chimed.add(id);
-          }
-          const waveKey = waveChimeKey(entry);
-          if (waveKey && !chimed.has(waveKey)) {
-            ring = true;
-            chimed.add(waveKey);
-          }
-        });
-        if (ring) playNewTicketChime();
-        saveChimed(chimed);
+        ringIfNewContent(next);
         queueNoteAlerts(collectNewNoteAlerts(next));
         touchWavePulses(next);
       }
@@ -1266,6 +1269,7 @@
   }
 
   async function peelOneUnit(item, allItems, unitStatus) {
+    hushRing();
     const orderId = item.orderId;
     const qty = Math.max(1, Number(item.qty) || 1);
     if (qty <= 1 || !orderId || !api?.bumpOrderItemQuantity || !api?.createOrderItems) {
@@ -1316,6 +1320,7 @@
 
   async function ackItemNote(itemId) {
     if (sending) return;
+    hushRing();
     const id = String(itemId || '');
     const entry = board.find((row) => (row.order?.items || []).some((item) => String(item.itemId) === id));
     const item = (entry?.order?.items || []).find((row) => String(row.itemId) === id);
@@ -1339,6 +1344,7 @@
 
   async function toggleItemReady(itemId) {
     if (sending) return;
+    hushRing();
     const entry = board.find((row) => (row.order?.items || []).some((item) => String(item.itemId) === String(itemId)));
     const item = (entry?.order?.items || []).find((row) => String(row.itemId) === String(itemId));
     if (!item || isAddon(item)) return;
@@ -1366,6 +1372,7 @@
   async function startKitchen(entry) {
     const sessionId = entry?.order?.sessionId;
     if (!sessionId || sending || entry.order.kitchenStarted) return;
+    hushRing();
     sending = true;
     entry.order.kitchenStarted = true;
     entry.order.kitchenStartedAt = entry.order.kitchenStartedAt || new Date().toISOString();
@@ -1388,6 +1395,7 @@
   async function ackKitchenWave(entry) {
     const sessionId = entry?.order?.sessionId;
     if (!sessionId || sending || !hasNewWave(entry)) return;
+    hushRing();
     sending = true;
     const prev = entry.order.kitchenWaveAckAt;
     entry.order.kitchenWaveAckAt = new Date().toISOString();
@@ -1407,6 +1415,7 @@
 
   async function markAllReady(sessionId) {
     if (sending) return;
+    hushRing();
     sending = true;
     try {
       await api.markSessionKitchenAllReady(sessionId);

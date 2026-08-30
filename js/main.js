@@ -36,6 +36,13 @@
   const sidesModalBackdrop = $('#sides-modal-backdrop');
   const cartToggle = $('#cart-toggle');
   const myOrderToggle = $('#my-order-toggle');
+  const cartMyOrderBtn = $('#cart-my-order');
+  const tableOrderToggle = $('#table-order-toggle');
+  const tableOrderPanel = $('#table-order');
+  const tableOrderBackdrop = $('#table-order-backdrop');
+  const tableOrderClose = $('#table-order-close');
+  const tableOrderTitle = $('#table-order-title');
+  const tableOrderBody = $('#table-order-body');
   const cartPanel = $('#cart-panel');
   const cartBody = $('#cart-body');
   const cartFooter = $('#cart-footer');
@@ -111,6 +118,7 @@
     cart: null,
     confirm: null,
     receipt: null,
+    tableOrder: null,
   };
 
   function setFocusTrap(key, root) {
@@ -272,6 +280,12 @@
     }
     if (browseOnly && myOrderToggle) {
       myOrderToggle.hidden = true;
+    }
+    if (browseOnly && cartMyOrderBtn) {
+      cartMyOrderBtn.hidden = true;
+    }
+    if (browseOnly && tableOrderToggle) {
+      tableOrderToggle.hidden = true;
     }
 
     updateTableHeader();
@@ -797,24 +811,91 @@
     updateMyOrderToggle();
   }
 
-  /** Dine-in: dedicated "ההזמנה שלי" next to cart — never replaces the cart. */
+  /** Dine-in: "ההזמנה שלי" lives inside the cart — this phone's sent items only. */
   function updateMyOrderToggle() {
-    if (!myOrderToggle) return;
+    const browseOnly = Boolean(window.LechaimOrderContext?.browseOnly);
+    if (myOrderToggle) {
+      const showHeader = !browseOnly
+        && isStaffOrderPage()
+        && hasActiveOrderItems();
+      myOrderToggle.hidden = !showHeader;
+      if (showHeader) {
+        myOrderToggle.setAttribute('aria-label', t('openMyOrder'));
+        const headerLabel = $('#my-order-toggle-label');
+        if (headerLabel) headerLabel.textContent = t('myOrderView');
+      }
+    }
+    if (cartMyOrderBtn) {
+      const showCart = !browseOnly
+        && !isStaffOrderPage()
+        && (isDineInContext() || hasActiveOrderItems());
+      cartMyOrderBtn.hidden = !showCart;
+      if (showCart) {
+        cartMyOrderBtn.setAttribute('aria-label', t('openMyOrder'));
+        const cartLabel = $('#cart-my-order-label');
+        if (cartLabel) cartLabel.textContent = t('myOrderView');
+      }
+    }
+    updateTableOrderToggle();
+  }
+
+  function currentDineInTableNumber() {
+    const n = Number(
+      window.LechaimOrderContext?.tableNumber
+      ?? window.LechaimOrderSession?.getSession?.()?.tableNumber
+    );
+    return Number.isInteger(n) && n > 0 ? n : null;
+  }
+
+  function updateTableOrderToggle() {
+    if (!tableOrderToggle) return;
     const browseOnly = Boolean(window.LechaimOrderContext?.browseOnly);
     const show = !browseOnly
-      && !isTakeawayContext()
-      && hasActiveOrderItems();
-    myOrderToggle.hidden = !show;
+      && !isStaffOrderPage()
+      && isDineInContext()
+      && currentDineInTableNumber() != null;
+    tableOrderToggle.hidden = !show;
     if (show) {
-      myOrderToggle.setAttribute('aria-label', t('openMyOrder'));
-      const label = $('#my-order-toggle-label');
-      if (label) label.textContent = t('myOrderView');
+      tableOrderToggle.setAttribute('aria-label', t('openTableOrder'));
+      const label = $('#table-order-toggle-label');
+      if (label) label.textContent = t('tableOrderBtn');
     }
   }
 
   function getActiveOrderReceiptItems() {
     const order = window.LechaimOrderEngine?.getOrder?.();
     return (order?.items || []).filter((item) => item && Number(item.qty) > 0);
+  }
+
+  function filterOrdersByMySends(orders, sendIds) {
+    const set = new Set((sendIds || []).map(String).filter(Boolean));
+    if (!set.size) return [];
+    return (orders || []).filter((order) => set.has(String(order.client_send_id || '')));
+  }
+
+  async function loadMyPhoneOrderItems() {
+    if (!isDineInContext() || isStaffOrderPage()) {
+      return getActiveOrderReceiptItems();
+    }
+    const api = window.LechaimSupabaseOrders;
+    const remoteId = await resolveTableOrderSessionId();
+    const sendIds = readMyClientSendIds(remoteId);
+    if (remoteId && sendIds.length && typeof api?.getSessionOrders === 'function') {
+      try {
+        const orders = await api.getSessionOrders(remoteId);
+        const mine = sessionOrdersToReceiptItems(filterOrdersByMySends(orders, sendIds));
+        if (mine.length) return mine;
+      } catch (err) {
+        console.warn('[my-order] load failed', err);
+      }
+    }
+    return getActiveOrderReceiptItems();
+  }
+
+  async function openMyPhoneOrder() {
+    closeCartPanel();
+    const items = await loadMyPhoneOrderItems();
+    showOrderReceipt(items, { viewing: true });
   }
 
   /* Hero keeps brand atmosphere without dish photos (new menu has no images yet). */
@@ -1857,7 +1938,15 @@
 
   function hasDineInNotesConfirmed() {
     if (window.LechaimOrderContext?.dineInNotesConfirmed) return true;
-    return Boolean(window.LechaimOrderSession?.getSession?.()?.dineInNotesConfirmed);
+    const session = window.LechaimOrderSession?.getSession?.();
+    if (session?.dineInNotesConfirmed) return true;
+    const localId = String(
+      window.LechaimOrderContext?.sessionId
+      || session?.sessionId
+      || ''
+    );
+    return session?.orderMode === 'shared'
+      && Boolean(localId && lookupMappedSupabaseSessionId(localId));
   }
 
   function dineInPlaceReservedFromState() {
@@ -2308,6 +2397,46 @@
     document.querySelectorAll('.lang-toggle [data-lang]').forEach((opt) => {
       opt.classList.toggle('lang-toggle__option--active', opt.dataset.lang === currentLang);
     });
+    const fab = document.getElementById('lechaim-lang-fab');
+    if (fab) {
+      fab.querySelectorAll('[data-lang]').forEach((opt) => {
+        opt.classList.toggle('is-active', opt.dataset.lang === currentLang);
+      });
+      fab.setAttribute('aria-label', t('langToggleAria'));
+    }
+  }
+
+  function updateLangFabVisibility() {
+    const fab = document.getElementById('lechaim-lang-fab');
+    if (!fab || isStaffOrderPage()) return;
+    const hide = document.body.classList.contains('entry-pending');
+    fab.hidden = hide;
+    document.body.classList.toggle('lang-fab-on', !hide);
+  }
+
+  function ensureLangFab() {
+    if (isStaffOrderPage()) return null;
+    let fab = document.getElementById('lechaim-lang-fab');
+    if (fab) return fab;
+    fab = document.createElement('button');
+    fab.type = 'button';
+    fab.id = 'lechaim-lang-fab';
+    fab.className = 'lang-fab';
+    fab.hidden = true;
+    fab.innerHTML =
+      '<span class="lang-fab__opt" data-lang="he" aria-hidden="true">' +
+        '<img class="lang-flag" src="assets/icons/flag-il.svg" alt="" width="22" height="16">' +
+      '</span>' +
+      '<span class="lang-fab__sep" aria-hidden="true"></span>' +
+      '<span class="lang-fab__opt" data-lang="en" aria-hidden="true">' +
+        '<img class="lang-flag" src="assets/icons/flag-us.svg" alt="" width="22" height="16">' +
+      '</span>';
+    fab.addEventListener('click', (event) => {
+      const picked = event.target.closest('[data-lang]')?.dataset.lang;
+      toggleLanguage(picked);
+    });
+    document.body.append(fab);
+    return fab;
   }
 
   function applyStaticTranslations() {
@@ -2344,6 +2473,8 @@
     refreshOrderingHoursUi();
     syncButcherModeUi();
     maybeShowDeliveryFeeNotice();
+    updateTableOrderToggle();
+    if (isTableOrderOpen()) paintTableOrderPanel(lastTableOrderItems);
   }
 
   /* ---------- Menu lookup ---------- */
@@ -3131,6 +3262,7 @@
         backBtn.hidden = false;
         backBtn.setAttribute('aria-label', t('backToOrderTypeAria'));
       }
+      updateTableOrderToggle();
       return;
     }
 
@@ -3153,6 +3285,7 @@
             : `${t('changeTableAria')}: ${ctx.tableNumber}`)
       );
       if (backBtn) backBtn.hidden = true;
+      updateTableOrderToggle();
       return;
     }
 
@@ -3445,6 +3578,12 @@
         toggleLanguage(lang);
       });
     });
+    if (isStaffOrderPage()) return;
+    ensureLangFab();
+    updateLangToggleUI();
+    updateLangFabVisibility();
+    const langFabObserver = new MutationObserver(updateLangFabVisibility);
+    langFabObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
   }
 
   /* ---------- Build nav links ---------- */
@@ -4576,6 +4715,10 @@
   function initGlobalKeyboard() {
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;
+      if (tableOrderPanel && !tableOrderPanel.hidden) {
+        closeTableOrderPanel();
+        return;
+      }
       if (orderReceipt && !orderReceipt.hidden) {
         closeOrderReceipt();
         return;
@@ -4620,10 +4763,22 @@
 
     cartToggle.addEventListener('click', openCartPanel);
     myOrderToggle?.addEventListener('click', () => {
-      const items = getActiveOrderReceiptItems();
-      if (!items.length) return;
-      showOrderReceipt(items, { viewing: true });
+      openMyPhoneOrder().catch((err) => {
+        console.warn('[my-order] open failed', err);
+      });
     });
+    cartMyOrderBtn?.addEventListener('click', () => {
+      openMyPhoneOrder().catch((err) => {
+        console.warn('[my-order] open failed', err);
+      });
+    });
+    tableOrderToggle?.addEventListener('click', () => {
+      openTableOrderPanel().catch((err) => {
+        console.warn('[table-order] open failed', err);
+      });
+    });
+    tableOrderClose?.addEventListener('click', closeTableOrderPanel);
+    tableOrderBackdrop?.addEventListener('click', closeTableOrderPanel);
     cartClose.addEventListener('click', closeCartPanel);
     cartBackdrop.addEventListener('click', closeCartPanel);
     cartClear?.addEventListener('click', handleClearCart);
@@ -5068,6 +5223,200 @@
   }
 
   let receiptViewingMode = false;
+  let lastTableOrderItems = [];
+  let tableOrderWatchUnsub = null;
+  let tableOrderWatchSessionId = null;
+  let tableOrderPollTimer = null;
+
+  function mapLocalToRemoteSession(remoteId) {
+    const localId = window.LechaimOrderContext?.sessionId
+      || window.LechaimOrderSession?.getSession?.()?.sessionId;
+    if (!localId || !remoteId || typeof writeSupabaseSessionMap !== 'function') return;
+    const map = readSupabaseSessionMap();
+    if (map[String(localId)] === String(remoteId)) return;
+    map[String(localId)] = String(remoteId);
+    writeSupabaseSessionMap(map);
+  }
+
+  async function resolveTableOrderSessionId() {
+    const localId = window.LechaimOrderContext?.sessionId
+      || window.LechaimOrderSession?.getSession?.()?.sessionId;
+    const mapped = lookupMappedSupabaseSessionId(localId);
+    if (mapped) return mapped;
+    const api = window.LechaimSupabaseOrders;
+    const table = currentDineInTableNumber();
+    if (!table || typeof api?.findDineInSessionForTable !== 'function') return null;
+    try {
+      const row = await api.findDineInSessionForTable(table);
+      if (row?.session_id) {
+        mapLocalToRemoteSession(row.session_id);
+        return String(row.session_id);
+      }
+    } catch (err) {
+      console.warn('[table-order] find session failed', err);
+    }
+    return null;
+  }
+
+  function sessionOrdersToReceiptItems(orders) {
+    const remoteItems = [];
+    (orders || []).forEach((order) => {
+      const lines = Array.isArray(order.order_items) ? order.order_items : [];
+      lines.forEach((row) => {
+        const qty = Number(row.quantity) || 0;
+        if (qty <= 0) return;
+        remoteItems.push({
+          itemId: String(row.id),
+          remoteItemId: String(row.id),
+          productId: String(row.product_id || ''),
+          name: row.product_name || row.print_name || row.product_id || '',
+          printName: row.print_name || '',
+          price: Number(row.price) || 0,
+          qty,
+          notes: row.notes == null ? '' : String(row.notes),
+          linkedToMainItemId: row.parent_item_id ? String(row.parent_item_id) : null,
+        });
+      });
+    });
+    return remoteItems;
+  }
+
+  function renderTableOrderLine(item, isSide) {
+    const qty = Number(item.qty) || 0;
+    const notes = String(item.notes || '').trim();
+    const qtyLabel = isSide ? (qty > 1 ? `+ × ${qty}` : '+') : `× ${qty}`;
+    return `
+      <div class="order-receipt__line${isSide ? ' is-side' : ''}">
+        <span class="order-receipt__name">${escapeHtml(receiptItemName(item))}</span>
+        <span class="order-receipt__qty">${escapeHtml(qtyLabel)}</span>
+      </div>
+      ${notes ? `<p class="order-receipt__notes">${escapeHtml(notes)}</p>` : ''}
+    `;
+  }
+
+  function renderTableOrderItemsHtml(items) {
+    const groups = groupReceiptItems(items);
+    if (!groups.length) {
+      return `<p class="order-receipt__empty">${escapeHtml(t('tableOrderEmpty'))}</p>`;
+    }
+    return `
+      <ul class="order-receipt__list">
+        ${groups.map((group) => `
+          <li class="order-receipt__group">
+            ${renderTableOrderLine(group.main, false)}
+            ${group.sides.length
+              ? `<div class="order-receipt__sides">${
+                group.sides.map((side) => renderTableOrderLine(side, true)).join('')
+              }</div>`
+              : ''}
+          </li>
+        `).join('')}
+      </ul>
+    `;
+  }
+
+  function paintTableOrderPanel(items) {
+    lastTableOrderItems = Array.isArray(items) ? items : [];
+    const table = currentDineInTableNumber();
+    if (tableOrderTitle) {
+      tableOrderTitle.textContent = t('tableOrderTitle').replace(
+        '{n}',
+        table != null ? String(table) : '—'
+      );
+    }
+    if (tableOrderClose) tableOrderClose.setAttribute('aria-label', t('receiptClose'));
+    if (tableOrderBody) tableOrderBody.innerHTML = renderTableOrderItemsHtml(lastTableOrderItems);
+  }
+
+  function isTableOrderOpen() {
+    return Boolean(tableOrderPanel && !tableOrderPanel.hidden);
+  }
+
+  function stopTableOrderWatcher() {
+    if (typeof tableOrderWatchUnsub === 'function') {
+      try { tableOrderWatchUnsub(); } catch (_) { /* ignore */ }
+    }
+    tableOrderWatchUnsub = null;
+    tableOrderWatchSessionId = null;
+    if (tableOrderPollTimer) {
+      window.clearInterval(tableOrderPollTimer);
+      tableOrderPollTimer = null;
+    }
+  }
+
+  function startTableOrderPoll() {
+    if (tableOrderPollTimer) return;
+    tableOrderPollTimer = window.setInterval(() => {
+      if (!isTableOrderOpen()) {
+        stopTableOrderWatcher();
+        return;
+      }
+      refreshTableOrderPanel().catch(() => {});
+    }, 8000);
+  }
+
+  function startTableOrderWatcher(remoteId) {
+    const api = window.LechaimSupabaseOrders;
+    const id = remoteId ? String(remoteId) : '';
+    if (!id || typeof api?.subscribeToOrders !== 'function') return;
+    if (tableOrderWatchSessionId === id && tableOrderWatchUnsub) return;
+    if (typeof tableOrderWatchUnsub === 'function') {
+      try { tableOrderWatchUnsub(); } catch (_) { /* ignore */ }
+      tableOrderWatchUnsub = null;
+    }
+    tableOrderWatchSessionId = id;
+    try {
+      tableOrderWatchUnsub = api.subscribeToOrders(() => {
+        if (!isTableOrderOpen()) return;
+        refreshTableOrderPanel().catch(() => {});
+      }, { sessionId: id });
+    } catch (err) {
+      console.warn('[table-order] subscribe failed', err);
+    }
+  }
+
+  function closeTableOrderPanel() {
+    if (!tableOrderPanel || tableOrderPanel.hidden) return;
+    stopTableOrderWatcher();
+    clearFocusTrap('tableOrder');
+    tableOrderPanel.hidden = true;
+    tableOrderPanel.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('table-order-open');
+  }
+
+  async function refreshTableOrderPanel() {
+    if (!isTableOrderOpen()) return;
+    const api = window.LechaimSupabaseOrders;
+    const remoteId = await resolveTableOrderSessionId();
+    if (!remoteId || typeof api?.getSessionOrders !== 'function') {
+      paintTableOrderPanel([]);
+      return;
+    }
+    startTableOrderWatcher(remoteId);
+    try {
+      const orders = await api.getSessionOrders(remoteId);
+      if (!isTableOrderOpen()) return;
+      paintTableOrderPanel(sessionOrdersToReceiptItems(orders));
+    } catch (err) {
+      console.warn('[table-order] refresh failed', err);
+      if (isTableOrderOpen()) paintTableOrderPanel([]);
+    }
+  }
+
+  async function openTableOrderPanel() {
+    if (!tableOrderPanel) return;
+    closeOrderReceipt();
+    closeCartPanel();
+    paintTableOrderPanel([]);
+    tableOrderPanel.hidden = false;
+    tableOrderPanel.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('table-order-open');
+    setFocusTrap('tableOrder', tableOrderPanel);
+    tableOrderClose?.focus();
+    startTableOrderPoll();
+    await refreshTableOrderPanel();
+    if (isTableOrderOpen()) setFocusTrap('tableOrder', tableOrderPanel);
+  }
 
   function closeOrderReceipt() {
     if (!orderReceipt) return;
@@ -5083,6 +5432,7 @@
       showOrderFeedback('ok', t('orderSentSuccess'));
       return;
     }
+    closeTableOrderPanel();
 
     const ctx = window.LechaimOrderContext || {};
     const isTakeaway = ctx.orderType === 'takeaway' || ctx.orderType === 'take-away';
@@ -5108,14 +5458,20 @@
       }
     }
     if (orderReceiptTotalLabel) orderReceiptTotalLabel.textContent = t('receiptTotal');
-    if (orderReceiptContinue) {
-      orderReceiptContinue.textContent = t('receiptContinue');
-      /* Takeaway + dine-in: add to existing. Never offer a separate new takeaway order. */
-      orderReceiptContinue.hidden = false;
-    }
-    if (orderReceiptNew) {
-      orderReceiptNew.textContent = t('receiptNewOrder');
-      orderReceiptNew.hidden = true;
+    if (isStaffOrderPage()) {
+      if (orderReceiptContinue) {
+        orderReceiptContinue.textContent = t('receiptContinue');
+        orderReceiptContinue.hidden = false;
+      }
+      if (orderReceiptNew) {
+        orderReceiptNew.textContent = t('receiptNewOrder');
+        orderReceiptNew.hidden = true;
+      }
+    } else {
+      if (orderReceiptContinue) orderReceiptContinue.hidden = true;
+      if (orderReceiptNew) orderReceiptNew.hidden = true;
+      const receiptActions = orderReceipt.querySelector('.order-receipt__actions');
+      if (receiptActions) receiptActions.hidden = true;
     }
     if (orderReceiptClose) {
       orderReceiptClose.hidden = false;
@@ -5211,7 +5567,7 @@
     orderReceipt.setAttribute('aria-hidden', 'false');
     document.body.classList.add('order-receipt-open');
     setFocusTrap('receipt', orderReceipt);
-    orderReceiptContinue?.focus();
+    orderReceiptClose?.focus();
   }
 
   /**
@@ -5595,11 +5951,14 @@
         return;
       }
 
+      const clientSendId = getOrCreateClientSendIdFromCart(cartLines);
+
       /* Customer devices sync to Supabase only — restaurant PC prints. */
       await syncOrderToSupabase({
         localSession: session,
         localOrder: LechaimOrderEngine.getOrder?.() || order,
         waveItems,
+        clientSendId,
       });
       syncedOk = true;
 
@@ -5615,6 +5974,11 @@
         clearCartAfterSuccessfulSend();
       } catch (err) {
         console.warn('[cart] clearCart failed after sync', err);
+      }
+      try {
+        markPendingSendSent();
+      } catch (err) {
+        console.warn('[cart] pending send clear failed', err);
       }
       try {
         stripUnprintedLocalItems();
@@ -5670,6 +6034,36 @@
     } catch (err) {
       console.warn('[dual-write] failed to persist session map', err);
     }
+  }
+
+  const MY_SEND_IDS_KEY = 'lechaim-my-client-send-ids';
+
+  function readMyClientSendMap() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(MY_SEND_IDS_KEY) || '{}');
+      return raw && typeof raw === 'object' ? raw : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function readMyClientSendIds(remoteSessionId) {
+    if (!remoteSessionId) return [];
+    const list = readMyClientSendMap()[String(remoteSessionId)];
+    return Array.isArray(list) ? list.map(String).filter(Boolean) : [];
+  }
+
+  function rememberMyClientSendId(remoteSessionId, clientSendId) {
+    const sessionKey = String(remoteSessionId || '').trim();
+    const sendId = String(clientSendId || '').trim();
+    if (!sessionKey || !sendId) return;
+    const map = readMyClientSendMap();
+    const list = Array.isArray(map[sessionKey]) ? map[sessionKey].map(String) : [];
+    if (!list.includes(sendId)) list.push(sendId);
+    map[sessionKey] = list;
+    try {
+      localStorage.setItem(MY_SEND_IDS_KEY, JSON.stringify(map));
+    } catch (_) { /* ignore */ }
   }
 
   function findProductCategoryId(productId) {
@@ -5734,7 +6128,11 @@
         try {
           const remote = await api.getSession?.(mappedId);
           const remoteTable = Number(remote?.table_number);
-          const open = remote && (remote.status === 'active' || remote.status === 'bill_requested');
+          const open = remote && (
+            remote.status === 'active'
+            || remote.status === 'bill_requested'
+            || remote.status === 'draft'
+          );
           if (!open || !Number.isFinite(dineInTable) || remoteTable !== dineInTable) {
             mappedOk = false;
           }
@@ -5748,6 +6146,9 @@
         }
       }
       if (mappedOk) {
+        if (normalizedEarly === 'dine_in' && typeof api.promoteDraftSession === 'function') {
+          await api.promoteDraftSession(mappedId);
+        }
         await ensurePublicOrderNoRemembered(mappedId, isTakeawayEarly);
         if (normalizedEarly === 'dine_in') {
           await syncDineInSessionNotes(mappedId);
@@ -5768,12 +6169,16 @@
       : Number(localOrder?.tableNumber ?? localSession?.tableNumber ?? ctx.tableNumber);
 
     if (orderType === 'dine_in' && Number.isFinite(tableNumber)) {
-      const open = await api.getOpenSessions();
-      const existing = (open || []).find((row) => (
-        row.order_type === 'dine_in' &&
-        Number(row.table_number) === tableNumber
-      ));
+      const existing = typeof api.findDineInSessionForTable === 'function'
+        ? await api.findDineInSessionForTable(tableNumber)
+        : (await api.getOpenSessions() || []).find((row) => (
+          row.order_type === 'dine_in' &&
+          Number(row.table_number) === tableNumber
+        ));
       if (existing?.session_id) {
+        if (existing.status === 'draft' && typeof api.promoteDraftSession === 'function') {
+          await api.promoteDraftSession(existing.session_id);
+        }
         map[localId] = existing.session_id;
         writeSupabaseSessionMap(map);
         await syncDineInSessionNotes(existing.session_id);
@@ -5787,6 +6192,9 @@
         orderType,
         tableNumber: orderType === 'dine_in' ? tableNumber : null,
         language: currentLang,
+        orderMode: localSession?.orderMode === 'shared' || localSession?.orderMode === 'representative'
+          ? localSession.orderMode
+          : undefined,
         customerName: (hasCustomer || orderType === 'dine_in')
           ? (String(localSession?.customerName || ctx.customerName || '').trim() || null)
           : null,
@@ -5932,6 +6340,160 @@
     }
   }
 
+  const PENDING_SEND_KEY = 'lechaim-pending-send';
+
+  function cartSendFingerprint(lines) {
+    return (Array.isArray(lines) ? lines : [])
+      .map((line) => [
+        String(line.lineId || ''),
+        String(line.itemId || ''),
+        String(line.qty || 0),
+        String(line.notes || ''),
+        String(line.linkedToMainLineId || ''),
+        String(line.unitType || ''),
+        String(line.selectedWeight || ''),
+        String(line.pricePerKg || ''),
+      ].join(':'))
+      .sort()
+      .join('|');
+  }
+
+  function currentSendScope() {
+    const ctx = window.LechaimOrderContext || {};
+    const session = window.LechaimOrderSession?.getSession?.() || {};
+    const orderType = String(ctx.orderType || session.orderType || 'dine-in');
+    const tableNumber = Number(ctx.tableNumber ?? session.tableNumber);
+    return {
+      orderType,
+      tableNumber: Number.isFinite(tableNumber) ? tableNumber : null,
+    };
+  }
+
+  function readPendingSend() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(PENDING_SEND_KEY) || 'null');
+      if (parsed && parsed.id && parsed.fingerprint) return parsed;
+    } catch (_) { /* ignore */ }
+    return null;
+  }
+
+  function writePendingSend(row) {
+    try {
+      localStorage.setItem(PENDING_SEND_KEY, JSON.stringify(row));
+    } catch (_) { /* ignore */ }
+  }
+
+  function clearPendingSend() {
+    try { localStorage.removeItem(PENDING_SEND_KEY); } catch (_) { /* ignore */ }
+  }
+
+  function getOrCreateClientSendIdFromCart(lines) {
+    const fingerprint = cartSendFingerprint(lines);
+    const scope = currentSendScope();
+    const existing = readPendingSend();
+    const sameScope = existing
+      && String(existing.orderType || '') === String(scope.orderType || '')
+      && (
+        existing.tableNumber == null
+        || scope.tableNumber == null
+        || Number(existing.tableNumber) === Number(scope.tableNumber)
+      );
+    if (
+      existing?.id
+      && existing.status !== 'sent'
+      && existing.fingerprint === fingerprint
+      && sameScope
+    ) {
+      return String(existing.id);
+    }
+    const id = (globalThis.crypto?.randomUUID && globalThis.crypto.randomUUID())
+      || `send_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
+    writePendingSend({
+      id,
+      fingerprint,
+      orderType: scope.orderType,
+      tableNumber: scope.tableNumber,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    });
+    return id;
+  }
+
+  function markPendingSendSent() {
+    const existing = readPendingSend();
+    if (existing?.id) {
+      writePendingSend({
+        ...existing,
+        status: 'sent',
+        sentAt: new Date().toISOString(),
+      });
+    }
+    clearPendingSend();
+  }
+
+  function resolveItemPrintName(item) {
+    if (item?.printName != null && String(item.printName).trim()) {
+      return String(item.printName).trim();
+    }
+    const catalog = findItem(item?.productId);
+    if (catalog?.printName != null && String(catalog.printName).trim()) {
+      return String(catalog.printName).trim();
+    }
+    return String(item?.name || item?.productId || '').trim() || 'Item';
+  }
+
+  function toSupabaseItemPayload(item, parentRemoteId) {
+    const payload = {
+      productId: item.productId,
+      productName: item.name || '',
+      printName: resolveItemPrintName(item),
+      quantity: Number(item.qty) || 1,
+      price: Number(item.price) || 0,
+      category: findProductCategoryId(item.productId)
+        || (item.unitType === 'kg' || item.unitType === 'pack' ? 'butcher' : null),
+      notes: item.notes || null,
+      sideDish: null,
+      parentItemId: parentRemoteId || null,
+      clientItemId: item.itemId || item.productId || '',
+      parentClientItemId: item.linkedToMainItemId || null,
+    };
+    if (item.unitType === 'pack') {
+      payload.unitType = 'pack';
+      payload.price = 0;
+      payload.pricePerKg = item.pricePerKg;
+      payload.thawCount = Number.isFinite(Number(item.thawCount))
+        ? Math.max(0, Math.floor(Number(item.thawCount)))
+        : 0;
+    } else if (item.unitType || item.selectedWeight != null || item.pricePerKg != null) {
+      payload.unitType = item.unitType || 'kg';
+      payload.selectedWeight = item.selectedWeight != null ? item.selectedWeight : 1;
+      payload.pricePerKg = item.pricePerKg;
+    }
+    return payload;
+  }
+
+  function buildWaveItemPayloads(waveItems) {
+    const list = Array.isArray(waveItems) ? waveItems : [];
+    const mains = list.filter((item) => !item.linkedToMainItemId);
+    const sides = list.filter((item) => item.linkedToMainItemId);
+    const payloads = mains.map((item) => toSupabaseItemPayload(item, null));
+    sides.forEach((item) => {
+      let parentClientId = item.linkedToMainItemId || null;
+      if (!parentClientId) {
+        const mealId = String(window.HAMBURGER_MEAL_ID || 'hamburger-fries');
+        const isMealDrink = Boolean(window.HAMBURGER_DRINK_IDS?.has?.(String(item.productId || '')));
+        const burger = isMealDrink
+          ? mains.find((row) => String(row.productId || '') === mealId)
+          : null;
+        if (burger?.itemId) parentClientId = burger.itemId;
+      }
+      const payload = toSupabaseItemPayload(item, null);
+      payload.parentClientItemId = parentClientId;
+      payloads.push(payload);
+    });
+    return payloads;
+  }
+
   async function createSupabaseOrderItems(orderId, waveItems) {
     const api = window.LechaimSupabaseOrders;
     const list = Array.isArray(waveItems) ? waveItems : [];
@@ -5941,48 +6503,9 @@
     const sides = list.filter((item) => item.linkedToMainItemId);
     const localToRemote = new Map();
 
-    function resolveItemPrintName(item) {
-      if (item?.printName != null && String(item.printName).trim()) {
-        return String(item.printName).trim();
-      }
-      const catalog = findItem(item?.productId);
-      if (catalog?.printName != null && String(catalog.printName).trim()) {
-        return String(catalog.printName).trim();
-      }
-      return String(item?.name || item?.productId || '').trim() || 'Item';
-    }
-
-    function toPayload(item, parentRemoteId) {
-      const payload = {
-        productId: item.productId,
-        productName: item.name || '',
-        printName: resolveItemPrintName(item),
-        quantity: Number(item.qty) || 1,
-        price: Number(item.price) || 0,
-        category: findProductCategoryId(item.productId)
-          || (item.unitType === 'kg' || item.unitType === 'pack' ? 'butcher' : null),
-        notes: item.notes || null,
-        sideDish: null,
-        parentItemId: parentRemoteId || null,
-      };
-      if (item.unitType === 'pack') {
-        payload.unitType = 'pack';
-        payload.price = 0;
-        payload.pricePerKg = item.pricePerKg;
-        payload.thawCount = Number.isFinite(Number(item.thawCount))
-          ? Math.max(0, Math.floor(Number(item.thawCount)))
-          : 0;
-      } else if (item.unitType || item.selectedWeight != null || item.pricePerKg != null) {
-        payload.unitType = item.unitType || 'kg';
-        payload.selectedWeight = item.selectedWeight != null ? item.selectedWeight : 1;
-        payload.pricePerKg = item.pricePerKg;
-      }
-      return payload;
-    }
-
     const mainRows = await api.createOrderItems(
       orderId,
-      mains.map((item) => toPayload(item, null))
+      mains.map((item) => toSupabaseItemPayload(item, null))
     );
 
     mains.forEach((item, index) => {
@@ -6004,7 +6527,7 @@
               : null;
             if (burger?.itemId) parentRemoteId = localToRemote.get(String(burger.itemId)) || null;
           }
-          return toPayload(item, parentRemoteId);
+          return toSupabaseItemPayload(item, parentRemoteId);
         })
       );
     }
@@ -6179,6 +6702,7 @@
       try { sessionWatchUnsub(); } catch (_) { /* ignore */ }
       sessionWatchUnsub = null;
     }
+    closeTableOrderPanel();
     clearLocalCustomerStateAfterRemoteClose();
     if (typeof window.LechaimEntryGate?.resetToEntry === 'function') {
       window.LechaimEntryGate.resetToEntry();
@@ -6347,7 +6871,8 @@
           sessionId: ctx.sessionId || localSessionId,
         });
       }
-      if (typeof window.LechaimOrderEngine?.setOrderItems === 'function') {
+      const canMirrorAllRemoteItems = isStaffOrderPage() || isTakeawayContext();
+      if (canMirrorAllRemoteItems && typeof window.LechaimOrderEngine?.setOrderItems === 'function') {
         window.LechaimOrderEngine.setOrderItems(remoteItems);
       }
     } catch (err) {
@@ -6369,8 +6894,11 @@
 
     renderCart();
 
-    if (orderReceipt && !orderReceipt.hidden) {
+    if (orderReceipt && !orderReceipt.hidden && (isStaffOrderPage() || isTakeawayContext())) {
       showOrderReceipt(remoteItems, { viewing: receiptViewingMode });
+    }
+    if (isTableOrderOpen()) {
+      paintTableOrderPanel(remoteItems);
     }
   }
 
@@ -6378,7 +6906,7 @@
    * Sync local wave to Supabase. Resolves on success; rejects on failure.
    * Restaurant PC prints via Admin — customer never calls print-engine.
    */
-  async function syncOrderToSupabase({ localSession, localOrder, waveItems }) {
+  async function syncOrderToSupabase({ localSession, localOrder, waveItems, clientSendId }) {
     const api = window.LechaimSupabaseOrders;
     if (!api || typeof api.isConfigured !== 'function' || !api.isConfigured()) {
       throw new Error('[dual-write] Supabase order service not configured');
@@ -6393,24 +6921,45 @@
     const total = items.reduce((sum, item) => (
       sum + (Number(item.price) || 0) * (Number(item.qty) || 0)
     ), 0);
+    const sendId = String(clientSendId || '').trim() || getOrCreateClientSendIdFromCart(cartLines);
 
-    const remoteOrder = await api.createOrder({
-      sessionId,
-      total,
-      language: currentLang,
-      status: 'submitted',
-    });
+    let remoteOrder = null;
+    if (typeof api.submitOrderWave === 'function') {
+      const result = await api.submitOrderWave({
+        sessionId,
+        clientSendId: sendId,
+        total,
+        language: currentLang,
+        status: 'submitted',
+        items: buildWaveItemPayloads(items),
+      });
+      remoteOrder = result?.order || null;
+      if (remoteOrder) remoteOrder.replayed = Boolean(result?.replayed || remoteOrder.replayed);
+    } else {
+      remoteOrder = await api.createOrder({
+        sessionId,
+        total,
+        language: currentLang,
+        status: 'submitted',
+        clientSendId: sendId,
+      });
+      if (remoteOrder?.id && !remoteOrder.replayed) {
+        await createSupabaseOrderItems(remoteOrder.id, items);
+      }
+    }
 
     if (!remoteOrder?.id) {
       throw new Error('createOrder returned no id');
     }
 
-    await createSupabaseOrderItems(remoteOrder.id, items);
+    rememberMyClientSendId(sessionId, sendId);
+
     console.log('Order synced to Supabase', {
       sessionId,
       orderId: remoteOrder.id,
       orderNumber: remoteOrder.order_number,
       itemCount: items.length,
+      replayed: Boolean(remoteOrder.replayed),
     });
     initRemoteSessionClosedWatcher();
     return remoteOrder;

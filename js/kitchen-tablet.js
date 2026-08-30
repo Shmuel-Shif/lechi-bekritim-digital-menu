@@ -65,6 +65,15 @@
     }, 3200);
   }
 
+  function unlockAudio() {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      if (!audioCtx) audioCtx = new AudioCtx();
+      if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+    } catch (_) { /* ignore */ }
+  }
+
   function playAckChime() {
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -82,6 +91,33 @@
         osc.frequency.value = tone.freq;
         gain.gain.setValueAtTime(0.0001, now + tone.at);
         gain.gain.exponentialRampToValueAtTime(0.22, now + tone.at + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + tone.at + tone.dur);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now + tone.at);
+        osc.stop(now + tone.at + tone.dur + 0.02);
+      });
+    } catch (_) { /* ignore */ }
+  }
+
+  function playMessageChime() {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      if (!audioCtx) audioCtx = new AudioCtx();
+      if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+      const now = audioCtx.currentTime;
+      [
+        { freq: 880, at: 0, dur: 0.15 },
+        { freq: 1175, at: 0.13, dur: 0.16 },
+        { freq: 1480, at: 0.28, dur: 0.26 },
+      ].forEach((tone) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = tone.freq;
+        gain.gain.setValueAtTime(0.0001, now + tone.at);
+        gain.gain.exponentialRampToValueAtTime(0.28, now + tone.at + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.0001, now + tone.at + tone.dur);
         osc.connect(gain);
         gain.connect(audioCtx.destination);
@@ -589,7 +625,7 @@
     thread.push(row);
     renderChat();
     if (row.sender === 'admin') {
-      playAckChime();
+      playMessageChime();
       if (isChatOpen()) markChatSeen();
     }
   });
@@ -604,6 +640,9 @@
       renderChat();
     }
   }
+
+  document.addEventListener('click', unlockAudio, { once: true });
+  document.addEventListener('touchstart', unlockAudio, { once: true });
 
   loadStore();
   pending.forEach((entry) => paintTile(entry, 'waiting'));

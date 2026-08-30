@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=80">
+  <link rel="stylesheet" href="css/admin.css?v=82">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
 <body>
@@ -565,6 +565,39 @@
               </div>
             </article>
               </section>
+
+              <section class="settings-item" data-settings-key="dine-in-order-mode">
+                <button type="button" class="settings-index__row" data-settings-open="dine-in-order-mode" aria-expanded="false">
+                  <span class="settings-index__copy">
+                    <span class="settings-index__title">מערכת הזמנות לישיבה במקום</span>
+                    <span class="settings-index__hint">נציג שולחן או הזמנה משותפת</span>
+                  </span>
+                  <span class="settings-status" id="settings-dine-in-order-mode-status" data-mode="representative">נציג שולחן</span>
+                  <span class="settings-index__chevron" aria-hidden="true"></span>
+                </button>
+            <article class="settings-card" id="settings-card-dine-in-order-mode" hidden>
+              <header class="settings-card__head">
+                <h2 class="settings-card__title">מערכת הזמנות לישיבה במקום</h2>
+              </header>
+              <p class="settings-card__hint">רק מצב אחד פעיל. שולחנות שכבר פתוחים ממשיכים במצב שבו התחילו. חוויית הלקוח עדיין כמו היום עד שנפעיל את המצב החדש.</p>
+              <div class="settings-mode-choices" id="settings-dine-in-order-mode-choices" role="radiogroup" aria-label="מערכת הזמנות לישיבה במקום">
+                <button type="button" class="settings-mode-choice is-active" data-dine-in-order-mode="representative" aria-pressed="true">
+                  <span class="settings-mode-choice__dot" aria-hidden="true"></span>
+                  <span class="settings-mode-choice__copy">
+                    <strong>נציג שולחן</strong>
+                    <span>המערכת הקיימת — אדם אחד מנהל את ההזמנה</span>
+                  </span>
+                </button>
+                <button type="button" class="settings-mode-choice" data-dine-in-order-mode="shared" aria-pressed="false">
+                  <span class="settings-mode-choice__dot" aria-hidden="true"></span>
+                  <span class="settings-mode-choice__copy">
+                    <strong>הזמנה משותפת</strong>
+                    <span>כל סועד מוסיף ושולח בעצמו מאותו שולחן</span>
+                  </span>
+                </button>
+              </div>
+            </article>
+              </section>
             </div>
           </div>
         </section>
@@ -915,7 +948,12 @@
         <h2 class="dish-note-modal__title" id="dish-note-title">הערה למנה</h2>
         <p class="dish-note-modal__dish" id="dish-note-dish-name"></p>
         <h3 class="dish-note-modal__label">בחר הערות מהירות</h3>
-        <div class="dish-note-modal__presets" id="dish-note-presets"></div>
+        <div class="dish-note-modal__layout">
+          <div class="dish-note-modal__presets" id="dish-note-presets"></div>
+          <div class="dish-note-modal__aside" id="dish-note-aside" hidden>
+            <div class="dish-note-modal__presets dish-note-modal__presets--aside" id="dish-note-aside-presets"></div>
+          </div>
+        </div>
         <div class="dish-note-modal__swap" id="dish-note-side-swap" hidden>
           <h3 class="dish-note-modal__label">החלפת תוספת</h3>
           <div class="dish-note-modal__presets dish-note-modal__presets--swap" id="dish-note-side-swap-presets"></div>
@@ -1266,13 +1304,13 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
   <script src="js/order-types.js" defer></script>
-  <script src="js/supabase-order-service.js?v=27" defer></script>
+  <script src="js/supabase-order-service.js?v=28" defer></script>
   <script src="js/menu-data.js?v=92" defer></script>
   <script src="js/opening-hours.js?v=12" defer></script>
   <script src="js/app-settings.js?v=6" defer></script>
   <script src="js/shabbat-menu-data.js" defer></script>
   <script src="js/inventory.js?v=43" defer></script>
-  <script src="js/order-session.js?v=4" defer></script>
+  <script src="js/order-session.js?v=6" defer></script>
   <script src="js/order-engine.js" defer></script>
   <script src="js/print-engine.js?v=37" defer></script>
   <script src="js/a11y-focus-trap.js" defer></script>
@@ -1283,12 +1321,12 @@
   <script src="js/admin-reservations.js?v=6" defer></script>
   <script src="js/kitchen-alert-service.js?v=13" defer></script>
   <script src="js/admin-kitchen-alerts.js?v=14" defer></script>
-  <script src="js/admin-kitchen-board.js?v=24" defer></script>
+  <script src="js/admin-kitchen-board.js?v=25" defer></script>
   <script src="js/admin-history.js?v=2" defer></script>
   <script src="js/admin-coupons.js" defer></script>
   <script src="js/admin-till.js?v=3" defer></script>
   <script src="js/admin-staff-hours.js?v=6" defer></script>
-  <script src="js/admin-settings.js?v=6" defer></script>
+  <script src="js/admin-settings.js?v=7" defer></script>
   <script src="js/stock-catalog.js?v=6" defer></script>
   <script src="js/admin-stock.js?v=2" defer></script>
   <script src="js/admin.js?v=58" defer></script>

@@ -20,6 +20,8 @@
   const deliveriesStatusEl = document.getElementById('settings-deliveries-status');
   const kitchenStatusEl = document.getElementById('settings-kitchen-status');
   const shabbatStatusEl = document.getElementById('settings-shabbat-status');
+  const dineInOrderModeStatusEl = document.getElementById('settings-dine-in-order-mode-status');
+  const dineInOrderModeChoicesEl = document.getElementById('settings-dine-in-order-mode-choices');
 
   let started = false;
   let flagsUnsub = null;
@@ -27,6 +29,8 @@
   let dineInCloseAtMs = null;
   let deliveriesClosed = false;
   let shabbatEnabled = true;
+  let dineInOrderMode = 'representative';
+  let dineInOrderModeSaving = false;
 
   function showToast(message) {
     if (typeof global.LechaimAdminTables?.showSuccessModal === 'function') {
@@ -77,6 +81,19 @@
 
   function paintShabbatStatus() {
     paintStatus(shabbatStatusEl, shabbatEnabled !== false, 'פתוחות', 'סגורות');
+  }
+
+  function paintDineInOrderMode() {
+    const mode = dineInOrderMode === 'shared' ? 'shared' : 'representative';
+    if (dineInOrderModeStatusEl) {
+      dineInOrderModeStatusEl.dataset.mode = mode;
+      dineInOrderModeStatusEl.textContent = mode === 'shared' ? 'הזמנה משותפת' : 'נציג שולחן';
+    }
+    dineInOrderModeChoicesEl?.querySelectorAll('[data-dine-in-order-mode]').forEach((btn) => {
+      const active = btn.getAttribute('data-dine-in-order-mode') === mode;
+      btn.classList.toggle('is-active', active);
+      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
   }
 
   function paintKitchenStatus() {
@@ -168,16 +185,19 @@
       paintDeliveriesStatus();
       paintShabbatStatus();
       paintKitchenStatus();
+      paintDineInOrderMode();
       return;
     }
     try {
-      const [closed, shabbat, closeAt] = await Promise.all([
+      const [closed, shabbat, closeAt, orderMode] = await Promise.all([
         typeof api.getDeliveriesClosed === 'function' ? api.getDeliveriesClosed() : false,
         typeof api.getShabbatOrdersEnabled === 'function' ? api.getShabbatOrdersEnabled() : true,
         typeof api.getDineInCloseAt === 'function' ? api.getDineInCloseAt() : null,
+        typeof api.getDineInOrderMode === 'function' ? api.getDineInOrderMode() : 'representative',
       ]);
       deliveriesClosed = Boolean(closed);
       shabbatEnabled = Boolean(shabbat);
+      dineInOrderMode = orderMode === 'shared' ? 'shared' : 'representative';
       dineInCloseAtMs = closeAt ? Date.parse(closeAt) : null;
       if (!Number.isFinite(dineInCloseAtMs)) dineInCloseAtMs = null;
     } catch (err) {
@@ -186,7 +206,30 @@
     paintShopStatus();
     paintDeliveriesStatus();
     paintShabbatStatus();
+    paintDineInOrderMode();
     armKitchenTick();
+  }
+
+  async function saveDineInOrderMode(mode) {
+    const api = global.LechaimSupabaseOrders;
+    const next = mode === 'shared' ? 'shared' : 'representative';
+    if (next === dineInOrderMode || dineInOrderModeSaving) return;
+    if (typeof api?.setDineInOrderMode !== 'function') {
+      showError('שמירת מצב ההזמנות לא זמינה');
+      return;
+    }
+    dineInOrderModeSaving = true;
+    showError('');
+    try {
+      dineInOrderMode = await api.setDineInOrderMode(next);
+      paintDineInOrderMode();
+      showToast('');
+    } catch (err) {
+      showError(err?.message || 'שמירת מצב ההזמנות נכשלה — הריצו את supabase-dine-in-order-mode.sql');
+      paintDineInOrderMode();
+    } finally {
+      dineInOrderModeSaving = false;
+    }
   }
 
   async function saveHours() {
@@ -342,6 +385,12 @@
     shabbatSaveBtn?.addEventListener('click', () => {
       saveShabbatPickup().catch((err) => console.error('[admin-settings] shabbat save', err));
     });
+    dineInOrderModeChoicesEl?.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-dine-in-order-mode]');
+      if (!btn || !dineInOrderModeChoicesEl.contains(btn)) return;
+      saveDineInOrderMode(btn.getAttribute('data-dine-in-order-mode'))
+        .catch((err) => console.error('[admin-settings] dine-in order mode', err));
+    });
   }
 
   function start() {
@@ -361,6 +410,9 @@
         } else if (evt?.flagKey === 'shabbat_orders_enabled') {
           shabbatEnabled = Boolean(evt.flagValue);
           paintShabbatStatus();
+        } else if (evt?.flagKey === 'dine_in_order_mode') {
+          dineInOrderMode = evt.flagText === 'shared' ? 'shared' : 'representative';
+          paintDineInOrderMode();
         } else if (evt?.flagKey === 'dine_in_close_at') {
           dineInCloseAtMs = evt.flagValue && evt.flagText ? Date.parse(evt.flagText) : null;
           if (!Number.isFinite(dineInCloseAtMs)) dineInCloseAtMs = null;

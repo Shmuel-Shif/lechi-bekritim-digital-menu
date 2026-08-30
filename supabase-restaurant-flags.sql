@@ -39,6 +39,11 @@ insert into public.restaurant_flags (flag_key, flag_value)
 values ('shabbat_orders_enabled', true)
 on conflict (flag_key) do nothing;
 
+-- Dine-in customer ordering system (representative = current, shared = Stage 1+)
+insert into public.restaurant_flags (flag_key, flag_value, flag_text)
+values ('dine_in_order_mode', false, 'representative')
+on conflict (flag_key) do nothing;
+
 -- Central settings (hours / delivery copy / Shabbat pickup) live in flag_text
 insert into public.restaurant_flags (flag_key, flag_value, flag_text)
 values

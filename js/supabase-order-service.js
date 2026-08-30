@@ -15,6 +15,8 @@
   const TABLE_ITEMS = 'order_items';
 
   const OPEN_SESSION_STATUSES = ['active', 'bill_requested'];
+  const TABLE_SESSION_STATUSES = ['draft', 'active', 'bill_requested'];
+  const SHARED_DRAFT_TTL_MS = 15 * 60 * 1000;
   const WAITER_NEED_IDS = ['water', 'cutlery', 'napkin', 'other'];
   const KITCHEN_ITEM_STATUSES = ['waiting', 'preparing', 'ready'];
 
@@ -93,6 +95,38 @@
     throw err;
   }
 
+  const DINE_IN_ORDER_MODES = ['representative', 'shared'];
+  const DEFAULT_DINE_IN_ORDER_MODE = 'representative';
+
+  function errorBlob(error) {
+    return `${error?.message || ''} ${error?.details || ''} ${error?.hint || ''} ${error?.code || ''}`;
+  }
+
+  function isMissingColumnError(error, names) {
+    const text = errorBlob(error);
+    if (!/42703|column .* does not exist|schema cache|could not find/i.test(text)) return false;
+    const list = Array.isArray(names) ? names : [names];
+    return list.some((name) => new RegExp(String(name), 'i').test(text));
+  }
+
+  function isMissingRpcError(error) {
+    return /42883|function .* does not exist|could not find the function|schema cache/i.test(errorBlob(error));
+  }
+
+  function isUniqueViolation(error) {
+    return error?.code === '23505' || /duplicate key|unique/i.test(errorBlob(error));
+  }
+
+  function normalizeDineInOrderMode(value) {
+    const raw = String(value || '').trim().toLowerCase();
+    return DINE_IN_ORDER_MODES.includes(raw) ? raw : DEFAULT_DINE_IN_ORDER_MODE;
+  }
+
+  function normalizeClientSendId(value) {
+    const id = String(value || '').trim();
+    return id.length >= 8 ? id : '';
+  }
+
   function normalizeOrderType(value) {
     const types = global.LechaimOrderTypes;
     if (types?.normalizeOrderType) {
@@ -113,8 +147,24 @@
   }
 
   function normalizeSessionStatus(value) {
-    if (value === 'active' || value === 'bill_requested' || value === 'closed') return value;
+    if (value === 'draft' || value === 'active' || value === 'bill_requested' || value === 'closed') {
+      return value;
+    }
     return null;
+  }
+
+  function isDraftStatusCheckError(error) {
+    const text = errorBlob(error);
+    return /status|check constraint|22p02|invalid input/i.test(text)
+      && /draft|active|bill_requested|closed/i.test(text);
+  }
+
+  function isStaleSharedDraft(row) {
+    if (!row || String(row.status) !== 'draft') return false;
+    if (row.reservation_question_answered) return false;
+    const created = Date.parse(row.created_at);
+    if (!Number.isFinite(created)) return false;
+    return (Date.now() - created) > SHARED_DRAFT_TTL_MS;
   }
 
   function toNumberOrNull(value) {
@@ -250,6 +300,12 @@
         row.public_order_no = null;
         row.customer_address = null;
         row.fulfillment_type = null;
+        row.order_mode = normalizeDineInOrderMode(
+          options.orderMode ?? options.order_mode ?? await readDineInOrderModeSafe()
+        );
+        row.initial_order_done = false;
+        row.reservation_question_answered = false;
+        if (options.status === 'draft') row.status = 'draft';
         break;
       default:
         console.warn(`[LechaimSupabaseOrders.createSession] Unknown order type: ${orderType}`);
@@ -279,6 +335,23 @@
         .single();
 
       if (!error) return data;
+
+      if (isMissingColumnError(error, ['order_mode', 'initial_order_done', 'reservation_question_answered'])) {
+        delete row.order_mode;
+        delete row.initial_order_done;
+        delete row.reservation_question_answered;
+        lastError = error;
+        continue;
+      }
+
+      if (row.status === 'draft' && isDraftStatusCheckError(error)) {
+        throw error;
+      }
+
+      if (orderType === 'dine_in' && isUniqueViolation(error) && row.table_number != null) {
+        const existing = await findDineInSessionForTable(row.table_number);
+        if (existing) return existing;
+      }
 
       /* Unique public_order_no race — retry with a fresh number */
       const isUniqueConflict = error.code === '23505'
@@ -344,14 +417,228 @@
       language: normalizeLang(options.language || options.lang),
     };
 
+    const clientSendId = normalizeClientSendId(
+      options.clientSendId ?? options.client_send_id
+    );
+    if (clientSendId) row.client_send_id = clientSendId;
+
     const { data, error } = await sb
       .from(TABLE_ORDERS)
       .insert(row)
       .select('*')
       .single();
 
+    if (!error) return data;
+
+    if (clientSendId && isUniqueViolation(error)) {
+      const existing = await fetchOrderByClientSendId(sb, clientSendId);
+      if (existing) {
+        existing.replayed = true;
+        return existing;
+      }
+    }
+
+    if (clientSendId && isMissingColumnError(error, ['client_send_id'])) {
+      delete row.client_send_id;
+      const retry = await sb
+        .from(TABLE_ORDERS)
+        .insert(row)
+        .select('*')
+        .single();
+      throwIfError(retry.error, 'createOrder');
+      return retry.data;
+    }
+
     throwIfError(error, 'createOrder');
     return data;
+  }
+
+  async function fetchOrderByClientSendId(sb, clientSendId) {
+    const id = normalizeClientSendId(clientSendId);
+    if (!id) return null;
+    const { data, error } = await sb
+      .from(TABLE_ORDERS)
+      .select('*')
+      .eq('client_send_id', id)
+      .maybeSingle();
+    if (error) {
+      if (isMissingColumnError(error, ['client_send_id'])) return null;
+      throwIfError(error, 'fetchOrderByClientSendId');
+    }
+    return data || null;
+  }
+
+  async function orderHasItems(orderId) {
+    if (!orderId) return false;
+    const sb = getClient();
+    const { data, error } = await sb
+      .from(TABLE_ITEMS)
+      .select('id')
+      .eq('order_id', orderId)
+      .limit(1);
+    if (error) return false;
+    return Boolean(data && data.length);
+  }
+
+  function toWaveItemRow(item) {
+    const productId = item.productId ?? item.product_id;
+    if (!productId) {
+      throw new Error('[LechaimSupabaseOrders.submitOrderWave] productId is required');
+    }
+    const qty = Number(item.quantity ?? item.qty);
+    if (!Number.isFinite(qty) || qty <= 0) {
+      throw new Error('[LechaimSupabaseOrders.submitOrderWave] quantity must be > 0');
+    }
+    const row = {
+      client_item_id: String(item.clientItemId ?? item.client_item_id ?? item.itemId ?? ''),
+      parent_client_item_id: item.parentClientItemId
+        ?? item.parent_client_item_id
+        ?? item.linkedToMainItemId
+        ?? null,
+      product_id: String(productId),
+      product_name: String(item.productName ?? item.product_name ?? item.name ?? ''),
+      print_name: String(item.printName ?? item.print_name ?? ''),
+      quantity: Math.floor(qty),
+      price: Number(item.price) || 0,
+      category: item.category == null ? null : String(item.category),
+      notes: item.notes == null || item.notes === '' ? null : String(item.notes),
+      notes_el: item.notesEl ?? item.notes_el ?? null,
+      side_dish: item.sideDish ?? item.side_dish ?? null,
+      unit_type: item.unitType ?? item.unit_type ?? null,
+      selected_weight: item.selectedWeight ?? item.selected_weight ?? null,
+      price_per_kg: item.pricePerKg ?? item.price_per_kg ?? null,
+      thaw_count: item.thawCount ?? item.thaw_count ?? null,
+    };
+    if (!row.client_item_id) {
+      row.client_item_id = `line_${row.product_id}_${Math.random().toString(36).slice(2, 10)}`;
+    }
+    if (row.parent_client_item_id) {
+      row.parent_client_item_id = String(row.parent_client_item_id);
+    }
+    return row;
+  }
+
+  /**
+   * Create one send-wave (order + items) with real DB idempotency.
+   * Same client_send_id never creates a second orders row or duplicate items.
+   */
+  async function submitOrderWave(options = {}) {
+    const sessionId = options.sessionId || options.session_id;
+    const clientSendId = normalizeClientSendId(
+      options.clientSendId ?? options.client_send_id
+    );
+    const list = Array.isArray(options.items) ? options.items : [];
+    if (!sessionId) {
+      throw new Error('[LechaimSupabaseOrders.submitOrderWave] sessionId is required');
+    }
+    if (!clientSendId) {
+      throw new Error('[LechaimSupabaseOrders.submitOrderWave] clientSendId is required');
+    }
+    if (!list.length) {
+      throw new Error('[LechaimSupabaseOrders.submitOrderWave] items are required');
+    }
+
+    const sb = getClient();
+    const payload = {
+      p_session_id: sessionId,
+      p_client_send_id: clientSendId,
+      p_total: Number(options.total) || 0,
+      p_status: options.status || 'submitted',
+      p_language: normalizeLang(options.language || options.lang),
+      p_items: list.map(toWaveItemRow),
+    };
+
+    const { data, error } = await sb.rpc('submit_order_wave', payload);
+    if (!error && data) {
+      const order = data.order || data;
+      if (order && typeof order === 'object') {
+        return {
+          order,
+          items: Array.isArray(data.items) ? data.items : [],
+          replayed: Boolean(data.replayed),
+        };
+      }
+    }
+
+    if (error && !isMissingRpcError(error) && !isMissingColumnError(error, [
+      'client_send_id',
+      'notes_el',
+      'unit_type',
+      'selected_weight',
+      'price_per_kg',
+      'thaw_count',
+    ])) {
+      if (isUniqueViolation(error)) {
+        const existing = await fetchOrderByClientSendId(sb, clientSendId);
+        if (existing) {
+          const { data: items } = await sb
+            .from(TABLE_ITEMS)
+            .select('*')
+            .eq('order_id', existing.id);
+          return {
+            order: existing,
+            items: items || [],
+            replayed: true,
+          };
+        }
+      }
+      throwIfError(error, 'submitOrderWave');
+    }
+
+    const order = await createOrder({
+      sessionId,
+      total: payload.p_total,
+      status: payload.p_status,
+      language: payload.p_language,
+      clientSendId,
+    });
+    if (!order?.id) {
+      throw new Error('[LechaimSupabaseOrders.submitOrderWave] createOrder returned no id');
+    }
+
+    if (order.replayed && await orderHasItems(order.id)) {
+      const { data: items } = await sb
+        .from(TABLE_ITEMS)
+        .select('*')
+        .eq('order_id', order.id);
+      return { order, items: items || [], replayed: true };
+    }
+
+    const items = await createOrderItemsInParentOrder(order.id, list);
+    return { order, items, replayed: Boolean(order.replayed) };
+  }
+
+  async function createOrderItemsInParentOrder(orderId, list) {
+    const rows = Array.isArray(list) ? list : [];
+    const isChild = (item) => Boolean(
+      item.parentClientItemId
+      || item.parent_client_item_id
+      || item.linkedToMainItemId
+      || item.parentItemId
+      || item.parent_item_id
+    );
+    const mains = rows.filter((item) => !isChild(item));
+    const sides = rows.filter((item) => isChild(item));
+    const mainRows = mains.length ? await createOrderItems(orderId, mains) : [];
+    const idMap = new Map();
+    mains.forEach((item, index) => {
+      const key = item.clientItemId || item.client_item_id || item.itemId;
+      if (key && mainRows[index]?.id) idMap.set(String(key), mainRows[index].id);
+    });
+    if (sides.length) {
+      await createOrderItems(orderId, sides.map((item) => {
+        const parentKey = item.parentClientItemId
+          || item.parent_client_item_id
+          || item.linkedToMainItemId
+          || '';
+        const parentItemId = item.parentItemId
+          || item.parent_item_id
+          || (parentKey ? idMap.get(String(parentKey)) : null)
+          || null;
+        return { ...item, parentItemId };
+      }));
+    }
+    return mainRows;
   }
 
   /**
@@ -2681,6 +2968,218 @@
     return setAppSetting('shabbat_pickup_time', time);
   }
 
+  /**
+   * Current dine-in ordering system. Missing row / SQL → representative.
+   * Customer UX does not read this until Stage 1.
+   */
+  async function getDineInOrderMode() {
+    try {
+      const sb = getClient();
+      const { data, error } = await sb
+        .from('restaurant_flags')
+        .select('flag_text')
+        .eq('flag_key', 'dine_in_order_mode')
+        .maybeSingle();
+      if (error) {
+        console.warn('[LechaimSupabaseOrders] getDineInOrderMode', error);
+        return DEFAULT_DINE_IN_ORDER_MODE;
+      }
+      return normalizeDineInOrderMode(data?.flag_text);
+    } catch (err) {
+      console.warn('[LechaimSupabaseOrders] getDineInOrderMode', err);
+      return DEFAULT_DINE_IN_ORDER_MODE;
+    }
+  }
+
+  async function readDineInOrderModeSafe() {
+    try {
+      return await getDineInOrderMode();
+    } catch (_) {
+      return DEFAULT_DINE_IN_ORDER_MODE;
+    }
+  }
+
+  async function setDineInOrderMode(mode) {
+    const next = normalizeDineInOrderMode(mode);
+    const sb = getClient();
+    const { data: authData } = await sb.auth.getSession();
+    if (!authData?.session) {
+      throw new Error(
+        'setDineInOrderMode: must be signed in as admin (RLS blocks anon write)'
+      );
+    }
+    const { error } = await sb
+      .from('restaurant_flags')
+      .upsert({
+        flag_key: 'dine_in_order_mode',
+        flag_value: next === 'shared',
+        flag_text: next,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'flag_key' });
+    throwIfError(error, 'setDineInOrderMode');
+    return next;
+  }
+
+  /**
+   * Marks the table's first-order round as done. Updates only initial_order_done.
+   */
+  async function setSessionInitialOrderDone(sessionId, done = true) {
+    if (!sessionId) {
+      throw new Error('[LechaimSupabaseOrders.setSessionInitialOrderDone] sessionId is required');
+    }
+    const sb = getClient();
+    const { data, error } = await sb
+      .from(TABLE_SESSIONS)
+      .update({ initial_order_done: Boolean(done) })
+      .eq('session_id', sessionId)
+      .select('*')
+      .single();
+    if (error && isMissingColumnError(error, ['initial_order_done'])) {
+      console.warn('[LechaimSupabaseOrders] initial_order_done missing — run supabase-dine-in-order-mode.sql');
+      return getSession(sessionId);
+    }
+    throwIfError(error, 'setSessionInitialOrderDone');
+    return data;
+  }
+
+  async function markInitialOrderDone(sessionId) {
+    return setSessionInitialOrderDone(sessionId, true);
+  }
+
+  async function findDineInSessionForTable(tableNumber) {
+    const n = Number(tableNumber);
+    if (!Number.isInteger(n)) return null;
+    const sb = getClient();
+    const { data, error } = await sb
+      .from(TABLE_SESSIONS)
+      .select('*')
+      .eq('order_type', 'dine_in')
+      .eq('table_number', n)
+      .in('status', TABLE_SESSION_STATUSES)
+      .order('updated_at', { ascending: false })
+      .limit(1);
+    if (error && /draft/i.test(errorBlob(error))) {
+      const retry = await sb
+        .from(TABLE_SESSIONS)
+        .select('*')
+        .eq('order_type', 'dine_in')
+        .eq('table_number', n)
+        .in('status', OPEN_SESSION_STATUSES)
+        .order('updated_at', { ascending: false })
+        .limit(1);
+      throwIfError(retry.error, 'findDineInSessionForTable');
+      return retry.data?.[0] || null;
+    }
+    throwIfError(error, 'findDineInSessionForTable');
+    return data?.[0] || null;
+  }
+
+  async function closeStaleSharedDraft(sessionId) {
+    if (!sessionId) return null;
+    const sb = getClient();
+    const { data, error } = await sb
+      .from(TABLE_SESSIONS)
+      .update({
+        status: 'closed',
+        closed_at: new Date().toISOString(),
+      })
+      .eq('session_id', sessionId)
+      .eq('status', 'draft')
+      .select('*')
+      .maybeSingle();
+    if (error) {
+      console.warn('[LechaimSupabaseOrders] closeStaleSharedDraft', error);
+      return null;
+    }
+    return data || null;
+  }
+
+  /**
+   * Shared dine-in placeholder. Does not mark the table occupied
+   * (occupancy still requires active/bill_requested + a live order).
+   */
+  async function ensureSharedDraftSession(tableNumber, options = {}) {
+    const n = Number(tableNumber);
+    if (!Number.isInteger(n)) {
+      throw new Error('[LechaimSupabaseOrders.ensureSharedDraftSession] tableNumber is required');
+    }
+
+    let existing = await findDineInSessionForTable(n);
+    if (existing && isStaleSharedDraft(existing)) {
+      await closeStaleSharedDraft(existing.session_id);
+      existing = await findDineInSessionForTable(n);
+    }
+    if (existing) return existing;
+
+    try {
+      return await createSession({
+        orderType: 'dine_in',
+        tableNumber: n,
+        orderMode: 'shared',
+        status: 'draft',
+        language: options.language || options.lang || null,
+      });
+    } catch (err) {
+      if (isDraftStatusCheckError(err) || isMissingColumnError(err, ['reservation_question_answered'])) {
+        const err2 = new Error('SHARED_DRAFT_UNSUPPORTED');
+        err2.cause = err;
+        throw err2;
+      }
+      const raced = await findDineInSessionForTable(n);
+      if (raced) return raced;
+      throw err;
+    }
+  }
+
+  async function markReservationQuestionAnswered(sessionId, details = {}) {
+    if (!sessionId) {
+      throw new Error('[LechaimSupabaseOrders.markReservationQuestionAnswered] sessionId is required');
+    }
+    const sb = getClient();
+    const patch = {
+      reservation_question_answered: true,
+    };
+    if (details.customerName !== undefined || details.customer_name !== undefined) {
+      const name = String(details.customerName ?? details.customer_name ?? '').trim();
+      patch.customer_name = name || null;
+    }
+    if (details.notes !== undefined) {
+      patch.notes = details.notes == null ? null : String(details.notes);
+    }
+    const { data, error } = await sb
+      .from(TABLE_SESSIONS)
+      .update(patch)
+      .eq('session_id', sessionId)
+      .select('*')
+      .single();
+    if (error && isMissingColumnError(error, ['reservation_question_answered'])) {
+      console.warn('[LechaimSupabaseOrders] reservation_question_answered missing — run supabase-dine-in-shared-draft.sql');
+      return getSession(sessionId);
+    }
+    throwIfError(error, 'markReservationQuestionAnswered');
+    return data;
+  }
+
+  async function promoteDraftSession(sessionId) {
+    if (!sessionId) return null;
+    const current = await getSession(sessionId);
+    if (!current) return null;
+    if (String(current.status) !== 'draft') return current;
+    const sb = getClient();
+    const { data, error } = await sb
+      .from(TABLE_SESSIONS)
+      .update({ status: 'active' })
+      .eq('session_id', sessionId)
+      .eq('status', 'draft')
+      .select('*')
+      .maybeSingle();
+    if (error && isDraftStatusCheckError(error)) {
+      return current;
+    }
+    throwIfError(error, 'promoteDraftSession');
+    return data || getSession(sessionId);
+  }
+
   let flagsChannel = null;
   const flagsListeners = new Set();
 
@@ -2733,6 +3232,7 @@
     createSession,
     createOrder,
     createOrderItems,
+    submitOrderWave,
     bumpOrderItemQuantity,
     refreshOrderTotal,
     deleteOrderItem,
@@ -2795,6 +3295,19 @@
     setWeeklyHours,
     setDeliverySettings,
     setShabbatPickupTime,
+    getDineInOrderMode,
+    setDineInOrderMode,
+    setSessionInitialOrderDone,
+    markInitialOrderDone,
+    findDineInSessionForTable,
+    ensureSharedDraftSession,
+    markReservationQuestionAnswered,
+    promoteDraftSession,
+    isStaleSharedDraft,
+    SHARED_DRAFT_TTL_MS,
+    normalizeDineInOrderMode,
+    DINE_IN_ORDER_MODES,
+    DEFAULT_DINE_IN_ORDER_MODE,
     APP_SETTING_DEFAULTS,
   };
 })(window);

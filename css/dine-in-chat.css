@@ -231,7 +231,9 @@ body.cart-open .dine-in-chat-panel,
 body.modal-open .dine-in-chat-fab,
 body.modal-open .dine-in-chat-panel,
 body.order-receipt-open .dine-in-chat-fab,
-body.order-receipt-open .dine-in-chat-panel {
+body.order-receipt-open .dine-in-chat-panel,
+body.table-order-open .dine-in-chat-fab,
+body.table-order-open .dine-in-chat-panel {
   display: none !important;
 }
 

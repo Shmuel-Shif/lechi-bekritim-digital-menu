@@ -9,11 +9,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/main.css?v=53">
-  <link rel="stylesheet" href="css/theme-lechaim.css?v=3">
-  <link rel="stylesheet" href="css/entry-gate.css?v=17">
-  <link rel="stylesheet" href="css/dine-in-map.css">
-  <link rel="stylesheet" href="css/help-bot.css?v=17">
+  <link rel="stylesheet" href="css/main.css?v=59">
+  <link rel="stylesheet" href="css/theme-lechaim.css?v=6">
+  <link rel="stylesheet" href="css/entry-gate.css?v=22">
+  <link rel="stylesheet" href="css/dine-in-map.css?v=2">
+  <link rel="stylesheet" href="css/help-bot.css?v=22">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
   <!-- Dine-in only: floor-plan map overlays #entry-tables buttons (positions in data/table-map.json). -->
   <style>
@@ -60,9 +60,13 @@
         id="entry-lang-toggle"
         aria-label="החלפת שפה – עברית / English"
       >
-        <span class="lang-toggle__option lang-toggle__option--active" data-lang="he">עב</span>
+        <span class="lang-toggle__option lang-toggle__option--active" data-lang="he">
+          <img class="lang-flag" src="assets/icons/flag-il.svg" alt="" width="22" height="16">
+        </span>
         <span class="lang-toggle__sep" aria-hidden="true">|</span>
-        <span class="lang-toggle__option" data-lang="en">EN</span>
+        <span class="lang-toggle__option" data-lang="en">
+          <img class="lang-flag" src="assets/icons/flag-us.svg" alt="" width="22" height="16">
+        </span>
       </button>
     </div>
 
@@ -162,6 +166,23 @@
       </div>
     </div>
 
+    <div class="entry-place-res-thanks entry-arrive-modal" id="entry-join-occupied-modal" hidden aria-hidden="true">
+      <div class="entry-place-res-thanks__backdrop" id="entry-join-occupied-backdrop"></div>
+      <div
+        class="entry-place-res-thanks__panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="entry-join-occupied-title"
+      >
+        <p class="entry-place-res-thanks__title" id="entry-join-occupied-title">שולחן 0 כבר פעיל</p>
+        <p class="entry-place-res-thanks__text" id="entry-join-occupied-text" data-entry-i18n="joinOccupiedText">האם להצטרף לשולחן זה?</p>
+        <div class="entry-arrive__actions">
+          <button type="button" class="entry-gate__btn" id="entry-join-occupied-back" data-entry-i18n="back">חזרה</button>
+          <button type="button" class="entry-gate__btn entry-gate__btn--primary" id="entry-join-occupied-confirm" data-entry-i18n="joinOccupiedConfirm">הצטרף לשולחן</button>
+        </div>
+      </div>
+    </div>
+
     <div class="entry-table-modal" id="entry-table-modal" hidden aria-hidden="true">
       <button type="button" class="entry-table-modal__backdrop" id="entry-table-modal-backdrop" aria-label="סגור"></button>
       <div
@@ -201,16 +222,6 @@
       <div class="header-actions">
         <button
           type="button"
-          class="lang-toggle header-actions__lang"
-          data-i18n-aria="langToggleAria"
-          aria-label="החלפת שפה – עברית / English"
-        >
-          <span class="lang-toggle__option lang-toggle__option--active" data-lang="he">עב</span>
-          <span class="lang-toggle__sep" aria-hidden="true">|</span>
-          <span class="lang-toggle__option" data-lang="en">EN</span>
-        </button>
-        <button
-          type="button"
           class="header-action header-action--table"
           id="table-toggle"
           hidden
@@ -232,15 +243,15 @@
         </button>
         <button
           type="button"
-          class="header-action header-action--my-order"
-          id="my-order-toggle"
+          class="header-action header-action--table-order"
+          id="table-order-toggle"
           hidden
-          aria-label="פתח את ההזמנה שלי"
-          aria-controls="order-receipt"
-          data-i18n-aria="openMyOrder"
+          aria-label="פתח את הזמנת השולחן"
+          aria-controls="table-order"
+          data-i18n-aria="openTableOrder"
         >
           <img src="assets/icons/order.svg" alt="" width="24" height="24">
-          <span id="my-order-toggle-label" data-i18n="myOrderView">ההזמנה שלי</span>
+          <span id="table-order-toggle-label" data-i18n="tableOrderBtn">הזמנת השולחן</span>
         </button>
         <button type="button" class="header-action header-action--cart" id="cart-toggle" aria-label="פתח סל הזמנה" aria-controls="cart-panel" aria-expanded="false">
           <img src="assets/icons/cart.svg" alt="" width="24" height="24" id="cart-toggle-icon">
@@ -331,10 +342,29 @@
     <button type="button" class="cart-backdrop" id="cart-backdrop" aria-label="סגור סל"></button>
     <aside class="cart-drawer" role="dialog" aria-modal="true" aria-labelledby="cart-title">
       <header class="cart-header">
-        <h2 class="cart-title" id="cart-title" data-i18n="myOrder">ההזמנה שלי</h2>
-        <button type="button" class="cart-close" id="cart-close" aria-label="סגור">
-          <span aria-hidden="true">&times;</span>
-        </button>
+        <h2 class="cart-title" id="cart-title" data-i18n="myCart">הסל שלי</h2>
+        <div class="cart-header__actions">
+          <button
+            type="button"
+            class="cart-my-order-btn"
+            id="cart-my-order"
+            hidden
+            aria-label="פתח את ההזמנה שלי"
+            data-i18n-aria="openMyOrder"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="8" y1="13" x2="16" y2="13"/>
+              <line x1="8" y1="17" x2="16" y2="17"/>
+              <line x1="8" y1="9" x2="10" y2="9"/>
+            </svg>
+            <span id="cart-my-order-label" data-i18n="myOrderView">ההזמנה שלי</span>
+          </button>
+          <button type="button" class="cart-close" id="cart-close" aria-label="סגור">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
       </header>
       <div class="cart-body" id="cart-body"></div>
       <footer class="cart-footer" id="cart-footer">
@@ -417,10 +447,18 @@
         <span id="order-receipt-total-label">סה״כ</span>
         <strong id="order-receipt-total">€0.00</strong>
       </div>
-      <footer class="order-receipt__actions">
-        <button type="button" class="cart-send-btn" id="order-receipt-continue" data-i18n="receiptContinue">הוסף פריטים להזמנה קיימת</button>
-        <button type="button" class="cart-clear-btn" id="order-receipt-new" data-i18n="receiptNewOrder">הזמנה חדשה</button>
-      </footer>
+      <footer class="order-receipt__actions" hidden></footer>
+    </div>
+  </div>
+
+  <div class="order-receipt table-order" id="table-order" hidden aria-hidden="true">
+    <button type="button" class="order-receipt__backdrop" id="table-order-backdrop" aria-label="סגור"></button>
+    <div class="order-receipt__panel" role="dialog" aria-modal="true" aria-labelledby="table-order-title">
+      <button type="button" class="order-receipt__close" id="table-order-close" aria-label="סגור">×</button>
+      <header class="order-receipt__header">
+        <h2 class="order-receipt__title" id="table-order-title">הזמנת שולחן</h2>
+      </header>
+      <div class="order-receipt__body" id="table-order-body"></div>
     </div>
   </div>
 
@@ -497,20 +535,20 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
   <script src="js/order-types.js" defer></script>
-  <script src="js/supabase-order-service.js?v=16" defer></script>
-  <script src="js/menu-data.js?v=94" defer></script>
+  <script src="js/supabase-order-service.js?v=19" defer></script>
+  <script src="js/menu-data.js?v=99" defer></script>
   <script src="js/opening-hours.js?v=12" defer></script>
   <script src="js/app-settings.js?v=6" defer></script>
   <script src="js/inventory.js?v=43" defer></script>
-  <script src="js/order-session.js?v=4" defer></script>
+  <script src="js/order-session.js?v=6" defer></script>
   <script src="js/order-engine.js" defer></script>
   <script src="js/a11y-focus-trap.js" defer></script>
-  <script src="js/main.js?v=78" defer></script>
+  <script src="js/main.js?v=87" defer></script>
   <script src="js/place-reservations.js?v=9" defer></script>
-  <script src="js/entry-gate.js?v=64" defer></script>
-  <script src="js/dine-in-table-map.js?v=3" defer></script>
+  <script src="js/entry-gate.js?v=68" defer></script>
+  <script src="js/dine-in-table-map.js?v=4" defer></script>
   <script src="js/around-us.js?v=7" defer></script>
-  <script src="js/help-bot.js?v=20" defer></script>
+  <script src="js/help-bot.js?v=21" defer></script>
   <script src="js/waiter-call.js?v=2" defer></script>
 </body>
 </html>

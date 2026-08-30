@@ -73,6 +73,7 @@
     helpBotTopicProblem: 'יש לי בעיה עם ההזמנה',
     helpBotTopicStaff: 'לדבר עם נציג',
     helpBotAnswerOrder: 'מוסיפים לסל המוצרים מנות שאתם אוהבים, עוברים על הסל שהכל נכון ולא שכחתם שום דבר, לוחצים שלח הזמנה והמסעדה מיד מתחילה לעבוד על ההזמנה שלכם.\n\nרק נציג אחד מהשולחן יבצע את ההזמנה דרך המערכת.',
+    helpBotAnswerOrderShared: 'בחרו את מספר השולחן שלכם, הוסיפו לסל את המנות שאתם רוצים ושלחו את ההזמנה.\n\nכל אחד מהסועדים יכול להזמין בעצמו. כל ההזמנות מתווספות לאותו שולחן, ואפשר להוסיף מנות גם בהמשך.',
     helpBotAnswerHours: '{days} · {hours}\nשישי–שבת סגור.',
     helpBotAnswerLocation: 'Analipsi 700 14, Greece',
     helpBotAnswerDelivery: 'עלות המשלוח היא €10 · זמן משלוח 30–45 דקות · מינימום הזמנה €100 (לא כולל משלוח)',
@@ -138,6 +139,16 @@
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
+  }
+
+  function orderHelpBody() {
+    const sessionMode = window.LechaimOrderSession?.getSession?.()?.orderMode;
+    if (sessionMode === 'shared') return t('helpBotAnswerOrderShared');
+    if (sessionMode === 'representative') return t('helpBotAnswerOrder');
+    if (window.LechaimEntryGate?.getDineInOrderMode?.() === 'shared') {
+      return t('helpBotAnswerOrderShared');
+    }
+    return t('helpBotAnswerOrder');
   }
 
   function currentTableNumber() {
@@ -431,7 +442,7 @@
     }
 
     const answers = {
-      order: { title: `🍽️ ${t('helpBotTopicOrder')}`, body: t('helpBotAnswerOrder') },
+      order: { title: `🍽️ ${t('helpBotTopicOrder')}`, body: orderHelpBody() },
       hours: { title: `🕐 ${t('helpBotTopicHours')}`, body: hoursAnswer() },
       location: { title: `📍 ${t('helpBotTopicLocation')}`, body: locationAnswer(), maps: true },
       delivery: { title: `🚚 ${t('helpBotTopicDelivery')}`, body: t('helpBotAnswerDelivery') },

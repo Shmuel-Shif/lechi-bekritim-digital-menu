@@ -74,10 +74,12 @@
       promptTable: 'Choose the number of the table you are seated at.',
       tableFind: 'The table number is on the table.',
       tableHint1: 'Only one person at the table should place the order through the system.',
+      tableHint1Shared: 'Each guest can choose the table number and add their own dishes to a personal cart.',
       tableHint2: 'Other guests can choose "View the menu" on the main page to browse dishes, prices, and descriptions.',
-      tableHint2DineIn: 'Other guests can choose "View the menu" here. Only the table representative can send the order.',
+      tableHint2DineIn: 'Other guests can choose “View the menu” here.\nOnly the table representative sends the order.',
       tableHowTitle: 'How does it work?',
-      tableHowText: 'Add your favorite dishes to the cart, review that everything is correct and nothing was forgotten, then tap Send order and the restaurant starts preparing your order right away.',
+      tableHowText: 'Add your favorite dishes to the cart, review that everything is correct and nothing was forgotten, then tap “Send order” and the kitchen starts preparing right away.',
+      tableHowTextShared: 'Choose your table number, add the dishes you want to the cart, and send the order.\n\nAdditional guests at the same table can join and add their dishes. All orders are added to the same table.',
       tablePickTable: 'Choose a table',
       tableBrowseMenu: 'View the menu',
       promptPickup: 'Takeaway details',
@@ -138,7 +140,11 @@
       back: 'Back',
       comingSoon: 'Coming Soon',
       occupied: 'Occupied',
+      tableActive: 'Active',
       tableOccupied: 'This table is occupied',
+      joinOccupiedTitle: 'Table {n} is already active',
+      joinOccupiedText: 'Join this table?',
+      joinOccupiedConfirm: 'Join table',
       langAria: 'Switch language – Hebrew / English',
       customerName: 'Customer name *',
       customerPhone: 'Phone *',
@@ -205,10 +211,12 @@
       promptTable: 'בחרו את מספר השולחן שעליו אתם יושבים.',
       tableFind: 'מספר השולחן נמצא על השולחן.',
       tableHint1: 'רק נציג אחד מהשולחן יבצע את ההזמנה דרך המערכת.',
+      tableHint1Shared: 'כל אחד מהסועדים יכול לבחור את מספר השולחן ולהוסיף את המנות שלו לסל האישי.',
       tableHint2: 'שאר הסועדים יכולים לבחור באפשרות "צפייה בתפריט" שבעמוד הראשי כדי לעיין במנות, במחירים ובתיאורים.',
-      tableHint2DineIn: 'שאר הסועדים יכולים לבחור כאן "צפייה בתפריט". רק נציג השולחן שולח את ההזמנה.',
+      tableHint2DineIn: 'שאר הסועדים יכולים לבחור כאן „לצפייה בתפריט”.\nרק נציג השולחן שולח את ההזמנה.',
       tableHowTitle: 'איך זה עובד?',
-      tableHowText: 'מוסיפים לסל המוצרים מנות שאתם אוהבים, עוברים על הסל שהכל נכון ולא שכחתם שום דבר, לוחצים שלח הזמנה והמסעדה מיד מתחילה לעבוד על ההזמנה שלכם.',
+      tableHowText: 'מוסיפים לסל המוצרים שאתם אוהבים, עוברים על הסל כדי לוודא שהכול נכון ולא שכחתם שום דבר, לוחצים „שלח הזמנה” וההזמנה מיד מתחילה להיות מוכנה.',
+      tableHowTextShared: 'בחרו את מספר השולחן שלכם, הוסיפו לסל את המנות שאתם רוצים ושלחו את ההזמנה.\n\nסועדים נוספים מאותו שולחן יכולים להצטרף ולהוסיף את המנות שלהם. כל ההזמנות מתווספות לאותו שולחן.',
       tablePickTable: 'לבחירת שולחן',
       tableBrowseMenu: 'לצפייה בתפריט',
       promptPickup: 'פרטי איסוף עצמי',
@@ -269,7 +277,11 @@
       back: 'חזרה',
       comingSoon: 'Coming Soon',
       occupied: 'תפוס',
+      tableActive: 'פעיל',
       tableOccupied: 'השולחן תפוס',
+      joinOccupiedTitle: 'שולחן {n} כבר פעיל',
+      joinOccupiedText: 'האם להצטרף לשולחן זה?',
+      joinOccupiedConfirm: 'הצטרף לשולחן',
       langAria: 'החלפת שפה – עברית / English',
       customerName: 'שם הלקוח *',
       customerPhone: 'טלפון *',
@@ -434,6 +446,22 @@
   let placeResCapacityTrapRelease = null;
   let arriveTrapRelease = null;
   let pendingArriveTable = null;
+  let pendingSharedRemoteId = null;
+  let sharedDraftSupported = true;
+  let sharedTableEnterBusy = false;
+  let arriveWatchUnsub = null;
+  let arriveEntering = false;
+  const joinOccupiedModal = document.getElementById('entry-join-occupied-modal');
+  const joinOccupiedTitleEl = document.getElementById('entry-join-occupied-title');
+  const joinOccupiedTextEl = document.getElementById('entry-join-occupied-text');
+  const joinOccupiedBackBtn = document.getElementById('entry-join-occupied-back');
+  const joinOccupiedConfirmBtn = document.getElementById('entry-join-occupied-confirm');
+  const joinOccupiedBackdrop = document.getElementById('entry-join-occupied-backdrop');
+  let joinOccupiedTrapRelease = null;
+  let pendingJoinTable = null;
+  let globalDineInOrderMode = 'representative';
+  let dineInOrderModeReady = false;
+  const occupiedTableMeta = new Map();
   let placeResSlotsToken = 0;
 
   const state = {
@@ -510,16 +538,17 @@
         }
       });
     }
-
-    if (gate.dataset.mode === 'dine-in-only') {
-      const hint2 = document.getElementById('entry-table-hint-2');
-      if (hint2) hint2.textContent = t('tableHint2DineIn');
-      if (tableModalBrowse) {
-        tableModalBrowse.hidden = false;
-        tableModalBrowse.setAttribute('aria-hidden', 'false');
-        tableModalBrowse.removeAttribute('tabindex');
-      }
+    if (joinOccupiedModal && !gate.contains(joinOccupiedModal)) {
+      joinOccupiedModal.querySelectorAll('[data-entry-i18n]').forEach((el) => {
+        const key = el.getAttribute('data-entry-i18n');
+        if (key && COPY.en[key] != null && key !== 'joinOccupiedTitle') {
+          el.textContent = t(key);
+        }
+      });
+      if (pendingJoinTable != null) paintJoinOccupiedCopy(pendingJoinTable);
     }
+
+    paintTableInfoModal();
 
     gate.querySelectorAll('[data-entry-i18n-aria]').forEach((el) => {
       const key = el.getAttribute('data-entry-i18n-aria');
@@ -1149,6 +1178,118 @@
     return hasItems || total > 0;
   }
 
+  function normalizeDineInOrderMode(value) {
+    return String(value || '').trim().toLowerCase() === 'shared'
+      ? 'shared'
+      : 'representative';
+  }
+
+  function rememberOccupiedMeta(tableNumber, sessionId, orderMode) {
+    const n = Number(tableNumber);
+    if (!Number.isFinite(n)) return;
+    occupiedTableMeta.set(n, {
+      sessionId: sessionId ? String(sessionId) : '',
+      orderMode: orderMode ? normalizeDineInOrderMode(orderMode) : '',
+    });
+  }
+
+  function sessionModeForOccupiedTable(tableNumber) {
+    const meta = occupiedTableMeta.get(Number(tableNumber));
+    if (meta?.orderMode === 'shared' || meta?.orderMode === 'representative') {
+      return meta.orderMode;
+    }
+    return null;
+  }
+
+  function setEntryHtml(el, text) {
+    if (!el) return;
+    const value = String(text ?? '');
+    el.innerHTML = value.includes('\n')
+      ? value.split('\n').map((line) => line.replace(/</g, '&lt;')).join('<br>')
+      : value;
+  }
+
+  function setTableBrowseVisible(show) {
+    if (!tableModalBrowse) return;
+    tableModalBrowse.hidden = !show;
+    tableModalBrowse.setAttribute('aria-hidden', show ? 'false' : 'true');
+    if (show) {
+      tableModalBrowse.removeAttribute('tabindex');
+    } else {
+      tableModalBrowse.setAttribute('tabindex', '-1');
+    }
+  }
+
+  /**
+   * Opening table modal copy follows the live admin flag (not localStorage).
+   * Existing table sessions keep their snapshotted order_mode elsewhere.
+   */
+  function paintTableInfoModal() {
+    const hint1 = document.getElementById('entry-table-hint-1');
+    const hint2 = document.getElementById('entry-table-hint-2');
+    const howText = document.querySelector('#entry-table-modal [data-entry-i18n="tableHowText"]')
+      || document.querySelector('.entry-table-modal__how-text');
+    const actions = tableModal?.querySelector('.entry-table-modal__actions');
+    const shared = globalDineInOrderMode === 'shared';
+
+    if (hint1) setEntryHtml(hint1, t(shared ? 'tableHint1Shared' : 'tableHint1'));
+
+    if (shared) {
+      if (hint2) {
+        hint2.hidden = true;
+        hint2.textContent = '';
+      }
+      setEntryHtml(howText, t('tableHowTextShared'));
+      setTableBrowseVisible(false);
+      actions?.classList.add('is-shared-only');
+      return;
+    }
+
+    if (hint2) {
+      hint2.hidden = false;
+      setEntryHtml(
+        hint2,
+        gate.dataset.mode === 'dine-in-only' ? t('tableHint2DineIn') : t('tableHint2')
+      );
+    }
+    setEntryHtml(howText, t('tableHowText'));
+    setTableBrowseVisible(true);
+    actions?.classList.remove('is-shared-only');
+  }
+
+  async function ensureDineInOrderMode() {
+    if (dineInOrderModeReady) return globalDineInOrderMode;
+    try {
+      const api = window.LechaimSupabaseOrders;
+      if (typeof api?.getDineInOrderMode === 'function') {
+        globalDineInOrderMode = normalizeDineInOrderMode(await api.getDineInOrderMode());
+      }
+    } catch (_) {
+      globalDineInOrderMode = 'representative';
+    }
+    dineInOrderModeReady = true;
+    paintTableInfoModal();
+    return globalDineInOrderMode;
+  }
+
+  function isJoinableOccupiedTable(tableNumber) {
+    if (isStaffOrderPage()) return false;
+    const sessionMode = sessionModeForOccupiedTable(tableNumber);
+    if (sessionMode === 'shared') return true;
+    if (sessionMode === 'representative') return false;
+    return globalDineInOrderMode === 'shared';
+  }
+
+  function paintJoinOccupiedCopy(tableNumber) {
+    const n = Number(tableNumber);
+    if (joinOccupiedTitleEl) {
+      joinOccupiedTitleEl.textContent = String(t('joinOccupiedTitle') || '').replace('{n}', String(n));
+    }
+    if (joinOccupiedTextEl) joinOccupiedTextEl.textContent = t('joinOccupiedText');
+    if (joinOccupiedBackBtn) joinOccupiedBackBtn.textContent = t('back');
+    if (joinOccupiedConfirmBtn) joinOccupiedConfirmBtn.textContent = t('joinOccupiedConfirm');
+  }
+
   let occupiedSbClient = null;
   let occupiedRealtimeChannel = null;
   let occupiedRealtimeTimer = null;
@@ -1174,7 +1315,7 @@
   }
 
   function startOccupiedRealtime() {
-    if (!isStaffOrderPage() || occupiedRealtimeChannel) return;
+    if (occupiedRealtimeChannel) return;
     const sb = getSharedOccupiedClient();
     if (!sb?.channel) return;
     occupiedRealtimeChannel = sb
@@ -1208,7 +1349,9 @@
         (open || []).forEach((row) => {
           if (String(row.order_type || '') !== 'dine_in') return;
           const n = Number(row.table_number);
-          if (Number.isFinite(n)) occupied.add(n);
+          if (!Number.isFinite(n)) return;
+          occupied.add(n);
+          rememberOccupiedMeta(n, row.session_id, row.order_mode);
         });
       } catch (err) {
         console.warn('[entry-gate] staff occupied fetch failed', err);
@@ -1221,12 +1364,21 @@
     if (!sb) return occupied;
 
     try {
-      const { data, error } = await sb
+      let { data, error } = await sb
         .from('order_sessions')
-        .select('table_number, session_id')
+        .select('table_number, session_id, order_mode')
         .eq('order_type', 'dine_in')
         .in('status', ['active', 'bill_requested'])
         .not('table_number', 'is', null);
+
+      if (error && /order_mode/i.test(`${error.message || ''} ${error.details || ''}`)) {
+        ({ data, error } = await sb
+          .from('order_sessions')
+          .select('table_number, session_id')
+          .eq('order_type', 'dine_in')
+          .in('status', ['active', 'bill_requested'])
+          .not('table_number', 'is', null));
+      }
 
       if (error) {
         console.warn('[entry-gate] occupied tables query failed', error.message || error);
@@ -1257,6 +1409,7 @@
       sessions.forEach((session) => {
         if (remoteSessionHasLiveOrder(session, bySession.get(session.session_id) || [])) {
           occupied.add(Number(session.table_number));
+          rememberOccupiedMeta(session.table_number, session.session_id, session.order_mode);
         }
       });
     } catch (err) {
@@ -1269,6 +1422,7 @@
   async function refreshOccupiedTables() {
     if (!tablesEl) return;
 
+    occupiedTableMeta.clear();
     const occupied = collectLocalOccupiedTables();
     const remote = await collectRemoteOccupiedTables();
     remote.forEach((n) => occupied.add(n));
@@ -1278,14 +1432,18 @@
       occupied.delete(Number(state.tableNumber));
     }
 
-    /* This phone is already bound to a sent dine-in order — keep that table tappable */
+    /* Representative only: this phone's locked table looks free so they can re-enter */
     const ownLock = readDineInTableLock();
-    if (ownLock) occupied.delete(Number(ownLock.tableNumber));
+    if (ownLock && !isJoinableOccupiedTable(ownLock.tableNumber)) {
+      occupied.delete(Number(ownLock.tableNumber));
+    }
 
     tablesEl.querySelectorAll('.entry-gate__table').forEach((btn) => {
       const n = Number(btn.dataset.table);
       const isOccupied = occupied.has(n);
+      const joinable = isOccupied && isJoinableOccupiedTable(n);
       btn.classList.toggle('is-occupied', isOccupied);
+      btn.classList.toggle('is-joinable', joinable);
       if (isStaffOrderPage()) {
         btn.disabled = false;
         btn.setAttribute('aria-disabled', 'false');
@@ -1294,6 +1452,13 @@
           'aria-label',
           isOccupied ? `Table ${n} — occupied` : `Table ${n}`
         );
+        return;
+      }
+      if (joinable) {
+        btn.disabled = false;
+        btn.setAttribute('aria-disabled', 'false');
+        btn.innerHTML = `<span class="entry-gate__table-num">${n}</span><span class="entry-gate__table-live">${t('tableActive')}</span>`;
+        btn.setAttribute('aria-label', `Table ${n} — ${t('tableActive')}`);
         return;
       }
       btn.disabled = isOccupied;
@@ -1321,19 +1486,107 @@
     activateGateFocusTrap();
   }
 
+  function stopArriveSessionWatch() {
+    if (typeof arriveWatchUnsub === 'function') {
+      try { arriveWatchUnsub(); } catch (_) { /* ignore */ }
+    }
+    arriveWatchUnsub = null;
+  }
+
   function closeArriveModal() {
     if (!arriveModal) return;
+    stopArriveSessionWatch();
     if (typeof arriveTrapRelease === 'function') arriveTrapRelease();
     arriveTrapRelease = null;
     arriveModal.hidden = true;
     arriveModal.setAttribute('aria-hidden', 'true');
     pendingArriveTable = null;
     const otherOpen = (placeResThanks && !placeResThanks.hidden)
-      || (placeResCapacity && !placeResCapacity.hidden);
+      || (placeResCapacity && !placeResCapacity.hidden)
+      || (joinOccupiedModal && !joinOccupiedModal.hidden);
     if (!otherOpen) setPlaceResModalOpen(false);
   }
 
+  function closeJoinOccupiedModal() {
+    if (!joinOccupiedModal) return;
+    if (typeof joinOccupiedTrapRelease === 'function') joinOccupiedTrapRelease();
+    joinOccupiedTrapRelease = null;
+    joinOccupiedModal.hidden = true;
+    joinOccupiedModal.setAttribute('aria-hidden', 'true');
+    pendingJoinTable = null;
+    const otherOpen = (placeResThanks && !placeResThanks.hidden)
+      || (placeResCapacity && !placeResCapacity.hidden)
+      || (arriveModal && !arriveModal.hidden);
+    if (!otherOpen) setPlaceResModalOpen(false);
+  }
+
+  function openJoinOccupiedModal(table) {
+    pendingJoinTable = Number(table);
+    if (!joinOccupiedModal) {
+      joinOccupiedDineInTable(pendingJoinTable);
+      return;
+    }
+    closeArriveModal();
+    paintJoinOccupiedCopy(pendingJoinTable);
+    mountPlaceResOverlay(joinOccupiedModal);
+    setPlaceResModalOpen(true);
+    joinOccupiedModal.hidden = false;
+    joinOccupiedModal.setAttribute('aria-hidden', 'false');
+    if (typeof joinOccupiedTrapRelease === 'function') joinOccupiedTrapRelease();
+    const release = window.LechaimFocusTrap?.activate?.(joinOccupiedModal);
+    joinOccupiedTrapRelease = typeof release === 'function' ? release : null;
+    joinOccupiedConfirmBtn?.focus();
+  }
+
+  function joinOccupiedDineInTable(table) {
+    const n = Number(table);
+    if (!Number.isInteger(n) || n < TABLE_MIN || n > TABLE_MAX) return;
+    const meta = occupiedTableMeta.get(n);
+    const prev = Session?.getSession?.();
+    if (prev?.sessionId && Number(prev.tableNumber) !== n) {
+      clearLocalSessionMapEntry(prev.sessionId);
+    }
+    if (Session) {
+      Session.startDineIn(n, {
+        lang: state.lang,
+        placeReserved: false,
+        customerName: '',
+        customerNotes: '',
+        partySize: null,
+        orderMode: meta?.orderMode || 'shared',
+        dineInNotesConfirmed: true,
+      });
+    }
+    const session = Session?.getSession?.();
+    if (meta?.sessionId && session?.sessionId) {
+      rememberDineInSessionMap(session.sessionId, meta.sessionId);
+    }
+    if (isDineInOnlyPage() && !isStaffOrderPage()) {
+      writeDineInTableLock({
+        tableNumber: n,
+        sessionId: session?.sessionId || '',
+        remoteSessionId: meta?.sessionId || '',
+        lockedAt: new Date().toISOString(),
+      });
+    }
+    state.orderType = 'dine-in';
+    state.tableNumber = n;
+    state.customerName = '';
+    highlightSelectedTable(n);
+    enterMenu(buildMenuContext({
+      orderType: 'dine-in',
+      tableNumber: n,
+      lang: state.lang,
+      customerName: '',
+      customerNotes: '',
+      placeReserved: false,
+      partySize: null,
+      dineInNotesConfirmed: true,
+    }));
+  }
+
   function closeGate() {
+    closeJoinOccupiedModal();
     closeArriveModal();
     releaseGateFocusTrap();
     document.body.classList.remove('entry-pending');
@@ -1486,6 +1739,7 @@
 
   function openTableInfoModal() {
     if (!tableModal) return;
+    paintTableInfoModal();
     tableModal.hidden = false;
     tableModal.setAttribute('aria-hidden', 'false');
     if (typeof tableModalTrapRelease === 'function') tableModalTrapRelease();
@@ -1528,6 +1782,7 @@
   }
 
   async function goToTable() {
+    await ensureDineInOrderMode();
     if (!isStaffOrderPage()) {
       const lock = await resolveDineInOnlyLock();
       if (lock) {
@@ -1548,7 +1803,7 @@
     if (tableBackBtn) tableBackBtn.dataset.entryBack = 'order';
     showStep(stepTable);
     refreshOccupiedTables();
-    if (isStaffOrderPage()) startOccupiedRealtime();
+    startOccupiedRealtime();
     if (!isStaffOrderPage()) openTableInfoModal();
   }
 
@@ -1990,6 +2245,7 @@
       if (changingTable || Session.hasActiveDineInSession()) {
         Session.updateTable(table, opts);
       } else {
+        opts.orderMode = globalDineInOrderMode === 'shared' ? 'shared' : 'representative';
         Session.startDineIn(table, opts);
       }
     }
@@ -2003,6 +2259,21 @@
       placeReserved: arrival.placeReserved,
       partySize: arrival.partySize,
     }));
+    if (details.remoteSessionId) {
+      const local = Session?.getSession?.();
+      if (local?.sessionId) {
+        rememberDineInSessionMap(local.sessionId, details.remoteSessionId);
+      }
+      if (isDineInOnlyPage() && !isStaffOrderPage()) {
+        writeDineInTableLock({
+          tableNumber: n,
+          sessionId: local?.sessionId || '',
+          remoteSessionId: String(details.remoteSessionId),
+          lockedAt: new Date().toISOString(),
+        });
+      }
+      pendingSharedRemoteId = null;
+    }
     if (isStaffOrderPage()) {
       void window.LechaimStaffOrder?.attachToTable?.(table);
     }
@@ -2023,6 +2294,125 @@
         ? arriveWelcomeContinue
         : arriveYesBtn;
     window.setTimeout(() => focusEl?.focus(), 0);
+  }
+
+  function arrivalFromRemoteSession(row) {
+    const notes = String(row?.notes || '');
+    const partySize = Session?.parsePlaceReservationParty?.(notes) ?? null;
+    const placeReserved = Boolean(String(row?.customer_name || '').trim())
+      || /הזמנת מקום/.test(notes);
+    return {
+      placeReserved,
+      customerName: String(row?.customer_name || '').trim(),
+      partySize,
+    };
+  }
+
+  async function persistArriveAnswer(details) {
+    const remoteId = pendingSharedRemoteId;
+    const api = window.LechaimSupabaseOrders;
+    if (!remoteId || typeof api?.markReservationQuestionAnswered !== 'function') return;
+    const arrival = dineInArrivalPayload(details);
+    try {
+      await api.markReservationQuestionAnswered(remoteId, {
+        customerName: arrival.customerName,
+        notes: arrival.customerNotes,
+      });
+    } catch (err) {
+      console.warn('[entry-gate] mark reservation question failed', err);
+    }
+  }
+
+  async function finishArriveAndEnter(table, details) {
+    if (arriveEntering) return;
+    arriveEntering = true;
+    try {
+      stopArriveSessionWatch();
+      const remoteId = pendingSharedRemoteId;
+      if (remoteId) await persistArriveAnswer(details);
+      closeArriveModal();
+      completeDineInTable(table, { ...details, remoteSessionId: remoteId || details.remoteSessionId });
+    } finally {
+      arriveEntering = false;
+    }
+  }
+
+  function watchSharedArriveSession(sessionId, table) {
+    stopArriveSessionWatch();
+    const api = window.LechaimSupabaseOrders;
+    if (!sessionId || typeof api?.subscribeToOrders !== 'function') return;
+    try {
+      arriveWatchUnsub = api.subscribeToOrders((payload) => {
+        if (payload?.table && payload.table !== 'order_sessions') return;
+        const row = payload?.new || payload?.payload?.new;
+        if (!row || String(row.session_id) !== String(sessionId)) return;
+        if (!row.reservation_question_answered) return;
+        if (!arriveModal || arriveModal.hidden) return;
+        if (arriveEntering) return;
+        arriveEntering = true;
+        stopArriveSessionWatch();
+        closeArriveModal();
+        try {
+          completeDineInTable(table, {
+            ...arrivalFromRemoteSession(row),
+            remoteSessionId: sessionId,
+          });
+        } finally {
+          arriveEntering = false;
+        }
+      }, { sessionId });
+    } catch (err) {
+      console.warn('[entry-gate] arrive watch failed', err);
+    }
+  }
+
+  async function enterSharedEmptyTable(table) {
+    if (!sharedDraftSupported) {
+      openArriveModal(table);
+      return;
+    }
+    const api = window.LechaimSupabaseOrders;
+    if (typeof api?.ensureSharedDraftSession !== 'function') {
+      openArriveModal(table);
+      return;
+    }
+    if (sharedTableEnterBusy) return;
+    sharedTableEnterBusy = true;
+    try {
+      let row;
+      try {
+        row = await api.ensureSharedDraftSession(table, { language: state.lang });
+      } catch (err) {
+        if (String(err?.message) === 'SHARED_DRAFT_UNSUPPORTED') {
+          sharedDraftSupported = false;
+        } else {
+          console.warn('[entry-gate] shared draft failed', err);
+        }
+        openArriveModal(table);
+        return;
+      }
+
+      if (row && (row.status === 'active' || row.status === 'bill_requested')) {
+        rememberOccupiedMeta(table, row.session_id, row.order_mode);
+        openJoinOccupiedModal(table);
+        return;
+      }
+
+      pendingSharedRemoteId = row?.session_id || null;
+
+      if (row?.reservation_question_answered) {
+        completeDineInTable(table, {
+          ...arrivalFromRemoteSession(row),
+          remoteSessionId: row.session_id,
+        });
+        return;
+      }
+
+      openArriveModal(table);
+      watchSharedArriveSession(row?.session_id, table);
+    } finally {
+      sharedTableEnterBusy = false;
+    }
   }
 
   function openArriveModal(table) {
@@ -2066,7 +2456,7 @@
     }
     pendingArriveTable = null;
     markTodayReservationArrived(name, partySize);
-    completeDineInTable(table, {
+    void finishArriveAndEnter(table, {
       placeReserved: true,
       customerName: name,
       partySize,
@@ -2091,8 +2481,22 @@
       enterLockedDineInTable(table, { remoteSessionId: lock.remoteSessionId });
       return;
     }
-    if (isStaffOrderPage() || changingTable || Session?.hasActiveDineInSession()) {
+    if (isStaffOrderPage()) {
       completeDineInTable(table);
+      return;
+    }
+    const btn = tablesEl?.querySelector(`.entry-gate__table[data-table="${Number(table)}"]`);
+    const occupied = Boolean(btn?.classList.contains('is-occupied') || occupiedTableMeta.has(Number(table)));
+    if (occupied && isJoinableOccupiedTable(table)) {
+      openJoinOccupiedModal(table);
+      return;
+    }
+    if (changingTable || Session?.hasActiveDineInSession()) {
+      completeDineInTable(table);
+      return;
+    }
+    if (globalDineInOrderMode === 'shared') {
+      void enterSharedEmptyTable(table);
       return;
     }
     openArriveModal(table);
@@ -2706,7 +3110,11 @@
           const tableNumber = Number(remote?.table_number);
           const type = String(remote?.order_type || '');
           if (
-            (status === 'active' || status === 'bill_requested')
+            (
+              status === 'active'
+              || status === 'bill_requested'
+              || (status === 'draft' && remote.reservation_question_answered)
+            )
             && (type === 'dine_in' || type === 'dinein' || type === 'dine-in')
             && Number.isInteger(tableNumber)
             && tableNumber >= TABLE_MIN
@@ -2734,8 +3142,8 @@
       && (prev.orderType === 'dine-in' || prev.orderType === 'dinein')
       && Number(prev.tableNumber) === n;
     if (Session) {
-      if (sameTable) Session.updateTable(n);
-      else Session.startDineIn(n);
+      if (sameTable) Session.updateTable(n, { dineInNotesConfirmed: true });
+      else Session.startDineIn(n, { dineInNotesConfirmed: true });
     }
     const session = Session?.getSession?.();
     if (extras.remoteSessionId && session?.sessionId) {
@@ -2752,6 +3160,7 @@
       lang: state.lang,
       customerName: state.customerName,
       customerNotes: extras.customerNotes || session?.customerNotes || '',
+      dineInNotesConfirmed: true,
     }));
     return true;
   }
@@ -2963,7 +3372,8 @@
         return;
       }
       const occupiedBlocked = (tableBtn.disabled
-        || (tableBtn.classList.contains('is-occupied') && !isStaffOrderPage()))
+        || (tableBtn.classList.contains('is-occupied') && !isStaffOrderPage()
+          && !tableBtn.classList.contains('is-joinable')))
         && !(ownLock && picked === Number(ownLock.tableNumber));
       if (occupiedBlocked) {
         showNotice(t('tableOccupied'));
@@ -3018,14 +3428,30 @@
   arriveWelcomeContinue?.addEventListener('click', () => {
     const table = pendingArriveTable;
     pendingArriveTable = null;
-    completeDineInTable(table, { placeReserved: false });
+    void finishArriveAndEnter(table, { placeReserved: false });
   });
   arriveForm?.addEventListener('submit', (event) => {
     event.preventDefault();
     submitArriveYes();
   });
+  joinOccupiedBackBtn?.addEventListener('click', () => {
+    closeJoinOccupiedModal();
+  });
+  joinOccupiedBackdrop?.addEventListener('click', () => {
+    closeJoinOccupiedModal();
+  });
+  joinOccupiedConfirmBtn?.addEventListener('click', () => {
+    const table = pendingJoinTable;
+    closeJoinOccupiedModal();
+    joinOccupiedDineInTable(table);
+  });
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
+    if (joinOccupiedModal && !joinOccupiedModal.hidden) {
+      event.preventDefault();
+      closeJoinOccupiedModal();
+      return;
+    }
     if (arriveModal && !arriveModal.hidden) {
       event.preventDefault();
       const yesStep = arriveModal.querySelector('[data-arrive-step="yes"]');
@@ -3066,6 +3492,7 @@
     reopenOrderTypePicker,
     resetToEntry,
     refreshOccupiedTables,
+    getDineInOrderMode: () => globalDineInOrderMode,
     /** Used by dine-in floor-plan map — same path as tapping a table button */
     selectDineInTable: finishWithTable,
     transliterateToEnglish,
@@ -3086,9 +3513,28 @@
     await refreshDeliveriesClosedFlag();
     await refreshShabbatOrdersEnabledFlag();
     await refreshShopForceOpenFlag();
+    try {
+      const apiMode = window.LechaimSupabaseOrders;
+      if (typeof apiMode?.getDineInOrderMode === 'function') {
+        globalDineInOrderMode = normalizeDineInOrderMode(await apiMode.getDineInOrderMode());
+      }
+      dineInOrderModeReady = true;
+      paintTableInfoModal();
+    } catch (_) {
+      globalDineInOrderMode = 'representative';
+      dineInOrderModeReady = true;
+      paintTableInfoModal();
+    }
     const api = window.LechaimSupabaseOrders;
     if (api?.subscribeRestaurantFlags) {
       api.subscribeRestaurantFlags((evt) => {
+        if (evt?.flagKey === 'dine_in_order_mode') {
+          globalDineInOrderMode = normalizeDineInOrderMode(evt.flagText);
+          dineInOrderModeReady = true;
+          paintTableInfoModal();
+          refreshOccupiedTables();
+          return;
+        }
         if (evt?.flagKey === 'deliveries_closed') {
           state.deliveriesClosed = Boolean(evt.flagValue);
           applyDeliveriesMode();

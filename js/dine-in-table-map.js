@@ -181,7 +181,11 @@
         event.preventDefault();
         event.stopPropagation();
         if (btn.disabled) return;
-        if (btn.classList.contains('is-occupied') && document.body?.getAttribute('data-staff-order') !== '1') return;
+        if (
+          btn.classList.contains('is-occupied')
+          && !btn.classList.contains('is-joinable')
+          && document.body?.getAttribute('data-staff-order') !== '1'
+        ) return;
         const n = Number(btn.dataset.table);
         if (!Number.isInteger(n)) return;
         selectTable(n);

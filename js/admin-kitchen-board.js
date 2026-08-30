@@ -37,6 +37,9 @@
 
   const NOTE_JOIN = ' · ';
   const NOTE_PRESETS = [
+    { id: 'add_bread_1', he: 'להוסיף לחם 1', el: 'Προσθέστε 1 ψωμί' },
+    { id: 'add_bread_2', he: 'להוסיף לחם 2', el: 'Προσθέστε 2 ψωμί' },
+    { id: 'no_sauce', he: 'בלי רוטב', el: 'Χωρίς σάλτσα' },
     { id: 'no_cilantro', he: 'בלי כוסברה', el: 'Χωρίς κόλιανδρο' },
     { id: 'no_cumin', he: 'בלי כמון', el: 'Χωρίς κύμινο' },
     { id: 'no_olive_oil', he: 'בלי שמן זית', el: 'Χωρίς ελαιόλαδο' },
@@ -82,13 +85,14 @@
   const NOTE_PRESET_BY_HE = new Map();
   const NOTE_PRESET_BY_EL = new Map();
   const NOTE_PRESETS_BY_CATEGORY = {
-    starters: ['no_cilantro', 'no_cumin', 'no_olive_oil', 'no_chickpeas', 'no_salt', 'do_not_heat', 'double_2', 'must_be_hot'],
+    starters: ['add_bread_1', 'add_bread_2', 'no_cilantro', 'no_cumin', 'no_olive_oil', 'no_chickpeas', 'no_salt', 'do_not_heat', 'double_2', 'must_be_hot'],
     specials: ['grilled_veg_side', 'no_sweet_potato_puree', 'must_chimichurri', 'no_cilantro', 'large_cut'],
     mains: [
       'side_rice', 'side_fries', 'side_beans', 'side_puree',
       'make_thin', 'no_salt',
       'no_strong_spice', 'not_too_much_sauce', 'all_veg_side',
       'add_half_beans', 'add_half_rice', 'add_half_puree', 'add_half_fries', 'no_veg_at_all',
+      'no_sauce',
     ],
     salads: [
       'double_amount', 'no_tomato', 'pargit_uncut', 'not_heavily_seasoned',
@@ -127,7 +131,10 @@
   const noteModal = document.getElementById('dish-note-modal');
   const noteModalDish = document.getElementById('dish-note-dish-name');
   const notePresetGrid = document.getElementById('dish-note-presets');
+  const noteAsideWrap = document.getElementById('dish-note-aside');
+  const noteAsideGrid = document.getElementById('dish-note-aside-presets');
   const noteSwapWrap = document.getElementById('dish-note-side-swap');
+  const ASIDE_NOTE_IDS = new Set(['no_sauce']);
   const noteSwapGrid = document.getElementById('dish-note-side-swap-presets');
   const noteOtherBtn = document.getElementById('dish-note-other');
   const noteFreeWrap = document.getElementById('dish-note-free-wrap');
@@ -719,7 +726,7 @@
     const list = [];
     const add = (id) => {
       const key = String(id || '');
-      if (!key || seen.has(key) || isSideSwapPresetId(key)) return;
+      if (!key || seen.has(key) || isSideSwapPresetId(key) || ASIDE_NOTE_IDS.has(key)) return;
       const row = NOTE_PRESET_BY_ID.get(key);
       if (!row) return;
       seen.add(key);
@@ -728,6 +735,18 @@
     (noteModalCategoryIds || []).forEach(add);
     [...noteModalSelected].forEach(add);
     return list;
+  }
+
+  function visibleAsideNotePresets() {
+    const ids = [];
+    const add = (id) => {
+      const key = String(id || '');
+      if (!ASIDE_NOTE_IDS.has(key) || ids.includes(key)) return;
+      if (NOTE_PRESET_BY_ID.get(key)) ids.push(key);
+    };
+    (noteModalCategoryIds || []).forEach(add);
+    [...noteModalSelected].forEach(add);
+    return ids.map((id) => NOTE_PRESET_BY_ID.get(id)).filter(Boolean);
   }
 
   function isSideSwapPresetId(id) {
@@ -828,6 +847,16 @@
         ${escapeHtml(row.he)}
       </button>
     `).join('');
+    const asideRows = visibleAsideNotePresets();
+    if (noteAsideWrap) noteAsideWrap.hidden = asideRows.length === 0;
+    if (noteAsideGrid) {
+      noteAsideGrid.innerHTML = asideRows.map((row) => `
+        <button type="button" class="dish-note-chip dish-note-chip--aside${noteModalSelected.has(row.id) ? ' is-on' : ''}" data-dish-note-preset="${escapeHtml(row.id)}">
+          <span class="dish-note-chip__mark" aria-hidden="true">${noteModalSelected.has(row.id) ? '✓' : ''}</span>
+          ${escapeHtml(row.he)}
+        </button>
+      `).join('');
+    }
     const swapRows = swapPresetsForCurrentSide();
     const extraSwaps = [...noteModalSelected]
       .map((id) => NOTE_PRESET_BY_ID.get(id))
@@ -861,6 +890,8 @@
     noteFocusRelease = null;
     if (noteFreeInput) noteFreeInput.value = '';
     if (noteSwapWrap) noteSwapWrap.hidden = true;
+    if (noteAsideWrap) noteAsideWrap.hidden = true;
+    noteModal?.querySelector('.dish-note-modal__panel')?.classList.remove('dish-note-modal__panel--mains');
     setNoteError('');
     if (noteSaveBtn) {
       noteSaveBtn.disabled = false;
@@ -885,6 +916,10 @@
     if (noteModalDish) noteModalDish.textContent = bonName(item);
     if (noteFreeInput) noteFreeInput.value = parsed.freeHe;
     setNoteError('');
+    const panel = noteModal.querySelector('.dish-note-modal__panel');
+    const isMains = catalogCategoryId(item.productId) === 'mains'
+      || (NOTE_PRESETS_BY_CATEGORY.mains || []).some((id) => (noteModalCategoryIds || []).includes(id));
+    panel?.classList.toggle('dish-note-modal__panel--mains', isMains);
     renderNotePresets();
     noteModal.hidden = false;
     noteModal.setAttribute('aria-hidden', 'false');
@@ -1011,6 +1046,7 @@
     renderNotePresets();
   }
   notePresetGrid?.addEventListener('click', onNotePresetClick);
+  noteAsideGrid?.addEventListener('click', onNotePresetClick);
   noteSwapGrid?.addEventListener('click', onNotePresetClick);
 
   noteOtherBtn?.addEventListener('click', () => {

@@ -5155,6 +5155,82 @@ body.admin-modal-open {
   }
 }
 
+.settings-status[data-mode="shared"] {
+  background: #e8f1fb;
+  color: #1d4f8a;
+}
+
+.settings-mode-choices {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.settings-mode-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  width: 100%;
+  margin: 0;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--color-border-strong, #d9d0c0);
+  border-radius: 12px;
+  background: #fff;
+  text-align: start;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.settings-mode-choice:hover {
+  background: #fffdf8;
+}
+
+.settings-mode-choice.is-active {
+  border-color: #1f6b3a;
+  background: #f3faf5;
+  box-shadow: 0 0 0 1px #1f6b3a;
+}
+
+.settings-mode-choice__dot {
+  flex-shrink: 0;
+  width: 1.05rem;
+  height: 1.05rem;
+  margin-top: 0.15rem;
+  border: 2px solid #8a7d6a;
+  border-radius: 50%;
+  background: #fff;
+  position: relative;
+}
+
+.settings-mode-choice.is-active .settings-mode-choice__dot {
+  border-color: #1f6b3a;
+}
+
+.settings-mode-choice.is-active .settings-mode-choice__dot::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: #1f6b3a;
+}
+
+.settings-mode-choice__copy {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.settings-mode-choice__copy strong {
+  font-size: 1rem;
+  color: var(--color-navy, #152640);
+}
+
+.settings-mode-choice__copy span {
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: var(--color-text-muted, #6b7280);
+}
+
 /* Warehouse / raw-goods catalog — isolated from dish inventory cards */
 .stock-catalog__lead {
   margin: 0 0 1rem;
@@ -5584,10 +5660,29 @@ body.admin-modal-open {
   color: var(--color-navy, #152640);
 }
 
+.dish-note-modal__layout {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.dish-note-modal__aside[hidden] {
+  display: none !important;
+}
+
 .dish-note-modal__presets {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.5rem;
+}
+
+.dish-note-modal__presets--aside {
+  grid-template-columns: 1fr;
+}
+
+.dish-note-chip--aside {
+  min-height: 3.1rem;
+  background: #fff8ee;
+  border-color: #c4a06a;
 }
 
 .dish-note-chip {
@@ -5709,6 +5804,84 @@ body.admin-modal-open {
   justify-self: stretch;
   min-width: 0;
   width: 100%;
+}
+
+@media (min-width: 560px) {
+  .dish-note-modal__panel--mains {
+    width: min(100%, 520px);
+  }
+
+  .dish-note-modal__panel--mains .dish-note-modal__layout {
+    grid-template-columns: minmax(0, 1fr) 7.6rem;
+    align-items: start;
+  }
+
+  .dish-note-modal__panel--mains .dish-note-modal__presets--aside {
+    position: sticky;
+    top: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .dish-note-modal__layout {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .dish-note-modal__aside {
+    order: -1;
+  }
+
+  .dish-note-modal__panel {
+    width: min(100%, calc(100vw - 1rem));
+    max-height: calc(100dvh - 0.8rem);
+    overflow: auto;
+    gap: 0.5rem;
+    padding: 0.85rem 0.75rem 0.9rem;
+  }
+
+  .dish-note-modal__panel--mains {
+    width: min(100%, calc(100vw - 1rem));
+  }
+
+  .dish-note-modal__title {
+    font-size: 1.05rem;
+  }
+
+  .dish-note-modal__dish,
+  .dish-note-modal__label {
+    font-size: 0.82rem;
+  }
+
+  .dish-note-modal__presets {
+    gap: 0.35rem;
+  }
+
+  .dish-note-chip {
+    min-height: 2.35rem;
+    padding: 0.35rem 0.4rem;
+    font-size: 0.78rem;
+    border-radius: 10px;
+  }
+
+  .dish-note-chip--aside {
+    min-height: 2.35rem;
+  }
+
+  .dish-note-chip--swap {
+    min-height: 2.2rem;
+    padding-inline: 0.55rem;
+  }
+
+  .dish-note-modal__textarea {
+    min-height: 3.6rem;
+    padding: 0.5rem 0.6rem;
+    font-size: 0.9rem;
+  }
+
+  .dish-note-modal__panel .admin-modal__actions {
+    gap: 0.4rem;
+  }
 }
 
 .kitchen-ready-dish small {

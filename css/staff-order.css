@@ -3,6 +3,7 @@
 body[data-staff-order="1"] #entry-table-modal,
 body[data-staff-order="1"] #cart-request-bill,
 body[data-staff-order="1"] #my-order-toggle,
+body[data-staff-order="1"] #table-order-toggle,
 body[data-staff-order="1"] #order-back-toggle {
   display: none !important;
 }
