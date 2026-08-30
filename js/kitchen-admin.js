@@ -49,6 +49,8 @@
   let wavePulseUntil = new Map();
   let pulseExpireTimer = null;
   const NEW_PULSE_MS = 10000;
+  const LATE_MS = 20 * 60 * 1000;
+  let lateChimed = new Set();
 
   function lang() {
     return i18n?.getLang?.() || 'el';
@@ -298,6 +300,64 @@
     return Date.now() < (wavePulseUntil.get(sid) || 0);
   }
 
+  function unreadyMains(items) {
+    return countableItems(items).filter((item) => !isDishReady(item));
+  }
+
+  function isOverdue(entry) {
+    const counts = readyCounts(entry?.order?.items);
+    if (entry?.order?.kitchenAllReady && counts.allReady) return false;
+    const waiting = unreadyMains(entry?.order?.items);
+    if (!waiting.length) return false;
+    const now = Date.now();
+    return waiting.some((item) => {
+      const start = ts(item.createdAt);
+      return start > 0 && now - start >= LATE_MS;
+    });
+  }
+
+  function soonestOverdueAt() {
+    const now = Date.now();
+    let soonest = Infinity;
+    board.forEach((entry) => {
+      if (isOverdue(entry)) return;
+      unreadyMains(entry?.order?.items).forEach((item) => {
+        const start = ts(item.createdAt);
+        if (!start) return;
+        const due = start + LATE_MS;
+        if (due > now && due < soonest) soonest = due;
+      });
+    });
+    return soonest;
+  }
+
+  function seedLateChimed(rows) {
+    (rows || []).forEach((entry) => {
+      const sid = String(entry.order?.sessionId || '');
+      if (sid && isOverdue(entry)) lateChimed.add(sid);
+    });
+  }
+
+  function chimeIfNewlyOverdue() {
+    if (!primed) return;
+    let ring = false;
+    const live = new Set();
+    board.forEach((entry) => {
+      const sid = String(entry.order?.sessionId || '');
+      if (!sid) return;
+      if (!isOverdue(entry)) return;
+      live.add(sid);
+      if (!lateChimed.has(sid)) {
+        lateChimed.add(sid);
+        ring = true;
+      }
+    });
+    lateChimed.forEach((sid) => {
+      if (!live.has(sid)) lateChimed.delete(sid);
+    });
+    if (ring && Date.now() >= suppressRingUntil) playNewTicketChime();
+  }
+
   function schedulePulseExpiry() {
     window.clearTimeout(pulseExpireTimer);
     const now = Date.now();
@@ -308,6 +368,8 @@
     prepPulseUntil.forEach((stamp) => {
       if (stamp > now && stamp < soonest) soonest = stamp;
     });
+    const overdueAt = soonestOverdueAt();
+    if (overdueAt < soonest) soonest = overdueAt;
     if (soonest < Infinity) {
       pulseExpireTimer = window.setTimeout(() => renderBoard(), Math.max(40, soonest - now + 40));
     }
@@ -1004,9 +1066,12 @@
 
   function renderSide(item, groupReady) {
     const qty = Number(item.qty) || 1;
+    const line = qty > 1
+      ? `+ ${qty} x ${dishName(item)}`
+      : `+ ${dishName(item)}`;
     return `
       <div class="kt-dish kt-dish--side ${groupReady ? 'is-ready' : 'is-waiting'}">
-        <span class="kt-dish__name">+ ${escapeHtml(dishName(item))}${qty > 1 ? ` × ${escapeHtml(String(qty))}` : ''}</span>
+        <span class="kt-dish__name">${escapeHtml(line)}</span>
         ${noteHtml(item)}
       </div>
     `;
@@ -1059,7 +1124,7 @@
       <article class="kt-dish-group ${ready ? 'is-ready' : 'is-waiting'}${late ? ' is-late' : ''}${urgent ? ' is-urgent' : ''}">
         <div class="kt-dish kt-dish--main ${ready ? 'is-ready' : 'is-waiting'}" data-item-id="${escapeHtml(item.itemId)}">
           <div class="kt-dish__top">
-            <span class="kt-dish__name">${urgent ? `<span class="kt-urgent-tag">${escapeHtml(txt('dishUrgent'))}</span>` : ''}${late ? `<span class="kt-new-tag">${escapeHtml(txt('dishNew'))}</span>` : ''}${escapeHtml(dishName(item))}${qty > 1 ? ` × ${escapeHtml(String(qty))}` : ''}</span>
+            <span class="kt-dish__name">${urgent ? `<span class="kt-urgent-tag">${escapeHtml(txt('dishUrgent'))}</span>` : ''}${late ? `<span class="kt-new-tag">${escapeHtml(txt('dishNew'))}</span>` : ''}${escapeHtml(String(qty))} x ${escapeHtml(dishName(item))}</span>
             ${dishActions(item)}
           </div>
         </div>
@@ -1130,23 +1195,26 @@
     const urgent = !allDone && urgentList.length > 0;
     const urgentPulse = urgent && showUrgentVisual(entry);
     const wave = !urgentPulse && hasWavePulse(entry);
-    const fresh = isFresh(entry) && !allDone && !urgentPulse && !wave;
-    const noteTone = !allDone && !urgentPulse && !wave && unreadNoteCount(entry.order?.items) > 0;
+    const overdue = !allDone && !urgentPulse && !wave && isOverdue(entry);
+    const fresh = isFresh(entry) && !allDone && !urgentPulse && !wave && !overdue;
+    const noteTone = !allDone && !urgentPulse && !wave && !overdue && unreadNoteCount(entry.order?.items) > 0;
     const statusText = urgentPulse
       ? txt('tableUrgent')
       : (wave
         ? txt('tableWave')
-        : (fresh ? txt('tableFresh') : statusLabel(entry.uiStatus)));
+        : (overdue
+          ? txt('tableLate')
+          : (fresh ? txt('tableFresh') : statusLabel(entry.uiStatus))));
     const urgentLabel = urgentList.map((item) => dishName(item)).filter(Boolean).slice(0, 2).join(' · ');
     const noteBadge = noteBadgeLabel(unreadNoteCount(entry.order?.items));
     const hasNotes = hasAnyKitchenNote(entry.order?.items);
     const noteMark = hasNotes
       ? `<span class="kt-table-card__note-mark" aria-hidden="true">!</span>`
       : '';
-    const face = urgentPulse ? '🫨' : (fresh ? '🥳' : (wave ? '😇' : (noteTone ? '🤓' : '')));
+    const face = urgentPulse ? '🫨' : (fresh ? '🥳' : (wave ? '😇' : (overdue ? '⏰' : (noteTone ? '🤓' : ''))));
     return `
       <button type="button"
-        class="kt-table-card is-${escapeHtml(cardTone(entry.uiStatus))}${fresh ? ' is-fresh' : ''}${wave ? ' is-wave' : ''}${urgentPulse ? ' is-urgent' : ''}${urgent && !urgentPulse ? ' is-urgent-seen' : ''}${allDone && !wave ? ' is-allready' : ''}${noteTone ? ' is-note' : ''}${hasNotes ? ' has-notes' : ''}"
+        class="kt-table-card is-${escapeHtml(cardTone(entry.uiStatus))}${fresh ? ' is-fresh' : ''}${wave ? ' is-wave' : ''}${urgentPulse ? ' is-urgent' : ''}${urgent && !urgentPulse ? ' is-urgent-seen' : ''}${overdue ? ' is-late' : ''}${allDone && !wave ? ' is-allready' : ''}${noteTone ? ' is-note' : ''}${hasNotes ? ' has-notes' : ''}"
         data-kt-table="${escapeHtml(String(entry.tableNumber))}"
       >
         ${face ? `<span class="kt-table-card__face" aria-hidden="true">${face}</span>` : ''}
@@ -1173,6 +1241,7 @@
     renderPrepBoard();
     schedulePulseExpiry();
     updateTablesBadge();
+    chimeIfNewlyOverdue();
     if (openTable != null) fillDrawer(openTable);
   }
 
@@ -1246,6 +1315,7 @@
       if (!primed) {
         seedNoteAlertVersions(next);
         seedWavePulses(next);
+        seedLateChimed(next);
         ringIfNewContent(next);
       } else {
         ringIfNewContent(next);

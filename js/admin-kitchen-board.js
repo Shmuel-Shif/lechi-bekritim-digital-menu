@@ -535,6 +535,20 @@
     return (entry?.items || []).some((item) => Boolean(itemNoteText(item)));
   }
 
+  const LATE_MS = 20 * 60 * 1000;
+
+  function isOverdue(entry) {
+    const tally = counts(entry?.items);
+    if (entry?.kitchenAllReady && tally.allReady) return false;
+    const waiting = (entry?.items || []).filter((item) => Number(item.qty) > 0 && !isAddon(item) && !isReady(item));
+    if (!waiting.length) return false;
+    const now = Date.now();
+    return waiting.some((item) => {
+      const start = ts(item.createdAt);
+      return start > 0 && now - start >= LATE_MS;
+    });
+  }
+
   function renderBoard() {
     const html = board.map((entry) => {
       const tally = counts(entry.items);
@@ -542,7 +556,8 @@
       const urgent = !allDone && hasUrgent(entry);
       const fresh = !entry.kitchenStarted && !allDone && !urgent;
       const wave = !fresh && !urgent && hasNewWave(entry) && !allDone;
-      const note = !allDone && !urgent && !fresh && !wave && hasUnreadNotes(entry);
+      const overdue = !allDone && !urgent && !fresh && !wave && isOverdue(entry);
+      const note = !allDone && !urgent && !fresh && !wave && !overdue && hasUnreadNotes(entry);
       const hasNotes = hasAnyNotes(entry);
       const stateClass = allDone && !wave
         ? ' is-done'
@@ -552,8 +567,8 @@
             ? ' is-fresh'
             : (wave
               ? ' is-wave'
-              : (note ? ' is-note' : ' is-cooking'))));
-      const face = urgent ? '🫨' : (fresh ? '🥳' : (wave ? '😇' : (note ? '🤓' : '')));
+              : (overdue ? ' is-late' : (note ? ' is-note' : ' is-cooking')))));
+      const face = urgent ? '🫨' : (fresh ? '🥳' : (wave ? '😇' : (overdue ? '⏰' : (note ? '🤓' : ''))));
       const label = allDone
         ? '✅ הכל מוכן'
         : (urgent
@@ -562,9 +577,11 @@
             ? 'חדש במטבח'
             : (wave
               ? 'גל חדש'
-              : (note
-                ? 'הערה חדשה'
-                : `בהכנה · ${escapeHtml(String(tally.ready))} מתוך ${escapeHtml(String(tally.total))}`))));
+              : (overdue
+                ? 'מעל 20 דק׳'
+                : (note
+                  ? 'הערה חדשה'
+                  : `בהכנה · ${escapeHtml(String(tally.ready))} מתוך ${escapeHtml(String(tally.total))}`)))));
       return `
         <button type="button" class="kitchen-ready-card${stateClass}${hasNotes ? ' has-notes' : ''}" data-kitchen-table="${escapeHtml(String(entry.tableNumber))}">
           ${face ? `<span class="kitchen-ready-card__face" aria-hidden="true">${face}</span>` : ''}

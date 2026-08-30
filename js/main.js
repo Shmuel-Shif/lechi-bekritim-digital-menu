@@ -2121,14 +2121,12 @@
   }
 
   function openWhatsAppApp() {
-    if (isAndroidUa()) {
-      window.location.href =
-        'intent://send/#Intent;scheme=whatsapp;package=com.whatsapp;'
-        + 'S.browser_fallback_url=' + encodeURIComponent('https://web.whatsapp.com/')
-        + ';end';
+    const waUrl = 'https://wa.me/';
+    if (isAndroidUa() || isAppleMobileUa()) {
+      window.location.assign(waUrl);
       return;
     }
-    openPlatform('whatsapp://app', 'https://web.whatsapp.com/');
+    openNewTab(waUrl);
   }
 
   function openFacebookApp() {

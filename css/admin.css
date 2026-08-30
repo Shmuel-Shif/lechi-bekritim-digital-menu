@@ -5542,6 +5542,22 @@ body.admin-modal-open {
   color: rgba(26, 20, 4, 0.82);
 }
 
+.kitchen-ready-card.is-late {
+  border-color: #6b21a8;
+  background: linear-gradient(165deg, #d946ef 0%, #c026d3 45%, #86198f 100%);
+  box-shadow:
+    0 6px 18px rgba(192, 38, 211, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  color: #fff;
+  animation: kitchen-ready-urgent-glow 1.1s ease-in-out infinite;
+}
+
+.kitchen-ready-card.is-late strong,
+.kitchen-ready-card.is-late span,
+.kitchen-ready-card.is-late .kitchen-ready-kprog__label {
+  color: #fff;
+}
+
 .kitchen-ready-card.is-note {
   border-color: #7c2d12;
   background: linear-gradient(165deg, #c2410c 0%, #9a3412 55%, #7c2d12 100%);
