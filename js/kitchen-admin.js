@@ -41,6 +41,11 @@
   let prepQtyPrimed = false;
   let openPrepSides = new Set();
   let openPrepMains = new Set();
+  let dismissedUrgentKeys = new Set();
+  let seenWaveItemIds = new Map();
+  let wavePulseUntil = new Map();
+  let pulseExpireTimer = null;
+  const NEW_PULSE_MS = 10000;
 
   function lang() {
     return i18n?.getLang?.() || 'el';
@@ -253,6 +258,56 @@
     if (!item || !order?.kitchenStarted) return false;
     const ack = ts(order.kitchenWaveAckAt) || ts(order.kitchenStartedAt);
     return ts(item.createdAt) > ack + 800;
+  }
+
+  function unackedWaveIds(entry) {
+    return (entry?.order?.items || [])
+      .filter((item) => isUnackedWaveItem(item, entry))
+      .map((item) => String(item.itemId));
+  }
+
+  function seedWavePulses(rows) {
+    (rows || []).forEach((entry) => {
+      const sid = String(entry.order?.sessionId || '');
+      if (!sid) return;
+      seenWaveItemIds.set(sid, new Set(unackedWaveIds(entry)));
+    });
+  }
+
+  function touchWavePulses(rows) {
+    const now = Date.now();
+    (rows || []).forEach((entry) => {
+      const sid = String(entry.order?.sessionId || '');
+      if (!sid) return;
+      const current = unackedWaveIds(entry);
+      const prev = seenWaveItemIds.get(sid) || new Set();
+      const added = current.filter((id) => !prev.has(id));
+      if (added.length) {
+        wavePulseUntil.set(sid, now + NEW_PULSE_MS);
+        added.forEach((id) => prev.add(id));
+        seenWaveItemIds.set(sid, prev);
+      }
+    });
+  }
+
+  function hasWavePulse(entry) {
+    const sid = String(entry?.order?.sessionId || '');
+    return Date.now() < (wavePulseUntil.get(sid) || 0);
+  }
+
+  function schedulePulseExpiry() {
+    window.clearTimeout(pulseExpireTimer);
+    const now = Date.now();
+    let soonest = Infinity;
+    wavePulseUntil.forEach((stamp) => {
+      if (stamp > now && stamp < soonest) soonest = stamp;
+    });
+    prepPulseUntil.forEach((stamp) => {
+      if (stamp > now && stamp < soonest) soonest = stamp;
+    });
+    if (soonest < Infinity) {
+      pulseExpireTimer = window.setTimeout(() => renderBoard(), Math.max(40, soonest - now + 40));
+    }
   }
 
   function waveChimeKey(entry) {
@@ -766,7 +821,6 @@
   function prepRowHtml(row, role, now) {
     const pulseKey = prepPulseKey(role, row.key);
     const isNew = now < (prepPulseUntil.get(pulseKey) || 0);
-    const isWave = role === 'main' && Boolean(row.wave);
     const open = role === 'side'
       ? openPrepSides.has(row.key)
       : openPrepMains.has(row.key);
@@ -807,7 +861,7 @@
       return `
         <li>
           <button type="button"
-            class="kt-prep__row is-side${isNew ? ' is-new' : ''}${open ? ' is-open' : ''}"
+            class="kt-prep__row is-side${isNew ? ' is-new' : ''}${open && !isNew ? ' is-open' : ''}"
             data-kt-prep-side="${escapeHtml(row.key)}"
             aria-expanded="${open ? 'true' : 'false'}"
           >
@@ -821,7 +875,7 @@
     return `
       <li>
         <button type="button"
-          class="kt-prep__row${isWave ? ' is-wave' : ''}${!isWave && isNew ? ' is-new' : ''}${open ? ' is-open' : ''}"
+          class="kt-prep__row${isNew ? ' is-new' : ''}${open && !isNew ? ' is-open' : ''}"
           data-kt-prep-main="${escapeHtml(row.key)}"
           aria-expanded="${open ? 'true' : 'false'}"
         >
@@ -859,7 +913,7 @@
         nextQty.set(pulseKey, row.qty);
         const prev = prevPrepQty.get(pulseKey) || 0;
         if (prepQtyPrimed && row.qty > prev) {
-          prepPulseUntil.set(pulseKey, now + 12000);
+          prepPulseUntil.set(pulseKey, now + NEW_PULSE_MS);
         }
       });
     };
@@ -985,6 +1039,22 @@
     return urgentMains(entry?.order?.items).length > 0;
   }
 
+  function urgentVisualKey(entry) {
+    const ids = urgentMains(entry?.order?.items).map((item) => String(item.itemId)).sort().join(',');
+    return `${entry?.order?.sessionId || entry?.tableNumber || ''}:${ids}`;
+  }
+
+  function showUrgentVisual(entry) {
+    if (!hasUrgent(entry)) return false;
+    const key = urgentVisualKey(entry);
+    return Boolean(key) && !dismissedUrgentKeys.has(key);
+  }
+
+  function dismissUrgentVisual(entry) {
+    const key = urgentVisualKey(entry);
+    if (key) dismissedUrgentKeys.add(key);
+  }
+
   function renderDish(item, sides) {
     const ready = isDishReady(item);
     const late = Boolean(item.isLate) && !ready;
@@ -1035,24 +1105,28 @@
     const allDone = Boolean(entry.order?.kitchenAllReady) && counts.allReady;
     const urgentList = urgentMains(entry.order?.items);
     const urgent = !allDone && urgentList.length > 0;
-    const fresh = isFresh(entry) && !allDone && !urgent;
-    const wave = !fresh && !urgent && hasNewWave(entry) && !allDone;
-    const statusText = urgent
+    const urgentPulse = urgent && showUrgentVisual(entry);
+    const wave = !urgentPulse && hasWavePulse(entry);
+    const fresh = isFresh(entry) && !allDone && !urgentPulse && !wave;
+    const noteTone = !allDone && !urgentPulse && !wave && hasAnyKitchenNote(entry.order?.items);
+    const statusText = urgentPulse
       ? txt('tableUrgent')
-      : (fresh
-        ? txt('tableFresh')
-        : (wave ? txt('tableWave') : statusLabel(entry.uiStatus)));
+      : (wave
+        ? txt('tableWave')
+        : (fresh ? txt('tableFresh') : statusLabel(entry.uiStatus)));
     const urgentLabel = urgentList.map((item) => dishName(item)).filter(Boolean).slice(0, 2).join(' · ');
     const noteBadge = noteBadgeLabel(unreadNoteCount(entry.order?.items));
     const hasNotes = hasAnyKitchenNote(entry.order?.items);
     const noteMark = hasNotes
       ? `<span class="kt-table-card__note-mark" aria-hidden="true">!</span>`
       : '';
+    const face = urgentPulse ? '🫨' : (fresh ? '🥳' : (wave ? '😇' : (noteTone ? '🤓' : '')));
     return `
       <button type="button"
-        class="kt-table-card is-${escapeHtml(cardTone(entry.uiStatus))}${fresh ? ' is-fresh' : ''}${wave ? ' is-wave' : ''}${urgent ? ' is-urgent' : ''}${allDone ? ' is-allready' : ''}${hasNotes ? ' has-notes' : ''}"
+        class="kt-table-card is-${escapeHtml(cardTone(entry.uiStatus))}${fresh ? ' is-fresh' : ''}${wave ? ' is-wave' : ''}${urgentPulse ? ' is-urgent' : ''}${urgent && !urgentPulse ? ' is-urgent-seen' : ''}${allDone && !wave ? ' is-allready' : ''}${noteTone ? ' is-note' : ''}${hasNotes ? ' has-notes' : ''}"
         data-kt-table="${escapeHtml(String(entry.tableNumber))}"
       >
+        ${face ? `<span class="kt-table-card__face" aria-hidden="true">${face}</span>` : ''}
         <span class="kt-table-card__num">${escapeHtml(String(entry.tableNumber))}</span>
         <span class="kt-table-card__status">${escapeHtml(statusText)}</span>
         ${urgentLabel ? `<span class="kt-table-card__urgent">${escapeHtml(urgentLabel)}</span>` : ''}
@@ -1074,6 +1148,7 @@
         : `<p class="kt-news__empty">${escapeHtml(txt('tablesEmpty'))}</p>`;
     }
     renderPrepBoard();
+    schedulePulseExpiry();
     if (openTable != null) fillDrawer(openTable);
   }
 
@@ -1154,6 +1229,7 @@
         });
         saveChimed(chimed);
         seedNoteAlertVersions(next);
+        seedWavePulses(next);
       } else {
         let ring = false;
         next.forEach((entry) => {
@@ -1171,6 +1247,7 @@
         if (ring) playNewTicketChime();
         saveChimed(chimed);
         queueNoteAlerts(collectNewNoteAlerts(next));
+        touchWavePulses(next);
       }
       primed = true;
       board = next;
@@ -1353,10 +1430,18 @@
     if (!entry?.order) return;
     if (isFresh(entry)) {
       startKitchen(entry);
-      if (hasUrgent(entry) || unreadNoteCount(entry.order?.items)) fillDrawer(tableNumber);
+      if (hasUrgent(entry)) {
+        dismissUrgentVisual(entry);
+        renderBoard();
+        fillDrawer(tableNumber);
+        return;
+      }
+      if (unreadNoteCount(entry.order?.items)) fillDrawer(tableNumber);
       return;
     }
     if (hasUrgent(entry)) {
+      dismissUrgentVisual(entry);
+      renderBoard();
       fillDrawer(tableNumber);
       return;
     }

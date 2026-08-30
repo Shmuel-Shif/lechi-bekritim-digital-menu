@@ -787,26 +787,17 @@ button.kt-prep__row {
 }
 
 .kt-prep__row.is-new {
-  outline: 1px solid rgba(196, 160, 106, 0.55);
-  background: rgba(196, 160, 106, 0.16);
+  background: linear-gradient(165deg, #fde047 0%, #facc15 50%, #eab308 100%);
+  color: #1a1404;
+  outline: none;
+}
+
+.kt-prep__row.is-new .kt-prep__qty {
+  color: #1a1404;
 }
 
 .kt-prep__row.is-open {
   background: rgba(196, 160, 106, 0.12);
-}
-
-.kt-prep__row.is-wave {
-  background: linear-gradient(165deg, #fb923c 0%, #ea580c 55%, #c2410c 100%);
-  color: #fff;
-  outline: none;
-}
-
-.kt-prep__row.is-wave.is-open {
-  background: linear-gradient(165deg, #fb923c 0%, #ea580c 55%, #c2410c 100%);
-}
-
-.kt-prep__row.is-wave .kt-prep__qty {
-  color: #fff8f1;
 }
 
 .kt-prep__row.is-zero {
@@ -946,8 +937,8 @@ button.kt-prep__row {
 
 .kt-table-card.is-allready.has-notes .kt-kprog__label::after,
 .kt-table-card.is-allready .kt-table-card__note-mark {
-  color: #fdba74;
-  text-shadow: 0 0 8px rgba(253, 186, 116, 0.55);
+  color: #bbf7d0;
+  text-shadow: 0 0 8px rgba(187, 247, 208, 0.45);
 }
 
 .kt-kprog__count {
@@ -1013,10 +1004,10 @@ button.kt-prep__row {
 }
 
 .kt-table-card.is-wave {
-  --kt-accent: #c2410c;
-  border-color: #c2410c;
-  background: linear-gradient(165deg, #fb923c 0%, #ea580c 55%, #c2410c 100%);
-  color: #fff;
+  --kt-accent: #ca8a04;
+  border-color: #ca8a04;
+  background: linear-gradient(165deg, #fde047 0%, #facc15 50%, #eab308 100%);
+  color: #1a1404;
 }
 
 .kt-table-card.is-wave .kt-table-card__status,
@@ -1024,14 +1015,30 @@ button.kt-prep__row {
 .kt-table-card.is-wave .kt-table-card__time,
 .kt-table-card.is-wave .kt-table-card__dishes,
 .kt-table-card.is-wave .kt-kprog__label {
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(26, 20, 4, 0.78);
+}
+
+.kt-table-card.is-note {
+  --kt-accent: #7c2d12;
+  border-color: #7c2d12;
+  background: linear-gradient(165deg, #c2410c 0%, #9a3412 55%, #7c2d12 100%);
+  color: #fff7ed;
+}
+
+.kt-table-card.is-note .kt-table-card__status,
+.kt-table-card.is-note .kt-table-card__items,
+.kt-table-card.is-note .kt-table-card__time,
+.kt-table-card.is-note .kt-table-card__dishes,
+.kt-table-card.is-note .kt-kprog__label {
+  color: rgba(255, 247, 237, 0.88);
 }
 
 .kt-table-card.is-urgent {
-  --kt-accent: #15803d;
-  border-color: #15803d;
-  background: linear-gradient(165deg, #4ade80 0%, #22c55e 45%, #15803d 100%);
+  --kt-accent: #7f1d1d;
+  border-color: #991b1b;
+  background: linear-gradient(165deg, #ef4444 0%, #dc2626 40%, #991b1b 100%);
   color: #fff;
+  animation: kt-urgent-glow 0.85s ease-in-out infinite;
 }
 
 .kt-table-card.is-urgent .kt-table-card__status,
@@ -1042,10 +1049,31 @@ button.kt-prep__row {
   color: rgba(255, 255, 255, 0.92);
 }
 
+.kt-table-card__face {
+  font-size: 2.15rem;
+  line-height: 1;
+  animation: kt-face-pop 0.8s ease-in-out infinite;
+}
+
+@keyframes kt-face-pop {
+  0%, 100% { transform: scale(0.78); }
+  50% { transform: scale(1.32); }
+}
+
+@keyframes kt-urgent-glow {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.16); }
+}
+
 .kt-table-card__urgent {
   font-size: 0.88rem;
   font-weight: 800;
   line-height: 1.25;
+}
+
+.kt-table-card.is-urgent-seen .kt-table-card__urgent,
+.kt-table-card.is-urgent-seen .kt-table-card__status {
+  color: #f87171;
 }
 
 .kt-kstat {
@@ -1105,9 +1133,9 @@ button.kt-prep__row {
 }
 
 .kt-dish-group.is-urgent {
-  --kt-accent: #15803d;
-  background: #102418;
-  border: 1px solid rgba(34, 197, 94, 0.5);
+  --kt-accent: #dc2626;
+  background: #101c30;
+  border: 1px solid rgba(239, 68, 68, 0.28);
 }
 
 .kt-new-tag {
@@ -1115,8 +1143,8 @@ button.kt-prep__row {
   margin-inline-end: 0.35rem;
   padding: 0.08rem 0.38rem;
   border-radius: 999px;
-  background: #ea580c;
-  color: #fff;
+  background: #eab308;
+  color: #1a1404;
   font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -1128,7 +1156,7 @@ button.kt-prep__row {
   margin-inline-end: 0.35rem;
   padding: 0.08rem 0.38rem;
   border-radius: 999px;
-  background: #16a34a;
+  background: #dc2626;
   color: #fff;
   font-size: 0.68rem;
   font-weight: 800;
@@ -1375,9 +1403,9 @@ button.kt-prep__row {
 }
 
 .kt-table-card.is-allready {
-  --kt-accent: #991b1b;
-  border-color: #991b1b;
-  background: linear-gradient(165deg, #ef4444 0%, #dc2626 55%, #b91c1c 100%);
+  --kt-accent: #15803d;
+  border-color: #15803d;
+  background: linear-gradient(165deg, #4ade80 0%, #22c55e 50%, #15803d 100%);
   color: #fff;
 }
 
@@ -1386,12 +1414,12 @@ button.kt-prep__row {
 .kt-table-card.is-allready .kt-table-card__time,
 .kt-table-card.is-allready .kt-table-card__dishes,
 .kt-table-card.is-allready .kt-kprog__label {
-  color: rgba(255, 255, 255, 0.88);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .kt-table-card__done,
 .kt-table-meta__done {
-  color: #fecaca;
+  color: #bbf7d0;
   font-size: 0.78rem;
   font-weight: 800;
 }
