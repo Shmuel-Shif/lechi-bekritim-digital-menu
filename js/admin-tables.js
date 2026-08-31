@@ -742,6 +742,12 @@
       .trim();
   }
 
+  function printSafeCustomerName(raw) {
+    const name = String(raw || '').trim();
+    if (!name) return null;
+    return transliterateCourierText(name) || name;
+  }
+
   function buildCourierDetails(entry) {
     const order = entry?.order || {};
     const delivery = isDeliveryOrder(order);
@@ -2517,7 +2523,7 @@
       updatedAt: order.updated_at || null,
       items: mappedItems,
       ticketSeq: Number(order.order_number) || 1,
-      customerName: session.customerName || session.customer_name || null,
+      customerName: printSafeCustomerName(session.customerName || session.customer_name),
       customerAddress: session.customerAddress || session.customer_address || null,
       fulfillmentType: session.fulfillmentType
         || (session.fulfillment_type === 'delivery' ? 'delivery' : (session.fulfillment_type === 'pickup' ? 'pickup' : null)),
@@ -2797,7 +2803,7 @@
       updatedAt: order.updatedAt || null,
       items,
       ticketSeq: waveForSeq || 1,
-      customerName: order.customerName || null,
+      customerName: printSafeCustomerName(order.customerName),
       customerPhone: order.customerPhone || null,
       customerNotes: order.customerNotes || null,
       customerAddress: order.customerAddress || null,

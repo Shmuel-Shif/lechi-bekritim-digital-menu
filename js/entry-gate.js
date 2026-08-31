@@ -2619,9 +2619,8 @@
       || '';
     const pickupType = pickupSelect?.checked ? 'TIME' : 'ASAP';
     const pickupTime = pickupType === 'TIME' ? String(pickupSlot?.value || '').trim() : null;
-    const nameEn = transliterateToEnglish(nameRaw);
 
-    if (!nameRaw || !nameEn) {
+    if (!nameRaw) {
       showPickupError(t('pickupNameRequired'));
       pickupName?.focus();
       return;
@@ -2658,7 +2657,7 @@
     }
 
     finishTakeaway({
-      customerName: nameEn,
+      customerName: nameRaw,
       customerPhone: phone,
       customerNotes: notes,
       customerAddress: fulfillmentType === 'delivery'

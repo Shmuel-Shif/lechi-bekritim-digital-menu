@@ -1495,14 +1495,11 @@
     const pickupDate = String(document.getElementById('butcher-checkout-date')?.value || '').trim();
     const pickupTime = String(document.getElementById('butcher-checkout-time')?.value || '').trim();
     const gate = window.LechaimEntryGate;
-    const nameEn = typeof gate?.transliterateToEnglish === 'function'
-      ? gate.transliterateToEnglish(nameRaw)
-      : nameRaw;
     const phoneOk = typeof gate?.isValidPhone === 'function'
       ? gate.isValidPhone(phone)
       : /^\d{9,15}$/.test(phone.replace(/\D/g, ''));
 
-    if (!nameRaw || !nameEn) {
+    if (!nameRaw) {
       showButcherCheckoutError(t('butcherCheckoutNameRequired'));
       document.getElementById('butcher-checkout-name')?.focus();
       return;
@@ -1529,7 +1526,7 @@
     }
 
     applyButcherCustomerDetails({
-      customerName: nameEn,
+      customerName: nameRaw,
       customerPhone: phone,
       customerNotes: notes,
       customerAddress: '',
@@ -1585,7 +1582,7 @@
     if (ctx.fulfillmentType === 'delivery') {
       const parts = window.LechaimOrderSession?.splitCustomerAddress?.(ctx.customerAddress)
         || { address: String(ctx.customerAddress || '').trim(), locationUrl: '' };
-      if (!parts.address || !parts.locationUrl) return false;
+      if (!parts.address) return false;
     }
     if (ctx.pickupType === 'ASAP') return true;
     return Boolean(
@@ -1854,14 +1851,11 @@
         ? 'delivery'
         : 'pickup');
     const gate = window.LechaimEntryGate;
-    const nameEn = typeof gate?.transliterateToEnglish === 'function'
-      ? gate.transliterateToEnglish(nameRaw)
-      : nameRaw;
     const phoneOk = typeof gate?.isValidPhone === 'function'
       ? gate.isValidPhone(phone)
       : /^\d{9,15}$/.test(phone.replace(/\D/g, ''));
 
-    if (!nameRaw || !nameEn) {
+    if (!nameRaw) {
       showTakeawayCheckoutError(t('butcherCheckoutNameRequired'));
       document.getElementById('takeaway-checkout-name')?.focus();
       return;
@@ -1898,7 +1892,7 @@
     }
 
     applyTakeawayCustomerDetails({
-      customerName: nameEn,
+      customerName: nameRaw,
       customerPhone: phone,
       customerNotes: notes,
       customerAddress: fulfillment === 'delivery'
