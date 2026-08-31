@@ -52,6 +52,7 @@
   const cartDeliveryFeeLabel = $('#cart-delivery-fee-label');
   const cartDeliveryFeePrice = $('#cart-delivery-fee-price');
   const cartSessionTotal = $('#cart-session-total');
+  const cartSessionTotalLabel = cartSessionTotal?.querySelector('.cart-session-total__label');
   const cartSessionTotalPrice = $('#cart-session-total-price');
   const cartBadge = $('#cart-badge');
   const cartClose = $('#cart-close');
@@ -7493,8 +7494,13 @@
       } else {
         cartTotalPrice.classList.remove('cart-total-price--est');
         cartTotalPrice.textContent = formatPrice(getCartTotal());
-        if (cartTotalLabel) cartTotalLabel.textContent = t('total');
+        if (cartTotalLabel) cartTotalLabel.textContent = t('cartNowTotal');
       }
+    }
+    if (cartSessionTotalLabel) {
+      cartSessionTotalLabel.textContent = isDineInContext()
+        ? t('tableGrandTotal')
+        : t('currentTotal');
     }
     const deliveryFee = !empty ? getActiveDeliveryFee() : 0;
     if (cartDeliveryFeeRow) {
