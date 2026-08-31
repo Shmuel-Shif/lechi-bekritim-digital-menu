@@ -674,12 +674,25 @@
     await syncRealtimeAuth(session);
 
     const id = String(productId);
+    const existing = getOverride(id) || {};
+    const nextName = fields.name === undefined
+      ? existing.name
+      : (fields.name == null || String(fields.name).trim() === '' ? null : String(fields.name).trim());
+    const nextDescription = fields.description === undefined
+      ? existing.description
+      : (fields.description == null ? null : String(fields.description));
+    const nextPrice = fields.price === undefined
+      ? existing.price
+      : (fields.price == null || fields.price === '' ? null : Number(fields.price));
+    const nextImage = fields.image === undefined
+      ? existing.image
+      : (fields.image == null || fields.image === '' ? null : String(fields.image));
     const payload = {
       product_id: id,
-      name: fields.name == null ? null : String(fields.name).trim(),
-      description: fields.description == null ? null : String(fields.description),
-      price: fields.price == null || fields.price === '' ? null : Number(fields.price),
-      image: fields.image == null || fields.image === '' ? null : String(fields.image),
+      name: nextName == null ? null : nextName,
+      description: nextDescription == null ? null : nextDescription,
+      price: nextPrice == null || nextPrice === '' ? null : Number(nextPrice),
+      image: nextImage == null ? null : nextImage,
       updated_at: new Date().toISOString(),
     };
 

@@ -702,7 +702,7 @@ const DISH_I18N = {
     },
     asado: {
       name: 'Fall-off-the-bone Asado',
-      desc: 'A dish for 3 people. Slow-cooked asado, 600g, until the meat is tender and falls off the bone, served with grilled vegetables, chimichurri and sweet potato cream.',
+      desc: 'A dish for 2 people. Slow-cooked asado, 600g, until the meat is tender and falls off the bone, served with grilled vegetables, chimichurri and sweet potato cream.',
     },
     'whole-fish': {
       name: 'Whole Baked Sea Bream',
@@ -947,8 +947,8 @@ const MENU_DATA = {
           id: 'asado',
           name: 'אסאדו מתפרק מהעצם',
           printName: 'Asado',
-          description: 'מנה ל־3 אנשים. אסאדו בבישול ארוך, במשקל 600 גרם, עד שהבשר רך ומתפרק מהעצם, מוגש עם ירקות על האש, צ\'ימיצ\'ורי וקרם בטטה.',
-          price: 68,
+          description: 'מנה ל־2 אנשים. אסאדו בבישול ארוך, במשקל 600 גרם, עד שהבשר רך ומתפרק מהעצם, מוגש עם ירקות על האש, צ\'ימיצ\'ורי וקרם בטטה.',
+          price: 52,
           image: dishImage('asado'),
         },
       ],

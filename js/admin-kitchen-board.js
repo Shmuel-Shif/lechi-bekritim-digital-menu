@@ -307,13 +307,16 @@
     global.LechaimAdminKitchen?.notify?.(title, body, tone ? { tone } : false);
   }
 
-  function mapItem(row, extras) {
+  function mapItem(row, extrasArg) {
+    const extras = extrasArg || {};
     return {
       itemId: String(row.id),
+      orderId: extras.orderId ? String(extras.orderId) : '',
       productId: String(row.product_id || ''),
       name: String(row.product_name || row.print_name || row.product_id || ''),
       printName: String(row.print_name || ''),
       qty: Number(row.quantity) || 0,
+      price: Number(row.price) || 0,
       notes: row.notes == null ? '' : String(row.notes),
       notesEl: row.notes_el == null ? '' : String(row.notes_el),
       notesVersion: Number(row.notes_version) || 0,
@@ -334,12 +337,12 @@
 
   function flatten(session, orders) {
     const list = [...(orders || [])];
-    const hasPrintedWave = list.some((order) => order?.printed_at);
     const items = [];
     list.forEach((order) => {
-      if (!order?.printed_at && !hasPrintedWave) return;
+      /* Kitchen sees a wave only after Admin confirm+print */
+      if (!order?.printed_at) return;
       (order.order_items || []).forEach((row) => {
-        const mapped = mapItem(row, { printedAt: order.printed_at || null });
+        const mapped = mapItem(row, { printedAt: order.printed_at || null, orderId: order.id ? String(order.id) : '' });
         if (mapped.qty > 0) items.push(mapped);
       });
     });
@@ -447,17 +450,25 @@
     return groups;
   }
 
-  function dishHtml(item, isSide, groupReady) {
-    const ready = isSide || isAddon(item) ? Boolean(groupReady) : isReady(item);
+  function dishNameHe(item) {
+    return global.LechaimKitchenDishGroups?.catalogHebrewName?.(item?.productId)
+      || String(item?.name || item?.productId || '').trim();
+  }
+
+  function dishHtml(item, isSide, groupReady, qtyOverride) {
+    const ready = isSide || isAddon(item) || qtyOverride != null
+      ? Boolean(groupReady)
+      : isReady(item);
     const late = !isSide && !isAddon(item) && Boolean(item.isLate) && !ready;
-    const qty = Number(item.qty) > 1 || !isSide ? ` × ${escapeHtml(String(item.qty))}` : '';
-    const label = isSide || isAddon(item) ? `+ ${bonName(item)}${qty}` : `${bonName(item)}${qty}`;
+    const qtyNum = qtyOverride != null ? Number(qtyOverride) : Number(item.qty);
+    const qty = qtyNum > 1 || !isSide ? ` × ${String(qtyNum)}` : '';
+    const label = isSide || isAddon(item) ? `+ ${dishNameHe(item)}${qty}` : `${dishNameHe(item)}${qty}`;
     const showCheck = !isSide && !isAddon(item);
     const urgent = !isSide && !isAddon(item) && Boolean(item.kitchenUrgent) && !ready;
     const note = displayNoteHe(item);
     const itemId = String(item.itemId || '');
     const noteLine = note ? `<small>${escapeHtml(note)}</small>` : '';
-    const noteBtn = (isSide || isAddon(item))
+    const noteBtn = (isSide || isAddon(item) || ready)
       ? ''
       : `<button type="button" class="kitchen-ready-note-btn${note ? ' has-note' : ''}" data-kitchen-note-open="${escapeHtml(itemId)}">הערה</button>`;
     const urgentBtn = (isSide || isAddon(item) || ready)
@@ -498,14 +509,25 @@
       detailMeta.innerHTML = escapeHtml(statusText);
     }
     if (detailItems && !noteModalItemId) {
-      const groups = groupItems(entry.items);
+      const groups = global.LechaimKitchenDishGroups?.buildDisplayGroups?.(entry.items) || groupItems(entry.items);
       detailItems.innerHTML = groups.map((row) => {
-        const ready = isReady(row.main);
-        const late = Boolean(row.main.isLate) && !ready;
-        const urgent = Boolean(row.main.kitchenUrgent) && !ready;
-        return `
+        if (row.totalQty == null) {
+          const ready = isReady(row.main);
+          const late = Boolean(row.main.isLate) && !ready;
+          const urgent = Boolean(row.main.kitchenUrgent) && !ready;
+          return `
         <div class="kitchen-ready-group${ready ? ' is-ready' : ' is-wait'}${late ? ' is-late' : ''}${urgent ? ' is-urgent' : ''}">
           ${dishHtml(row.main, false)}
+          ${row.sides.map((side) => dishHtml(side, true, ready)).join('')}
+        </div>`;
+        }
+        const ready = Boolean(row.allReady);
+        const late = Boolean(row.anyLate) && !ready;
+        const urgent = Boolean(row.anyUrgent) && !ready;
+        const noteItem = row.noteItem || row.main;
+        return `
+        <div class="kitchen-ready-group${ready ? ' is-ready' : ' is-wait'}${late ? ' is-late' : ''}${urgent ? ' is-urgent' : ''}">
+          ${dishHtml({ ...row.main, kitchenUrgent: row.anyUrgent, isLate: row.anyLate, notes: noteItem.notes, notesEl: noteItem.notesEl, itemId: row.main.itemId }, false, ready, row.totalQty)}
           ${row.sides.map((side) => dishHtml(side, true, ready)).join('')}
         </div>
       `;
@@ -596,6 +618,13 @@
     }).join('');
     if (gridEl) gridEl.innerHTML = html;
     if (emptyEl) emptyEl.hidden = board.length > 0;
+    const tablesBadge = document.getElementById('kitchen-pane-tables-badge');
+    if (tablesBadge) {
+      const n = board.length;
+      tablesBadge.textContent = String(n);
+      tablesBadge.dataset.count = String(n);
+      tablesBadge.hidden = n <= 0;
+    }
     if (openTable != null) renderDetail();
   }
 

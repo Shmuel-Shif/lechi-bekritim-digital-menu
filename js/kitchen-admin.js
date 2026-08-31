@@ -9,6 +9,7 @@
   const i18n = global.LechaimKitchenI18n;
   const sessionApi = global.LechaimOrderSession;
   const typesApi = global.LechaimOrderTypes;
+  const dishGroups = global.LechaimKitchenDishGroups;
 
   const gridEl = document.getElementById('kt-tables-grid');
   const prepEl = document.getElementById('kt-prep-board');
@@ -26,7 +27,10 @@
   if (!gridEl) return;
 
   let board = [];
-  let openTable = null;
+  let tableBoard = [];
+  let pickupBoard = [];
+  let deliveryBoard = [];
+  let openEntryId = null;
   let currentTab = 'tables';
   let refreshTimer = null;
   let sending = false;
@@ -45,12 +49,17 @@
   let openPrepSides = new Set();
   let openPrepMains = new Set();
   let dismissedUrgentKeys = new Set();
+  let dismissedLateKeys = new Set();
   let seenWaveItemIds = new Map();
   let wavePulseUntil = new Map();
+  let seenNeoItemIds = new Set();
+  let neoPulseUntil = new Map();
+  let dismissedNeoIds = new Set();
   let pulseExpireTimer = null;
   const NEW_PULSE_MS = 10000;
   const LATE_MS = 20 * 60 * 1000;
   let lateChimed = new Set();
+  let lastDishGroups = [];
 
   function lang() {
     return i18n?.getLang?.() || 'el';
@@ -58,6 +67,71 @@
 
   function txt(key) {
     return i18n?.t?.(lang(), key) || key;
+  }
+
+  function allBoardEntries() {
+    return [...tableBoard, ...pickupBoard, ...deliveryBoard];
+  }
+
+  function boardForTab(tab) {
+    if (tab === 'pickup') return pickupBoard;
+    if (tab === 'delivery') return deliveryBoard;
+    return tableBoard;
+  }
+
+  function syncVisibleBoard() {
+    board = boardForTab(currentTab);
+  }
+
+  function findEntry(sessionId) {
+    const id = String(sessionId || '');
+    if (!id) return null;
+    return allBoardEntries().find((row) => String(row.order?.sessionId || '') === id) || null;
+  }
+
+  function findEntryByItemId(itemId) {
+    const id = String(itemId || '');
+    if (!id) return null;
+    return allBoardEntries().find((row) => (row.order?.items || []).some((item) => String(item.itemId) === id)) || null;
+  }
+
+  function isDeliverySession(session) {
+    if (String(session?.fulfillment_type || '') === 'delivery') return true;
+    return Boolean(String(session?.customer_address || '').trim());
+  }
+
+  function emptyMessage() {
+    if (currentTab === 'pickup') return txt('pickupEmpty');
+    if (currentTab === 'delivery') return txt('deliveryEmpty');
+    return txt('tablesEmpty');
+  }
+
+  function entryCardNum(entry) {
+    if (entry?.kind === 'tables') return String(entry.tableNumber);
+    const no = entry?.order?.publicOrderNo;
+    if (no != null) return `#${no}`;
+    const name = String(entry?.order?.customerName || '').trim();
+    if (name) return name;
+    return entry?.kind === 'delivery' ? txt('deliveryPrefix') : txt('pickupPrefix');
+  }
+
+  function entryTitle(entry) {
+    if (!entry) return '';
+    if (entry.kind === 'delivery') {
+      const no = entry.order?.publicOrderNo;
+      const name = String(entry.order?.customerName || '').trim();
+      if (no != null && name) return `${txt('deliveryPrefix')} #${no} · ${name}`;
+      if (no != null) return `${txt('deliveryPrefix')} #${no}`;
+      return name || txt('deliveryPrefix');
+    }
+    if (entry.kind === 'pickup') {
+      const no = entry.order?.publicOrderNo;
+      const name = String(entry.order?.customerName || '').trim();
+      if (no != null && name) return `${txt('pickupPrefix')} #${no} · ${name}`;
+      if (no != null) return `${txt('pickupPrefix')} #${no}`;
+      return name || txt('pickupPrefix');
+    }
+    return `${txt('tablePrefix')} ${entry.tableNumber}`;
   }
 
   function pad(n) {
@@ -300,6 +374,47 @@
     return Date.now() < (wavePulseUntil.get(sid) || 0);
   }
 
+  function lateItemIds(rows) {
+    const ids = [];
+    (rows || []).forEach((entry) => {
+      (entry.order?.items || []).forEach((item) => {
+        if (item?.isLate && item.itemId) ids.push(String(item.itemId));
+      });
+    });
+    return ids;
+  }
+
+  function seedNeoPulses(rows) {
+    lateItemIds(rows).forEach((id) => seenNeoItemIds.add(id));
+  }
+
+  function touchNeoPulses(rows) {
+    const now = Date.now();
+    lateItemIds(rows).forEach((id) => {
+      if (seenNeoItemIds.has(id)) return;
+      seenNeoItemIds.add(id);
+      neoPulseUntil.set(id, now + NEW_PULSE_MS);
+    });
+  }
+
+  function showNeo(item) {
+    if (!item?.isLate || isDishReady(item)) return false;
+    const id = String(item.itemId || '');
+    if (!id || dismissedNeoIds.has(id)) return false;
+    return Date.now() < (neoPulseUntil.get(id) || 0);
+  }
+
+  function dismissNeo(itemId, opts) {
+    const id = String(itemId || '');
+    if (!id) return false;
+    const showing = !dismissedNeoIds.has(id) && Date.now() < (neoPulseUntil.get(id) || 0);
+    dismissedNeoIds.add(id);
+    neoPulseUntil.delete(id);
+    if (!showing) return false;
+    if (!opts?.silent && openEntryId) fillDrawer(openEntryId);
+    return true;
+  }
+
   function unreadyMains(items) {
     return countableItems(items).filter((item) => !isDishReady(item));
   }
@@ -319,7 +434,7 @@
   function soonestOverdueAt() {
     const now = Date.now();
     let soonest = Infinity;
-    board.forEach((entry) => {
+    allBoardEntries().forEach((entry) => {
       if (isOverdue(entry)) return;
       unreadyMains(entry?.order?.items).forEach((item) => {
         const start = ts(item.createdAt);
@@ -342,7 +457,7 @@
     if (!primed) return;
     let ring = false;
     const live = new Set();
-    board.forEach((entry) => {
+    allBoardEntries().forEach((entry) => {
       const sid = String(entry.order?.sessionId || '');
       if (!sid) return;
       if (!isOverdue(entry)) return;
@@ -363,6 +478,9 @@
     const now = Date.now();
     let soonest = Infinity;
     wavePulseUntil.forEach((stamp) => {
+      if (stamp > now && stamp < soonest) soonest = stamp;
+    });
+    neoPulseUntil.forEach((stamp) => {
       if (stamp > now && stamp < soonest) soonest = stamp;
     });
     prepPulseUntil.forEach((stamp) => {
@@ -427,12 +545,20 @@
   function showNoteToast(alert) {
     const el = document.getElementById('kt-note-toast');
     if (!el || !alert?.item) return;
-    const table = Number(alert.tableNumber) || 0;
+    const sid = String(alert.sessionId || '');
+    const entry = findEntry(sid);
+    const label = entry
+      ? entryTitle(entry)
+      : (alert.kind === 'pickup'
+        ? txt('pickupPrefix')
+        : (alert.kind === 'delivery'
+          ? txt('deliveryPrefix')
+          : `${txt('tablePrefix')} ${Number(alert.tableNumber) || 0}`));
     el.innerHTML = `
-      <p class="kt-note-toast__table">${escapeHtml(txt('tablePrefix'))} ${escapeHtml(String(table))}</p>
+      <p class="kt-note-toast__table">${escapeHtml(label)}</p>
       <p class="kt-note-toast__dish">${escapeHtml(dishName(alert.item))}</p>
       <p class="kt-note-toast__text">${escapeHtml(kitchenNoteText(alert.item))}</p>
-      <button type="button" class="kt-note-toast__open" data-kt-note-open="${escapeHtml(String(table))}">${escapeHtml(txt('noteOpenTable'))}</button>
+      <button type="button" class="kt-note-toast__open" data-kt-note-open-sid="${escapeHtml(sid)}">${escapeHtml(txt('noteOpenTable'))}</button>
     `;
     el.hidden = false;
     window.clearTimeout(noteToastHideTimer);
@@ -480,6 +606,8 @@
         if (isUnreadNote(item) && ver > prev) {
           fresh.push({
             tableNumber: entry.tableNumber,
+            sessionId: entry.order?.sessionId || '',
+            kind: entry.kind || 'tables',
             item,
           });
         }
@@ -549,12 +677,12 @@
 
   function flattenDineIn(session, orders) {
     const list = [...(orders || [])];
-    const hasPrintedWave = list.some(isPrinted);
     const items = [];
     list.forEach((order) => {
       const lines = Array.isArray(order.order_items) ? order.order_items : [];
       const wavePrinted = isPrinted(order);
-      if (!wavePrinted && !hasPrintedWave) return;
+      /* Kitchen sees a wave only after Admin confirm+print */
+      if (!wavePrinted) return;
       lines.forEach((row) => {
         const mapped = mapItem(row, {
           wavePrinted,
@@ -585,6 +713,9 @@
       kitchenStarted: Boolean(session.kitchen_started_at),
       kitchenStartedAt: session.kitchen_started_at || null,
       kitchenWaveAckAt: session.kitchen_wave_ack_at || session.kitchen_started_at || null,
+      customerName: String(session.customer_name || '').trim(),
+      publicOrderNo: session.public_order_no == null ? null : Number(session.public_order_no),
+      fulfillmentType: String(session.fulfillment_type || '') === 'delivery' ? 'delivery' : 'pickup',
       customerNotes: (sessionApi?.stripPlaceReservationNote
         ? sessionApi.stripPlaceReservationNote(session.notes)
         : String(session.notes || '')).trim(),
@@ -644,29 +775,49 @@
     `;
   }
 
-  function buildBoard(rows) {
+  function makeBoardEntry(session, orders, kind, tableNumber) {
+    const match = flattenDineIn(session, orders);
+    if (!match || !match.items.length) return null;
+    if (kind !== 'tables') match.tableNumber = null;
+    return {
+      kind,
+      tableNumber: kind === 'tables' ? tableNumber : null,
+      uiStatus: resolveUiStatus(match),
+      order: match,
+      itemCount: countableItems(match.items).reduce((sum, item) => sum + (Number(item.qty) || 0), 0),
+      openedAt: match.createdAt || null,
+    };
+  }
+
+  function buildBoards(rows) {
     const byTable = new Map();
+    const pickup = [];
+    const delivery = [];
     (rows || []).forEach(({ session, orders }) => {
       const classified = typesApi?.classifyOrderType?.(session?.order_type, 'kitchen-board') || session?.order_type;
-      if (classified !== 'dine_in' && classified !== 'dinein') return;
-      const n = Number(session?.table_number);
-      if (!Number.isInteger(n) || n < TABLE_MIN || n > TABLE_MAX) return;
-      byTable.set(n, flattenDineIn(session, orders));
+      if (classified === 'dine_in' || classified === 'dinein') {
+        const n = Number(session?.table_number);
+        if (!Number.isInteger(n) || n < TABLE_MIN || n > TABLE_MAX) return;
+        byTable.set(n, { session, orders });
+        return;
+      }
+      if (classified !== 'takeaway') return;
+      const kind = isDeliverySession(session) ? 'delivery' : 'pickup';
+      const entry = makeBoardEntry(session, orders, kind, null);
+      if (entry) (kind === 'delivery' ? delivery : pickup).push(entry);
     });
 
-    const next = [];
+    const tables = [];
     for (let n = TABLE_MIN; n <= TABLE_MAX; n += 1) {
-      const match = byTable.get(n) || null;
-      if (!match || !match.items.length) continue;
-      next.push({
-        tableNumber: n,
-        uiStatus: resolveUiStatus(match),
-        order: match,
-        itemCount: countableItems(match.items).reduce((sum, item) => sum + (Number(item.qty) || 0), 0),
-        openedAt: match.createdAt || null,
-      });
+      const hit = byTable.get(n);
+      if (!hit) continue;
+      const entry = makeBoardEntry(hit.session, hit.orders, 'tables', n);
+      if (entry) tables.push(entry);
     }
-    return next;
+    const byOpened = (a, b) => (Date.parse(a.openedAt || 0) || 0) - (Date.parse(b.openedAt || 0) || 0);
+    pickup.sort(byOpened);
+    delivery.sort(byOpened);
+    return { tables, pickup, delivery };
   }
 
   function groupItems(items) {
@@ -1006,16 +1157,29 @@
     return { ready, total, allReady: total > 0 && list.every(isDishReady) };
   }
 
-  function dishActions(item) {
-    if (!item?.itemId || isAddon(item)) return '';
-    const ready = isDishReady(item);
+  function dishReadyBtn(group, index) {
+    const ready = Boolean(group.allReady);
     return `
       <button type="button"
         class="kt-ready${ready ? ' is-on' : ''}"
-        data-kt-dish-toggle="${escapeHtml(item.itemId)}"
+        data-kt-dish-toggle="${escapeHtml(String(index))}"
         aria-pressed="${ready ? 'true' : 'false'}"
         aria-label="${escapeHtml(ready ? txt('dishReady') : txt('dishWait'))}"
       ></button>
+    `;
+  }
+
+  function unitStepperHtml(group, index) {
+    const remaining = Number(group.remainingQty) || 0;
+    const total = Number(group.totalQty) || 0;
+    const minusOff = remaining <= 0;
+    const plusOff = remaining >= total;
+    return `
+      <div class="kt-unit" dir="ltr">
+        <button type="button" class="kt-unit__btn" data-kt-unit-delta="-1" data-kt-unit-group="${escapeHtml(String(index))}" ${minusOff ? 'disabled' : ''} aria-label="−">−</button>
+        <span class="kt-unit__n">${escapeHtml(String(remaining))}</span>
+        <button type="button" class="kt-unit__btn" data-kt-unit-delta="1" data-kt-unit-group="${escapeHtml(String(index))}" ${plusOff ? 'disabled' : ''} aria-label="+">+</button>
+      </div>
     `;
   }
 
@@ -1067,7 +1231,7 @@
   function renderSide(item, groupReady) {
     const qty = Number(item.qty) || 1;
     const line = qty > 1
-      ? `+ ${qty} x ${dishName(item)}`
+      ? `+ ${qty} × ${dishName(item)}`
       : `+ ${dishName(item)}`;
     return `
       <div class="kt-dish kt-dish--side ${groupReady ? 'is-ready' : 'is-waiting'}">
@@ -1114,32 +1278,52 @@
     if (key) dismissedUrgentKeys.add(key);
   }
 
-  function renderDish(item, sides) {
-    const ready = isDishReady(item);
-    const late = Boolean(item.isLate) && !ready;
-    const urgent = Boolean(item.kitchenUrgent) && !ready;
-    const qty = Number(item.qty) || 1;
-    const kids = (sides || []).map((side) => renderSide(side, ready)).join('');
+  function overdueItemIds(entry) {
+    return unreadyMains(entry?.order?.items)
+      .filter((item) => {
+        const start = ts(item.createdAt);
+        return start > 0 && Date.now() - start >= LATE_MS;
+      })
+      .map((item) => String(item.itemId))
+      .sort();
+  }
+
+  function overdueVisualKey(entry) {
+    const ids = overdueItemIds(entry).join(',');
+    return `${entry?.order?.sessionId || entry?.tableNumber || ''}:${ids}`;
+  }
+
+  function showOverdueVisual(entry) {
+    if (!isOverdue(entry)) return false;
+    const key = overdueVisualKey(entry);
+    return Boolean(key) && !dismissedLateKeys.has(key);
+  }
+
+  function dismissOverdueVisual(entry) {
+    const key = overdueVisualKey(entry);
+    if (key) dismissedLateKeys.add(key);
+  }
+
+  function renderGroupedDish(group, index) {
+    const ready = Boolean(group.allReady);
+    const neoItem = (group.mains || []).find((item) => showNeo(item));
+    const neo = Boolean(neoItem);
+    const urgent = Boolean(group.anyUrgent) && !ready;
+    const qty = Number(group.totalQty) || 1;
+    const item = group.main;
+    const kids = (group.sides || []).map((side) => renderSide(side, ready)).join('');
     return `
-      <article class="kt-dish-group ${ready ? 'is-ready' : 'is-waiting'}${late ? ' is-late' : ''}${urgent ? ' is-urgent' : ''}">
+      <article class="kt-dish-group ${ready ? 'is-ready' : 'is-waiting'}${neo ? ' is-late' : ''}${urgent ? ' is-urgent' : ''}"${neo ? ` data-kt-neo="${escapeHtml(neoItem.itemId)}"` : ''}>
         <div class="kt-dish kt-dish--main ${ready ? 'is-ready' : 'is-waiting'}" data-item-id="${escapeHtml(item.itemId)}">
           <div class="kt-dish__top">
-            <span class="kt-dish__name">${urgent ? `<span class="kt-urgent-tag">${escapeHtml(txt('dishUrgent'))}</span>` : ''}${late ? `<span class="kt-new-tag">${escapeHtml(txt('dishNew'))}</span>` : ''}${escapeHtml(String(qty))} x ${escapeHtml(dishName(item))}</span>
-            ${dishActions(item)}
+            <span class="kt-dish__name">${urgent ? `<span class="kt-urgent-tag">${escapeHtml(txt('dishUrgent'))}</span>` : ''}${neo ? `<span class="kt-new-tag">${escapeHtml(txt('dishNew'))}</span>` : ''}${escapeHtml(String(qty))} × ${escapeHtml(dishName(item))}</span>
+            ${ready || qty <= 1 ? dishReadyBtn(group, index) : unitStepperHtml(group, index)}
           </div>
         </div>
         ${kids ? `<div class="kt-dish__kids">${kids}</div>` : ''}
-        ${noteHtml(item)}
+        ${noteHtml(group.noteItem || item)}
       </article>
     `;
-  }
-
-  function renderDishUnits(item, sides) {
-    const units = Math.max(1, Number(item.qty) || 1);
-    if (units <= 1) return renderDish(item, sides);
-    return Array.from({ length: units }, (_, index) => (
-      renderDish({ ...item, qty: 1 }, unitSides(sides, units, index))
-    )).join('');
   }
 
   function hushRing(ms) {
@@ -1180,12 +1364,16 @@
     playNewTicketChime();
   }
 
-  function updateTablesBadge() {
-    const el = document.getElementById('kt-tables-badge');
-    if (!el) return;
-    const n = board.length;
-    el.textContent = String(n);
-    el.hidden = n <= 0;
+  function updateBoardBadges() {
+    const setBadge = (id, n) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = String(n);
+      el.hidden = n <= 0;
+    };
+    setBadge('kt-tables-badge', tableBoard.length);
+    setBadge('kt-pickup-badge', pickupBoard.length);
+    setBadge('kt-delivery-badge', deliveryBoard.length);
   }
 
   function renderCard(entry) {
@@ -1195,7 +1383,7 @@
     const urgent = !allDone && urgentList.length > 0;
     const urgentPulse = urgent && showUrgentVisual(entry);
     const wave = !urgentPulse && hasWavePulse(entry);
-    const overdue = !allDone && !urgentPulse && !wave && isOverdue(entry);
+    const overdue = !allDone && !urgentPulse && !wave && showOverdueVisual(entry);
     const fresh = isFresh(entry) && !allDone && !urgentPulse && !wave && !overdue;
     const noteTone = !allDone && !urgentPulse && !wave && !overdue && unreadNoteCount(entry.order?.items) > 0;
     const statusText = urgentPulse
@@ -1212,13 +1400,14 @@
       ? `<span class="kt-table-card__note-mark" aria-hidden="true">!</span>`
       : '';
     const face = urgentPulse ? '🫨' : (fresh ? '🥳' : (wave ? '😇' : (overdue ? '⏰' : (noteTone ? '🤓' : ''))));
+    const named = entry.kind === 'pickup' || entry.kind === 'delivery';
     return `
       <button type="button"
-        class="kt-table-card is-${escapeHtml(cardTone(entry.uiStatus))}${fresh ? ' is-fresh' : ''}${wave ? ' is-wave' : ''}${urgentPulse ? ' is-urgent' : ''}${urgent && !urgentPulse ? ' is-urgent-seen' : ''}${overdue ? ' is-late' : ''}${allDone && !wave ? ' is-allready' : ''}${noteTone ? ' is-note' : ''}${hasNotes ? ' has-notes' : ''}"
-        data-kt-table="${escapeHtml(String(entry.tableNumber))}"
+        class="kt-table-card${named ? ' is-named' : ''} is-${escapeHtml(cardTone(entry.uiStatus))}${fresh ? ' is-fresh' : ''}${wave ? ' is-wave' : ''}${urgentPulse ? ' is-urgent' : ''}${urgent && !urgentPulse ? ' is-urgent-seen' : ''}${overdue ? ' is-late' : ''}${allDone && !wave ? ' is-allready' : ''}${noteTone ? ' is-note' : ''}${hasNotes ? ' has-notes' : ''}"
+        data-kt-entry="${escapeHtml(String(entry.order?.sessionId || ''))}"
       >
         ${face ? `<span class="kt-table-card__face" aria-hidden="true">${face}</span>` : ''}
-        <span class="kt-table-card__num">${escapeHtml(String(entry.tableNumber))}</span>
+        <span class="kt-table-card__num">${escapeHtml(entryCardNum(entry))}</span>
         <span class="kt-table-card__status">${escapeHtml(statusText)}</span>
         ${urgentLabel ? `<span class="kt-table-card__urgent">${escapeHtml(urgentLabel)}</span>` : ''}
         ${noteBadge ? `<span class="kt-table-card__note">${escapeHtml(noteBadge)}</span>` : ''}
@@ -1236,23 +1425,23 @@
     if (gridEl) {
       gridEl.innerHTML = board.length
         ? board.map(renderCard).join('')
-        : `<p class="kt-news__empty">${escapeHtml(txt('tablesEmpty'))}</p>`;
+        : `<p class="kt-news__empty">${escapeHtml(emptyMessage())}</p>`;
     }
     renderPrepBoard();
     schedulePulseExpiry();
-    updateTablesBadge();
+    updateBoardBadges();
     chimeIfNewlyOverdue();
-    if (openTable != null) fillDrawer(openTable);
+    if (openEntryId) fillDrawer(openEntryId);
   }
 
-  function fillDrawer(tableNumber) {
-    const entry = board.find((row) => row.tableNumber === Number(tableNumber));
+  function fillDrawer(sessionId) {
+    const entry = findEntry(sessionId) || board.find((row) => String(row.order?.sessionId || '') === String(sessionId));
     if (!entry?.order) {
       closeDrawer();
       return;
     }
-    openTable = entry.tableNumber;
-    if (drawerTitle) drawerTitle.textContent = `${txt('tablePrefix')} ${entry.tableNumber}`;
+    openEntryId = String(entry.order.sessionId || '');
+    if (drawerTitle) drawerTitle.textContent = entryTitle(entry);
     if (drawerMeta) {
       const counts = readyCounts(entry.order.items);
       const allDone = Boolean(entry.order.kitchenAllReady) && counts.allReady;
@@ -1263,9 +1452,10 @@
     }
     if (drawerItems) {
       const scrollTop = drawerItems.scrollTop;
-      const groups = groupItems(entry.order.items);
+      const groups = dishGroups?.buildDisplayGroups?.(entry.order.items) || [];
+      lastDishGroups = groups;
       drawerItems.innerHTML = groups.length
-        ? groups.map((row) => renderDishUnits(row.main, row.sides)).join('')
+        ? groups.map((row, index) => renderGroupedDish(row, index)).join('')
         : `<p class="kt-news__empty">${escapeHtml(txt('dishesEmpty'))}</p>`;
       drawerItems.scrollTop = scrollTop;
     }
@@ -1282,7 +1472,7 @@
   }
 
   function closeDrawer() {
-    openTable = null;
+    openEntryId = null;
     if (drawerEl) drawerEl.hidden = true;
     const allReadyBtn = document.getElementById('kt-all-ready');
     if (allReadyBtn) allReadyBtn.hidden = true;
@@ -1290,18 +1480,27 @@
 
   if (drawerEl && typeof MutationObserver === 'function') {
     new MutationObserver(() => {
-      if (drawerEl.hidden) openTable = null;
+      if (drawerEl.hidden) openEntryId = null;
     }).observe(drawerEl, { attributes: true, attributeFilter: ['hidden'] });
   }
 
   function setTab(tab) {
-    currentTab = tab === 'alerts' ? 'alerts' : 'tables';
+    let next = currentTab;
+    if (tab === 'alerts') next = 'alerts';
+    else if (tab === 'pickup' || tab === 'delivery' || tab === 'tables') next = tab;
+    else return;
+    const changed = next !== currentTab;
+    currentTab = next;
     document.querySelectorAll('[data-kt-tab]').forEach((btn) => {
       btn.classList.toggle('is-active', btn.dataset.ktTab === currentTab);
     });
-    if (viewTables) viewTables.hidden = currentTab !== 'tables';
+    if (viewTables) viewTables.hidden = currentTab === 'alerts';
     if (viewAlerts) viewAlerts.hidden = currentTab !== 'alerts';
-    if (currentTab !== 'tables') closeDrawer();
+    if (currentTab === 'alerts' || changed) closeDrawer();
+    if (currentTab !== 'alerts') {
+      syncVisibleBoard();
+      if (changed) renderBoard();
+    }
   }
 
   async function loadBoard() {
@@ -1311,19 +1510,25 @@
     }
     try {
       const rows = await api.getOpenSessionsWithOrders();
-      const next = buildBoard(rows);
+      const next = buildBoards(rows);
+      const flat = [...next.tables, ...next.pickup, ...next.delivery];
       if (!primed) {
-        seedNoteAlertVersions(next);
-        seedWavePulses(next);
-        seedLateChimed(next);
-        ringIfNewContent(next);
+        seedNoteAlertVersions(flat);
+        seedWavePulses(flat);
+        seedNeoPulses(flat);
+        seedLateChimed(flat);
+        ringIfNewContent(flat);
       } else {
-        ringIfNewContent(next);
-        queueNoteAlerts(collectNewNoteAlerts(next));
-        touchWavePulses(next);
+        ringIfNewContent(flat);
+        queueNoteAlerts(collectNewNoteAlerts(flat));
+        touchWavePulses(flat);
+        touchNeoPulses(flat);
       }
       primed = true;
-      board = next;
+      tableBoard = next.tables;
+      pickupBoard = next.pickup;
+      deliveryBoard = next.delivery;
+      syncVisibleBoard();
       setError('');
       renderBoard();
     } catch (err) {
@@ -1340,51 +1545,26 @@
 
   async function peelOneUnit(item, allItems, unitStatus) {
     hushRing();
-    const orderId = item.orderId;
-    const qty = Math.max(1, Number(item.qty) || 1);
-    if (qty <= 1 || !orderId || !api?.bumpOrderItemQuantity || !api?.createOrderItems) {
-      await api.updateItemKitchenStatus(item.itemId, unitStatus);
-      return;
-    }
+    await dishGroups.peelOneUnit(api, item, allItems, unitStatus);
+  }
 
-    const sides = (allItems || []).filter((row) => String(row.linkedToMainItemId || '') === String(item.itemId));
-    let peeled = false;
+  async function adjustDishGroup(index, delta) {
+    if (sending) return;
+    const group = lastDishGroups[Number(index)];
+    if (!group || !dishGroups?.bumpGroup) return;
+    const entry = findEntryByItemId(group.main?.itemId);
+    const allItems = entry?.order?.items || [];
+    hushRing();
+    sending = true;
     try {
-      await api.bumpOrderItemQuantity(item.itemId, -1);
-      peeled = true;
-      const created = await api.createOrderItems(orderId, [{
-        productId: item.productId,
-        productName: item.name,
-        printName: item.printName,
-        quantity: 1,
-        price: Number(item.price) || 0,
-        notes: item.notes || null,
-        kitchenStatus: unitStatus,
-        createdAt: item.createdAt || null,
-      }]);
-      const newMainId = created?.[0]?.id;
-
-      for (const side of sides) {
-        const sideQty = Number(side.qty) || 0;
-        const per = qty > 0 ? sideQty / qty : 0;
-        if (!(Number.isInteger(per) && per >= 1 && side.itemId && newMainId)) continue;
-        await api.bumpOrderItemQuantity(side.itemId, -per);
-        await api.createOrderItems(orderId, [{
-          productId: side.productId,
-          productName: side.name,
-          printName: side.printName,
-          quantity: per,
-          price: Number(side.price) || 0,
-          notes: side.notes || null,
-          parentItemId: newMainId,
-          createdAt: side.createdAt || item.createdAt || null,
-        }]);
-      }
+      const result = await dishGroups.bumpGroup(api, group, allItems, delta);
+      if (!result?.ok) return;
+      setError('');
+      await loadBoard();
     } catch (err) {
-      if (peeled) {
-        try { await api.bumpOrderItemQuantity(item.itemId, 1); } catch (_) { /* ignore */ }
-      }
-      throw err;
+      setError(err?.message || txt('statusFail'));
+    } finally {
+      sending = false;
     }
   }
 
@@ -1392,7 +1572,7 @@
     if (sending) return;
     hushRing();
     const id = String(itemId || '');
-    const entry = board.find((row) => (row.order?.items || []).some((item) => String(item.itemId) === id));
+    const entry = findEntryByItemId(id);
     const item = (entry?.order?.items || []).find((row) => String(row.itemId) === id);
     if (!item || !isUnreadNote(item) || !api?.markItemNotesSeen) return;
     sending = true;
@@ -1412,31 +1592,10 @@
     }
   }
 
-  async function toggleItemReady(itemId) {
-    if (sending) return;
-    hushRing();
-    const entry = board.find((row) => (row.order?.items || []).some((item) => String(item.itemId) === String(itemId)));
-    const item = (entry?.order?.items || []).find((row) => String(row.itemId) === String(itemId));
-    if (!item || isAddon(item)) return;
-    sending = true;
-    try {
-      const makingReady = !isDishReady(item);
-      const qty = Math.max(1, Number(item.qty) || 1);
-      if (qty > 1) {
-        await peelOneUnit(item, entry.order.items, makingReady ? 'ready' : 'waiting');
-      } else {
-        await api.updateItemKitchenStatus(itemId, makingReady ? 'ready' : 'waiting');
-        if (makingReady && item.kitchenUrgent && api.updateItemKitchenUrgent) {
-          await api.updateItemKitchenUrgent(itemId, false);
-        }
-      }
-      setError('');
-      await loadBoard();
-    } catch (err) {
-      setError(err?.message || txt('statusFail'));
-    } finally {
-      sending = false;
-    }
+  async function toggleItemReady(index) {
+    const group = lastDishGroups[Number(index)];
+    if (!group) return;
+    await adjustDishGroup(index, group.allReady ? 1 : -1);
   }
 
   async function startKitchen(entry) {
@@ -1502,26 +1661,32 @@
   document.addEventListener('touchstart', unlockAudio, { once: true });
 
   gridEl?.addEventListener('click', (event) => {
-    const btn = event.target.closest('[data-kt-table]');
+    const btn = event.target.closest('[data-kt-entry]');
     if (!btn || btn.disabled) return;
-    const tableNumber = Number(btn.dataset.ktTable);
-    const entry = board.find((row) => row.tableNumber === tableNumber);
+    const sessionId = String(btn.dataset.ktEntry || '');
+    const entry = findEntry(sessionId);
     if (!entry?.order) return;
     if (isFresh(entry)) {
       startKitchen(entry);
       if (hasUrgent(entry)) {
         dismissUrgentVisual(entry);
         renderBoard();
-        fillDrawer(tableNumber);
+        fillDrawer(sessionId);
         return;
       }
-      if (unreadNoteCount(entry.order?.items)) fillDrawer(tableNumber);
+      if (unreadNoteCount(entry.order?.items)) fillDrawer(sessionId);
       return;
     }
     if (hasUrgent(entry)) {
       dismissUrgentVisual(entry);
       renderBoard();
-      fillDrawer(tableNumber);
+      fillDrawer(sessionId);
+      return;
+    }
+    if (showOverdueVisual(entry)) {
+      dismissOverdueVisual(entry);
+      renderBoard();
+      fillDrawer(sessionId);
       return;
     }
     if (hasNewWave(entry)) {
@@ -1529,7 +1694,7 @@
       return;
     }
     if (sending) return;
-    fillDrawer(tableNumber);
+    fillDrawer(sessionId);
   });
 
   document.addEventListener('click', (event) => {
@@ -1551,13 +1716,20 @@
       renderPrepBoard();
       return;
     }
-    const noteOpen = event.target.closest('[data-kt-note-open]');
+    const noteOpen = event.target.closest('[data-kt-note-open-sid], [data-kt-note-open]');
     if (noteOpen) {
       hideNoteToast();
+      const sid = noteOpen.dataset.ktNoteOpenSid || '';
       const tableNumber = Number(noteOpen.dataset.ktNoteOpen);
-      if (Number.isFinite(tableNumber)) {
-        setTab('tables');
-        fillDrawer(tableNumber);
+      const entry = sid
+        ? findEntry(sid)
+        : (Number.isFinite(tableNumber)
+          ? allBoardEntries().find((row) => row.tableNumber === tableNumber)
+          : null);
+      if (entry?.order?.sessionId) {
+        const tab = entry.kind === 'pickup' || entry.kind === 'delivery' ? entry.kind : 'tables';
+        setTab(tab);
+        fillDrawer(entry.order.sessionId);
       }
       return;
     }
@@ -1566,9 +1738,24 @@
       ackItemNote(noteAck.dataset.ktNoteAck);
       return;
     }
+    const unitBtn = event.target.closest('[data-kt-unit-group]');
+    if (unitBtn) {
+      if (unitBtn.disabled) return;
+      const neoId = unitBtn.closest('[data-kt-neo]')?.dataset.ktNeo;
+      if (neoId) dismissNeo(neoId, { silent: true });
+      adjustDishGroup(unitBtn.dataset.ktUnitGroup, Number(unitBtn.dataset.ktUnitDelta));
+      return;
+    }
     const toggle = event.target.closest('[data-kt-dish-toggle]');
     if (toggle) {
+      const neoId = toggle.closest('[data-kt-neo]')?.dataset.ktNeo;
+      if (neoId) dismissNeo(neoId, { silent: true });
       toggleItemReady(toggle.dataset.ktDishToggle);
+      return;
+    }
+    const neoRow = event.target.closest('[data-kt-neo]');
+    if (neoRow) {
+      dismissNeo(neoRow.dataset.ktNeo);
       return;
     }
     const allReady = event.target.closest('#kt-all-ready');

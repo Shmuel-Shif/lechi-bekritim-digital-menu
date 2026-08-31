@@ -44,6 +44,16 @@
   const shopHoursBtn = document.getElementById('admin-shop-hours-btn');
   const kitchenBeepBtn = document.getElementById('admin-kitchen-beep-btn');
   const hugMeBtn = document.getElementById('admin-hug-me-btn');
+  const inventoryModal = document.getElementById('admin-inventory-modal');
+  const inventoryBackdrop = document.getElementById('admin-inventory-backdrop');
+  const inventoryTitle = document.getElementById('admin-inventory-modal-title');
+  const inventoryMeta = document.getElementById('admin-inventory-modal-meta');
+  const inventoryStockBtn = document.getElementById('admin-inventory-stock');
+  const inventoryRecBtn = document.getElementById('admin-inventory-rec');
+  const inventoryPriceInput = document.getElementById('admin-inventory-price');
+  const inventoryDescInput = document.getElementById('admin-inventory-desc');
+  const inventorySaveBtn = document.getElementById('admin-inventory-save');
+  const inventoryCloseBtn = document.getElementById('admin-inventory-close');
   const HUG_ME_AUDIO_SRC = 'assets/audio/techabek-oti.ogg';
   let hugMeAudio = null;
   const PRINT_SERVICE_ORIGIN = 'http://127.0.0.1:3001';
@@ -53,6 +63,8 @@
   let currentQuery = '';
   let currentInventoryScope = 'weekday';
   let catalogCache = [];
+  let openProductId = null;
+  let inventoryFocusRelease = null;
   let currentTab = 'tables';
   let dineInCloseAtMs = null;
   let kitchenCloseAdminTick = null;
@@ -173,6 +185,8 @@
     if (viewStats) viewStats.hidden = currentTab !== 'stats';
     if (viewSettings) viewSettings.hidden = currentTab !== 'settings';
     if (viewKitchen) viewKitchen.hidden = currentTab !== 'kitchen';
+
+    if (currentTab !== 'inventory') closeInventoryModal();
 
     /*
      * Keep order watchers (Realtime + chime) alive on every Admin tab.
@@ -317,6 +331,64 @@
     return [...groups.values()];
   }
 
+  function fillInventoryModal(item) {
+    if (!item) return;
+    if (inventoryTitle) inventoryTitle.textContent = item.name || '';
+    if (inventoryMeta) {
+      const bits = [item.categoryTitle, formatPrice(item.price)].filter(Boolean);
+      inventoryMeta.textContent = bits.join(' · ');
+    }
+    syncInventoryModalToggles(item.id);
+    if (inventoryPriceInput) inventoryPriceInput.value = item.price == null ? '' : String(item.price);
+    if (inventoryDescInput) inventoryDescInput.value = item.description || '';
+  }
+
+  function syncInventoryModalToggles(productId) {
+    const available = LechaimInventory.isAvailable(productId);
+    const recOn = typeof LechaimInventory.isRecommended === 'function'
+      ? LechaimInventory.isRecommended(productId)
+      : false;
+    if (inventoryStockBtn) {
+      inventoryStockBtn.classList.toggle('is-on', available);
+      inventoryStockBtn.classList.toggle('is-off', !available);
+      inventoryStockBtn.setAttribute('aria-pressed', available ? 'true' : 'false');
+      inventoryStockBtn.textContent = available ? 'יש במלאי' : 'אין במלאי';
+      inventoryStockBtn.disabled = false;
+    }
+    if (inventoryRecBtn) {
+      inventoryRecBtn.classList.toggle('is-on', recOn);
+      inventoryRecBtn.classList.toggle('is-off', !recOn);
+      inventoryRecBtn.setAttribute('aria-pressed', recOn ? 'true' : 'false');
+      inventoryRecBtn.textContent = recOn ? 'מומלץ' : 'סמן כמומלץ';
+      inventoryRecBtn.disabled = false;
+    }
+  }
+
+  function closeInventoryModal() {
+    if (typeof inventoryFocusRelease === 'function') inventoryFocusRelease();
+    inventoryFocusRelease = null;
+    openProductId = null;
+    if (!inventoryModal) return;
+    inventoryModal.hidden = true;
+    inventoryModal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('admin-inventory-open');
+  }
+
+  function openInventoryModal(productId) {
+    refreshCatalogCache();
+    const item = catalogCache.find((entry) => entry.id === productId);
+    if (!item || !inventoryModal) return;
+    openProductId = productId;
+    fillInventoryModal(item);
+    inventoryModal.hidden = false;
+    inventoryModal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('admin-inventory-open');
+    if (typeof inventoryFocusRelease === 'function') inventoryFocusRelease();
+    const release = window.LechaimFocusTrap?.activate?.(inventoryModal);
+    inventoryFocusRelease = typeof release === 'function' ? release : null;
+    inventoryStockBtn?.focus();
+  }
+
   function renderCard(item) {
     const available = LechaimInventory.isAvailable(item.id);
     const recOn = typeof LechaimInventory.isRecommended === 'function'
@@ -325,42 +397,23 @@
     const name = item.name || '';
     const image = item.image || '';
     const priceLabel = formatPrice(item.price);
-
+    const pid = escapeAttr(item.id);
     const thumb = image
       ? `<img class="admin-card__img" src="${escapeAttr(image)}" alt="" width="480" height="300" loading="lazy" decoding="async">`
-      : `<div class="admin-card__img admin-card__img--empty">אין תמונה</div>`;
+      : `<span class="admin-card__img admin-card__img--empty">אין תמונה</span>`;
 
     return `
-      <article class="admin-card${available ? '' : ' is-unavailable'}${recOn ? ' is-recommended' : ''}" data-product-id="${escapeAttr(item.id)}">
-        <div class="admin-card__media">
-          ${thumb}
-          ${recOn ? '<span class="admin-card__ribbon">מומלץ</span>' : ''}
-          <span class="admin-card__badge ${available ? 'is-on' : 'is-off'}">${available ? 'יש במלאי' : 'אין במלאי'}</span>
-        </div>
-        <div class="admin-card__body">
-          <p class="admin-card__meta">${escapeHtml(item.categoryTitle || '')}</p>
-          <h3 class="admin-card__name">${escapeHtml(name)}</h3>
-          <p class="admin-card__price">${escapeHtml(priceLabel)}</p>
-
-          <button
-            type="button"
-            class="admin-btn admin-btn--stock ${available ? 'is-on' : 'is-off'}"
-            data-action="toggle-stock"
-            data-product-id="${escapeAttr(item.id)}"
-            aria-pressed="${available ? 'true' : 'false'}"
-          >
-            ${available ? 'יש במלאי' : 'אין במלאי'}
-          </button>
-          <button
-            type="button"
-            class="admin-btn admin-btn--recommend ${recOn ? 'is-on' : 'is-off'}"
-            data-action="toggle-recommended"
-            data-product-id="${escapeAttr(item.id)}"
-            aria-pressed="${recOn ? 'true' : 'false'}"
-          >
-            ${recOn ? 'מומלץ' : 'סמן כמומלץ'}
-          </button>
-        </div>
+      <article class="admin-card${available ? '' : ' is-unavailable'}${recOn ? ' is-recommended' : ''}" data-product-id="${pid}">
+        <button type="button" class="admin-card__hit" data-action="open-item">
+          <span class="admin-card__media">${thumb}</span>
+          <span class="admin-card__summary">
+            <span class="admin-card__meta">${escapeHtml(item.categoryTitle || '')}</span>
+            <span class="admin-card__name">${escapeHtml(name)}</span>
+            <span class="admin-card__price">${escapeHtml(priceLabel)}</span>
+            ${recOn ? '<span class="admin-card__rec">מומלץ</span>' : ''}
+            <span class="admin-card__badge ${available ? 'is-on' : 'is-off'}">${available ? 'יש במלאי' : 'אין במלאי'}</span>
+          </span>
+        </button>
       </article>
     `;
   }
@@ -404,7 +457,6 @@
     updateStats();
 
     const item = catalogCache.find((entry) => entry.id === productId);
-    /* Prefer article — buttons also carry data-product-id */
     const existing = listEl?.querySelector(`article.admin-card[data-product-id="${CSS.escape(productId)}"]`);
     const query = currentQuery.trim().toLowerCase();
     const stillVisible = Boolean(
@@ -423,6 +475,7 @@
         const visible = getVisibleCatalog();
         statusEl.textContent = `${catalogCache.length} מנות במערכת · מוצגות ${visible.length}`;
       }
+      if (openProductId === productId) syncInventoryModalToggles(productId);
       return;
     }
 
@@ -433,24 +486,28 @@
       renderList();
     }
 
+    if (openProductId === productId) {
+      syncInventoryModalToggles(productId);
+      if (inventoryMeta) {
+        const bits = [item.categoryTitle, formatPrice(item.price)].filter(Boolean);
+        inventoryMeta.textContent = bits.join(' · ');
+      }
+    }
+
     if (statusEl) {
       const visible = getVisibleCatalog();
       statusEl.textContent = `${catalogCache.length} מנות במערכת · מוצגות ${visible.length}`;
     }
   }
 
-  async function handleToggle(button) {
-    const productId = button.dataset.productId;
-    if (!productId) return;
-
-    const currentlyAvailable = button.getAttribute('aria-pressed') === 'true';
-    const next = !currentlyAvailable;
-    button.disabled = true;
+  async function handleToggleStock() {
+    const productId = openProductId;
+    if (!productId || !inventoryStockBtn) return;
+    const next = inventoryStockBtn.getAttribute('aria-pressed') !== 'true';
+    inventoryStockBtn.disabled = true;
     showError(panelError, '');
-
     try {
       await LechaimInventory.setAvailable(productId, next);
-      /* Full re-render so filter chips drop cards that no longer match */
       if (currentFilter === 'available' || currentFilter === 'unavailable') {
         renderList();
       } else {
@@ -458,21 +515,18 @@
       }
       showToast(next ? 'עודכן: יש במלאי' : 'עודכן: אין במלאי');
     } catch (err) {
-      console.error('[admin] toggle failed', err);
+      console.error('[admin] stock update failed', err);
       showError(panelError, err?.message || String(err));
-      button.disabled = false;
+      inventoryStockBtn.disabled = false;
     }
   }
 
-  async function handleToggleRecommended(button) {
-    const productId = button.dataset.productId;
-    if (!productId) return;
-
-    const currentlyOn = button.getAttribute('aria-pressed') === 'true';
-    const next = !currentlyOn;
-    button.disabled = true;
+  async function handleToggleRecommended() {
+    const productId = openProductId;
+    if (!productId || !inventoryRecBtn) return;
+    const next = inventoryRecBtn.getAttribute('aria-pressed') !== 'true';
+    inventoryRecBtn.disabled = true;
     showError(panelError, '');
-
     try {
       await LechaimInventory.setRecommended(productId, next);
       updateCard(productId);
@@ -480,7 +534,36 @@
     } catch (err) {
       console.error('[admin] recommended toggle failed', err);
       showError(panelError, err?.message || String(err));
-      button.disabled = false;
+      inventoryRecBtn.disabled = false;
+    }
+  }
+
+  async function handleSaveContent() {
+    const productId = openProductId;
+    if (!productId) return;
+    const rawPrice = String(inventoryPriceInput?.value ?? '').trim();
+    const price = Number(rawPrice);
+    if (rawPrice === '' || Number.isNaN(price) || price < 0) {
+      showError(panelError, 'יש להזין מחיר תקין');
+      inventoryPriceInput?.focus();
+      return;
+    }
+    if (inventorySaveBtn) inventorySaveBtn.disabled = true;
+    showError(panelError, '');
+    try {
+      await LechaimInventory.saveContent(productId, {
+        price,
+        description: inventoryDescInput?.value ?? '',
+      });
+      updateCard(productId);
+      const item = catalogCache.find((entry) => entry.id === productId);
+      if (item) fillInventoryModal(item);
+      showToast('עודכן: מחיר ותיאור');
+    } catch (err) {
+      console.error('[admin] content save failed', err);
+      showError(panelError, err?.message || String(err));
+    } finally {
+      if (inventorySaveBtn) inventorySaveBtn.disabled = false;
     }
   }
 
@@ -1039,16 +1122,24 @@
   });
 
   listEl?.addEventListener('click', (event) => {
-    const stockBtn = event.target.closest('[data-action="toggle-stock"]');
-    if (stockBtn) {
-      handleToggle(stockBtn);
-      return;
-    }
-    const recBtn = event.target.closest('[data-action="toggle-recommended"]');
-    if (recBtn) {
-      handleToggleRecommended(recBtn);
-    }
+    const hit = event.target.closest('[data-action="open-item"]');
+    if (!hit) return;
+    const card = hit.closest('article.admin-card');
+    const productId = card?.dataset.productId;
+    if (productId) openInventoryModal(productId);
   });
+
+  inventoryStockBtn?.addEventListener('click', () => {
+    handleToggleStock();
+  });
+  inventoryRecBtn?.addEventListener('click', () => {
+    handleToggleRecommended();
+  });
+  inventorySaveBtn?.addEventListener('click', () => {
+    handleSaveContent();
+  });
+  inventoryCloseBtn?.addEventListener('click', closeInventoryModal);
+  inventoryBackdrop?.addEventListener('click', closeInventoryModal);
 
   document.getElementById('admin-app')?.addEventListener('click', (event) => {
     if (event.target.closest('[data-kitchen-close]')) {
@@ -1071,8 +1162,13 @@
   successOk?.addEventListener('click', closeAdminModal);
   successBackdrop?.addEventListener('click', closeAdminModal);
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && successModal && !successModal.hidden) {
+    if (event.key !== 'Escape') return;
+    if (successModal && !successModal.hidden) {
       closeAdminModal();
+      return;
+    }
+    if (inventoryModal && !inventoryModal.hidden) {
+      closeInventoryModal();
     }
   });
 

@@ -345,22 +345,33 @@
       .trim();
   }
 
+  function adminDishName(item) {
+    const he = window.LechaimKitchenDishGroups?.catalogHebrewName?.(item?.productId);
+    if (he) return stripWeightFromProductName(he);
+    return stripWeightFromProductName(item?.name || item?.productId || '');
+  }
+
   function formatWhatsAppProductLines(order) {
-    return buildDrawerItemGroups(order?.items).map((group) => {
+    const groups = window.LechaimKitchenDishGroups?.buildDisplayGroups?.(order?.items)
+      || buildDrawerItemGroups(order?.items).map((group) => ({
+        main: group.main,
+        sides: group.sides,
+        totalQty: Number(group.main?.qty) || 0,
+      }));
+    return groups.map((group) => {
       const item = group.main;
-      const qty = Number(item.qty) || 0;
+      const qty = Number(group.totalQty != null ? group.totalQty : item.qty) || 0;
       if (!(qty > 0)) return '';
       const isPack = String(item.unitType || '') === 'pack';
-      const name = stripKgFromWhatsAppName(item.name || item.productId || '');
+      const name = stripKgFromWhatsAppName(adminDishName(item));
       const extras = [];
       (group.sides || []).forEach((side) => {
-        const sn = stripKgFromWhatsAppName(side.name || side.productId || '');
+        const sn = stripKgFromWhatsAppName(adminDishName(side));
         if (sn) extras.push(sn);
       });
       const notes = String(item.notes || '').trim();
       if (notes) extras.push(notes);
       const label = extras.length ? `${name}, ${extras.join(', ')}` : name;
-      /* Qty at start of the string → right side in Hebrew RTL WhatsApp. */
       const qtyLabel = isPack ? `${qty} חבילות` : `${qty}x`;
       return `${qtyLabel}  ${label}`;
     }).filter(Boolean);
@@ -1247,12 +1258,14 @@
     );
     return {
       itemId: String(row.id),
+      orderId: extras.orderId ? String(extras.orderId) : '',
       productId: String(row.product_id || ''),
       name,
       printName: row.print_name || '',
       price: Number(row.price) || 0,
       qty: Number(row.quantity) || 0,
       notes: row.notes == null ? '' : String(row.notes),
+      notesEl: row.notes_el == null ? '' : String(row.notes_el),
       printed: true,
       linkedToMainItemId: row.parent_item_id ? String(row.parent_item_id) : null,
       createdAt: row.created_at || null,
@@ -1285,6 +1298,7 @@
         const mapped = mapRemoteItem(row, {
           isLateAdd,
           waveId: order.id ? String(order.id) : '',
+          orderId: order.id ? String(order.id) : '',
           wavePrinted: !isLateAdd,
         });
         if (mapped.qty > 0) {
@@ -1881,7 +1895,7 @@
       : '';
     const qtyLabel = isPack
       ? `${escapeHtml(String(item.qty))} חבילות`
-      : `${escapeHtml(String(item.qty))}×`;
+      : `${escapeHtml(String(item.qty))} ×`;
     const priceHtml = isPack
       ? (item.pricePerKg != null
         ? `<span class="table-drawer__price">${escapeHtml(formatMoney(item.pricePerKg))}/ק״ג</span>`
@@ -1893,7 +1907,7 @@
       <div class="table-drawer__line${sideClass}${lateClass}">
         ${isSide ? `<span class="table-drawer__side-badge">${sideBadge}</span>` : ''}
         <span class="table-drawer__qty">${qtyLabel}</span>
-        <span class="table-drawer__name${nameLate}">${escapeHtml(item.name || item.productId || '')}</span>
+        <span class="table-drawer__name${nameLate}">${escapeHtml(adminDishName(item) || item.productId || '')}</span>
         <span class="table-drawer__price">${priceHtml}</span>
         ${item.itemId
           ? `<button
@@ -1911,7 +1925,20 @@
   }
 
   function renderDrawerItemsHtml(items) {
-    const groups = buildDrawerItemGroups(items);
+    const groups = window.LechaimKitchenDishGroups?.buildDisplayGroups?.(items)
+      || buildDrawerItemGroups(items).map((group) => ({
+        main: group.main,
+        sides: group.sides || [],
+        mains: [group.main],
+        items: [group.main].concat(group.sides || []),
+        totalQty: Number(group.main?.qty) || 0,
+        readyQty: String(group.main?.kitchenStatus) === 'ready' ? (Number(group.main?.qty) || 0) : 0,
+        remainingQty: String(group.main?.kitchenStatus) === 'ready' ? 0 : (Number(group.main?.qty) || 0),
+        allReady: String(group.main?.kitchenStatus) === 'ready',
+        anyLate: Boolean(group.main?.isLateAdd),
+        anyUrgent: Boolean(group.main?.kitchenUrgent),
+        noteItem: group.main,
+      }));
     if (!groups.length) {
       return `<p class="table-drawer__empty">אין פריטים בהזמנה</p>`;
     }
@@ -1919,20 +1946,25 @@
     return `
       <ul class="table-drawer__list">
         ${groups.map((group) => {
-          const lateClass = group.main.isLateAdd ? ' table-drawer__item--late' : '';
-          if (group.kind === 'main-group') {
-            return `
-              <li class="table-drawer__group${lateClass}">
-                ${renderDrawerItemLine(group.main)}
-                <div class="table-drawer__sides">
-                  ${group.sides.map((side) => renderDrawerItemLine(side, { isSide: true })).join('')}
-                </div>
-              </li>
-            `;
-          }
+          const lateClass = group.anyLate ? ' table-drawer__item--late' : '';
+          const readyClass = group.allReady ? ' table-drawer__group--ready' : '';
+          const mainSum = (group.mains || []).reduce((sum, item) => (
+            sum + (Number(item.price) || 0) * (Number(item.qty) || 0)
+          ), 0);
+          const displayMain = {
+            ...group.main,
+            qty: group.totalQty,
+            price: group.totalQty ? mainSum / group.totalQty : 0,
+            itemId: (group.mains || []).length === 1 ? group.main.itemId : '',
+          };
           return `
-            <li class="${lateClass}">
-              ${renderDrawerItemLine(group.main)}
+            <li class="table-drawer__group${lateClass}${readyClass}">
+              ${renderDrawerItemLine(displayMain)}
+              ${group.sides.length
+                ? `<div class="table-drawer__sides">
+                    ${group.sides.map((side) => renderDrawerItemLine(side, { isSide: true })).join('')}
+                  </div>`
+                : ''}
             </li>
           `;
         }).join('')}
@@ -2445,7 +2477,8 @@
         const qty = Number(row.quantity) || 0;
         if (qty <= 0) return null;
         return {
-          itemId: String(row.id),
+          orderId: extras.orderId ? String(extras.orderId) : '',
+        itemId: String(row.id),
           productId: String(row.product_id || ''),
           name: row.print_name || row.product_name || row.product_id || '',
           printName: row.print_name || '',

@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=84">
+  <link rel="stylesheet" href="css/admin.css?v=89">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
 <body>
@@ -53,10 +53,6 @@
           <img src="assets/logo/logo-text.png" alt="LECHAIM" class="admin-topbar__wordmark" width="190" height="50">
         </a>
         <div class="admin-topbar__actions">
-          <button type="button" class="admin-kitchen-indicator" id="admin-kitchen-indicator" hidden>
-            מטבח
-            <span class="admin-kitchen-indicator__count" id="admin-kitchen-indicator-count">0</span>
-          </button>
           <button type="button" class="admin-btn admin-btn--soft" data-admin-install hidden>התקן אפליקציה</button>
           <button type="button" class="admin-btn admin-btn--ghost" id="admin-logout">התנתק</button>
         </div>
@@ -268,8 +264,14 @@
           </header>
 
           <nav class="kitchen-subnav" aria-label="מטבח">
-            <button type="button" class="admin-tab is-active" data-kitchen-pane="tables">שולחנות</button>
-            <button type="button" class="admin-tab" data-kitchen-pane="alerts">קריאות</button>
+            <button type="button" class="admin-tab is-active" data-kitchen-pane="tables">
+              שולחנות
+              <span class="admin-tab__badge" id="kitchen-pane-tables-badge" data-count="0" hidden>0</span>
+            </button>
+            <button type="button" class="admin-tab" data-kitchen-pane="alerts">
+              קריאות
+              <span class="admin-tab__badge" id="kitchen-pane-alerts-badge" data-count="0" hidden>0</span>
+            </button>
           </nav>
 
           <div id="kitchen-pane-tables">
@@ -609,7 +611,7 @@
           <div class="admin-header__text">
             <p class="admin-header__eyebrow">ניהול</p>
             <h1 class="admin-header__title">ניהול מלאי</h1>
-            <p class="admin-header__subtitle">בחרו סוג מלאי · מלאי: יש / אין · מומלץ: סרט על כרטיס הלקוח ופופאפ בכניסה לתפריט</p>
+            <p class="admin-header__subtitle">לחצו על שם המנה לעריכה · מלאי, מומלץ, מחיר ותיאור</p>
           </div>
         </header>
 
@@ -1294,6 +1296,35 @@
       </div>
     </div>
 
+    <div class="admin-modal" id="admin-inventory-modal" hidden aria-hidden="true">
+      <button type="button" class="admin-modal__backdrop" id="admin-inventory-backdrop" aria-label="סגור"></button>
+      <div
+        class="admin-modal__panel admin-inventory-modal__panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="admin-inventory-modal-title"
+      >
+        <h2 class="admin-inventory-modal__title" id="admin-inventory-modal-title"></h2>
+        <p class="admin-inventory-modal__meta" id="admin-inventory-modal-meta"></p>
+        <div class="admin-inventory-modal__toggles">
+          <button type="button" class="admin-btn admin-btn--stock" id="admin-inventory-stock" aria-pressed="true">יש במלאי</button>
+          <button type="button" class="admin-btn admin-btn--recommend" id="admin-inventory-rec" aria-pressed="false">מומלץ</button>
+        </div>
+        <label class="admin-inventory-modal__field">
+          <span>מחיר (€)</span>
+          <input type="number" id="admin-inventory-price" inputmode="decimal" min="0" step="0.1" autocomplete="off">
+        </label>
+        <label class="admin-inventory-modal__field">
+          <span>תיאור</span>
+          <textarea id="admin-inventory-desc" rows="4"></textarea>
+        </label>
+        <div class="admin-modal__actions">
+          <button type="button" class="admin-btn admin-btn--primary" id="admin-inventory-save">שמירת מחיר ותיאור</button>
+          <button type="button" class="admin-btn admin-btn--ghost" id="admin-inventory-close">סגור</button>
+        </div>
+      </div>
+    </div>
+
     <section class="admin-boot" id="admin-boot">
       <p>טוען…</p>
     </section>
@@ -1305,23 +1336,24 @@
   <script src="js/supabase-config.js" defer></script>
   <script src="js/order-types.js" defer></script>
   <script src="js/supabase-order-service.js?v=28" defer></script>
-  <script src="js/menu-data.js?v=92" defer></script>
+  <script src="js/menu-data.js?v=100" defer></script>
   <script src="js/opening-hours.js?v=12" defer></script>
   <script src="js/app-settings.js?v=6" defer></script>
   <script src="js/shabbat-menu-data.js" defer></script>
-  <script src="js/inventory.js?v=43" defer></script>
+  <script src="js/inventory.js?v=44" defer></script>
   <script src="js/order-session.js?v=6" defer></script>
   <script src="js/order-engine.js" defer></script>
   <script src="js/print-engine.js?v=37" defer></script>
   <script src="js/a11y-focus-trap.js" defer></script>
   <script src="js/kitchen-progress.js?v=2" defer></script>
-  <script src="js/admin-tables.js?v=83" defer></script>
+  <script src="js/kitchen-dish-groups.js?v=1" defer></script>
+  <script src="js/admin-tables.js?v=85" defer></script>
   <script src="js/admin-shabbat.js?v=8" defer></script>
   <script src="js/place-reservations.js?v=9" defer></script>
   <script src="js/admin-reservations.js?v=6" defer></script>
   <script src="js/kitchen-alert-service.js?v=13" defer></script>
-  <script src="js/admin-kitchen-alerts.js?v=14" defer></script>
-  <script src="js/admin-kitchen-board.js?v=27" defer></script>
+  <script src="js/admin-kitchen-alerts.js?v=15" defer></script>
+  <script src="js/admin-kitchen-board.js?v=32" defer></script>
   <script src="js/admin-history.js?v=2" defer></script>
   <script src="js/admin-coupons.js" defer></script>
   <script src="js/admin-till.js?v=3" defer></script>
@@ -1329,7 +1361,7 @@
   <script src="js/admin-settings.js?v=7" defer></script>
   <script src="js/stock-catalog.js?v=6" defer></script>
   <script src="js/admin-stock.js?v=2" defer></script>
-  <script src="js/admin.js?v=58" defer></script>
+  <script src="js/admin.js?v=61" defer></script>
   <script src="js/admin-pwa.js" defer></script>
 </body>
 </html>

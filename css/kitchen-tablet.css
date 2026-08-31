@@ -511,9 +511,11 @@ html[dir="rtl"] .kt-brand {
 .kt-tabs {
   flex: 0 0 auto;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.38rem 0.4rem;
+  flex-wrap: nowrap;
+  gap: 0.32rem;
   margin-bottom: 0.7rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .kt-tab {
@@ -523,15 +525,17 @@ html[dir="rtl"] .kt-brand {
   color: var(--kt-cream);
   border-radius: 999px;
   min-height: 0;
-  padding: 0.55rem 1.05rem;
+  flex: 1 0 auto;
+  padding: 0.42rem 0.55rem;
   font: inherit;
-  font-size: 1rem;
+  font-size: 0.82rem;
   font-weight: 800;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.35rem;
+  gap: 0.28rem;
+  white-space: nowrap;
 }
 
 .kt-tab.is-active {
@@ -898,6 +902,15 @@ button.kt-prep__row {
   font-weight: 800;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kt-table-card.is-named .kt-table-card__num {
+  font-size: 1.28rem;
+  letter-spacing: -0.02em;
 }
 
 .kt-kprog {
@@ -1180,6 +1193,7 @@ button.kt-prep__row {
   --kt-accent: #ea580c;
   background: #fff7ed;
   border: 1px solid rgba(234, 88, 12, 0.45);
+  cursor: pointer;
 }
 
 .kt-dish-group.is-urgent {
@@ -1195,7 +1209,7 @@ button.kt-prep__row {
   border-radius: 999px;
   background: #eab308;
   color: #1a1404;
-  font-size: 0.68rem;
+  font-size: 0.82rem;
   font-weight: 800;
   letter-spacing: 0.04em;
   vertical-align: middle;
@@ -1208,7 +1222,7 @@ button.kt-prep__row {
   border-radius: 999px;
   background: #dc2626;
   color: #fff;
-  font-size: 0.68rem;
+  font-size: 0.82rem;
   font-weight: 800;
   letter-spacing: 0.04em;
   vertical-align: middle;
@@ -1237,7 +1251,7 @@ button.kt-prep__row {
 }
 
 .kt-dish--side .kt-dish__name {
-  font-size: 1.12rem;
+  font-size: 1.55rem;
   font-weight: 700;
 }
 
@@ -1250,16 +1264,19 @@ button.kt-prep__row {
 
 .kt-dish__top {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
 }
 
 .kt-dish__name {
   font-weight: 700;
-  font-size: 1.22rem;
+  font-size: 1.72rem;
   letter-spacing: 0.01em;
   color: #111;
+  line-height: 1.28;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .kt-dish__status {
@@ -1286,7 +1303,7 @@ button.kt-prep__row {
 .kt-dish__notes {
   margin: 0.2rem 0 0;
   padding: 0.35rem 0.5rem;
-  font-size: 0.95rem;
+  font-size: 1.18rem;
   font-weight: 800;
   line-height: 1.35;
   color: #7c2d12;
@@ -1325,14 +1342,14 @@ button.kt-prep__row {
 
 .kt-dish-note__text {
   margin: 0;
-  font-size: 1.15rem;
+  font-size: 1.38rem;
   font-weight: 800;
   line-height: 1.4;
   color: #7c2d12;
 }
 
 .kt-dish-note.is-unread .kt-dish-note__text {
-  font-size: 1.12rem;
+  font-size: 1.38rem;
   color: #7c2d12;
 }
 
@@ -1425,11 +1442,64 @@ button.kt-prep__row {
   line-height: 1.35;
 }
 
+.kt-unit {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.18rem;
+  margin: 0;
+  flex: 0 0 auto;
+  direction: ltr;
+}
+
+.kt-unit__btn {
+  appearance: none;
+  width: 1.85rem;
+  height: 1.85rem;
+  padding: 0;
+  border: 2px solid #1f2937;
+  border-radius: 0.35rem;
+  background: #111827;
+  color: #fff;
+  font: inherit;
+  font-size: 1.15rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.kt-unit__btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.kt-unit__n {
+  min-width: 1.15rem;
+  text-align: center;
+  font-size: 1.15rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #111;
+}
+
+.kt-unit__meta {
+  margin: 0.2rem 0 0;
+  text-align: center;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #374151;
+}
+
+.kt-dish-group.is-ready .kt-unit__n,
+.kt-dish-group.is-ready .kt-unit__meta {
+  color: #15803d;
+}
+
 .kt-ready {
   appearance: none;
   flex: 0 0 auto;
-  width: 1.55rem;
-  height: 1.55rem;
+  width: 1.85rem;
+  height: 1.85rem;
   padding: 0;
   border: 2px solid #9ca3af;
   background: transparent;

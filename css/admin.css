@@ -513,19 +513,38 @@ body::before {
 
 .admin-category__grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.45rem;
 }
 
-/* Cards — compact inventory tiles */
+/* Cards — name-only tiles; tap opens a standing modal */
 .admin-card {
   background: var(--color-bg-card);
   border: 1px solid var(--color-border);
   border-radius: 10px;
   overflow: hidden;
   box-shadow: var(--shadow-sm);
-  display: flex;
-  flex-direction: column;
+  min-width: 0;
+}
+
+.admin-card__hit {
+  appearance: none;
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.admin-card__hit:focus-visible {
+  outline: 2px solid rgba(196, 160, 106, 0.75);
+  outline-offset: -2px;
 }
 
 .admin-card.is-unavailable {
@@ -534,6 +553,7 @@ body::before {
 }
 
 .admin-card__media {
+  display: none;
   position: relative;
   aspect-ratio: 16 / 10;
   background: linear-gradient(145deg, var(--color-cream) 0%, var(--color-cream-dark) 100%);
@@ -559,19 +579,20 @@ body::before {
   filter: grayscale(0.55) brightness(0.92);
 }
 
+@media (min-width: 700px) {
+  .admin-card__media {
+    display: block;
+  }
+}
+
 .admin-card__badge {
-  position: absolute;
-  top: 0.3rem;
-  inset-inline-start: 0.3rem;
+  justify-self: start;
   border-radius: 999px;
-  padding: 0.12rem 0.35rem;
-  font-size: 0.58rem;
+  padding: 0.12rem 0.4rem;
+  font-size: 0.62rem;
   font-weight: 700;
-  backdrop-filter: blur(6px);
-  max-width: calc(100% - 0.5rem);
+  max-width: 100%;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .admin-card__badge.is-on {
@@ -584,30 +605,22 @@ body::before {
   color: #fff;
 }
 
-.admin-card__ribbon {
-  position: absolute;
-  top: 0.72rem;
-  left: -1.65rem;
-  z-index: 2;
-  width: 6.4rem;
-  padding: 0.18rem 0;
-  background: linear-gradient(180deg, #d4b88a 0%, #c4a06a 55%, #a8864f 100%);
-  color: #152640;
-  font-size: 0.52rem;
+.admin-card__rec {
+  justify-self: start;
+  border-radius: 999px;
+  padding: 0.1rem 0.38rem;
+  font-size: 0.58rem;
   font-weight: 800;
-  letter-spacing: 0.04em;
-  text-align: center;
-  transform: rotate(-45deg);
-  box-shadow: 0 2px 8px rgba(21, 38, 64, 0.28);
-  pointer-events: none;
+  background: #c4a06a;
+  color: #152640;
 }
 
 .admin-btn--recommend {
   width: 100%;
-  min-height: 28px;
-  margin-top: 0.12rem;
-  padding: 0.25rem 0.3rem;
-  font-size: 0.68rem;
+  min-height: 44px;
+  margin: 0;
+  padding: 0.45rem 0.5rem;
+  font-size: 0.9rem;
   border: 1px solid transparent;
 }
 
@@ -630,16 +643,16 @@ body::before {
   background: var(--color-cream);
 }
 
-.admin-card__body {
+.admin-card__summary {
   display: grid;
-  gap: 0.2rem;
-  padding: 0.4rem 0.4rem 0.45rem;
-  flex: 1;
+  gap: 0.22rem;
+  padding: 0.55rem 0.55rem 0.6rem;
+  min-width: 0;
 }
 
 .admin-card__meta {
   color: var(--color-text-muted);
-  font-size: 0.58rem;
+  font-size: 0.62rem;
   font-weight: 700;
   line-height: 1.2;
   white-space: nowrap;
@@ -649,9 +662,9 @@ body::before {
 
 .admin-card__name {
   font-family: var(--font-hebrew);
-  font-size: 0.72rem;
+  font-size: 0.88rem;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.25;
   color: var(--color-navy);
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -665,15 +678,15 @@ body::before {
   color: var(--color-navy);
   direction: ltr;
   unicode-bidi: isolate;
-  font-size: 0.7rem;
+  font-size: 0.78rem;
 }
 
 .admin-btn--stock {
   width: 100%;
-  min-height: 28px;
-  margin-top: 0.15rem;
-  padding: 0.25rem 0.3rem;
-  font-size: 0.68rem;
+  min-height: 44px;
+  margin: 0;
+  padding: 0.45rem 0.5rem;
+  font-size: 0.9rem;
   border: 1px solid transparent;
   border-radius: 7px;
 }
@@ -721,6 +734,10 @@ body::before {
 
   .admin-stat__value {
     font-size: 1.4rem;
+  }
+
+  .admin-category__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -1976,8 +1993,60 @@ body::before {
   gap: 0.35rem;
 }
 
-.table-drawer__qty {
+.table-drawer__unit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  margin-top: 0.45rem;
+}
+
+.table-drawer__unit-btn {
+  appearance: none;
+  width: 2.4rem;
+  height: 2.4rem;
+  padding: 0;
+  border: 2px solid var(--color-navy);
+  border-radius: 0.65rem;
+  background: var(--color-navy);
+  color: #fff;
+  font: inherit;
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.table-drawer__unit-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.table-drawer__unit-n {
+  min-width: 1.8rem;
+  text-align: center;
+  font-size: 1.55rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-navy);
+}
+
+.table-drawer__unit-meta {
+  margin: 0.15rem 0 0;
+  text-align: center;
+  font-size: 0.82rem;
   font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+.table-drawer__group--ready .table-drawer__unit-n,
+.table-drawer__group--ready .table-drawer__unit-meta {
+  color: #15803d;
+}
+
+.table-drawer__qty {
+  font-weight: 800;
+  font-size: 1.05rem;
   color: var(--color-navy);
   min-width: 1.75rem;
 }
@@ -2454,6 +2523,14 @@ body.table-drawer-open {
   z-index: 14000;
 }
 
+#admin-success-modal {
+  z-index: 14500;
+}
+
+#admin-inventory-modal {
+  z-index: 12900;
+}
+
 .admin-modal__backdrop {
   position: absolute;
   inset: 0;
@@ -2752,7 +2829,8 @@ body.table-drawer-open {
   filter: brightness(1.05);
 }
 
-body.admin-modal-open {
+body.admin-modal-open,
+body.admin-inventory-open {
   overflow: hidden;
 }
 
@@ -5434,6 +5512,78 @@ body.admin-modal-open {
   margin: 0 0 0.85rem;
 }
 
+.admin-inventory-modal__panel {
+  width: min(100%, 26rem);
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.15rem 1rem 1.05rem;
+}
+
+.admin-inventory-modal__title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--color-navy);
+  line-height: 1.3;
+}
+
+.admin-inventory-modal__meta {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+.admin-inventory-modal__toggles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+}
+
+.admin-inventory-modal__field {
+  display: grid;
+  gap: 0.28rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-navy);
+}
+
+.admin-inventory-modal__field input,
+.admin-inventory-modal__field textarea {
+  width: 100%;
+  font: inherit;
+  font-weight: 600;
+  font-size: 16px;
+  min-height: 44px;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-cream);
+  color: var(--color-navy);
+  border-radius: var(--radius-sm);
+}
+
+.admin-inventory-modal__field textarea {
+  min-height: 6.5rem;
+  resize: vertical;
+  line-height: 1.4;
+}
+
+.admin-inventory-modal__panel .admin-modal__actions {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.admin-inventory-modal__panel .admin-modal__actions .admin-btn {
+  width: 100%;
+  min-height: 48px;
+}
+
+@media (max-width: 420px) {
+  .admin-inventory-modal__toggles {
+    grid-template-columns: 1fr;
+  }
+}
+
 .kitchen-ready-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr));
@@ -6091,6 +6241,56 @@ body.admin-modal-open {
 .kitchen-ready-group.is-urgent {
   background: #ecfdf5;
   border-inline-start-color: #16a34a;
+}
+
+.kitchen-ready-unit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}
+
+.kitchen-ready-unit__btn {
+  appearance: none;
+  width: 2.35rem;
+  height: 2.35rem;
+  padding: 0;
+  border: 2px solid #1f2937;
+  border-radius: 0.6rem;
+  background: #111827;
+  color: #fff;
+  font: inherit;
+  font-size: 1.45rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.kitchen-ready-unit__btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.kitchen-ready-unit__n {
+  min-width: 1.7rem;
+  text-align: center;
+  font-size: 1.45rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.kitchen-ready-unit__meta {
+  margin: 0.1rem 0 0;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #4b5563;
+}
+
+.kitchen-ready-group.is-ready .kitchen-ready-unit__n,
+.kitchen-ready-group.is-ready .kitchen-ready-unit__meta {
+  color: #15803d;
 }
 
 .kitchen-ready-dish.is-side {

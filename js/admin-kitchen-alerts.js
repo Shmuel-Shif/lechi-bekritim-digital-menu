@@ -103,6 +103,14 @@
       badgeEl.hidden = count <= 0;
       badgeEl.classList.toggle('is-live', count > 0);
     }
+    const paneBadge = document.getElementById('kitchen-pane-alerts-badge');
+    if (paneBadge) {
+      const n = cache.length;
+      paneBadge.textContent = String(n);
+      paneBadge.dataset.count = String(n);
+      paneBadge.hidden = n <= 0;
+      paneBadge.classList.toggle('is-live', n > 0);
+    }
     const indicator = document.getElementById('admin-kitchen-indicator');
     const indicatorCount = document.getElementById('admin-kitchen-indicator-count');
     if (indicator) {

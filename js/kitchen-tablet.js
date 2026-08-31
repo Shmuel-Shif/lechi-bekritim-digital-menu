@@ -359,7 +359,7 @@
 
   function applyLang() {
     document.documentElement.lang = lang === 'he' ? 'he' : 'el';
-    document.documentElement.dir = lang === 'he' ? 'rtl' : 'ltr';
+    document.documentElement.dir = 'ltr';
     const title = document.getElementById('kt-title');
     if (title) title.textContent = txt('title');
     document.querySelectorAll('[data-kt-label]').forEach((el) => {
