@@ -50,6 +50,7 @@
   const inventoryMeta = document.getElementById('admin-inventory-modal-meta');
   const inventoryStockBtn = document.getElementById('admin-inventory-stock');
   const inventoryRecBtn = document.getElementById('admin-inventory-rec');
+  const inventoryNameInput = document.getElementById('admin-inventory-name');
   const inventoryPriceInput = document.getElementById('admin-inventory-price');
   const inventoryDescInput = document.getElementById('admin-inventory-desc');
   const inventorySaveBtn = document.getElementById('admin-inventory-save');
@@ -339,6 +340,7 @@
       inventoryMeta.textContent = bits.join(' · ');
     }
     syncInventoryModalToggles(item.id);
+    if (inventoryNameInput) inventoryNameInput.value = item.name || '';
     if (inventoryPriceInput) inventoryPriceInput.value = item.price == null ? '' : String(item.price);
     if (inventoryDescInput) inventoryDescInput.value = item.description || '';
   }
@@ -541,6 +543,12 @@
   async function handleSaveContent() {
     const productId = openProductId;
     if (!productId) return;
+    const name = String(inventoryNameInput?.value ?? '').trim();
+    if (!name) {
+      showError(panelError, 'יש להזין שם למנה');
+      inventoryNameInput?.focus();
+      return;
+    }
     const rawPrice = String(inventoryPriceInput?.value ?? '').trim();
     const price = Number(rawPrice);
     if (rawPrice === '' || Number.isNaN(price) || price < 0) {
@@ -552,13 +560,14 @@
     showError(panelError, '');
     try {
       await LechaimInventory.saveContent(productId, {
+        name,
         price,
         description: inventoryDescInput?.value ?? '',
       });
       updateCard(productId);
       const item = catalogCache.find((entry) => entry.id === productId);
       if (item) fillInventoryModal(item);
-      showToast('עודכן: מחיר ותיאור');
+      showToast('עודכן: שם, מחיר ותיאור');
     } catch (err) {
       console.error('[admin] content save failed', err);
       showError(panelError, err?.message || String(err));
