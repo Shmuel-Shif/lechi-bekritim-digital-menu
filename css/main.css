@@ -3454,6 +3454,20 @@ body.browse-only #order-back-toggle {
   color: rgba(255, 255, 255, 0.92);
 }
 
+.site-footer__support {
+  margin: 0.35rem 0 0;
+}
+
+.site-footer__support a {
+  color: #c4a06a;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.site-footer__support a:hover {
+  text-decoration: underline;
+}
+
 .site-footer__follow {
   margin: 0.55rem 0 0;
   font-family: var(--font-body, 'Heebo', sans-serif);

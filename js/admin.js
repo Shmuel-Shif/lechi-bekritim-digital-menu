@@ -34,6 +34,7 @@
   const viewTables = document.getElementById('admin-view-tables');
   const viewShabbat = document.getElementById('admin-view-shabbat');
   const viewReservations = document.getElementById('admin-view-reservations');
+  const viewSupport = document.getElementById('admin-view-support');
   const viewHistory = document.getElementById('admin-view-history');
   const viewInventory = document.getElementById('admin-view-inventory');
   const viewStats = document.getElementById('admin-view-stats');
@@ -152,6 +153,7 @@
       window.LechaimAdminTables?.closeDrawer?.();
       window.LechaimAdminShabbat?.stop?.();
       window.LechaimAdminReservations?.stop?.();
+      window.LechaimAdminSupport?.stop?.();
       window.LechaimAdminKitchen?.stop?.();
       window.LechaimAdminKitchenBoard?.stop?.();
     }
@@ -168,6 +170,7 @@
     else if (tab === 'butcher') currentTab = 'butcher';
     else if (tab === 'shabbat') currentTab = 'shabbat';
     else if (tab === 'reservations') currentTab = 'reservations';
+    else if (tab === 'support') currentTab = 'support';
     else if (tab === 'history') currentTab = 'history';
     else if (tab === 'settings') currentTab = 'settings';
     else if (tab === 'kitchen') currentTab = 'kitchen';
@@ -185,6 +188,7 @@
     if (viewTables) viewTables.hidden = !onBoard;
     if (viewShabbat) viewShabbat.hidden = currentTab !== 'shabbat';
     if (viewReservations) viewReservations.hidden = currentTab !== 'reservations';
+    if (viewSupport) viewSupport.hidden = currentTab !== 'support';
     if (viewHistory) viewHistory.hidden = currentTab !== 'history';
     if (viewTill) viewTill.hidden = currentTab !== 'till';
     if (viewStaffHours) viewStaffHours.hidden = currentTab !== 'staff-hours';
@@ -202,6 +206,7 @@
     window.LechaimAdminTables?.start?.();
     window.LechaimAdminShabbat?.start?.();
     window.LechaimAdminReservations?.start?.();
+    window.LechaimAdminSupport?.start?.();
     window.LechaimAdminKitchen?.start?.();
     if (currentTab === 'kitchen') {
       window.LechaimAdminKitchenBoard?.start?.();
@@ -1219,6 +1224,7 @@
       && tab !== 'butcher'
       && tab !== 'shabbat'
       && tab !== 'reservations'
+      && tab !== 'support'
       && tab !== 'history'
       && tab !== 'till'
       && tab !== 'staff-hours'

@@ -1108,6 +1108,84 @@
     if (panel) panel.hidden = true;
   }
 
+  function hidePaymentCashPanel() {
+    const panel = document.getElementById('admin-payment-cash-panel');
+    if (panel) panel.hidden = true;
+  }
+
+  function hidePaymentExtraPanels() {
+    hidePaymentSplitPanel();
+    hidePaymentCashPanel();
+  }
+
+  function isPaymentCashPanelOpen() {
+    const panel = document.getElementById('admin-payment-cash-panel');
+    return Boolean(panel && !panel.hidden);
+  }
+
+  function parseTenderedAmount(raw) {
+    const n = Number(String(raw ?? '').trim().replace(',', '.'));
+    if (!Number.isFinite(n) || n < 0) return 0;
+    return roundMoney(n);
+  }
+
+  function cashTenderState(total, tendered) {
+    const due = roundMoney(total);
+    const given = roundMoney(tendered);
+    const diff = roundMoney(given - due);
+    if (diff < 0) {
+      return { ok: false, change: 0, missing: roundMoney(-diff) };
+    }
+    return { ok: true, change: diff, missing: 0 };
+  }
+
+  function syncPaymentCashTender() {
+    const dueEl = document.getElementById('admin-payment-cash-due');
+    const input = document.getElementById('admin-payment-tender-input');
+    const hint = document.getElementById('admin-payment-cash-change');
+    const confirmBtn = document.getElementById('admin-payment-cash-confirm');
+    const total = roundMoney(pendingPaymentTotal);
+    const given = parseTenderedAmount(input?.value);
+    const state = cashTenderState(total, given);
+
+    if (dueEl) dueEl.textContent = `סה״כ לתשלום: ${formatMoneyEuro(total)}`;
+    if (hint) {
+      hint.classList.toggle('is-short', !state.ok);
+      hint.classList.toggle('is-ok', state.ok);
+      hint.textContent = state.ok
+        ? `עודף להחזיר: ${formatMoneyEuro(state.change)}`
+        : `חסר: ${formatMoneyEuro(state.missing)}`;
+    }
+    if (confirmBtn) confirmBtn.disabled = !state.ok;
+  }
+
+  function showPaymentCashPanel() {
+    hidePaymentSplitPanel();
+    const panel = document.getElementById('admin-payment-cash-panel');
+    const input = document.getElementById('admin-payment-tender-input');
+    if (!panel) return;
+    panel.hidden = false;
+    if (input) {
+      input.value = '';
+      syncPaymentCashTender();
+      input.focus();
+      if (typeof input.select === 'function') input.select();
+    } else {
+      syncPaymentCashTender();
+    }
+  }
+
+  function confirmPaymentCash() {
+    const total = roundMoney(pendingPaymentTotal);
+    const given = parseTenderedAmount(document.getElementById('admin-payment-tender-input')?.value);
+    const state = cashTenderState(total, given);
+    if (!state.ok) {
+      syncPaymentCashTender();
+      return;
+    }
+    closePaymentModal(buildPaymentResult('cash', total, total, 0));
+  }
+
   function syncPaymentSplitFields(fromCash = true) {
     const total = roundMoney(pendingPaymentTotal);
     const cashInput = document.getElementById('admin-payment-cash-input');
@@ -1133,6 +1211,7 @@
   }
 
   function showPaymentSplitPanel() {
+    hidePaymentCashPanel();
     const panel = document.getElementById('admin-payment-split-panel');
     const cashInput = document.getElementById('admin-payment-cash-input');
     if (!panel) return;
@@ -1148,7 +1227,7 @@
 
   function closePaymentModal(result = null) {
     const modal = document.getElementById('admin-payment-modal');
-    hidePaymentSplitPanel();
+    hidePaymentExtraPanels();
     if (modal) {
       modal.hidden = true;
       modal.setAttribute('aria-hidden', 'true');
@@ -1188,7 +1267,7 @@
 
     const paid = calcOrderPaidTotal(entry?.order);
     pendingPaymentTotal = paid;
-    hidePaymentSplitPanel();
+    hidePaymentExtraPanels();
     if (subtitle) subtitle.textContent = `${label} · בחרו אמצעי תשלום לסגירה`;
     if (amountEl) amountEl.textContent = formatMoney(paid);
 
@@ -4361,8 +4440,7 @@
     document.getElementById('admin-whatsapp-backdrop')?.addEventListener('click', closeWhatsAppModal);
 
     document.getElementById('admin-payment-cash')?.addEventListener('click', () => {
-      const total = roundMoney(pendingPaymentTotal);
-      closePaymentModal(buildPaymentResult('cash', total, total, 0));
+      showPaymentCashPanel();
     });
     document.getElementById('admin-payment-credit')?.addEventListener('click', () => {
       const total = roundMoney(pendingPaymentTotal);
@@ -4380,11 +4458,32 @@
     document.getElementById('admin-payment-split-confirm')?.addEventListener('click', () => {
       confirmPaymentSplit();
     });
-    /* Cancel / backdrop only dismiss the modal — table stays open until a payment action */
+    document.getElementById('admin-payment-tender-input')?.addEventListener('input', () => {
+      syncPaymentCashTender();
+    });
+    document.getElementById('admin-payment-tender-input')?.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      confirmPaymentCash();
+    });
+    document.getElementById('admin-payment-cash-confirm')?.addEventListener('click', () => {
+      confirmPaymentCash();
+    });
+    /* Cancel / backdrop: cash-tender step returns to method choice; otherwise dismiss without closing the table */
     document.getElementById('admin-payment-cancel')?.addEventListener('click', () => {
+      if (isPaymentCashPanelOpen()) {
+        hidePaymentCashPanel();
+        document.getElementById('admin-payment-cash')?.focus();
+        return;
+      }
       closePaymentModal(null);
     });
     document.getElementById('admin-payment-backdrop')?.addEventListener('click', () => {
+      if (isPaymentCashPanelOpen()) {
+        hidePaymentCashPanel();
+        document.getElementById('admin-payment-cash')?.focus();
+        return;
+      }
       closePaymentModal(null);
     });
     couponInput?.addEventListener('keydown', (event) => {

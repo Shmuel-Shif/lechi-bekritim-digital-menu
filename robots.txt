@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /admin.html
+Disallow: /kitchen.html
+Disallow: /dine-in.html
+Disallow: /staff-order.html
+Disallow: /printer-service/
+Disallow: /lighthouse-reports/
+
+Sitemap: https://lechaimgr.com/sitemap.xml

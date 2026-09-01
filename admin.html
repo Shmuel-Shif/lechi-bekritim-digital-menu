@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=92">
+  <link rel="stylesheet" href="css/admin.css?v=95">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
 <body>
@@ -69,6 +69,10 @@
             <button type="button" class="admin-tab" data-tab="reservations">
               הזמנות להיום
               <span class="admin-tab__badge" id="tab-badge-reservations" data-count="0" hidden>0</span>
+            </button>
+            <button type="button" class="admin-tab" data-tab="support">
+              שירות לקוחות
+              <span class="admin-tab__badge" id="tab-badge-support" data-count="0" hidden>0</span>
             </button>
             <button type="button" class="admin-tab" data-tab="pickup">
               איסוף עצמי
@@ -244,6 +248,32 @@
           <h2 class="reservations-section-title reservations-section-title--spaced">הזמנות מקום עתידיות</h2>
           <div class="reservations-grid" id="place-res-requests-grid"></div>
           <p class="tables-category__empty" id="place-res-requests-empty">אין הזמנות מקום עתידיות</p>
+        </section>
+      </div>
+
+      <div class="admin-view" id="admin-view-support" hidden>
+        <section class="tables-category">
+          <header class="admin-header">
+            <p class="admin-header__eyebrow">ניהול</p>
+            <h1 class="admin-header__title">שירות לקוחות</h1>
+            <p class="admin-header__subtitle">פניות מהאתר · support.html</p>
+          </header>
+          <nav class="support-inbox-filters" id="support-inbox-filters" aria-label="סינון פניות">
+            <button type="button" class="admin-tab is-active" data-support-filter="new">
+              🆕 חדשות
+              <span class="admin-tab__badge" hidden>0</span>
+            </button>
+            <button type="button" class="admin-tab" data-support-filter="open">
+              🟡 בטיפול
+              <span class="admin-tab__badge" hidden>0</span>
+            </button>
+            <button type="button" class="admin-tab" data-support-filter="closed">
+              ✅ סגורות
+              <span class="admin-tab__badge" hidden>0</span>
+            </button>
+          </nav>
+          <div class="support-inbox-grid" id="support-inbox-grid"></div>
+          <p class="tables-category__empty" id="support-inbox-empty">אין פניות חדשות</p>
         </section>
       </div>
 
@@ -1291,6 +1321,15 @@
           <p class="admin-payment-split__hint" id="admin-payment-split-hint">השלימו את סכום המזומן — האשראי יחושב אוטומטית</p>
           <button type="button" class="admin-btn admin-btn--primary" id="admin-payment-split-confirm">אשר סגירה</button>
         </div>
+        <div class="admin-payment-split admin-payment-cash" id="admin-payment-cash-panel" hidden>
+          <p class="admin-payment-cash__due" id="admin-payment-cash-due"></p>
+          <label class="admin-payment-split__field">
+            <span>הלקוח שילם (€)</span>
+            <input type="number" id="admin-payment-tender-input" min="0" step="0.01" inputmode="decimal" dir="ltr" autocomplete="off">
+          </label>
+          <p class="admin-payment-split__hint" id="admin-payment-cash-change"></p>
+          <button type="button" class="admin-btn admin-btn--primary" id="admin-payment-cash-confirm" disabled>סגור שולחן</button>
+        </div>
         <p class="admin-payment-modal__hint">בחרו אמצעי תשלום או «סגור הזמנה» — ביטול מחזיר לכרטיס בלי לסגור</p>
         <button type="button" class="admin-btn admin-btn--ghost" id="admin-payment-cancel">ביטול</button>
       </div>
@@ -1390,10 +1429,11 @@
   <script src="js/a11y-focus-trap.js" defer></script>
   <script src="js/kitchen-progress.js?v=2" defer></script>
   <script src="js/kitchen-dish-groups.js?v=1" defer></script>
-  <script src="js/admin-tables.js?v=91" defer></script>
+  <script src="js/admin-tables.js?v=92" defer></script>
   <script src="js/admin-shabbat.js?v=8" defer></script>
   <script src="js/place-reservations.js?v=9" defer></script>
   <script src="js/admin-reservations.js?v=6" defer></script>
+  <script src="js/admin-support.js?v=1" defer></script>
   <script src="js/kitchen-alert-service.js?v=13" defer></script>
   <script src="js/admin-kitchen-alerts.js?v=16" defer></script>
   <script src="js/admin-kitchen-board.js?v=34" defer></script>
@@ -1404,7 +1444,7 @@
   <script src="js/admin-settings.js?v=7" defer></script>
   <script src="js/stock-catalog.js?v=6" defer></script>
   <script src="js/admin-stock.js?v=2" defer></script>
-  <script src="js/admin.js?v=67" defer></script>
+  <script src="js/admin.js?v=68" defer></script>
   <script src="js/admin-push.js?v=1" defer></script>
   <script src="js/admin-pwa.js?v=2" defer></script>
 </body>

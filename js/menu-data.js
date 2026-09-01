@@ -247,6 +247,7 @@ const TRANSLATIONS = {
     footerTagline: 'The Pearl of Crete',
     footerBrand: 'LECHAIM IN CRETE',
     footerKosherLine: 'מסעדה כשרה למהדרין • כרתים',
+    footerSupport: 'שירות לקוחות',
     footerAriaPhone: 'התקשרו +30 694 650 2236',
     footerAriaMaps: 'פתחו מיקום ב-Google Maps',
     followUs: 'עקבו אחרינו',
@@ -300,6 +301,7 @@ const TRANSLATIONS = {
     helpBotStaffHow: 'איך תרצו לדבר איתנו?',
     helpBotStaffWhatsApp: 'WhatsApp',
     helpBotStaffCall: 'התקשרו אלינו',
+    helpBotStaffForm: 'כתבו פנייה',
     categories: {
       starters: 'ראשונות ונשנושים',
       specials: 'הספיישלים של לחיים',
@@ -560,6 +562,7 @@ const TRANSLATIONS = {
     footerTagline: 'The Pearl of Crete',
     footerBrand: 'LECHAIM IN CRETE',
     footerKosherLine: 'Mehadrin Kosher Restaurant • Crete',
+    footerSupport: 'Customer service',
     footerAriaPhone: 'Call +30 694 650 2236',
     footerAriaMaps: 'Open location in Google Maps',
     followUs: 'Follow us',
@@ -613,6 +616,7 @@ const TRANSLATIONS = {
     helpBotStaffHow: 'How would you like to reach us?',
     helpBotStaffWhatsApp: 'WhatsApp',
     helpBotStaffCall: 'Call us',
+    helpBotStaffForm: 'Write to us',
     categories: {
       starters: 'Starters & Snacks',
       specials: "Lechaim's Specials",

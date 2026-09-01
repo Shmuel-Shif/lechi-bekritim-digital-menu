@@ -3502,6 +3502,85 @@ body.admin-inventory-open {
   font-size: 0.8rem;
 }
 
+.support-inbox-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 1rem;
+}
+
+.support-inbox-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 720px) {
+  .support-inbox-grid {
+    grid-template-columns: repeat(auto-fill, minmax(17.5rem, 1fr));
+  }
+}
+
+.support-ticket {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.95rem 0.9rem;
+  border: 1px solid var(--color-cream-dark, #e5ddd0);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.support-ticket__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.support-ticket__status {
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.support-ticket__status--new { color: #1e3354; }
+.support-ticket__status--open { color: #8a6a2a; }
+.support-ticket__status--closed { color: #2d6a4f; }
+
+.support-ticket__when {
+  font-size: 0.75rem;
+  color: var(--color-text-muted, #58677b);
+}
+
+.support-ticket__name {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.support-ticket__meta {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted, #58677b);
+}
+
+.support-ticket__meta a { color: inherit; font-weight: 700; }
+
+.support-ticket__subject {
+  margin: 0.15rem 0 0;
+  font-weight: 800;
+}
+
+.support-ticket__body {
+  margin: 0;
+  white-space: pre-wrap;
+  color: var(--color-navy, #1e3354);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.support-ticket .admin-btn {
+  margin-top: 0.45rem;
+  justify-self: start;
+}
+
 .admin-btn--whatsapp {
   display: inline-flex;
   align-items: center;
@@ -4255,6 +4334,28 @@ body.admin-inventory-open {
   font-size: 0.82rem;
   font-weight: 600;
   color: var(--color-text-muted, #58677b);
+}
+
+.admin-payment-cash__due {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--color-navy, #152640);
+}
+
+#admin-payment-tender-input {
+  min-height: 3rem;
+  font-size: 1.15rem;
+}
+
+.admin-payment-split__hint.is-short {
+  color: #9b2c2c;
+  font-weight: 800;
+}
+
+.admin-payment-split__hint.is-ok {
+  color: var(--color-navy, #152640);
+  font-weight: 800;
 }
 
 .admin-till-tx.is-split {

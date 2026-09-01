@@ -1,6 +1,6 @@
 /**
  * LECHAIM — Customer help bot (prepared answers only).
- * Independent of orders and Supabase. Staff contact uses WhatsApp / phone.
+ * Independent of orders and Supabase. Staff contact uses WhatsApp / phone / support.html.
  */
 (function () {
   'use strict';
@@ -93,6 +93,7 @@
     helpBotStaffHow: 'איך תרצו לדבר איתנו?',
     helpBotStaffWhatsApp: 'WhatsApp',
     helpBotStaffCall: 'התקשרו אלינו',
+    helpBotStaffForm: 'כתבו פנייה',
     hoursDays: 'א׳ – ה׳',
     address: 'כתובת',
     addressText: 'Analipsi 700 14, Greece',
@@ -222,6 +223,11 @@
         '</button>'
       );
     }
+    parts.push(
+      `<a class="help-bot-answer__action" href="support.html">` +
+        `✉️ ${escapeHtml(t('helpBotStaffForm'))}` +
+      '</a>'
+    );
     return parts.join('');
   }
 

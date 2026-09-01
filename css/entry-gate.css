@@ -1852,6 +1852,16 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#lechai
   color: rgba(255, 255, 255, 0.92);
 }
 
+.entry-gate.is-home .entry-gate__foot-support {
+  margin: 0.4rem 0 0;
+}
+
+.entry-gate.is-home .entry-gate__foot-support a {
+  color: var(--entry-gold, #c4a06a);
+  font-weight: 700;
+  text-decoration: none;
+}
+
 .entry-gate.is-home .entry-gate__foot-follow {
   margin: 0.55rem 0 0;
   font-family: var(--font-body, 'Heebo', sans-serif);
