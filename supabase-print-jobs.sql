@@ -60,7 +60,7 @@ create policy print_jobs_insert_pending
   );
 
 comment on table public.print_jobs is
-  'Phone print queue. Local printer-service claims pending rows and feeds the existing kitchen/bar queue. PC localhost prints never write here.';
+  'Phone print queue. ticket = raw ESC/POS (or b64:…) for print, or the literal "beep" for a kitchen buzzer. Local printer-service claims pending rows. PC localhost prints never write here.';
 
 -- Atomic claim: pending → processing. SKIP LOCKED so two PCs cannot take the same row.
 create or replace function public.claim_print_jobs(p_limit integer default 5)

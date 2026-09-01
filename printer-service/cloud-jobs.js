@@ -8,7 +8,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { enqueue } = require('./queue');
+const { enqueue, enqueueBeep } = require('./queue');
 
 const POLL_MS = 2000;
 const CLAIM_LIMIT = 5;
@@ -172,6 +172,31 @@ async function handleJob(job, config) {
   }
 
   const printerConfig = config.printers?.[printer] || null;
+
+  if (ticket === 'beep') {
+    if (printer !== 'kitchen') {
+      await finishJob(id, 'failed', 'beep is kitchen-only');
+      return;
+    }
+    try {
+      const result = enqueueBeep(printerConfig);
+      if (!result || result.success !== true) {
+        await finishJob(id, 'failed', 'local beep enqueue rejected');
+        return;
+      }
+      await finishJob(id, 'printed');
+      console.log(`[cloud-jobs] beep ${id} → kitchen (${result.jobId})`);
+    } catch (err) {
+      const message = err?.message || 'beep enqueue failed';
+      console.error(`[cloud-jobs] beep failed ${id}`, message);
+      try {
+        await finishJob(id, 'failed', message);
+      } catch (updateErr) {
+        console.error('[cloud-jobs] could not mark failed', id, updateErr?.message || updateErr);
+      }
+    }
+    return;
+  }
 
   try {
     const result = enqueue(printer, ticket, printerConfig);

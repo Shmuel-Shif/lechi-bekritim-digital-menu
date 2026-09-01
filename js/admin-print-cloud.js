@@ -110,6 +110,59 @@
     return sendTicketToCloud(ticket, channel);
   }
 
+  async function sendBeepToLocalService() {
+    let response;
+    try {
+      response = await fetch(`${printServiceOrigin()}/kitchen-alert/beep`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+    } catch (err) {
+      console.error('[admin-print-cloud] local beep unavailable', err);
+      return false;
+    }
+    let data = null;
+    try {
+      data = await response.json();
+    } catch (_) {
+      return false;
+    }
+    return response.ok && data?.success === true;
+  }
+
+  async function sendBeepToCloud() {
+    const sb = getClient();
+    if (!sb) {
+      console.error('[admin-print-cloud] Supabase client missing');
+      return false;
+    }
+    const { data: authData, error: authErr } = await sb.auth.getSession();
+    if (authErr || !authData?.session?.user?.id) {
+      console.error('[admin-print-cloud] admin session required for cloud beep');
+      return false;
+    }
+    const { error } = await sb.from(TABLE).insert({
+      user_id: authData.session.user.id,
+      printer: 'kitchen',
+      ticket: 'beep',
+      status: 'pending',
+      source: 'phone',
+    });
+    if (error) {
+      console.error('[admin-print-cloud] beep insert failed', error);
+      return false;
+    }
+    return true;
+  }
+
+  async function beepKitchen() {
+    if (await probeLocalPrintService()) {
+      return sendBeepToLocalService();
+    }
+    return sendBeepToCloud();
+  }
+
   async function init() {
     const engine = global.LechaimPrintEngine;
     if (!engine || typeof engine.setSendTicket !== 'function') return;
@@ -123,6 +176,8 @@
     engine.setSendTicket(sendTicketRouted);
     console.log('[admin-print-cloud] local print service unavailable — cloud print_jobs enabled');
   }
+
+  global.LechaimAdminPrintCloud = { beepKitchen };
 
   init();
 })(window);

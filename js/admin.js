@@ -653,6 +653,13 @@
     kitchenBeepBtn.disabled = true;
     showError(panelError, '');
     try {
+      if (typeof window.LechaimAdminPrintCloud?.beepKitchen === 'function') {
+        const ok = await window.LechaimAdminPrintCloud.beepKitchen();
+        if (!ok) {
+          showError(panelError, 'הצפצוף נכשל — בדקו ששירות ההדפסה רץ במחשב');
+        }
+        return;
+      }
       const res = await fetch(`${PRINT_SERVICE_ORIGIN}/kitchen-alert/beep`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
