@@ -27,6 +27,13 @@ function buildMessage(payload: Record<string, unknown>) {
   const tableNumber = asInt(payload.tableNumber ?? payload.table);
   const orderType = String(payload.orderType || "");
   const fulfillment = String(payload.fulfillmentType || payload.fulfillment_type || "").toLowerCase();
+  const alertType = String(payload.alertType || payload.alert_type || "");
+  const productName = String(payload.productName || payload.product_name || "").trim();
+  const quantity = asInt(payload.quantity) || 1;
+  const customerName = String(payload.customerName || payload.customer_name || "").trim();
+  const partySize = asInt(payload.partySize ?? payload.party_size);
+  const reservationDate = String(payload.reservationDate || payload.reservation_date || "").trim();
+  const arrivalTime = String(payload.arrivalTime || payload.arrival_time || "").slice(0, 5);
   const sessionId = payload.sessionId ? String(payload.sessionId) : "";
   const orderId = payload.orderId ? String(payload.orderId) : "";
 
@@ -56,6 +63,40 @@ function buildMessage(payload: Record<string, unknown>) {
       body = "איסוף עצמי — הזמנה חדשה";
       tab = "pickup";
     }
+  } else if (type === "table_opened") {
+    body = tableNumber ? `שולחן ${tableNumber} נפתח` : "שולחן נפתח";
+    tab = "tables";
+  } else if (type === "dish_ready") {
+    const qtyBit = quantity > 1 ? ` ×${quantity}` : "";
+    const name = productName || "מנה";
+    body = tableNumber
+      ? `שולחן ${tableNumber} — ${name}${qtyBit} מוכן`
+      : `${name}${qtyBit} מוכן`;
+    tab = "kitchen";
+  } else if (type === "kitchen_all_ready") {
+    body = tableNumber
+      ? `שולחן ${tableNumber} — כל ההזמנה מוכנה`
+      : "כל ההזמנה מוכנה";
+    tab = "kitchen";
+  } else if (type === "kitchen_alert") {
+    tab = "kitchen";
+    if (alertType === "fire") body = "המטבח צריך אש";
+    else if (alertType === "gas") body = "המטבח צריך גז";
+    else if (alertType === "close_kitchen") body = "המטבח מבקש לסגור";
+    else if (alertType === "out_of_stock") {
+      body = productName ? `נגמר במלאי: ${productName}` : "נגמר במלאי";
+    } else if (alertType === "fault") {
+      const extra = [productName, String(payload.message || "").trim()].filter(Boolean).join(" · ");
+      body = extra ? `תקלה במטבח: ${extra}` : "תקלה במטבח";
+    } else {
+      body = String(payload.message || "").trim() || "קריאה מהמטבח";
+    }
+  } else if (type === "reservation_pending") {
+    const who = customerName || "לקוח";
+    const seats = partySize ? `${partySize} סועדים` : "";
+    const when = [reservationDate, arrivalTime].filter(Boolean).join(" ");
+    body = ["הזמנת מקום חדשה", who, seats, when].filter(Boolean).join(" · ");
+    tab = "reservations";
   }
 
   const params = new URLSearchParams({ tab, type });
@@ -66,7 +107,7 @@ function buildMessage(payload: Record<string, unknown>) {
   return {
     title: "לחיים אדמין",
     body,
-    tag: `lechaim-${type}-${tableNumber || sessionId || orderId || "x"}`,
+    tag: `lechaim-${type}-${payload.alertId || payload.reservationId || productName || tableNumber || sessionId || orderId || "x"}`,
     tab,
     table: tableNumber,
     sessionId,
@@ -98,7 +139,16 @@ Deno.serve(async (req) => {
   }
 
   const type = String(payload.type || "");
-  if (!type || !["waiter_call", "bill_request", "new_order"].includes(type)) {
+  if (!type || ![
+    "waiter_call",
+    "bill_request",
+    "new_order",
+    "table_opened",
+    "dish_ready",
+    "kitchen_all_ready",
+    "kitchen_alert",
+    "reservation_pending",
+  ].includes(type)) {
     return json({ error: "unknown_type", skipped: true });
   }
 

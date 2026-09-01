@@ -959,6 +959,7 @@
     const data = payload && typeof payload === 'object' ? payload : {};
     const tab = String(data.tab || 'tables');
     setTab(tab);
+    if (tab === 'kitchen' || tab === 'reservations' || tab === 'shabbat') return;
     window.LechaimAdminTables?.openFromPush?.({
       tab,
       table: data.table,
