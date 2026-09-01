@@ -422,6 +422,8 @@
   const placeResCapacityBackdrop = document.getElementById('entry-place-res-capacity-backdrop');
   const placeResCapacityClose = document.getElementById('entry-place-res-capacity-close');
   const arriveModal = document.getElementById('entry-arrive-modal');
+  /* Skip «הזמנתם מקום?» on table entry. Website place-reservation form is unchanged. */
+  const SKIP_DINE_IN_ARRIVE_QUESTION = true;
   const arriveYesBtn = document.getElementById('entry-arrive-yes');
   const arriveNoBtn = document.getElementById('entry-arrive-no');
   const arriveForm = document.getElementById('entry-arrive-form');
@@ -2409,7 +2411,9 @@
       }
 
       openArriveModal(table);
-      watchSharedArriveSession(row?.session_id, table);
+      if (!SKIP_DINE_IN_ARRIVE_QUESTION) {
+        watchSharedArriveSession(row?.session_id, table);
+      }
     } finally {
       sharedTableEnterBusy = false;
     }
@@ -2417,6 +2421,10 @@
 
   function openArriveModal(table) {
     pendingArriveTable = table;
+    if (SKIP_DINE_IN_ARRIVE_QUESTION) {
+      void finishArriveAndEnter(table, { placeReserved: false });
+      return;
+    }
     if (!arriveModal) {
       completeDineInTable(table, { placeReserved: false });
       return;
