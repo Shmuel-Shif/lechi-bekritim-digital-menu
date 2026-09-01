@@ -82,10 +82,11 @@
     }
 
     const printer = channel === 'bar' ? 'bar' : 'kitchen';
+    const cleanTicket = String(ticket || '').replace(/\u0000/g, '');
     const { error } = await sb.from(TABLE).insert({
       user_id: authData.session.user.id,
       printer,
-      ticket: String(ticket),
+      ticket: cleanTicket,
       status: 'pending',
       source: 'phone',
     });
