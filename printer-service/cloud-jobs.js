@@ -146,6 +146,17 @@ async function finishJob(id, status, errorMessage) {
   throw lastErr;
 }
 
+function decodeCloudTicket(stored) {
+  const s = String(stored == null ? '' : stored);
+  if (!s.startsWith('b64:')) return s;
+  const buf = Buffer.from(s.slice(4), 'base64');
+  let raw = '';
+  for (let i = 0; i < buf.length; i += 1) {
+    raw += String.fromCharCode(buf[i]);
+  }
+  return raw;
+}
+
 async function handleJob(job, config) {
   const id = job.id;
   const printer = job.printer === 'bar' ? 'bar' : job.printer === 'kitchen' ? 'kitchen' : null;
@@ -154,7 +165,7 @@ async function handleJob(job, config) {
     return;
   }
 
-  const ticket = job.ticket;
+  const ticket = decodeCloudTicket(job.ticket);
   if (ticket == null || typeof ticket !== 'string' || !ticket.length) {
     await finishJob(id, 'failed', 'empty ticket');
     return;

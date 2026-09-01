@@ -82,11 +82,16 @@
     }
 
     const printer = channel === 'bar' ? 'bar' : 'kitchen';
-    const cleanTicket = String(ticket || '').replace(/\u0000/g, '');
+    const rawTicket = String(ticket || '');
+    let binary = '';
+    for (let i = 0; i < rawTicket.length; i += 1) {
+      binary += String.fromCharCode(rawTicket.charCodeAt(i) & 0xFF);
+    }
+    const storedTicket = `b64:${btoa(binary)}`;
     const { error } = await sb.from(TABLE).insert({
       user_id: authData.session.user.id,
       printer,
-      ticket: cleanTicket,
+      ticket: storedTicket,
       status: 'pending',
       source: 'phone',
     });
