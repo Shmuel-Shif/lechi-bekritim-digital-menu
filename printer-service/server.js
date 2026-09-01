@@ -15,6 +15,7 @@ const fs = require('fs');
 const path = require('path');
 const { enqueue, getStatus } = require('./queue');
 const kitchenAlert = require('./kitchen-alert');
+const cloudJobs = require('./cloud-jobs');
 
 const PORT = 3001;
 const HOST = '127.0.0.1';
@@ -149,4 +150,5 @@ server.listen(PORT, HOST, () => {
   console.log('Printers (config only — not connected yet):');
   console.log(`  kitchen → ${config.printers.kitchen.ip}:${config.printers.kitchen.port}`);
   console.log(`  bar     → ${config.printers.bar.ip}:${config.printers.bar.port}`);
+  cloudJobs.start(config);
 });
