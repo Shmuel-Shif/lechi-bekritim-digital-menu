@@ -20,10 +20,19 @@
 
   const TABLE_MIN = sessionApi?.TABLE_MIN || 60;
   const TABLE_MAX = sessionApi?.TABLE_MAX || 73;
+  const EMPTY_COPY = {
+    tables: 'אין שולחנות פעילים',
+    pickup: 'אין הזמנות איסוף עצמי',
+    delivery: 'אין משלוחים',
+  };
 
   let board = [];
-  let openTable = null;
+  let tableBoard = [];
+  let pickupBoard = [];
+  let deliveryBoard = [];
+  let openEntryId = null;
   let currentPane = 'tables';
+  const BOARD_PANES = new Set(['tables', 'pickup', 'delivery']);
   let refreshTimer = null;
   let unsubscribe = null;
   let active = false;
@@ -34,6 +43,54 @@
   let unsubRealtimeStatus = null;
   const POLL_FAST_MS = 4000;
   const POLL_SLOW_MS = 45000;
+
+  function allBoardEntries() {
+    return [...tableBoard, ...pickupBoard, ...deliveryBoard];
+  }
+
+  function boardForPane(pane) {
+    if (pane === 'pickup') return pickupBoard;
+    if (pane === 'delivery') return deliveryBoard;
+    return tableBoard;
+  }
+
+  function syncVisibleBoard() {
+    board = BOARD_PANES.has(currentPane) ? boardForPane(currentPane) : tableBoard;
+  }
+
+  function findOpenEntry() {
+    const id = String(openEntryId || '');
+    if (!id) return null;
+    return allBoardEntries().find((row) => String(row.sessionId) === id) || null;
+  }
+
+  function isDeliverySession(session) {
+    if (String(session?.fulfillment_type || '') === 'delivery') return true;
+    return Boolean(String(session?.customer_address || '').trim());
+  }
+
+  function namedOrderLabel(kind, entry) {
+    const prefix = kind === 'delivery' ? 'משלוח' : 'איסוף';
+    const no = entry?.publicOrderNo;
+    const name = String(entry?.customerName || '').trim();
+    if (no != null && name) return `${prefix} #${no} · ${name}`;
+    if (no != null) return `${prefix} #${no}`;
+    return name || prefix;
+  }
+
+  function entryTitle(entry) {
+    if (!entry) return '';
+    if (entry.kind === 'delivery' || entry.kind === 'pickup') return namedOrderLabel(entry.kind, entry);
+    return `שולחן ${entry.tableNumber}`;
+  }
+
+  function entryWhere(entry) {
+    if (!entry) return '';
+    if (entry.kind === 'delivery' || entry.kind === 'pickup') return ` — ${namedOrderLabel(entry.kind, entry)}`;
+    const n = Number(entry.tableNumber);
+    return Number.isInteger(n) ? ` — שולחן ${n}` : '';
+  }
+
   let noteModalItemId = '';
   let noteModalSelected = new Set();
   let noteModalOther = false;
@@ -371,6 +428,11 @@
       kitchenStarted: Boolean(session.kitchen_started_at),
       kitchenStartedAt: startedAt,
       kitchenWaveAckAt: session.kitchen_wave_ack_at || startedAt,
+      customerName: String(session.customer_name || '').trim(),
+      publicOrderNo: session.public_order_no == null ? null : Number(session.public_order_no),
+      fulfillmentType: String(session.fulfillment_type || '') === 'delivery' ? 'delivery' : 'pickup',
+      createdAt: session.created_at || null,
+      kind: 'tables',
       customerNotes: (sessionApi?.stripPlaceReservationNote
         ? sessionApi.stripPlaceReservationNote(session.notes)
         : String(session.notes || '')).trim(),
@@ -400,19 +462,37 @@
     return { ready, total, allReady: total > 0 && list.every(isReady) };
   }
 
-  function buildBoard(rows) {
-    const next = [];
+  function makeBoardEntry(session, orders, kind) {
+    const entry = flatten(session, orders);
+    if (!entry) return null;
+    entry.kind = kind;
+    if (kind !== 'tables') entry.tableNumber = null;
+    return entry;
+  }
+
+  function buildBoards(rows) {
+    const tables = [];
+    const pickup = [];
+    const delivery = [];
     (rows || []).forEach(({ session, orders }) => {
       const classified = typesApi?.classifyOrderType?.(session?.order_type, 'admin-kitchen-board') || session?.order_type;
-      if (classified !== 'dine_in' && classified !== 'dinein') return;
-      const n = Number(session?.table_number);
-      if (!Number.isInteger(n) || n < TABLE_MIN || n > TABLE_MAX) return;
-      const entry = flatten(session, orders);
-      if (!entry) return;
-      next.push(entry);
+      if (classified === 'dine_in' || classified === 'dinein') {
+        const n = Number(session?.table_number);
+        if (!Number.isInteger(n) || n < TABLE_MIN || n > TABLE_MAX) return;
+        const entry = makeBoardEntry(session, orders, 'tables');
+        if (entry) tables.push(entry);
+        return;
+      }
+      if (classified !== 'takeaway') return;
+      const kind = isDeliverySession(session) ? 'delivery' : 'pickup';
+      const entry = makeBoardEntry(session, orders, kind);
+      if (entry) (kind === 'delivery' ? delivery : pickup).push(entry);
     });
-    next.sort((a, b) => a.tableNumber - b.tableNumber);
-    return next;
+    tables.sort((a, b) => a.tableNumber - b.tableNumber);
+    const byOpened = (a, b) => (Date.parse(a.createdAt || 0) || 0) - (Date.parse(b.createdAt || 0) || 0);
+    pickup.sort(byOpened);
+    delivery.sort(byOpened);
+    return { tables, pickup, delivery };
   }
 
   function groupItems(items) {
@@ -493,15 +573,15 @@
 
   function renderDetail() {
     if (!detailEl) return;
-    const entry = board.find((row) => row.tableNumber === Number(openTable));
+    const entry = findOpenEntry();
     if (!entry) {
-      openTable = null;
+      openEntryId = null;
       detailEl.hidden = true;
       return;
     }
     const tally = counts(entry.items);
     const allDone = entry.kitchenAllReady && tally.allReady;
-    if (detailTitle) detailTitle.textContent = `שולחן ${entry.tableNumber}`;
+    if (detailTitle) detailTitle.textContent = entryTitle(entry);
     const statusText = allDone
       ? '✅ הכל מוכן במטבח'
       : (!entry.kitchenStarted
@@ -608,10 +688,11 @@
                 : (note
                   ? 'הערה חדשה'
                   : `בהכנה · ${escapeHtml(String(tally.ready))} מתוך ${escapeHtml(String(tally.total))}`)))));
+      const named = entry.kind === 'pickup' || entry.kind === 'delivery';
       return `
-        <button type="button" class="kitchen-ready-card${stateClass}${hasNotes ? ' has-notes' : ''}" data-kitchen-table="${escapeHtml(String(entry.tableNumber))}">
+        <button type="button" class="kitchen-ready-card${stateClass}${hasNotes ? ' has-notes' : ''}${named ? ' is-named' : ''}" data-kitchen-entry="${escapeHtml(String(entry.sessionId || ''))}">
           ${face ? `<span class="kitchen-ready-card__face" aria-hidden="true">${face}</span>` : ''}
-          <strong>שולחן ${escapeHtml(String(entry.tableNumber))}</strong>
+          <strong>${escapeHtml(entryTitle(entry))}</strong>
           <span>${label}</span>
           ${global.LechaimKitchenProgress?.barHtml?.(
             global.LechaimKitchenProgress.fromItems(entry.items),
@@ -621,32 +702,42 @@
       `;
     }).join('');
     if (gridEl) gridEl.innerHTML = html;
-    if (emptyEl) emptyEl.hidden = board.length > 0;
-    const tablesBadge = document.getElementById('kitchen-pane-tables-badge');
-    if (tablesBadge) {
-      const n = board.length;
-      tablesBadge.textContent = String(n);
-      tablesBadge.dataset.count = String(n);
-      tablesBadge.hidden = n <= 0;
+    if (emptyEl) {
+      emptyEl.textContent = EMPTY_COPY[currentPane] || EMPTY_COPY.tables;
+      emptyEl.hidden = board.length > 0;
     }
-    if (openTable != null) renderDetail();
+    const setBadge = (id, n) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = String(n);
+      el.dataset.count = String(n);
+      el.hidden = n <= 0;
+    };
+    setBadge('kitchen-pane-tables-badge', tableBoard.length);
+    setBadge('kitchen-pane-pickup-badge', pickupBoard.length);
+    setBadge('kitchen-pane-delivery-badge', deliveryBoard.length);
+    if (openEntryId) renderDetail();
   }
 
   async function loadBoard() {
     if (!api?.getOpenSessionsWithOrders) return;
     try {
       const rows = await api.getOpenSessionsWithOrders();
-      const next = buildBoard(rows);
+      const next = buildBoards(rows);
+      const flat = [...next.tables, ...next.pickup, ...next.delivery];
       if (boardPrimed) {
-        next.forEach((entry) => {
+        flat.forEach((entry) => {
           if (!seenSessions.has(entry.sessionId) && !entry.kitchenStarted) {
-            notify('מטבח', `שולחן ${entry.tableNumber} — הזמנה חדשה`);
+            notify('מטבח', `${entryTitle(entry)} — הזמנה חדשה`);
           }
         });
       }
-      seenSessions = new Set(next.map((entry) => entry.sessionId));
+      seenSessions = new Set(flat.map((entry) => entry.sessionId));
       boardPrimed = true;
-      board = next;
+      tableBoard = next.tables;
+      pickupBoard = next.pickup;
+      deliveryBoard = next.delivery;
+      syncVisibleBoard();
       renderBoard();
     } catch (err) {
       console.warn('[admin-kitchen-board] load failed', err);
@@ -677,13 +768,10 @@
     pollMs = 0;
   }
 
-  function findTableForItem(itemId, orderId) {
+  function findEntryForItem(itemId) {
     const id = String(itemId || '');
-    const order = String(orderId || '');
-    for (const entry of board) {
-      if (entry.items.some((item) => item.itemId === id)) return entry.tableNumber;
-    }
-    return null;
+    if (!id) return null;
+    return allBoardEntries().find((entry) => entry.items.some((item) => item.itemId === id)) || null;
   }
 
   function onRealtime(payload) {
@@ -708,8 +796,7 @@
         if (!isExtra) {
           const name = String(payload?.new?.product_name || payload?.new?.print_name || 'מנה');
           const qty = Number(payload?.new?.quantity) || 1;
-          const tableNo = findTableForItem(payload?.new?.id, payload?.new?.order_id);
-          const where = tableNo ? ` — שולחן ${tableNo}` : '';
+          const where = entryWhere(findEntryForItem(payload?.new?.id));
           if (next === 'ready') {
             notify('מטבח', `${name} ×${qty} מוכן${where}`);
           } else {
@@ -724,13 +811,15 @@
       const hadOld = payload?.old && Object.prototype.hasOwnProperty.call(payload.old, 'kitchen_all_ready');
       const was = hadOld ? Boolean(payload.old.kitchen_all_ready) : now;
       if (hadOld && !was && now) {
-        const n = Number(payload?.new?.table_number);
-        notify('מטבח', Number.isInteger(n) ? `כל ההזמנה של שולחן ${n} מוכנה` : 'כל ההזמנה מוכנה', 'ready');
+        const sessionId = String(payload?.new?.session_id || '');
+        const entry = allBoardEntries().find((row) => String(row.sessionId) === sessionId);
+        notify('מטבח', entry ? `כל ההזמנה של ${entryTitle(entry)} מוכנה` : 'כל ההזמנה מוכנה', 'ready');
       }
       const hadStarted = payload?.old && Object.prototype.hasOwnProperty.call(payload.old, 'kitchen_started_at');
       if (hadStarted && !payload.old.kitchen_started_at && payload?.new?.kitchen_started_at) {
-        const n = Number(payload?.new?.table_number);
-        notify('מטבח', Number.isInteger(n) ? `שולחן ${n} — התחילו להכין` : 'המטבח התחיל להכין');
+        const sessionId = String(payload?.new?.session_id || '');
+        const entry = allBoardEntries().find((row) => String(row.sessionId) === sessionId);
+        notify('מטבח', entry ? `${entryTitle(entry)} — התחילו להכין` : 'המטבח התחיל להכין');
       }
     }
 
@@ -738,15 +827,24 @@
   }
 
   function setPane(pane) {
-    currentPane = pane === 'tables' ? 'tables' : 'alerts';
+    let next = currentPane;
+    if (pane === 'alerts') next = 'alerts';
+    else if (BOARD_PANES.has(pane)) next = pane;
+    else return;
+    const changed = next !== currentPane;
+    currentPane = next;
     document.querySelectorAll('[data-kitchen-pane]').forEach((btn) => {
       btn.classList.toggle('is-active', btn.dataset.kitchenPane === currentPane);
     });
     if (paneAlerts) paneAlerts.hidden = currentPane !== 'alerts';
-    if (paneTables) paneTables.hidden = currentPane !== 'tables';
-    if (currentPane !== 'tables') {
-      openTable = null;
+    if (paneTables) paneTables.hidden = currentPane === 'alerts';
+    if (changed) {
+      openEntryId = null;
       if (detailEl) detailEl.hidden = true;
+    }
+    if (currentPane !== 'alerts') {
+      syncVisibleBoard();
+      if (changed) renderBoard();
     }
   }
 
@@ -778,14 +876,14 @@
   });
 
   gridEl?.addEventListener('click', (event) => {
-    const btn = event.target.closest('[data-kitchen-table]');
+    const btn = event.target.closest('[data-kitchen-entry]');
     if (!btn) return;
-    openTable = Number(btn.dataset.kitchenTable);
+    openEntryId = String(btn.dataset.kitchenEntry || '');
     renderDetail();
   });
 
   document.getElementById('kitchen-ready-detail-close')?.addEventListener('click', () => {
-    openTable = null;
+    openEntryId = null;
     if (detailEl) detailEl.hidden = true;
   });
 
@@ -886,7 +984,7 @@
 
   function attachedHotSide(item) {
     if (!item?.itemId) return null;
-    const entry = board.find((row) => row.tableNumber === Number(openTable));
+    const entry = findOpenEntry();
     const kids = (entry?.items || []).filter((row) => (
       String(row.linkedToMainItemId || '') === String(item.itemId)
       && Number(row.qty) > 0
@@ -933,7 +1031,7 @@
   }
 
   function findOpenItem(itemId) {
-    const entry = board.find((row) => row.tableNumber === Number(openTable));
+    const entry = findOpenEntry();
     return (entry?.items || []).find((row) => String(row.itemId) === String(itemId || '')) || null;
   }
 
@@ -1184,7 +1282,7 @@
     const btn = event.target.closest('[data-kitchen-urgent]');
     if (!btn || !api?.updateItemKitchenUrgent) return;
     const id = String(btn.dataset.kitchenUrgent || '');
-    const entry = board.find((row) => row.tableNumber === Number(openTable));
+    const entry = findOpenEntry();
     const item = (entry?.items || []).find((row) => String(row.itemId) === id);
     if (!item || isAddon(item)) return;
     const next = !Boolean(item.kitchenUrgent);

@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=91">
+  <link rel="stylesheet" href="css/admin.css?v=92">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
 <body>
@@ -267,6 +267,14 @@
             <button type="button" class="admin-tab is-active" data-kitchen-pane="tables">
               שולחנות
               <span class="admin-tab__badge" id="kitchen-pane-tables-badge" data-count="0" hidden>0</span>
+            </button>
+            <button type="button" class="admin-tab" data-kitchen-pane="delivery">
+              משלוחים
+              <span class="admin-tab__badge" id="kitchen-pane-delivery-badge" data-count="0" hidden>0</span>
+            </button>
+            <button type="button" class="admin-tab" data-kitchen-pane="pickup">
+              איסוף עצמי
+              <span class="admin-tab__badge" id="kitchen-pane-pickup-badge" data-count="0" hidden>0</span>
             </button>
             <button type="button" class="admin-tab" data-kitchen-pane="alerts">
               קריאות
@@ -1388,7 +1396,7 @@
   <script src="js/admin-reservations.js?v=6" defer></script>
   <script src="js/kitchen-alert-service.js?v=13" defer></script>
   <script src="js/admin-kitchen-alerts.js?v=16" defer></script>
-  <script src="js/admin-kitchen-board.js?v=33" defer></script>
+  <script src="js/admin-kitchen-board.js?v=34" defer></script>
   <script src="js/admin-history.js?v=2" defer></script>
   <script src="js/admin-coupons.js" defer></script>
   <script src="js/admin-till.js?v=3" defer></script>

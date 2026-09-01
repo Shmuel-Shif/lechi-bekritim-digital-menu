@@ -5647,6 +5647,12 @@ body.admin-inventory-open {
   font-size: 1.15rem;
 }
 
+.kitchen-ready-card.is-named strong {
+  font-size: 0.98rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
 .kitchen-ready-kprog {
   display: grid;
   gap: 0.18rem;
