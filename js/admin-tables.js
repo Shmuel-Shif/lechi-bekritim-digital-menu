@@ -97,6 +97,7 @@
   let pendingQtyMode = 'add';
   let pendingRemoveItemId = null;
   let pendingRemoveMaxQty = 1;
+  let pendingRemoveGroupIds = null;
   const QTY_MIN = 1;
   const QTY_MAX = 99;
   let pendingBillEntry = null;
@@ -1900,6 +1901,11 @@
     const qtyLabel = isPack
       ? `${escapeHtml(String(item.qty))} חבילות`
       : `${escapeHtml(String(item.qty))} ×`;
+    const groupIds = (options.groupIds || []).map((id) => String(id || '')).filter(Boolean);
+    const removeId = item.itemId || groupIds[0] || '';
+    const groupAttr = groupIds.length > 1
+      ? ` data-remove-group-ids="${escapeHtml(groupIds.join(','))}"`
+      : '';
     const priceHtml = isPack
       ? (item.pricePerKg != null
         ? `<span class="table-drawer__price">${escapeHtml(formatMoney(item.pricePerKg))}/ק״ג</span>`
@@ -1913,11 +1919,11 @@
         <span class="table-drawer__qty">${qtyLabel}</span>
         <span class="table-drawer__name${nameLate}">${escapeHtml(adminDishName(item) || item.productId || '')}</span>
         <span class="table-drawer__price">${priceHtml}</span>
-        ${item.itemId
+        ${removeId
           ? `<button
               type="button"
               class="table-drawer__remove"
-              data-remove-item-id="${escapeHtml(String(item.itemId))}"
+              data-remove-item-id="${escapeHtml(String(removeId))}"${groupAttr}
               aria-label="הסר"
               title="הסר"
             >×</button>`
@@ -1959,11 +1965,12 @@
             ...group.main,
             qty: group.totalQty,
             price: group.totalQty ? mainSum / group.totalQty : 0,
-            itemId: (group.mains || []).length === 1 ? group.main.itemId : '',
+            itemId: group.main?.itemId || '',
           };
+          const groupIds = (group.mains || []).map((row) => row?.itemId).filter(Boolean);
           return `
             <li class="table-drawer__group${lateClass}${readyClass}">
-              ${renderDrawerItemLine(displayMain)}
+              ${renderDrawerItemLine(displayMain, { groupIds })}
               ${group.sides.length
                 ? `<div class="table-drawer__sides">
                     ${group.sides.map((side) => renderDrawerItemLine(side, { isSide: true })).join('')}
@@ -2541,20 +2548,31 @@
     };
   }
 
-  async function handleRemoveOrderItem(itemId) {
+  async function handleRemoveOrderItem(itemId, groupIds) {
     const id = String(itemId || '');
     if (!id || removeItemBusy) return;
 
     const entry = getSelectedEntry();
     if (!entry?.order) return;
 
-    const item = (entry.order.items || []).find((row) => String(row.itemId) === id);
-    if (!item) return;
+    const ids = (Array.isArray(groupIds) && groupIds.length)
+      ? groupIds.map((rowId) => String(rowId))
+      : [id];
+    const items = ids
+      .map((rowId) => (entry.order.items || []).find((row) => String(row.itemId) === rowId))
+      .filter(Boolean);
+    if (!items.length) return;
 
-    const have = Math.floor(Number(item.qty) || 0);
+    const item = items[0];
+    const have = items.reduce((sum, row) => (
+      sum + Math.max(0, Math.floor(Number(row.qty) || 0))
+    ), 0);
     /* More than one unit → ask how many to remove (same qty modal as add). */
     if (have > 1) {
-      openAdminRemoveQtyModal(item);
+      openAdminRemoveQtyModal(item, {
+        maxQty: have,
+        groupIds: items.map((row) => String(row.itemId)),
+      });
       return;
     }
 
@@ -2592,17 +2610,24 @@
     await commitRemoveQuantity(id, 1);
   }
 
-  async function commitRemoveQuantity(itemId, removeQty) {
+  async function commitRemoveQuantity(itemId, removeQty, groupIds) {
     const id = String(itemId || '');
     if (!id || removeItemBusy) return false;
 
     const entry = getSelectedEntry();
     if (!entry?.order) return false;
 
-    const item = (entry.order.items || []).find((row) => String(row.itemId) === id);
-    if (!item) return false;
+    const ids = (Array.isArray(groupIds) && groupIds.length)
+      ? groupIds.map((rowId) => String(rowId))
+      : [id];
+    const groupItems = ids
+      .map((rowId) => (entry.order.items || []).find((row) => String(row.itemId) === rowId))
+      .filter(Boolean);
+    if (!groupItems.length) return false;
 
-    const have = Math.floor(Number(item.qty) || 0);
+    const have = groupItems.reduce((sum, row) => (
+      sum + Math.max(0, Math.floor(Number(row.qty) || 0))
+    ), 0);
     const qty = Math.min(Math.max(1, Math.floor(Number(removeQty) || 0)), have);
     if (qty < 1 || have < 1) return false;
 
@@ -2612,31 +2637,41 @@
       return false;
     }
 
+    const item = groupItems[0];
     const isShakeBase = isShakeBaseProduct(item?.productId);
-    const linkedKids = (entry.order.items || []).filter(
-      (row) => String(row.linkedToMainItemId || '') === id
-    );
 
     removeItemBusy = true;
     suppressCustomerNotify(8000);
     try {
-      if (qty >= have) {
-        await api.deleteOrderItem(id);
-      } else {
-        if (typeof api.bumpOrderItemQuantity !== 'function') {
-          showToast('הפחתת כמות לא זמינה');
-          return false;
-        }
-        await api.bumpOrderItemQuantity(id, -qty);
-        for (const kid of linkedKids) {
-          const kidHave = Math.floor(Number(kid.qty) || 0);
-          if (kidHave <= 0) continue;
-          if (kidHave <= qty) {
-            await api.deleteOrderItem(kid.itemId);
-          } else {
-            await api.bumpOrderItemQuantity(kid.itemId, -qty);
+      let left = qty;
+      for (const row of groupItems) {
+        if (left <= 0) break;
+        const rowId = String(row.itemId);
+        const rowHave = Math.max(0, Math.floor(Number(row.qty) || 0));
+        if (rowHave < 1) continue;
+        const take = Math.min(left, rowHave);
+        const linkedKids = (entry.order.items || []).filter(
+          (kid) => String(kid.linkedToMainItemId || '') === rowId
+        );
+        if (take >= rowHave) {
+          await api.deleteOrderItem(rowId);
+        } else {
+          if (typeof api.bumpOrderItemQuantity !== 'function') {
+            showToast('הפחתת כמות לא זמינה');
+            return false;
+          }
+          await api.bumpOrderItemQuantity(rowId, -take);
+          for (const kid of linkedKids) {
+            const kidHave = Math.floor(Number(kid.qty) || 0);
+            if (kidHave <= 0) continue;
+            if (kidHave <= take) {
+              await api.deleteOrderItem(kid.itemId);
+            } else {
+              await api.bumpOrderItemQuantity(kid.itemId, -take);
+            }
           }
         }
+        left -= take;
       }
       showToast(isShakeBase ? 'בסיס השייק הוסר' : (qty > 1 ? `${qty} מנות הוסרו` : 'המנה הוסרה'));
       await refreshBoardData();
@@ -3448,6 +3483,7 @@
     pendingQtyMode = 'add';
     pendingRemoveItemId = null;
     pendingRemoveMaxQty = QTY_MAX;
+    pendingRemoveGroupIds = null;
     pendingQtyProduct = product;
     pendingQtySide = linkedSideProduct || null;
     pendingQty = QTY_MIN;
@@ -3457,13 +3493,16 @@
     requestAnimationFrame(() => document.getElementById('admin-qty-confirm')?.focus());
   }
 
-  function openAdminRemoveQtyModal(item) {
+  function openAdminRemoveQtyModal(item, options = {}) {
     const modal = document.getElementById('admin-qty-modal');
     if (!modal || !item) return;
-    const have = Math.max(1, Math.floor(Number(item.qty) || 1));
+    const have = Math.max(1, Math.floor(Number(options.maxQty != null ? options.maxQty : item.qty) || 1));
     pendingQtyMode = 'remove';
     pendingRemoveItemId = String(item.itemId);
     pendingRemoveMaxQty = have;
+    pendingRemoveGroupIds = Array.isArray(options.groupIds) && options.groupIds.length
+      ? options.groupIds.map((rowId) => String(rowId))
+      : null;
     pendingQtyProduct = {
       id: item.productId || item.itemId,
       name: item.name || item.productId || 'מנה',
@@ -3484,6 +3523,7 @@
     pendingQtyMode = 'add';
     pendingRemoveItemId = null;
     pendingRemoveMaxQty = QTY_MAX;
+    pendingRemoveGroupIds = null;
     if (!modal) return;
     modal.hidden = true;
     modal.setAttribute('aria-hidden', 'true');
@@ -3671,9 +3711,10 @@
     if (pendingQtyMode === 'remove') {
       if (removeItemBusy || !pendingRemoveItemId) return;
       const itemId = pendingRemoveItemId;
+      const groupIds = pendingRemoveGroupIds ? pendingRemoveGroupIds.slice() : null;
       const qty = clampQty(pendingQty, pendingRemoveMaxQty);
       closeAdminQtyModal();
-      await commitRemoveQuantity(itemId, qty);
+      await commitRemoveQuantity(itemId, qty, groupIds);
       return;
     }
 
@@ -4397,7 +4438,9 @@
       const btn = event.target.closest('[data-remove-item-id]');
       if (!btn || !drawerItems.contains(btn)) return;
       event.preventDefault();
-      handleRemoveOrderItem(btn.getAttribute('data-remove-item-id'));
+      const groupRaw = btn.getAttribute('data-remove-group-ids') || '';
+      const groupIds = groupRaw.split(',').map((rowId) => rowId.trim()).filter(Boolean);
+      handleRemoveOrderItem(btn.getAttribute('data-remove-item-id'), groupIds);
     });
 
     drawer?.querySelectorAll('[data-table-action]').forEach((btn) => {
