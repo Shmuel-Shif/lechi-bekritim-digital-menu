@@ -3406,8 +3406,17 @@
     return Math.min(hi, Math.max(QTY_MIN, v));
   }
 
+  function trackedStockLeft(productId) {
+    const inv = window.LechaimInventory;
+    if (!inv?.isStockTracked?.(productId)) return null;
+    return Math.max(0, Number(inv.getStockQty?.(productId)) || 0);
+  }
+
   function qtyModalMax() {
-    return pendingQtyMode === 'remove' ? pendingRemoveMaxQty : QTY_MAX;
+    if (pendingQtyMode === 'remove') return pendingRemoveMaxQty;
+    const left = trackedStockLeft(pendingQtyProduct?.id);
+    if (left == null) return QTY_MAX;
+    return Math.max(QTY_MIN, Math.min(QTY_MAX, left));
   }
 
   function renderAdminQtyModal() {
@@ -3633,6 +3642,11 @@
       showToast('אין במלאי');
       return;
     }
+    const stockLeft = trackedStockLeft(product.id);
+    if (stockLeft === 0) {
+      showToast('אין במלאי');
+      return;
+    }
 
     if (productNeedsOptionPicker(product.id)) {
       /* Hamburger / entrecote always open doneness first — do not pre-check
@@ -3668,7 +3682,7 @@
     if (addProductBusy) return;
     const product = pendingQtyProduct;
     const side = pendingQtySide;
-    const qty = clampQty(pendingQty);
+    const qty = clampQty(pendingQty, qtyModalMax());
 
     addProductBusy = true;
     try {
@@ -3685,6 +3699,20 @@
       if (menuMode) renderMenuPicker();
     } catch (err) {
       console.error('[admin-tables] add product with qty failed', err);
+      const cause = err?.cause;
+      const blob = [err?.message, err?.details, cause?.message, cause?.details]
+        .filter(Boolean)
+        .join(' ');
+      if (/INSUFFICIENT_STOCK/i.test(blob)) {
+        const match = blob.match(/INSUFFICIENT_STOCK:([^:]+):(\d+)/i);
+        const left = match ? Number(match[2]) || 0 : 0;
+        showToast(left > 0 ? `נגמר במלאי · נשארו רק ${left}` : 'נגמר במלאי');
+        try {
+          await window.LechaimInventory?.load?.();
+          if (menuMode) renderMenuPicker();
+        } catch (_) { /* ignore */ }
+        return;
+      }
       showToast('לא ניתן להוסיף');
     } finally {
       addProductBusy = false;

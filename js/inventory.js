@@ -15,9 +15,13 @@
   const COL_PRODUCT_ID = 'product_id';
   const COL_AVAILABLE = 'available';
   const COL_RECOMMENDED = 'recommended';
+  const COL_STOCK_TRACKED = 'stock_tracked';
+  const COL_STOCK_QTY = 'stock_qty';
 
   const availability = new Map();
   const recommended = new Map();
+  const stockTracked = new Map();
+  const stockQty = new Map();
   const overrides = new Map();
   const listeners = new Set();
 
@@ -28,6 +32,7 @@
   let loaded = false;
   let overridesEnabled = true;
   let recommendedEnabled = true;
+  let stockQtyEnabled = true;
 
   function getConfig() {
     return global.LECHAIM_SUPABASE_CONFIG || {};
@@ -98,6 +103,22 @@
     return prev === value ? null : id;
   }
 
+  function applyStockRow(row) {
+    if (!row || row[COL_PRODUCT_ID] == null) return null;
+    if (!Object.prototype.hasOwnProperty.call(row, COL_STOCK_TRACKED)
+      && !Object.prototype.hasOwnProperty.call(row, COL_STOCK_QTY)) {
+      return null;
+    }
+    const id = String(row[COL_PRODUCT_ID]);
+    const tracked = row[COL_STOCK_TRACKED] === true;
+    const qty = Math.max(0, Math.floor(Number(row[COL_STOCK_QTY]) || 0));
+    const prevTracked = stockTracked.get(id) === true;
+    const prevQty = stockQty.has(id) ? stockQty.get(id) : 0;
+    stockTracked.set(id, tracked);
+    stockQty.set(id, qty);
+    return (prevTracked !== tracked || prevQty !== qty) ? id : null;
+  }
+
   function normalizeOverride(row) {
     if (!row || row[COL_PRODUCT_ID] == null) return null;
     return {
@@ -128,6 +149,27 @@
     const id = String(productId);
     if (!recommended.has(id)) return false;
     return recommended.get(id) === true;
+  }
+
+  function isStockTracked(productId) {
+    if (!stockQtyEnabled || productId == null) return false;
+    return stockTracked.get(String(productId)) === true;
+  }
+
+  function getStockQty(productId) {
+    if (productId == null) return 0;
+    return Math.max(0, Number(stockQty.get(String(productId))) || 0);
+  }
+
+  /* Apply a server-known remaining count without waiting for realtime. */
+  function patchStockQty(productId, qty) {
+    if (productId == null || !stockQtyEnabled) return;
+    const id = String(productId);
+    const n = Math.max(0, Math.floor(Number(qty) || 0));
+    stockQty.set(id, n);
+    if (stockTracked.get(id) === true && n <= 0) {
+      availability.set(id, false);
+    }
   }
 
   function getOverride(productId) {
@@ -230,6 +272,8 @@
           categoryTitle,
           available: isAvailable(resolved.id),
           recommended: isRecommended(resolved.id),
+          stockTracked: isStockTracked(resolved.id),
+          stockQty: getStockQty(resolved.id),
           adminOnly: Boolean(item.adminOnly),
           scope: 'shabbat',
           base: {
@@ -278,6 +322,8 @@
         categoryTitle: getCategoryTitle(categoryTitleKey, categoryId),
         available: isAvailable(resolved.id),
         recommended: isRecommended(resolved.id),
+        stockTracked: isStockTracked(resolved.id),
+        stockQty: getStockQty(resolved.id),
         adminOnly: Boolean(item.adminOnly),
         dineInOnly: Boolean(item.dineInOnly),
         scope: isButcher ? 'butcher' : 'weekday',
@@ -345,26 +391,54 @@
 
     const withRec = await sb
       .from(TABLE_INVENTORY)
-      .select(`${COL_PRODUCT_ID}, ${COL_AVAILABLE}, ${COL_RECOMMENDED}`);
+      .select(`${COL_PRODUCT_ID}, ${COL_AVAILABLE}, ${COL_RECOMMENDED}, ${COL_STOCK_TRACKED}, ${COL_STOCK_QTY}`);
 
     let rows = withRec.data;
     if (withRec.error) {
-      recommendedEnabled = false;
-      console.warn('[inventory] recommended column unavailable:', withRec.error.message);
-      const fallback = await sb
-        .from(TABLE_INVENTORY)
-        .select(`${COL_PRODUCT_ID}, ${COL_AVAILABLE}`);
-      if (fallback.error) throw fallback.error;
-      rows = fallback.data;
+      const missingStock = /stock_tracked|stock_qty/i.test(String(withRec.error.message || ''));
+      const missingRec = /recommended/i.test(String(withRec.error.message || ''));
+      if (missingStock && !missingRec) {
+        stockQtyEnabled = false;
+        console.warn('[inventory] stock_qty columns unavailable:', withRec.error.message);
+        const fallback = await sb
+          .from(TABLE_INVENTORY)
+          .select(`${COL_PRODUCT_ID}, ${COL_AVAILABLE}, ${COL_RECOMMENDED}`);
+        if (fallback.error) {
+          recommendedEnabled = false;
+          stockQtyEnabled = false;
+          console.warn('[inventory] recommended column unavailable:', fallback.error.message);
+          const bare = await sb
+            .from(TABLE_INVENTORY)
+            .select(`${COL_PRODUCT_ID}, ${COL_AVAILABLE}`);
+          if (bare.error) throw bare.error;
+          rows = bare.data;
+        } else {
+          recommendedEnabled = true;
+          rows = fallback.data;
+        }
+      } else {
+        recommendedEnabled = false;
+        stockQtyEnabled = false;
+        console.warn('[inventory] recommended column unavailable:', withRec.error.message);
+        const fallback = await sb
+          .from(TABLE_INVENTORY)
+          .select(`${COL_PRODUCT_ID}, ${COL_AVAILABLE}`);
+        if (fallback.error) throw fallback.error;
+        rows = fallback.data;
+      }
     } else {
       recommendedEnabled = true;
+      stockQtyEnabled = true;
     }
 
     availability.clear();
     recommended.clear();
+    stockTracked.clear();
+    stockQty.clear();
     (rows || []).forEach((row) => {
       applyAvailabilityRow(row);
       applyRecommendedRow(row);
+      applyStockRow(row);
     });
   }
 
@@ -485,13 +559,17 @@
             const id = String(payload.old[COL_PRODUCT_ID]);
             availability.delete(id);
             recommended.delete(id);
+            stockTracked.delete(id);
+            stockQty.delete(id);
             notifyProduct(id, 'availability');
             return;
           }
           const row = payload.new || payload.old;
           const availChanged = applyAvailabilityRow(row);
           const recChanged = applyRecommendedRow(row);
+          const stockChanged = applyStockRow(row);
           if (availChanged) notifyProduct(availChanged, 'availability');
+          else if (stockChanged) notifyProduct(stockChanged, 'stock');
           else if (recChanged) notifyProduct(recChanged, 'recommended');
         }
       );
@@ -657,6 +735,66 @@
     return saved;
   }
 
+  async function setStock(productId, fields) {
+    const sb = getClient();
+    if (!sb) throw new Error('Supabase is not configured');
+    if (!stockQtyEnabled) {
+      throw new Error(
+        'עמודות כמות מלאי חסרות בטבלת inventory.\n' +
+        'הרצו את supabase-inventory-stock-qty.sql ב-Supabase SQL Editor, ואז רעננו את האדמין.'
+      );
+    }
+
+    const sessionRes = await sb.auth.getSession();
+    if (sessionRes.error) throwSupabaseError(sessionRes.error, 'auth.getSession before inventory stock upsert');
+    const session = sessionRes.data?.session;
+    if (!session) throw new Error('No active session. Sign in again before updating inventory.');
+    await syncRealtimeAuth(session);
+
+    const id = String(productId);
+    const tracked = fields?.tracked === true;
+    const qty = Math.max(0, Math.floor(Number(fields?.qty) || 0));
+    const payload = {
+      [COL_PRODUCT_ID]: id,
+      [COL_STOCK_TRACKED]: tracked,
+      [COL_STOCK_QTY]: tracked ? qty : 0,
+    };
+    if (tracked) payload[COL_AVAILABLE] = qty > 0;
+
+    const upsertRes = await sb.from(TABLE_INVENTORY).upsert(payload, {
+      onConflict: COL_PRODUCT_ID,
+    });
+    if (upsertRes.error) {
+      throwSupabaseError(upsertRes.error, `inventory.upsert stock product_id=${id}`);
+    }
+
+    const selectRes = await sb
+      .from(TABLE_INVENTORY)
+      .select(`${COL_PRODUCT_ID}, ${COL_AVAILABLE}, ${COL_STOCK_TRACKED}, ${COL_STOCK_QTY}`)
+      .eq(COL_PRODUCT_ID, id)
+      .maybeSingle();
+
+    if (selectRes.error) {
+      throwSupabaseError(selectRes.error, `inventory.select after stock upsert product_id=${id}`);
+    }
+    if (!selectRes.data) {
+      throw new Error(
+        `inventory SELECT after stock upsert returned no row for product_id=${id}. ` +
+        `Upsert may have been blocked by RLS.`
+      );
+    }
+
+    const availChanged = applyAvailabilityRow(selectRes.data);
+    applyStockRow(selectRes.data);
+    notifyProduct(id, availChanged ? 'availability' : 'stock');
+    console.log('[inventory] PROOF stock saved', selectRes.data);
+    return {
+      tracked: isStockTracked(id),
+      qty: getStockQty(id),
+      available: isAvailable(id),
+    };
+  }
+
   async function saveContent(productId, fields) {
     const sb = getClient();
     if (!sb) throw new Error('Supabase is not configured');
@@ -812,6 +950,9 @@
     getStats,
     isAvailable,
     isRecommended,
+    isStockTracked,
+    getStockQty,
+    patchStockQty,
     getAvailabilityMap: () => {
       const out = {};
       availability.forEach((value, key) => {
@@ -825,9 +966,11 @@
     subscribe,
     setAvailable,
     setRecommended,
+    setStock,
     saveContent,
     areOverridesEnabled: () => overridesEnabled,
     areRecommendedEnabled: () => recommendedEnabled,
+    areStockQtyEnabled: () => stockQtyEnabled,
     /* Future */
     addProduct,
     deleteProduct,

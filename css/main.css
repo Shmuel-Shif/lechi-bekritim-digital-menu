@@ -2289,6 +2289,11 @@ body.cart-open {
   text-align: center;
   color: var(--color-navy, #152640);
   line-height: 1.45;
+  white-space: pre-line;
+}
+
+#app-confirm-cancel[hidden] {
+  display: none !important;
 }
 
 .app-confirm__text--soft {

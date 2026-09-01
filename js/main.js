@@ -3351,6 +3351,95 @@
     return LechaimInventory.isAvailable(itemId);
   }
 
+  function trackedStockLeft(itemId) {
+    const inv = window.LechaimInventory;
+    if (!inv?.isStockTracked?.(itemId)) return null;
+    return Math.max(0, Number(inv.getStockQty?.(itemId)) || 0);
+  }
+
+  function cartCountForProduct(itemId) {
+    const id = String(itemId || '');
+    return cartLines.reduce((sum, line) => (
+      String(line.itemId) === id ? sum + (Number(line.qty) || 0) : sum
+    ), 0);
+  }
+
+  function canAddStockUnit(itemId, extra = 1) {
+    const left = trackedStockLeft(itemId);
+    if (left == null) return true;
+    if (left <= 0) return false;
+    return cartCountForProduct(itemId) + extra <= left;
+  }
+
+  function showStockLimitModal(left) {
+    const n = Math.max(0, Number(left) || 0);
+    const message = n <= 0
+      ? t('stockGoneModalZero')
+      : tReplace('stockGoneModal', { n: String(n) });
+    openAppConfirm('stock', message, t('stockLimitOk'), '');
+  }
+
+  function clampCartToRemaining(itemId) {
+    const left = trackedStockLeft(itemId);
+    if (left == null) return false;
+    let extra = cartCountForProduct(itemId) - left;
+    if (extra <= 0) return false;
+    [...cartLines]
+      .filter((line) => String(line.itemId) === String(itemId))
+      .reverse()
+      .forEach((line) => {
+        if (extra <= 0) return;
+        const q = Number(line.qty) || 0;
+        if (q <= extra) {
+          extra -= q;
+          removeCartLine(line.lineId);
+        } else {
+          line.qty = q - extra;
+          extra = 0;
+        }
+      });
+    saveCart();
+    renderCart();
+    refreshFoodCards(itemId);
+    updateOpenFoodModal();
+    return true;
+  }
+
+  function guardCartStock() {
+    let lowestLeft = null;
+    const ids = [...new Set(cartLines.map((line) => String(line.itemId)))];
+    ids.forEach((id) => {
+      const left = trackedStockLeft(id);
+      if (left == null) return;
+      if (cartCountForProduct(id) > left) {
+        clampCartToRemaining(id);
+        if (lowestLeft == null || left < lowestLeft) lowestLeft = left;
+      }
+    });
+    if (lowestLeft == null) return true;
+    showStockLimitModal(lowestLeft);
+    return false;
+  }
+
+  function parseInsufficientStock(err) {
+    const cause = err?.cause;
+    const blob = [
+      err?.message,
+      err?.details,
+      err?.hint,
+      err?.code,
+      cause?.message,
+      cause?.details,
+      cause?.hint,
+      cause?.code,
+    ].filter(Boolean).join(' ');
+    const match = blob.match(/INSUFFICIENT_STOCK:([^:]+):(\d+)/i);
+    if (match) {
+      return { id: match[1], left: Number(match[2]) || 0 };
+    }
+    return /INSUFFICIENT_STOCK/i.test(blob) ? { id: null, left: 0 } : null;
+  }
+
   function isProductRecommended(itemId) {
     if (!window.LechaimInventory?.isRecommended) return false;
     return LechaimInventory.isRecommended(itemId) === true;
@@ -3512,9 +3601,12 @@
       const change = typeof payload === 'object' && payload?.change ? payload.change : 'availability';
 
       if (productId) {
-        if (change === 'availability') {
-          syncMenuItemVisibility(productId);
-          if (openModalItemId === productId && isProductAvailable(productId)) {
+        if (change === 'availability' || change === 'stock') {
+          if (change === 'availability') syncMenuItemVisibility(productId);
+          if (clampCartToRemaining(productId)) {
+            showStockLimitModal(trackedStockLeft(productId));
+          } else {
+            refreshFoodCards(productId);
             updateOpenFoodModal();
           }
           return;
@@ -3541,6 +3633,7 @@
       .then(() => {
         syncAllMenuItemVisibility();
         syncAllRecommendedBadges();
+        guardCartStock();
         updateOpenFoodModal();
         refreshSidesModal();
       })
@@ -4970,7 +5063,10 @@
     setCouponConfirmVisible(kind === 'bill');
     if (appConfirmText) appConfirmText.textContent = message;
     if (appConfirmYes) appConfirmYes.textContent = yesLabel;
-    if (appConfirmCancel) appConfirmCancel.textContent = cancelLabel;
+    if (appConfirmCancel) {
+      appConfirmCancel.textContent = cancelLabel || t('clearCartCancel');
+      appConfirmCancel.hidden = kind === 'stock';
+    }
     appConfirm.hidden = false;
     appConfirm.setAttribute('aria-hidden', 'false');
     document.body.classList.add('app-confirm-open');
@@ -4987,6 +5083,7 @@
     appConfirm.hidden = true;
     appConfirm.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('app-confirm-open');
+    if (appConfirmCancel) appConfirmCancel.hidden = false;
     resetCouponConfirmUi();
     setCouponConfirmVisible(false);
   }
@@ -5820,6 +5917,8 @@
         return;
       }
 
+      if (!guardCartStock()) return;
+
       if (!window.LechaimOrderEngine?.ensureActiveOrder) {
         console.error('[cart] Order engine missing');
         showOrderFeedback('err', t('orderSentFail'));
@@ -6000,7 +6099,18 @@
         try { showOrderFeedback('ok', t('orderSentSuccess')); } catch (_) { /* ignore */ }
       } else {
         console.error('[cart] send order failed', err);
-        showOrderFeedback('err', t('orderSentFail'));
+        const stockErr = parseInsufficientStock(err);
+        if (stockErr) {
+          if (stockErr.id && window.LechaimInventory?.patchStockQty) {
+            LechaimInventory.patchStockQty(stockErr.id, stockErr.left);
+            if (stockErr.left <= 0) syncMenuItemVisibility(stockErr.id);
+          }
+          if (stockErr.id) clampCartToRemaining(stockErr.id);
+          else guardCartStock();
+          showStockLimitModal(stockErr.left);
+        } else {
+          showOrderFeedback('err', t('orderSentFail'));
+        }
       }
     } finally {
       isSendingOrder = false;
@@ -7052,6 +7162,10 @@
       showCartToast(t('outOfStock'));
       return;
     }
+    if (!canAddStockUnit(itemId, 1)) {
+      showStockLimitModal(trackedStockLeft(itemId));
+      return;
+    }
 
     let newMainLineId = null;
 
@@ -7186,6 +7300,11 @@
         closeCartPanel();
         openSidesModal(mainLineId);
       }
+      return;
+    }
+
+    if (delta > 0 && !canAddStockUnit(line.itemId, 1)) {
+      showStockLimitModal(trackedStockLeft(line.itemId));
       return;
     }
 

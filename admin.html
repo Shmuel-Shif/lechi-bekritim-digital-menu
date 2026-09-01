@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=89">
+  <link rel="stylesheet" href="css/admin.css?v=90">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
 <body>
@@ -611,7 +611,7 @@
           <div class="admin-header__text">
             <p class="admin-header__eyebrow">ניהול</p>
             <h1 class="admin-header__title">ניהול מלאי</h1>
-            <p class="admin-header__subtitle">לחצו על שם המנה לעריכה · מלאי, מומלץ, שם, מחיר ותיאור</p>
+            <p class="admin-header__subtitle">לחצו על שם המנה לעריכה · מלאי, מומלץ, שם, מחיר, תיאור ומעקב כמות</p>
           </div>
         </header>
 
@@ -1310,6 +1310,15 @@
           <button type="button" class="admin-btn admin-btn--stock" id="admin-inventory-stock" aria-pressed="true">יש במלאי</button>
           <button type="button" class="admin-btn admin-btn--recommend" id="admin-inventory-rec" aria-pressed="false">מומלץ</button>
         </div>
+        <label class="admin-inventory-modal__check" id="admin-inventory-stock-track-row">
+          <input type="checkbox" id="admin-inventory-stock-track">
+          <span>מעקב כמות אוטומטי</span>
+        </label>
+        <p class="admin-inventory-modal__hint" id="admin-inventory-stock-hint">כשנגמרת הכמות המנה יורדת לבד מהתפריט, לפי ההזמנות.</p>
+        <label class="admin-inventory-modal__field" id="admin-inventory-stock-qty-field" hidden>
+          <span>כמות במלאי עכשיו</span>
+          <input type="number" id="admin-inventory-stock-qty" inputmode="numeric" min="0" step="1" autocomplete="off">
+        </label>
         <label class="admin-inventory-modal__field">
           <span>שם המנה</span>
           <input type="text" id="admin-inventory-name" maxlength="80" autocomplete="off">
@@ -1340,18 +1349,18 @@
   <script src="js/supabase-config.js" defer></script>
   <script src="js/order-types.js" defer></script>
   <script src="js/supabase-order-service.js?v=28" defer></script>
-  <script src="js/menu-data.js?v=101" defer></script>
+  <script src="js/menu-data.js?v=103" defer></script>
   <script src="js/opening-hours.js?v=12" defer></script>
   <script src="js/app-settings.js?v=6" defer></script>
   <script src="js/shabbat-menu-data.js" defer></script>
-  <script src="js/inventory.js?v=44" defer></script>
+  <script src="js/inventory.js?v=46" defer></script>
   <script src="js/order-session.js?v=6" defer></script>
   <script src="js/order-engine.js" defer></script>
   <script src="js/print-engine.js?v=37" defer></script>
   <script src="js/a11y-focus-trap.js" defer></script>
   <script src="js/kitchen-progress.js?v=2" defer></script>
   <script src="js/kitchen-dish-groups.js?v=1" defer></script>
-  <script src="js/admin-tables.js?v=86" defer></script>
+  <script src="js/admin-tables.js?v=88" defer></script>
   <script src="js/admin-shabbat.js?v=8" defer></script>
   <script src="js/place-reservations.js?v=9" defer></script>
   <script src="js/admin-reservations.js?v=6" defer></script>
@@ -1365,7 +1374,7 @@
   <script src="js/admin-settings.js?v=7" defer></script>
   <script src="js/stock-catalog.js?v=6" defer></script>
   <script src="js/admin-stock.js?v=2" defer></script>
-  <script src="js/admin.js?v=62" defer></script>
+  <script src="js/admin.js?v=63" defer></script>
   <script src="js/admin-pwa.js" defer></script>
 </body>
 </html>

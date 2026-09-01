@@ -51,6 +51,11 @@
   const inventoryStockBtn = document.getElementById('admin-inventory-stock');
   const inventoryRecBtn = document.getElementById('admin-inventory-rec');
   const inventoryNameInput = document.getElementById('admin-inventory-name');
+  const inventoryStockTrack = document.getElementById('admin-inventory-stock-track');
+  const inventoryStockQtyField = document.getElementById('admin-inventory-stock-qty-field');
+  const inventoryStockQtyInput = document.getElementById('admin-inventory-stock-qty');
+  const inventoryStockTrackRow = document.getElementById('admin-inventory-stock-track-row');
+  const inventoryStockHint = document.getElementById('admin-inventory-stock-hint');
   const inventoryPriceInput = document.getElementById('admin-inventory-price');
   const inventoryDescInput = document.getElementById('admin-inventory-desc');
   const inventorySaveBtn = document.getElementById('admin-inventory-save');
@@ -340,6 +345,7 @@
       inventoryMeta.textContent = bits.join(' · ');
     }
     syncInventoryModalToggles(item.id);
+    syncInventoryStockFields(item.id);
     if (inventoryNameInput) inventoryNameInput.value = item.name || '';
     if (inventoryPriceInput) inventoryPriceInput.value = item.price == null ? '' : String(item.price);
     if (inventoryDescInput) inventoryDescInput.value = item.description || '';
@@ -364,6 +370,29 @@
       inventoryRecBtn.textContent = recOn ? 'מומלץ' : 'סמן כמומלץ';
       inventoryRecBtn.disabled = false;
     }
+  }
+
+  function stockQtyEnabled() {
+    return LechaimInventory.areStockQtyEnabled?.() !== false;
+  }
+
+  function syncInventoryStockFields(productId) {
+    const enabled = stockQtyEnabled();
+    if (inventoryStockTrackRow) inventoryStockTrackRow.hidden = !enabled;
+    if (inventoryStockHint) inventoryStockHint.hidden = !enabled;
+    if (!enabled) {
+      if (inventoryStockQtyField) inventoryStockQtyField.hidden = true;
+      return;
+    }
+    const tracked = typeof LechaimInventory.isStockTracked === 'function'
+      ? LechaimInventory.isStockTracked(productId)
+      : false;
+    const qty = typeof LechaimInventory.getStockQty === 'function'
+      ? LechaimInventory.getStockQty(productId)
+      : 0;
+    if (inventoryStockTrack) inventoryStockTrack.checked = tracked;
+    if (inventoryStockQtyInput) inventoryStockQtyInput.value = tracked ? String(qty) : '';
+    if (inventoryStockQtyField) inventoryStockQtyField.hidden = !tracked;
   }
 
   function closeInventoryModal() {
@@ -413,6 +442,9 @@
             <span class="admin-card__name">${escapeHtml(name)}</span>
             <span class="admin-card__price">${escapeHtml(priceLabel)}</span>
             ${recOn ? '<span class="admin-card__rec">מומלץ</span>' : ''}
+            ${LechaimInventory.isStockTracked?.(item.id)
+              ? `<span class="admin-card__qty">נשארו ${escapeHtml(String(LechaimInventory.getStockQty?.(item.id) || 0))}</span>`
+              : ''}
             <span class="admin-card__badge ${available ? 'is-on' : 'is-off'}">${available ? 'יש במלאי' : 'אין במלאי'}</span>
           </span>
         </button>
@@ -490,6 +522,7 @@
 
     if (openProductId === productId) {
       syncInventoryModalToggles(productId);
+      syncInventoryStockFields(productId);
       if (inventoryMeta) {
         const bits = [item.categoryTitle, formatPrice(item.price)].filter(Boolean);
         inventoryMeta.textContent = bits.join(' · ');
@@ -506,6 +539,12 @@
     const productId = openProductId;
     if (!productId || !inventoryStockBtn) return;
     const next = inventoryStockBtn.getAttribute('aria-pressed') !== 'true';
+    if (next
+      && LechaimInventory.isStockTracked?.(productId)
+      && (LechaimInventory.getStockQty?.(productId) || 0) <= 0) {
+      showError(panelError, 'למנה במעקב כמות צריך קודם להזין כמות גדולה מ־0 ואז לשמור');
+      return;
+    }
     inventoryStockBtn.disabled = true;
     showError(panelError, '');
     try {
@@ -556,6 +595,14 @@
       inventoryPriceInput?.focus();
       return;
     }
+    const tracked = stockQtyEnabled() && Boolean(inventoryStockTrack?.checked);
+    const rawQty = String(inventoryStockQtyInput?.value ?? '').trim();
+    if (tracked && rawQty === '') {
+      showError(panelError, 'יש להזין כמות במלאי, או לבטל מעקב כמות');
+      inventoryStockQtyInput?.focus();
+      return;
+    }
+    const qty = Math.max(0, Math.floor(Number(rawQty) || 0));
     if (inventorySaveBtn) inventorySaveBtn.disabled = true;
     showError(panelError, '');
     try {
@@ -564,10 +611,13 @@
         price,
         description: inventoryDescInput?.value ?? '',
       });
+      if (stockQtyEnabled() && typeof LechaimInventory.setStock === 'function') {
+        await LechaimInventory.setStock(productId, { tracked, qty });
+      }
       updateCard(productId);
       const item = catalogCache.find((entry) => entry.id === productId);
       if (item) fillInventoryModal(item);
-      showToast('עודכן: שם, מחיר ותיאור');
+      showToast('המנה עודכנה');
     } catch (err) {
       console.error('[admin] content save failed', err);
       showError(panelError, err?.message || String(err));
@@ -915,6 +965,11 @@
           panelError,
           'כדי לסמן מנות מומלצות: הריצו את supabase-inventory-recommended.sql ב-Supabase SQL Editor, ואז רעננו את האדמין.'
         );
+      } else if (LechaimInventory.areStockQtyEnabled?.() === false) {
+        showError(
+          panelError,
+          'כדי לעקוב אחרי כמויות (אסאדו, סטייקים, דגים…): הריצו את supabase-inventory-stock-qty.sql ב-Supabase SQL Editor, ואז רעננו את האדמין.'
+        );
       }
 
       if (currentTab === 'inventory') {
@@ -1143,6 +1198,11 @@
   });
   inventoryRecBtn?.addEventListener('click', () => {
     handleToggleRecommended();
+  });
+  inventoryStockTrack?.addEventListener('change', () => {
+    const on = Boolean(inventoryStockTrack.checked);
+    if (inventoryStockQtyField) inventoryStockQtyField.hidden = !on;
+    if (on) inventoryStockQtyInput?.focus();
   });
   inventorySaveBtn?.addEventListener('click', () => {
     handleSaveContent();
