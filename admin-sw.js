@@ -1,5 +1,5 @@
 /* LECHAIM Admin — Service Worker (PWA installability) */
-const CACHE = 'lechaim-admin-v179';
+const CACHE = 'lechaim-admin-v180';
 const PRECACHE = [
   './admin.html',
   './admin.webmanifest',
@@ -19,6 +19,7 @@ const PRECACHE = [
   './js/kitchen-progress.js',
   './js/kitchen-dish-groups.js',
   './js/admin-pwa.js',
+  './js/admin-push.js',
   './js/supabase-config.js',
   './js/supabase-order-service.js',
   './js/opening-hours.js',
@@ -81,3 +82,81 @@ self.addEventListener('fetch', (event) => {
       .catch(() => caches.match(req))
   );
 });
+
+function isAdminClient(client) {
+  const href = String(client?.url || '');
+  try {
+    const path = new URL(href).pathname.replace(/\/+$/, '') || '/';
+    return path.endsWith('/admin.html') || path.endsWith('/admin');
+  } catch (_) {
+    return /admin\.html/i.test(href);
+  }
+}
+
+async function listWindowClients() {
+  return self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+}
+
+async function hasVisibleAdminClient() {
+  const list = await listWindowClients();
+  return list.some((client) => (
+    client.visibilityState === 'visible' && isAdminClient(client)
+  ));
+}
+
+self.addEventListener('push', (event) => {
+  event.waitUntil((async () => {
+    let payload = {
+      title: 'לחיים אדמין',
+      body: 'יש עדכון באדמין',
+      url: './admin.html',
+    };
+    try {
+      if (event.data) payload = { ...payload, ...event.data.json() };
+    } catch (_) {
+      try {
+        const text = event.data && event.data.text();
+        if (text) payload.body = text;
+      } catch (err) {
+        console.warn('[admin-sw] push payload parse failed', err);
+      }
+    }
+
+    if (await hasVisibleAdminClient()) return;
+
+    await self.registration.showNotification(payload.title || 'לחיים אדמין', {
+      body: payload.body || '',
+      icon: './assets/pwa/admin-icon-192.png',
+      badge: './assets/pwa/admin-icon-192.png',
+      lang: 'he',
+      dir: 'rtl',
+      tag: payload.tag || 'lechaim-admin',
+      renotify: true,
+      data: payload,
+    });
+  })());
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const payload = event.notification.data || {};
+  const target = payload.url
+    ? new URL(payload.url, self.registration.scope).href
+    : new URL('admin.html', self.registration.scope).href;
+
+  event.waitUntil((async () => {
+    const list = await listWindowClients();
+    const adminClients = list.filter(isAdminClient);
+    const visible = adminClients.find((client) => client.visibilityState === 'visible');
+    const focusClient = visible || adminClients[0] || null;
+    if (focusClient) {
+      if (typeof focusClient.focus === 'function') await focusClient.focus();
+      if (typeof focusClient.postMessage === 'function') {
+        focusClient.postMessage({ type: 'admin-push-open', payload });
+      }
+      return;
+    }
+    if (self.clients.openWindow) await self.clients.openWindow(target);
+  })());
+});
+

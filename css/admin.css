@@ -5165,6 +5165,10 @@ body.admin-inventory-open {
   color: #9b2c2c;
 }
 
+#settings-push-hint.is-error {
+  color: #9b2c2c;
+}
+
 .settings-card__fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

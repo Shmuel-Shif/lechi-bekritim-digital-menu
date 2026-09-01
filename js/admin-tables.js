@@ -4468,6 +4468,40 @@
     });
   }
 
+  function openFromPush(opts, attempt = 0) {
+    const payload = opts && typeof opts === 'object' ? opts : {};
+    const tab = String(payload.tab || 'tables');
+    if (tab === 'pickup' || tab === 'delivery' || tab === 'butcher' || tab === 'tables') {
+      setBoardFilter(tab === 'tables' ? 'tables' : tab);
+    }
+    const table = Number(payload.table);
+    const orderId = payload.orderId ? String(payload.orderId) : '';
+    const sessionId = payload.sessionId ? String(payload.sessionId) : '';
+
+    let entry = null;
+    if (Number.isFinite(table) && table > 0) {
+      entry = (boardCache || []).find((row) => Number(row.tableNumber) === table && row.order) || null;
+    }
+    if (!entry && (orderId || sessionId)) {
+      const all = [...(boardCache || []), ...(takeawayCache || []), ...(butcherCache || [])];
+      entry = all.find((row) => {
+        const sid = String(row.order?._supabaseSessionId || row.order?.sessionId || '');
+        if (sessionId && sid === sessionId) return Boolean(row.order);
+        const oid = String(row.order?.orderId || '');
+        if (orderId && oid === orderId) return true;
+        return (row.order?._remoteOrders || []).some((wave) => String(wave.id) === orderId);
+      }) || null;
+    }
+    if (entry?.order) {
+      openDrawer(entry);
+      return true;
+    }
+    if (attempt < 16) {
+      window.setTimeout(() => openFromPush(payload, attempt + 1), 250);
+    }
+    return false;
+  }
+
   window.LechaimAdminTables = {
     init,
     start: startPolling,
@@ -4475,6 +4509,7 @@
     refresh: renderBoard,
     closeDrawer,
     setBoardFilter,
+    openFromPush,
     playNotifyChime: playOrderNotifyChime,
     playChatNotifyChime,
     silenceNotifyChime() {

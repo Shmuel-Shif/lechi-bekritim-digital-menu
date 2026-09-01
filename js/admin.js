@@ -955,10 +955,38 @@
     }
   }
 
+  function consumePushPayload(payload) {
+    const data = payload && typeof payload === 'object' ? payload : {};
+    const tab = String(data.tab || 'tables');
+    setTab(tab);
+    window.LechaimAdminTables?.openFromPush?.({
+      tab,
+      table: data.table,
+      orderId: data.orderId || data.order,
+      sessionId: data.sessionId || data.session,
+      type: data.type,
+    });
+  }
+
+  function applyAdminDeepLink() {
+    const params = new URLSearchParams(location.search);
+    const tab = params.get('tab');
+    setTab(tab || 'tables');
+    if (params.get('table') || params.get('order') || params.get('session')) {
+      consumePushPayload({
+        tab: tab || 'tables',
+        table: params.get('table'),
+        orderId: params.get('order'),
+        sessionId: params.get('session'),
+        type: params.get('type'),
+      });
+    }
+  }
+
   async function showPanel() {
     setView('panel');
     showError(panelError, '');
-    setTab('tables');
+    applyAdminDeepLink();
 
     try {
       await LechaimInventory.load();
@@ -1008,6 +1036,8 @@
           else renderList();
         });
       }
+
+      window.LechaimAdminPush?.onLoggedIn?.();
     } catch (err) {
       console.error('[admin] panel load error', err);
       showError(panelError, err?.message || String(err));
@@ -1019,6 +1049,14 @@
     setView('login');
     showError(loginError, message || '');
     if (passwordInput) passwordInput.value = '';
+  }
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data?.type !== 'admin-push-open') return;
+      if (panelEl?.hidden) return;
+      consumePushPayload(event.data.payload || event.data);
+    });
   }
 
   async function init() {
