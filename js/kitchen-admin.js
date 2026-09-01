@@ -60,6 +60,11 @@
   const LATE_MS = 20 * 60 * 1000;
   let lateChimed = new Set();
   let lastDishGroups = [];
+  let pollTimer = null;
+  let pollMs = 0;
+  let unsubRealtimeStatus = null;
+  const POLL_FAST_MS = 4000;
+  const POLL_SLOW_MS = 45000;
 
   function lang() {
     return i18n?.getLang?.() || 'el';
@@ -1543,6 +1548,18 @@
     }, 250);
   }
 
+  function desiredPollMs() {
+    return api?.isOrdersRealtimeConnected?.() === true ? POLL_SLOW_MS : POLL_FAST_MS;
+  }
+
+  function startBoardPoll() {
+    const ms = desiredPollMs();
+    if (pollTimer && pollMs === ms) return;
+    window.clearInterval(pollTimer);
+    pollMs = ms;
+    pollTimer = window.setInterval(() => loadBoard(), ms);
+  }
+
   async function peelOneUnit(item, allItems, unitStatus) {
     hushRing();
     await dishGroups.peelOneUnit(api, item, allItems, unitStatus);
@@ -1769,11 +1786,14 @@
   });
 
   window.setInterval(() => renderBoard(), 30000);
-  window.setInterval(() => loadBoard(), 4000);
 
   if (api?.subscribeToOrders) {
     api.subscribeToOrders(() => scheduleRefresh());
   }
+  if (typeof api?.onOrdersRealtimeStatus === 'function') {
+    unsubRealtimeStatus = api.onOrdersRealtimeStatus(() => startBoardPoll());
+  }
+  startBoardPoll();
 
   global.LechaimKitchenBoard = {
     applyLang: renderBoard,

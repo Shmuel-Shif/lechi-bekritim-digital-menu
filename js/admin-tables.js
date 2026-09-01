@@ -1681,8 +1681,6 @@
       refreshBoardData().catch((err) => {
         console.warn('[admin-tables] refresh failed', err);
       });
-      /* Keep קופה totals live whenever sessions/orders change */
-      window.LechaimAdminTill?.refresh?.();
     }, 250);
   }
 
@@ -4232,6 +4230,9 @@
 
         /* Customer requested the bill — visual only, no chime */
         if (table === 'order_sessions' && eventType === 'UPDATE') {
+          if (String(row?.status || '') === 'closed') {
+            window.LechaimAdminTill?.refresh?.();
+          }
           if (String(row?.order_type || '') === 'shabbat' || shabbatSessionIds.has(String(row?.session_id || ''))) {
             return;
           }

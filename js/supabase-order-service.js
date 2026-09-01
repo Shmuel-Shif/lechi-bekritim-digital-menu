@@ -41,9 +41,35 @@
 
   let client = null;
   let channel = null;
+  let boardRealtimeStatus = '';
   const boardListeners = new Set();
+  const boardRealtimeStatusListeners = new Set();
   const sessionChannels = new Map();
   const sessionListenerSets = new Map();
+
+  function setBoardRealtimeStatus(status) {
+    const next = String(status || '');
+    if (boardRealtimeStatus === next) return;
+    boardRealtimeStatus = next;
+    boardRealtimeStatusListeners.forEach((fn) => {
+      try { fn(next); } catch (err) {
+        console.warn('[LechaimSupabaseOrders] realtime status listener failed', err);
+      }
+    });
+  }
+
+  function isOrdersRealtimeConnected() {
+    return boardRealtimeStatus === 'SUBSCRIBED';
+  }
+
+  function onOrdersRealtimeStatus(onStatus) {
+    if (typeof onStatus !== 'function') return () => {};
+    boardRealtimeStatusListeners.add(onStatus);
+    try { onStatus(boardRealtimeStatus); } catch (_) { /* ignore */ }
+    return function unsubscribe() {
+      boardRealtimeStatusListeners.delete(onStatus);
+    };
+  }
 
   function getConfig() {
     return global.LECHAIM_SUPABASE_CONFIG || {};
@@ -1942,6 +1968,7 @@
         (payload) => emitOrderEvent(boardListeners, TABLE_ITEMS, payload)
       )
       .subscribe((status, err) => {
+        setBoardRealtimeStatus(status);
         if (status === 'SUBSCRIBED') {
           console.log('[LechaimSupabaseOrders] Realtime subscribed');
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
@@ -1958,6 +1985,7 @@
       console.warn('[LechaimSupabaseOrders] removeChannel warning', err);
     }
     channel = null;
+    setBoardRealtimeStatus('CLOSED');
   }
 
   function ensureSessionChannel(sessionId) {
@@ -3288,6 +3316,8 @@
     setShopForceClose,
     subscribeRestaurantFlags,
     subscribeToOrders,
+    isOrdersRealtimeConnected,
+    onOrdersRealtimeStatus,
     getAppSettings,
     getWeeklyHours,
     setAppSetting,

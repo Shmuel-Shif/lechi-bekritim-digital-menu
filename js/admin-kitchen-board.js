@@ -30,6 +30,10 @@
   let boardPrimed = false;
   let seenSessions = new Set();
   let pollTimer = null;
+  let pollMs = 0;
+  let unsubRealtimeStatus = null;
+  const POLL_FAST_MS = 4000;
+  const POLL_SLOW_MS = 45000;
   let noteModalItemId = '';
   let noteModalSelected = new Set();
   let noteModalOther = false;
@@ -654,6 +658,25 @@
     refreshTimer = window.setTimeout(() => loadBoard(), 200);
   }
 
+  function desiredPollMs() {
+    return api?.isOrdersRealtimeConnected?.() === true ? POLL_SLOW_MS : POLL_FAST_MS;
+  }
+
+  function startBoardPoll() {
+    if (!active) return;
+    const ms = desiredPollMs();
+    if (pollTimer && pollMs === ms) return;
+    window.clearInterval(pollTimer);
+    pollMs = ms;
+    pollTimer = window.setInterval(() => loadBoard(), ms);
+  }
+
+  function stopBoardPoll() {
+    window.clearInterval(pollTimer);
+    pollTimer = null;
+    pollMs = 0;
+  }
+
   function findTableForItem(itemId, orderId) {
     const id = String(itemId || '');
     const order = String(orderId || '');
@@ -734,15 +757,18 @@
     if (api?.subscribeToOrders) {
       unsubscribe = api.subscribeToOrders(onRealtime);
     }
-    window.clearInterval(pollTimer);
-    pollTimer = window.setInterval(() => loadBoard(), 4000);
+    if (typeof api?.onOrdersRealtimeStatus === 'function') {
+      unsubRealtimeStatus = api.onOrdersRealtimeStatus(() => startBoardPoll());
+    }
+    startBoardPoll();
   }
 
   function stop() {
     active = false;
     window.clearTimeout(refreshTimer);
-    window.clearInterval(pollTimer);
-    pollTimer = null;
+    stopBoardPoll();
+    if (typeof unsubRealtimeStatus === 'function') unsubRealtimeStatus();
+    unsubRealtimeStatus = null;
     if (typeof unsubscribe === 'function') unsubscribe();
     unsubscribe = null;
   }

@@ -429,7 +429,6 @@
     loadChat();
     unsubscribe = api?.subscribe?.(onRealtime);
     unsubscribeChat = api?.subscribeChat?.(onChatRealtime);
-    global.LechaimAdminKitchenBoard?.start?.();
   }
 
   function stop() {
@@ -440,7 +439,6 @@
     unsubscribe = null;
     if (typeof unsubscribeChat === 'function') unsubscribeChat();
     unsubscribeChat = null;
-    global.LechaimAdminKitchenBoard?.stop?.();
   }
 
   document.getElementById('admin-view-kitchen')?.addEventListener('click', (event) => {

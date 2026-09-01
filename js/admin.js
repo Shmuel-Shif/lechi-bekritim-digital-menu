@@ -153,6 +153,7 @@
       window.LechaimAdminShabbat?.stop?.();
       window.LechaimAdminReservations?.stop?.();
       window.LechaimAdminKitchen?.stop?.();
+      window.LechaimAdminKitchenBoard?.stop?.();
     }
   }
 
@@ -202,6 +203,11 @@
     window.LechaimAdminShabbat?.start?.();
     window.LechaimAdminReservations?.start?.();
     window.LechaimAdminKitchen?.start?.();
+    if (currentTab === 'kitchen') {
+      window.LechaimAdminKitchenBoard?.start?.();
+    } else {
+      window.LechaimAdminKitchenBoard?.stop?.();
+    }
     if (onBoard) {
       const filter = currentTab === 'pickup'
         ? 'pickup'
@@ -220,8 +226,10 @@
       window.LechaimAdminHistory?.start?.();
     }
 
-    /* Till stays live on every tab so totals update as soon as money is closed */
     window.LechaimAdminTill?.start?.();
+    if (currentTab === 'till') {
+      window.LechaimAdminTill?.refresh?.();
+    }
 
     if (currentTab === 'stats') {
       window.LechaimAdminCoupons?.start?.();
