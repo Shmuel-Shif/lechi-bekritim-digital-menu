@@ -5,7 +5,7 @@
 (function () {
   'use strict';
 
-  const ROBOT_SRC = 'assets/images/help-bot/robot.webp';
+  const ROBOT_SRC = 'assets/images/help-bot/robot.png';
   const TABLE_GUIDE_SRC = 'assets/images/help-bot/how-to-find-table.webp';
   const MAPS_HREF = 'https://maps.app.goo.gl/vMejA76qL8hCLQkF7?g_st=ac';
 
@@ -49,7 +49,7 @@
   };
 
   const FALLBACK = {
-    helpBotFabLabel: 'היי, איך אפשר לעזור?',
+    helpBotFabLabel: 'איך אפשר לעזור?',
     helpBotTitle: 'היי, איך אפשר לעזור?',
     helpBotWelcomeTitle: 'היי! אני העוזר של לחיים 👋',
     helpBotWelcomeBody: 'איך אפשר לעזור לכם היום?',
@@ -239,8 +239,8 @@
     fab.id = 'lechaim-help-bot-fab';
     fab.className = 'help-bot-fab';
     fab.innerHTML = `
-      <img class="help-bot-fab__avatar" src="${ROBOT_SRC}" alt="" width="40" height="40">
       <span class="help-bot-fab__label"></span>
+      <img class="help-bot-fab__bot" src="${ROBOT_SRC}" alt="" width="220" height="264">
     `;
 
     panel = document.createElement('div');

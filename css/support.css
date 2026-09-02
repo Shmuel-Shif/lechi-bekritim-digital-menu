@@ -15,6 +15,7 @@
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --page: 72rem;
   --pad: max(1rem, env(safe-area-inset-right, 0px), env(safe-area-inset-left, 0px));
+  --support-header: 3.4rem;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -103,6 +104,49 @@ input, textarea, button {
 }
 .support-brand img:first-child { height: 32px; width: auto; object-fit: contain; }
 .support-brand img:last-child { height: 22px; width: auto; max-width: 6.6rem; object-fit: contain; }
+.support-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+.support-lang {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.12rem;
+  margin: 0;
+  padding: 0.14rem 0.18rem;
+  border: 0;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(30, 51, 84, 0.14);
+  cursor: pointer;
+  direction: ltr;
+}
+.support-lang__option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.72rem;
+  min-height: 1.72rem;
+  padding: 0.22rem;
+  border-radius: 999px;
+  opacity: 0.48;
+}
+.support-lang__option--active {
+  background: var(--navy);
+  opacity: 1;
+}
+.lang-flag {
+  display: block;
+  width: 1.22rem;
+  height: 0.88rem;
+  object-fit: cover;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(21, 38, 64, 0.12);
+  pointer-events: none;
+}
 .support-header__home {
   flex-shrink: 0;
   display: grid;
@@ -225,7 +269,7 @@ input, textarea, button {
   overflow: visible;
   background: var(--navy-deep);
   color: #fff;
-  height: calc(100dvh - 3.25rem);
+  height: calc(100dvh - var(--support-header));
   min-height: 33.5rem;
   padding: 0;
   z-index: 3;
@@ -373,6 +417,10 @@ input, textarea, button {
 .hero__kicker-line--2 { font-size: clamp(3.5rem, 18.5vw, 5.1rem); color: #d8dbe1; }
 .hero__kicker-line--3 { font-size: clamp(3.4rem, 27.5vw, 6.8rem); color: #c4a06a; }
 .hero__kicker-line--4 { font-size: clamp(4.1rem, 21.5vw, 8.4rem); color: #f3eee4; }
+html[lang="en"] .hero__kicker-line--1 { font-size: clamp(2.7rem, 13.5vw, 4.4rem); }
+html[lang="en"] .hero__kicker-line--2 { font-size: clamp(2.55rem, 13vw, 4.2rem); }
+html[lang="en"] .hero__kicker-line--3 { font-size: clamp(2.2rem, 11vw, 3.6rem); }
+html[lang="en"] .hero__kicker-line--4 { font-size: clamp(2.8rem, 14vw, 4.6rem); }
 .hero__guide {
   position: absolute;
   left: 0;
@@ -437,6 +485,7 @@ input, textarea, button {
   font-size: 0.95rem;
   font-weight: 600;
   line-height: 1.35;
+}
 }
 .hero__say--mini::after { display: none; }
 a.hero__say {
@@ -710,7 +759,7 @@ a.hero__say {
   width: fit-content;
   max-width: 62%;
   margin: 0;
-  padding: 0.55rem 0.72rem;
+  padding: 0.55rem 0.82rem;
   background: #f3eee4;
   border-radius: 1.15rem;
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
@@ -718,10 +767,12 @@ a.hero__say {
   font-size: 0.8rem;
   font-weight: 600;
   line-height: 1.4;
+  unicode-bidi: isolate;
 }
 .chat__say--l {
   justify-self: left;
   margin-right: 1.4rem;
+  text-align: left;
   border-radius: 1.15rem 1.15rem 1.15rem 0.28rem;
 }
 .chat__say--l::after {
@@ -737,6 +788,7 @@ a.hero__say {
 .chat__say--r {
   justify-self: right;
   margin-left: 1.4rem;
+  text-align: right;
   border-radius: 1.15rem 1.15rem 0.28rem 1.15rem;
 }
 .chat__say--r::after {
@@ -748,6 +800,27 @@ a.hero__say {
   border: 8px solid transparent;
   border-right: 0;
   border-left-color: #f3eee4;
+}
+html[lang="he"] .chat__say { direction: rtl; }
+html[lang="en"] .chat__say {
+  direction: ltr;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  padding: 0.5rem 0.72rem;
+}
+html[lang="en"] .hero__say,
+html[lang="en"] .hero__talk,
+html[lang="en"] .write__title,
+html[lang="en"] .write__sub,
+html[lang="en"] .write__note,
+html[lang="en"] .field,
+html[lang="en"] .cta,
+html[lang="en"] .support-success,
+html[lang="en"] .support-skip,
+html[lang="en"] .site-footer__tag,
+html[lang="en"] .site-footer__follow {
+  direction: ltr;
+  unicode-bidi: isolate;
 }
 .chat__bots {
   position: absolute;
@@ -864,6 +937,9 @@ a.hero__say {
     background: rgba(196, 160, 106, 0.22);
     color: var(--navy-deep);
   }
+  .support-lang:hover {
+    box-shadow: 0 6px 16px rgba(30, 51, 84, 0.18);
+  }
 }
 
 /* ——— 390–430: a little more air, still phone ——— */
@@ -897,6 +973,8 @@ a.hero__say {
   .support-brand img:last-child { height: 32px; }
   .support-header__home { width: 2.75rem; height: 2.75rem; }
   .support-header__home svg { width: 1.4rem; height: 1.4rem; }
+  .support-lang__option { min-width: 1.9rem; min-height: 1.9rem; }
+  .lang-flag { width: 1.35rem; height: 0.98rem; }
   .wave { height: 4.5rem; }
   .wave--up { height: 4rem; }
   .orb {

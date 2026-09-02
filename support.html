@@ -18,7 +18,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/support.css?v=76">
+  <link rel="stylesheet" href="css/support.css?v=83">
+  <script>
+    try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (e) {}
+    if (location.hash) {
+      try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+    }
+    window.scrollTo(0, 0);
+  </script>
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -52,19 +59,35 @@
   </script>
 </head>
 <body class="support-page">
-  <a class="support-skip" href="#support-form">דלגו לטופס הפנייה</a>
+  <a class="support-skip" href="#support-form" data-i18n="skipForm">דלגו לטופס הפנייה</a>
 
   <header class="support-header" id="support-header">
     <div class="support-header__inner">
-      <a class="support-brand" href="index.html" aria-label="לחיים בכרתים — חזרה לדף הבית">
+      <a class="support-brand" href="index.html" data-i18n-aria="brandAria" aria-label="לחיים בכרתים — חזרה לדף הבית">
         <img src="assets/logo/logo-image.png" alt="" width="46" height="46">
         <img src="assets/logo/logo-text.png" alt="LECHAIM" width="128" height="34">
       </a>
-      <a class="support-header__home" href="index.html" aria-label="לעמוד הראשי">
-        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M3.6 10.8 12 3.8l8.4 7V20a1.2 1.2 0 0 1-1.2 1.2h-5.1v-6.2H9.9V21.2H5a1.2 1.2 0 0 1-1.2-1.2v-9.2Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
-        </svg>
-      </a>
+      <div class="support-header__actions">
+        <button
+          type="button"
+          class="support-lang"
+          id="support-lang-toggle"
+          data-i18n-aria="langAria"
+          aria-label="החלפת שפה – עברית / English"
+        >
+          <span class="support-lang__option support-lang__option--active" data-lang="he">
+            <img class="lang-flag" src="assets/icons/flag-il.svg" alt="" width="22" height="16">
+          </span>
+          <span class="support-lang__option" data-lang="en">
+            <img class="lang-flag" src="assets/icons/flag-us.svg" alt="" width="22" height="16">
+          </span>
+        </button>
+        <a class="support-header__home" href="index.html" data-i18n-aria="homeAria" aria-label="לעמוד הראשי">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M3.6 10.8 12 3.8l8.4 7V20a1.2 1.2 0 0 1-1.2 1.2h-5.1v-6.2H9.9V21.2H5a1.2 1.2 0 0 1-1.2-1.2v-9.2Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+          </svg>
+        </a>
+      </div>
     </div>
   </header>
 
@@ -73,18 +96,18 @@
     <span class="orb orb--2" aria-hidden="true"></span>
     <div class="hero__copy">
       <p class="hero__kicker hero-in" style="--d: 520ms">
-        <span class="hero__kicker-line hero__kicker-line--1">שירות</span>
-        <span class="hero__kicker-line hero__kicker-line--2">הלקוחות</span>
-        <span class="hero__kicker-line hero__kicker-line--3">של</span>
-        <span class="hero__kicker-line hero__kicker-line--4">לחיים</span>
+        <span class="hero__kicker-line hero__kicker-line--1" data-i18n="kicker1">שירות</span>
+        <span class="hero__kicker-line hero__kicker-line--2" data-i18n="kicker2">הלקוחות</span>
+        <span class="hero__kicker-line hero__kicker-line--3" data-i18n="kicker3">של</span>
+        <span class="hero__kicker-line hero__kicker-line--4" data-i18n="kicker4">לחיים</span>
       </p>
       <div class="hero__guide">
         <img class="hero__bot" src="assets/images/help-bot/robot.png" alt="" width="1145" height="1374" fetchpriority="high" decoding="async">
         <div class="hero__talk">
-          <p class="hero__say hero__say--mini hero-in" style="--d: 700ms">גם אני יודע שהלקוח במקום הראשון אצלנו.</p>
+          <p class="hero__say hero__say--mini hero-in" style="--d: 700ms" data-i18n="heroMini">גם אני יודע שהלקוח במקום הראשון אצלנו.</p>
           <a class="hero__say hero-in" href="#support-panel" style="--d: 860ms">
-            <h1 id="hero-title">צריכים מענה עכשיו?</h1>
-            <span>כתבו לנו</span>
+            <h1 id="hero-title" data-i18n="heroTitle">צריכים מענה עכשיו?</h1>
+            <span data-i18n="heroCta">כתבו לנו</span>
           </a>
         </div>
       </div>
@@ -113,7 +136,7 @@
       </div>
       <div class="hero__ring" aria-hidden="true"></div>
       <div class="hero__blob">
-        <img src="assets/images/entry/about-2.png" alt="פנים מסעדת לחיים בכרתים" width="960" height="720" fetchpriority="high" decoding="async" data-parallax sizes="(max-width: 819px) 100vw, 28rem">
+        <img src="assets/images/entry/about-2.png" alt="פנים מסעדת לחיים בכרתים" width="960" height="720" fetchpriority="high" decoding="async" data-parallax data-i18n-alt="heroPhotoAlt" sizes="(max-width: 819px) 100vw, 28rem">
       </div>
       <div class="hero__deco" aria-hidden="true">
         <span class="hero__glow"></span>
@@ -143,53 +166,53 @@
     </svg>
     <span class="orb orb--3" aria-hidden="true"></span>
     <div class="write__head">
-      <h2 class="write__title reveal" id="support-form-title">יש לכם משהו לומר לנו?</h2>
-      <p class="write__sub reveal" style="--d: 90ms">מסעדת לחיים כאן בשבילכם</p>
+      <h2 class="write__title reveal" id="support-form-title" data-i18n="formTitle">יש לכם משהו לומר לנו?</h2>
+      <p class="write__sub reveal" style="--d: 90ms" data-i18n="formSub">מסעדת לחיים כאן בשבילכם</p>
     </div>
 
     <div class="write__stage reveal" style="--d: 140ms">
       <div id="support-form-wrap">
         <form id="support-form" class="support-form" novalidate>
           <label class="field">
-            <span>שם מלא *</span>
+            <span data-i18n="fieldName">שם מלא *</span>
             <span class="field__box">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 12a4.5 4.5 0 100-9 4.5 4.5 0 000 9zm0 2c-4.4 0-8 2.2-8 5v1.5A1.5 1.5 0 005.5 22h13a1.5 1.5 0 001.5-1.5V19c0-2.8-3.6-5-8-5z"/></svg>
               <input type="text" id="support-name" name="name" required maxlength="80" autocomplete="name" autocapitalize="words">
             </span>
           </label>
           <label class="field">
-            <span>טלפון * <em>לחזרה ב-WhatsApp</em></span>
+            <span><span data-i18n="fieldPhone">טלפון *</span> <em data-i18n="fieldPhoneHint">לחזרה ב-WhatsApp</em></span>
             <span class="field__box">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.01-.24 11.36 11.36 0 003.56.57 1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1 11.36 11.36 0 00.57 3.56 1 1 0 01-.24 1.01l-2.2 2.2z"/></svg>
               <input type="tel" id="support-phone" name="phone" required maxlength="32" inputmode="tel" autocomplete="tel" dir="ltr">
             </span>
           </label>
           <label class="field field--wide">
-            <span>מספר הזמנה <em>(אופציונלי)</em></span>
+            <span><span data-i18n="fieldOrder">מספר הזמנה</span> <em data-i18n="fieldOptional">(אופציונלי)</em></span>
             <span class="field__box">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 3h10a2 2 0 012 2v16l-7-3-7 3V5a2 2 0 012-2zm2 5v2h6V8H9zm0 4v2h6v-2H9z"/></svg>
               <input type="text" id="support-order" name="order" maxlength="40" autocomplete="off" dir="ltr">
             </span>
           </label>
           <label class="field field--wide">
-            <span>הודעה *</span>
+            <span data-i18n="fieldBody">הודעה *</span>
             <span class="field__box field__box--area">
-              <textarea id="support-body" name="body" required maxlength="4000" rows="5" placeholder="כתבו כאן בחופשיות" enterkeyhint="send"></textarea>
+              <textarea id="support-body" name="body" required maxlength="4000" rows="5" placeholder="כתבו כאן בחופשיות" data-i18n-placeholder="fieldBodyPh" enterkeyhint="send"></textarea>
             </span>
           </label>
           <p class="support-hp" aria-hidden="true">
             <label>אתר <input type="text" id="support-website" name="website" tabindex="-1" autocomplete="off"></label>
           </p>
           <p class="support-error" id="support-error" role="alert" hidden></p>
-          <button type="submit" class="cta cta--gold" id="support-submit">שליחת פנייה</button>
-          <p class="write__note">צוות לחיים יקבל את הפנייה ויחזור אליכם ב-WhatsApp בהקדם האפשרי.</p>
+          <button type="submit" class="cta cta--gold" id="support-submit" data-i18n="submit">שליחת פנייה</button>
+          <p class="write__note" data-i18n="formNote">צוות לחיים יקבל את הפנייה ויחזור אליכם ב-WhatsApp בהקדם האפשרי.</p>
         </form>
       </div>
 
       <div class="support-success" id="support-success" hidden tabindex="-1">
-        <h3>הפנייה התקבלה</h3>
-        <p>תודה שכתבתם לנו.<br>קיבלנו את הפנייה ונחזור אליכם ב-WhatsApp בהקדם האפשרי.</p>
-        <a class="cta" href="index.html">לעמוד הראשי שלנו</a>
+        <h3 data-i18n="successTitle">הפנייה התקבלה</h3>
+        <p data-i18n="successBody">תודה שכתבתם לנו.<br>קיבלנו את הפנייה ונחזור אליכם ב-WhatsApp בהקדם האפשרי.</p>
+        <a class="cta" href="index.html" data-i18n="successHome">לעמוד הראשי שלנו</a>
       </div>
       <img class="write__bot" src="assets/images/help-bot/robot-tofes.png" alt="" width="1024" height="1536" decoding="async">
     </div>
@@ -198,19 +221,19 @@
     </svg>
   </section>
 
-  <section class="chat" aria-label="שיחה על מסעדת לחיים">
+  <section class="chat" aria-label="שיחה על מסעדת לחיים" data-i18n-aria="chatAria">
     <div class="chat__venue" aria-hidden="true">
       <img src="assets/images/entry/4.webp" alt="" width="1600" height="1067" loading="lazy" decoding="async">
     </div>
     <div class="chat__thread">
-      <p class="chat__say chat__say--l reveal">מה אתה הכי אוהב בלחיים?</p>
-      <p class="chat__say chat__say--r reveal" style="--d: 70ms">קשה לבחור. יש פה הכול, בשר, דגים, סלטים, מנות ראשונות וקינוחים.</p>
-      <p class="chat__say chat__say--l reveal" style="--d: 120ms">וזה עוד לפני שדיברנו על האווירה במסעדה.</p>
-      <p class="chat__say chat__say--r reveal" style="--d: 170ms">נכון. אבל מבחינתי יש משהו חשוב אפילו יותר.</p>
-      <p class="chat__say chat__say--l reveal" style="--d: 220ms">הכשרות?</p>
-      <p class="chat__say chat__say--r reveal" style="--d: 270ms">בדיוק. כשר למהדרין, עם כשרות מהודרת ושחיטת ליובאוויטש.</p>
-      <p class="chat__say chat__say--l reveal" style="--d: 320ms">אז אוכל טוב, אווירה טובה וכשרות מהודרת.</p>
-      <p class="chat__say chat__say--r reveal" style="--d: 370ms">בדיוק. זה לחיים.</p>
+      <p class="chat__say chat__say--l reveal" data-i18n="chat1">מה אתה הכי אוהב בלחיים?</p>
+      <p class="chat__say chat__say--r reveal" style="--d: 70ms" data-i18n="chat2">קשה לבחור. יש פה הכול, בשר, דגים, סלטים, מנות ראשונות וקינוחים.</p>
+      <p class="chat__say chat__say--l reveal" style="--d: 120ms" data-i18n="chat3">וזה עוד לפני שדיברנו על האווירה במסעדה.</p>
+      <p class="chat__say chat__say--r reveal" style="--d: 170ms" data-i18n="chat4">נכון. אבל מבחינתי יש משהו חשוב אפילו יותר.</p>
+      <p class="chat__say chat__say--l reveal" style="--d: 220ms" data-i18n="chat5">הכשרות?</p>
+      <p class="chat__say chat__say--r reveal" style="--d: 270ms" data-i18n="chat6">בדיוק. כשר למהדרין, עם כשרות מהודרת ושחיטת ליובאוויטש.</p>
+      <p class="chat__say chat__say--l reveal" style="--d: 320ms" data-i18n="chat7">אז אוכל טוב, אווירה טובה וכשרות מהודרת.</p>
+      <p class="chat__say chat__say--r reveal" style="--d: 370ms" data-i18n="chat8">בדיוק. זה לחיים.</p>
     </div>
     <div class="chat__bots" aria-hidden="true">
       <img class="chat__bot chat__bot--l" src="assets/images/help-bot/robot-man1.png" alt="" width="1086" height="1448" loading="lazy" decoding="async">
@@ -223,10 +246,10 @@
 
   <footer class="site-footer site-footer--compact">
     <p class="site-footer__brand">LECHAIM IN CRETE</p>
-    <p class="site-footer__tag">מסעדה כשרה למהדרין • כרתים</p>
-    <p class="site-footer__follow">עקבו אחרינו</p>
+    <p class="site-footer__tag" data-i18n="footerTag">מסעדה כשרה למהדרין • כרתים</p>
+    <p class="site-footer__follow" data-i18n="followUs">עקבו אחרינו</p>
     <div class="site-footer__social" role="list">
-      <a href="https://maps.app.goo.gl/vMejA76qL8hCLQkF7?g_st=ac" class="site-footer__link site-footer__link--maps" target="_blank" rel="noopener noreferrer" aria-label="Google Maps" role="listitem">
+      <a href="https://maps.app.goo.gl/vMejA76qL8hCLQkF7?g_st=ac" class="site-footer__link site-footer__link--maps" target="_blank" rel="noopener noreferrer" aria-label="Google Maps" data-i18n-aria="footerAriaMaps" role="listitem">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z"/></svg>
       </a>
       <a href="https://www.facebook.com/share/19Pwg3YuSb/?mibextid=wwXIfr" class="site-footer__link site-footer__link--facebook" target="_blank" rel="noopener noreferrer" aria-label="Facebook" role="listitem">
@@ -238,7 +261,7 @@
       <a href="https://wa.me/306946502236" class="site-footer__link site-footer__link--whatsapp" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp" role="listitem">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.881 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
       </a>
-      <a href="tel:+306946502236" class="site-footer__link site-footer__link--phone" aria-label="התקשרו +30 694 650 2236" role="listitem">
+      <a href="tel:+306946502236" class="site-footer__link site-footer__link--phone" aria-label="התקשרו +30 694 650 2236" data-i18n-aria="footerAriaPhone" role="listitem">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.01-.24 11.36 11.36 0 003.56.57 1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1 11.36 11.36 0 00.57 3.56 1 1 0 01-.24 1.01l-2.2 2.2z"/></svg>
       </a>
     </div>
@@ -246,6 +269,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
-  <script src="js/support-app.js?v=15" defer></script>
+  <script src="js/support-app.js?v=20" defer></script>
 </body>
 </html>

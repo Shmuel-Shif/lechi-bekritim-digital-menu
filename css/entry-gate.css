@@ -348,6 +348,10 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#lechai
   color: #fff;
 }
 
+.entry-gate__actions a.entry-gate__btn--support {
+  color: var(--entry-navy, #17345d);
+}
+
 .entry-gate__btn {
   appearance: none;
   border: 1px solid var(--color-cream-dark, #e5ddd0);
@@ -400,6 +404,17 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#lechai
 .entry-gate__btn--primary:hover {
   background: var(--color-navy-light, #2d4a73);
   border-color: var(--color-navy-light, #2d4a73);
+}
+
+.entry-gate__btn--support {
+  background: linear-gradient(180deg, #f8ecc4 0%, #f0d89a 55%, #e8c87a 100%);
+  color: var(--color-navy, #1e3354);
+  border-color: rgba(196, 160, 106, 0.55);
+}
+
+.entry-gate__btn--support:hover {
+  background: linear-gradient(180deg, #fbeec8 0%, #edcc86 55%, #e0ba68 100%);
+  border-color: rgba(196, 160, 106, 0.85);
 }
 
 /* Dine-in: white, stands out from the other navy actions */
@@ -1230,6 +1245,29 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#lechai
 .entry-gate.is-home .entry-gate__actions .entry-gate__btn--primary:hover {
   background: #1f4273;
   color: #fff;
+}
+
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn--support {
+  background: linear-gradient(180deg, #f8ecc4 0%, #f0d89a 55%, #e8c87a 100%);
+  color: var(--entry-navy);
+  border: 1.5px solid rgba(196, 160, 106, 0.55);
+  box-shadow: 0 5px 16px rgba(196, 160, 106, 0.28);
+}
+
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn--support:hover {
+  background: linear-gradient(180deg, #fbeec8 0%, #edcc86 55%, #e0ba68 100%);
+  color: var(--entry-navy);
+  border-color: rgba(196, 160, 106, 0.85);
+  box-shadow: 0 8px 22px rgba(196, 160, 106, 0.38);
+}
+
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn--support .entry-gate__btn-icon,
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn--support .entry-gate__btn-chevron {
+  color: var(--entry-navy);
+}
+
+.entry-gate.is-home .entry-gate__actions .entry-gate__btn--support .entry-gate__btn-hint {
+  opacity: 0.78;
 }
 
 .entry-gate.is-home .entry-gate__actions .entry-gate__btn--dine-in {

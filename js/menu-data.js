@@ -252,7 +252,7 @@ const TRANSLATIONS = {
     footerAriaMaps: 'פתחו מיקום ב-Google Maps',
     followUs: 'עקבו אחרינו',
     /* Help bot — prepared answers (edit here) */
-    helpBotFabLabel: 'היי, איך אפשר לעזור?',
+    helpBotFabLabel: 'איך אפשר לעזור?',
     helpBotTitle: 'היי, איך אפשר לעזור?',
     helpBotWelcomeTitle: 'היי! אני העוזר של לחיים 👋',
     helpBotWelcomeBody: 'איך אפשר לעזור לכם היום?',
@@ -567,7 +567,7 @@ const TRANSLATIONS = {
     footerAriaMaps: 'Open location in Google Maps',
     followUs: 'Follow us',
     /* Help bot — prepared answers (edit here) */
-    helpBotFabLabel: 'Hi, how can I help?',
+    helpBotFabLabel: 'How can I help?',
     helpBotTitle: 'Hi, how can I help?',
     helpBotWelcomeTitle: "Hi! I'm the Lechaim helper 👋",
     helpBotWelcomeBody: 'How can I help you today?',

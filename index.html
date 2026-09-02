@@ -10,8 +10,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/main.css?v=61">
   <link rel="stylesheet" href="css/theme-lechaim.css?v=6">
-  <link rel="stylesheet" href="css/entry-gate.css?v=23">
-  <link rel="stylesheet" href="css/help-bot.css?v=22">
+  <link rel="stylesheet" href="css/entry-gate.css?v=24">
+  <link rel="stylesheet" href="css/help-bot.css?v=25">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
 <body class="entry-pending">
@@ -99,6 +99,16 @@
               </span>
               <span class="entry-gate__btn-chevron" aria-hidden="true"></span>
             </button>
+            <a href="support.html" class="entry-gate__btn entry-gate__btn--support entry-gate__reveal entry-gate__reveal--up" id="entry-support-link" style="--reveal-delay: 440ms">
+              <span class="entry-gate__btn-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12a8 8 0 0 1 16 0v5a2 2 0 0 1-2 2h-2v-7h4M4 12v5a2 2 0 0 0 2 2h2v-7H4"/><path d="M9 19v1a3 3 0 0 0 6 0v-1"/></svg>
+              </span>
+              <span class="entry-gate__btn-text">
+                <span class="entry-gate__btn-label" data-entry-i18n="customerService">שירות לקוחות</span>
+                <span class="entry-gate__btn-hint" data-entry-i18n="customerServiceHint">יש משהו לומר לנו? אנחנו כאן</span>
+              </span>
+              <span class="entry-gate__btn-chevron" aria-hidden="true"></span>
+            </a>
             <button type="button" class="entry-gate__btn entry-gate__btn--primary entry-gate__reveal entry-gate__reveal--up" data-order-type="takeaway" style="--reveal-delay: 520ms">
               <span class="entry-gate__btn-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 8h12l-1 11H7L6 8z"/><path d="M9 8a3 3 0 0 1 6 0"/></svg>
@@ -1151,7 +1161,7 @@
   <script src="js/supabase-config.js" defer></script>
   <script src="js/order-types.js" defer></script>
   <script src="js/supabase-order-service.js?v=19" defer></script>
-  <script src="js/menu-data.js?v=104" defer></script>
+  <script src="js/menu-data.js?v=105" defer></script>
   <script src="js/opening-hours.js?v=12" defer></script>
   <script src="js/app-settings.js?v=6" defer></script>
   <script src="js/inventory.js?v=46" defer></script>
@@ -1160,9 +1170,9 @@
   <script src="js/a11y-focus-trap.js" defer></script>
   <script src="js/main.js?v=93" defer></script>
   <script src="js/place-reservations.js?v=9" defer></script>
-  <script src="js/entry-gate.js?v=71" defer></script>
+  <script src="js/entry-gate.js?v=72" defer></script>
   <script src="js/around-us.js?v=7" defer></script>
-  <script src="js/help-bot.js?v=22" defer></script>
+  <script src="js/help-bot.js?v=23" defer></script>
   <script src="js/waiter-call.js?v=2" defer></script>
 </body>
 </html>
