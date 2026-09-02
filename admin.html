@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=98">
+  <link rel="stylesheet" href="css/admin.css?v=100">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
 <body>
@@ -253,18 +253,39 @@
 
       <div class="admin-view" id="admin-view-support" hidden>
         <section class="tables-category">
-          <header class="admin-header">
-            <p class="admin-header__eyebrow">ניהול</p>
-            <h1 class="admin-header__title">שירות לקוחות</h1>
-            <p class="admin-header__subtitle">פניות מהאתר</p>
+          <header class="admin-header support-inbox-header">
+            <div class="admin-header__text">
+              <p class="admin-header__eyebrow">ניהול</p>
+              <h1 class="admin-header__title">שירות לקוחות</h1>
+            </div>
           </header>
-          <nav class="support-inbox-filters" id="support-inbox-filters" aria-label="סינון פניות">
-            <button type="button" class="admin-tab is-active" data-support-filter="new">חדש</button>
-            <button type="button" class="admin-tab" data-support-filter="closed">טופל</button>
+          <nav class="support-date-nav" aria-label="מעבר בין תאריכים">
+            <button type="button" class="support-date-nav__btn" data-support-day="-1">← יום קודם</button>
+            <label class="support-date-nav__date">
+              <span id="support-date-label">—</span>
+              <input type="date" id="support-date-input" aria-label="בחירת תאריך">
+            </label>
+            <button type="button" class="support-date-nav__btn support-date-nav__today" data-support-today>היום</button>
+            <button type="button" class="support-date-nav__btn" data-support-day="1">יום הבא →</button>
           </nav>
+          <nav class="support-inbox-filters" id="support-inbox-filters" aria-label="סינון פניות">
+            <button type="button" class="support-inbox-filter is-active" data-support-filter="new" aria-pressed="true">
+              חדש
+              <span class="support-inbox-filter__count" data-support-count="new">0</span>
+            </button>
+            <button type="button" class="support-inbox-filter" data-support-filter="closed" aria-pressed="false">
+              טופל
+              <span class="support-inbox-filter__count" data-support-count="closed">0</span>
+            </button>
+          </nav>
+          <p class="admin-error" id="support-inbox-error" role="alert" hidden></p>
           <div class="support-inbox-grid" id="support-inbox-grid"></div>
           <p class="tables-category__empty" id="support-inbox-empty">אין פניות חדשות</p>
         </section>
+        <div class="support-undo-toast" id="support-undo-toast" hidden role="status" aria-live="polite">
+          <span class="support-undo-toast__msg">הפנייה סומנה כטופלה</span>
+          <button type="button" class="support-undo-toast__undo" data-support-undo>בטל</button>
+        </div>
       </div>
 
       <div class="admin-view" id="admin-view-kitchen" hidden>
@@ -1096,6 +1117,18 @@
       </div>
     </div>
 
+    <div class="admin-modal" id="support-delete-modal" hidden aria-hidden="true">
+      <button type="button" class="admin-modal__backdrop" id="support-delete-backdrop" aria-label="סגור"></button>
+      <div class="admin-modal__panel" role="dialog" aria-modal="true" aria-labelledby="support-delete-title">
+        <h2 class="support-delete-modal__title" id="support-delete-title">מחיקת פנייה</h2>
+        <p class="admin-modal__text" id="support-delete-text">האם אתה בטוח שברצונך למחוק את הפנייה?</p>
+        <div class="admin-modal__actions">
+          <button type="button" class="admin-btn admin-btn--ghost" id="support-delete-cancel">ביטול</button>
+          <button type="button" class="admin-btn admin-btn--danger" id="support-delete-confirm">מחיקה</button>
+        </div>
+      </div>
+    </div>
+
     <div class="admin-modal" id="reservation-modal" hidden aria-hidden="true">
       <button type="button" class="admin-modal__backdrop" id="reservation-modal-backdrop" aria-label="סגור"></button>
       <div class="admin-modal__panel reservation-modal__panel" role="dialog" aria-modal="true" aria-labelledby="reservation-modal-title">
@@ -1423,7 +1456,7 @@
   <script src="js/admin-shabbat.js?v=8" defer></script>
   <script src="js/place-reservations.js?v=9" defer></script>
   <script src="js/admin-reservations.js?v=7" defer></script>
-  <script src="js/admin-support.js?v=5" defer></script>
+  <script src="js/admin-support.js?v=7" defer></script>
   <script src="js/kitchen-alert-service.js?v=13" defer></script>
   <script src="js/admin-kitchen-alerts.js?v=16" defer></script>
   <script src="js/admin-kitchen-board.js?v=34" defer></script>

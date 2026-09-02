@@ -722,7 +722,7 @@ a.hero__say {
   border: 0;
 }
 .contact-ways legend {
-  padding: 0;
+  padding: 0 0 9px;
   font-weight: 700;
   font-size: 0.9rem;
 }
