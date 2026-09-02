@@ -48,7 +48,7 @@
   }
 
   function initHeroCta() {
-    const cta = document.querySelector('.hero__cta');
+    const cta = document.querySelector('a.hero__say');
     if (!cta) return;
     cta.addEventListener('click', (event) => {
       event.preventDefault();
