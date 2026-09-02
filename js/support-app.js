@@ -27,7 +27,7 @@
   const COPY = {
     he: {
       pageTitle: 'שירות לקוחות | לחיים בכרתים כשר למהדרין',
-      pageDesc: 'שירות לקוחות של מסעדת לחיים בכרתים — כשר למהדרין. יש משהו שתרצו לומר לנו? נשמח לשמוע, ונחזור אליכם ב-WhatsApp.',
+      pageDesc: 'שירות לקוחות של מסעדת לחיים בכרתים — כשר למהדרין. יש משהו שתרצו לומר לנו? נשמח לשמוע, ונחזור אליכם ב-WhatsApp או באימייל.',
       skipForm: 'דלגו לטופס הפנייה',
       brandAria: 'לחיים בכרתים — חזרה לדף הבית',
       homeAria: 'לעמוד הראשי',
@@ -43,16 +43,24 @@
       formTitle: 'יש לכם משהו לומר לנו?',
       formSub: 'מסעדת לחיים כאן בשבילכם',
       fieldName: 'שם מלא *',
-      fieldPhone: 'טלפון *',
+      fieldPhone: 'טלפון',
       fieldPhoneHint: 'לחזרה ב-WhatsApp',
+      fieldEmail: 'אימייל',
+      contactHow: 'איך נוח לכם שנחזור אליכם?',
+      contactWhatsApp: 'WhatsApp',
+      contactEmail: 'אימייל',
       fieldOrder: 'מספר הזמנה',
+      fieldOrderPh: '#',
       fieldOptional: '(אופציונלי)',
       fieldBody: 'הודעה *',
       fieldBodyPh: 'כתבו כאן בחופשיות',
       submit: 'שליחת פנייה',
-      formNote: 'צוות לחיים יקבל את הפנייה ויחזור אליכם ב-WhatsApp בהקדם האפשרי.',
+      formNote: 'צוות לחיים יקבל את הפנייה ויחזור אליכם בהקדם האפשרי.',
       successTitle: 'הפנייה התקבלה',
-      successBody: 'תודה שכתבתם לנו.\nקיבלנו את הפנייה ונחזור אליכם ב-WhatsApp בהקדם האפשרי.',
+      successThanks: 'תודה שכתבתם לנו.\nקיבלנו את הפנייה ונחזור אליכם בהקדם האפשרי.',
+      successReplyWhatsApp: 'נחזור אליכם ב-WhatsApp.',
+      successReplyEmail: 'נחזור אליכם באימייל.',
+      successReplyBoth: 'נחזור אליכם ב-WhatsApp או באימייל.',
       successHome: 'לעמוד הראשי שלנו',
       chatAria: 'שיחה על מסעדת לחיים',
       chat1: 'מה אתה הכי אוהב בלחיים?',
@@ -69,14 +77,16 @@
       footerAriaPhone: 'התקשרו +30 694 650 2236',
       errHp: 'לא ניתן לשלוח את הפנייה.',
       errName: 'נא למלא שם מלא.',
-      errPhone: 'נא למלא מספר טלפון תקין.',
+      errPhone: 'נא למלא מספר טלפון בינלאומי תקין.',
+      errEmail: 'נא למלא כתובת אימייל תקינה.',
+      errChannel: 'נא לבחור WhatsApp או אימייל.',
       errBody: 'נא לכתוב הודעה בת 10 תווים לפחות.',
       errOffline: 'חיבור שירות הלקוחות אינו זמין כרגע.',
       errSend: 'לא הצלחנו לשלוח את הפנייה. נסו שוב או כתבו לנו ב-WhatsApp.',
     },
     en: {
       pageTitle: 'Customer Service | Lechaim in Crete Mehadrin Kosher',
-      pageDesc: 'Customer service for Lechaim in Crete — Mehadrin kosher. Something you would like to tell us? We would love to hear from you, and we will get back to you on WhatsApp.',
+      pageDesc: 'Customer service for Lechaim in Crete — Mehadrin kosher. Something you would like to tell us? We would love to hear from you, and we will get back to you on WhatsApp or by email.',
       skipForm: 'Skip to the contact form',
       brandAria: 'Lechaim in Crete — back to the home page',
       homeAria: 'Home page',
@@ -92,16 +102,24 @@
       formTitle: 'Have something to tell us?',
       formSub: 'Lechaim restaurant is here for you',
       fieldName: 'Full name *',
-      fieldPhone: 'Phone *',
+      fieldPhone: 'Phone',
       fieldPhoneHint: 'for a WhatsApp reply',
+      fieldEmail: 'Email',
+      contactHow: 'How should we get back to you?',
+      contactWhatsApp: 'WhatsApp',
+      contactEmail: 'Email',
       fieldOrder: 'Order number',
+      fieldOrderPh: '#',
       fieldOptional: '(optional)',
       fieldBody: 'Message *',
       fieldBodyPh: 'Write freely here',
       submit: 'Send message',
-      formNote: 'The Lechaim team will receive your message and get back to you on WhatsApp as soon as possible.',
+      formNote: 'The Lechaim team will receive your message and get back to you as soon as possible.',
       successTitle: 'Message received',
-      successBody: 'Thank you for writing to us.\nWe received your message and will get back to you on WhatsApp as soon as possible.',
+      successThanks: 'Thank you for writing to us.\nWe received your message and will get back to you as soon as possible.',
+      successReplyWhatsApp: 'We will get back to you on WhatsApp.',
+      successReplyEmail: 'We will get back to you by email.',
+      successReplyBoth: 'We will get back to you on WhatsApp or by email.',
       successHome: 'Back to our home page',
       chatAria: 'A conversation about Lechaim restaurant',
       chat1: 'What do you love most here?',
@@ -118,7 +136,9 @@
       footerAriaPhone: 'Call +30 694 650 2236',
       errHp: 'The message could not be sent.',
       errName: 'Please enter your full name.',
-      errPhone: 'Please enter a valid phone number.',
+      errPhone: 'Please enter a valid international phone number.',
+      errEmail: 'Please enter a valid email address.',
+      errChannel: 'Please choose WhatsApp or email.',
       errBody: 'Please write a message of at least 10 characters.',
       errOffline: 'Customer service is unavailable right now.',
       errSend: 'We could not send your message. Please try again or write to us on WhatsApp.',
@@ -126,6 +146,7 @@
   };
 
   let lang = 'he';
+  let lastPreference = 'whatsapp';
 
   function t(key) {
     return COPY[lang]?.[key] || COPY.he[key] || key;
@@ -202,6 +223,8 @@
     langToggle?.querySelectorAll('[data-lang]').forEach((opt) => {
       opt.classList.toggle('support-lang__option--active', opt.dataset.lang === lang);
     });
+    const reply = document.getElementById('support-success-reply');
+    if (reply) reply.textContent = successReplyText();
     syncChatBots();
   }
 
@@ -268,16 +291,120 @@
     return String(document.getElementById(id)?.value || '').trim();
   }
 
-  function scrollToForm() {
-    const isPhone = global.matchMedia?.('(max-width: 819px)')?.matches;
-    const hero = document.querySelector('.hero');
-    if (isPhone && hero) {
-      const heroBottom = hero.getBoundingClientRect().bottom + global.scrollY;
-      const top = Math.max(0, heroBottom);
-      global.scrollTo({ top, behavior: reduceMotion ? 'auto' : 'smooth' });
-      return;
+  function wantWhatsApp() {
+    return Boolean(document.getElementById('support-contact-wa')?.checked);
+  }
+
+  function wantEmail() {
+    return Boolean(document.getElementById('support-contact-email')?.checked);
+  }
+
+  function contactPreference() {
+    return wantEmail() ? 'email' : 'whatsapp';
+  }
+
+  function successReplyText() {
+    if (lastPreference === 'email') return t('successReplyEmail');
+    if (lastPreference === 'whatsapp_email') return t('successReplyBoth');
+    return t('successReplyWhatsApp');
+  }
+
+  function toWhatsAppDigits(raw) {
+    const original = String(raw || '').trim();
+    let digits = original.replace(/\D/g, '');
+    if (!digits) return '';
+    if (digits.startsWith('00')) digits = digits.slice(2);
+    if (!digits) return '';
+    if (/^\s*\+|^\s*00/.test(original)) {
+      return digits.length >= 10 && digits.length <= 15 ? digits : '';
     }
-    panel?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+    if (digits.startsWith('972') && digits.length >= 11 && digits.length <= 15) return digits;
+    if (digits.startsWith('30') && digits.length >= 11 && digits.length <= 15) return digits;
+    if (digits.startsWith('05') && digits.length === 10) return `972${digits.slice(1)}`;
+    if (digits.length === 9 && digits.startsWith('5')) return `972${digits}`;
+    if (digits.startsWith('069') && digits.length === 11) return `30${digits.slice(1)}`;
+    if (digits.length === 10 && digits.startsWith('69')) return `30${digits}`;
+    if (!digits.startsWith('0') && digits.length >= 10 && digits.length <= 15) return digits;
+    return '';
+  }
+
+  function isValidIntlPhone(raw) {
+    const digits = toWhatsAppDigits(raw);
+    return digits.length >= 10 && digits.length <= 15;
+  }
+
+  function isValidEmail(raw) {
+    const email = String(raw || '').trim();
+    if (email.length < 3 || email.length > 120) return false;
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
+
+  function sanitizeOrderNo(raw) {
+    return String(raw || '').replace(/\D/g, '').slice(0, 40);
+  }
+
+  function syncContactUi() {
+    const phoneField = document.getElementById('support-phone-field');
+    const emailField = document.getElementById('support-email-field');
+    const phone = document.getElementById('support-phone');
+    const email = document.getElementById('support-email');
+    const wa = wantWhatsApp();
+    const em = wantEmail();
+    if (phoneField) phoneField.hidden = !wa;
+    if (emailField) emailField.hidden = !em;
+    if (phone) {
+      phone.required = wa;
+      phone.disabled = !wa;
+    }
+    if (email) {
+      email.required = em;
+      email.disabled = !em;
+    }
+  }
+
+  function initContactPrefs() {
+    const waEl = document.getElementById('support-contact-wa');
+    const emEl = document.getElementById('support-contact-email');
+    waEl?.addEventListener('change', syncContactUi);
+    emEl?.addEventListener('change', syncContactUi);
+    syncContactUi();
+  }
+
+  function initOrderField() {
+    const input = document.getElementById('support-order');
+    if (!input) return;
+    const paint = () => {
+      const next = sanitizeOrderNo(input.value);
+      if (input.value !== next) input.value = next;
+    };
+    input.addEventListener('input', paint);
+    input.addEventListener('blur', paint);
+    if (!String(input.value || '').trim()) {
+      let fromUrl = '';
+      try {
+        fromUrl = sanitizeOrderNo(new URLSearchParams(global.location.search).get('order'));
+      } catch (_) { /* ignore */ }
+      if (fromUrl) {
+        input.value = fromUrl;
+      } else {
+        try {
+          const session = JSON.parse(global.localStorage.getItem(SESSION_KEY) || 'null');
+          const n = Number(session?.publicOrderNo);
+          if (Number.isFinite(n) && n > 0) input.value = String(n).slice(0, 40);
+        } catch (_) { /* ignore */ }
+      }
+    }
+    paint();
+  }
+
+  function scrollToForm() {
+    if (!panel) return;
+    const headerH = header?.getBoundingClientRect().height || 54;
+    const y = panel.getBoundingClientRect().top + global.scrollY - headerH - 10;
+    global.scrollTo({
+      top: Math.max(0, y),
+      behavior: reduceMotion ? 'auto' : 'smooth'
+    });
   }
 
   function initHeroCta() {
@@ -351,6 +478,8 @@
   initReveal();
   initParallax();
   initHeroCta();
+  initContactPrefs();
+  initOrderField();
   global.addEventListener('resize', () => {
     global.clearTimeout(syncChatBots._t);
     syncChatBots._t = global.setTimeout(syncChatBots, 120);
@@ -369,15 +498,27 @@
 
     const name = val('support-name');
     const phone = val('support-phone');
+    const email = val('support-email');
     const orderNo = val('support-order');
     const body = val('support-body');
+    const wa = wantWhatsApp();
+    const em = wantEmail();
+    const preference = contactPreference();
 
     if (name.length < 2) {
       setError(t('errName'));
       return;
     }
-    if (phone.replace(/\D/g, '').length < 6) {
+    if (!wa && !em) {
+      setError(t('errChannel'));
+      return;
+    }
+    if (wa && !isValidIntlPhone(phone)) {
       setError(t('errPhone'));
+      return;
+    }
+    if (em && !isValidEmail(email)) {
+      setError(t('errEmail'));
       return;
     }
     if (body.length < 10) {
@@ -391,16 +532,21 @@
       return;
     }
 
+    const phoneDigits = toWhatsAppDigits(phone);
+    const pPhone = wa && phoneDigits ? `+${phoneDigits}` : null;
+    const pEmail = em && isValidEmail(email) ? email : null;
+
     if (submitBtn) submitBtn.disabled = true;
     try {
       const { data, error } = await sb.rpc('create_support_ticket', {
         p_name: name,
-        p_phone: phone,
-        p_email: null,
-        p_order_no: orderNo || null,
+        p_phone: pPhone,
+        p_email: pEmail,
+        p_order_no: sanitizeOrderNo(orderNo) || null,
         p_subject: DEFAULT_SUBJECT,
         p_body: body,
         p_locale: lang,
+        p_contact_preference: preference,
       });
       if (error) {
         console.warn('[support] create failed', error);
@@ -411,12 +557,14 @@
       if (token) {
         try { localStorage.setItem(TOKEN_KEY, String(token)); } catch (_) { /* ignore */ }
       }
-      if (wrap) wrap.hidden = true;
+      lastPreference = preference;
+      const reply = document.getElementById('support-success-reply');
+      if (reply) reply.textContent = successReplyText();
       if (success) {
         success.hidden = false;
+        document.body.classList.add('support-success-open');
         success.focus?.();
       }
-      scrollToForm();
     } catch (err) {
       console.warn('[support] create error', err);
       setError(t('errSend'));

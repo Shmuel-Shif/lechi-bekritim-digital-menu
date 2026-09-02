@@ -5535,6 +5535,15 @@
     ), 0);
     const publicOrderNo = Number(ctx.publicOrderNo);
     const hasOrderNo = isTakeaway && Number.isFinite(publicOrderNo) && publicOrderNo > 0;
+    const supportOrderNo = Number.isFinite(publicOrderNo) && publicOrderNo > 0 ? publicOrderNo : '';
+    const helpNeed = document.getElementById('order-receipt-need-help');
+    const helpLink = document.getElementById('order-receipt-support');
+    if (helpNeed) helpNeed.textContent = t('receiptNeedHelp');
+    if (helpLink) {
+      helpLink.textContent = t('footerSupport');
+      const digits = String(supportOrderNo).replace(/\D/g, '').slice(0, 40);
+      helpLink.href = digits ? `support.html?order=${encodeURIComponent(digits)}` : 'support.html';
+    }
 
     if (orderReceiptEyebrow) orderReceiptEyebrow.textContent = t('receiptEyebrow');
     if (orderReceiptTitle) {
@@ -6466,7 +6475,7 @@
     const session = window.LechaimOrderSession?.getSession?.() || {};
     const orderType = String(ctx.orderType || session.orderType || 'dine-in');
     const tableNumber = Number(ctx.tableNumber ?? session.tableNumber);
-    return {
+      return {
       orderType,
       tableNumber: Number.isFinite(tableNumber) ? tableNumber : null,
     };

@@ -18,24 +18,37 @@ create table if not exists public.support_tickets (
   status text not null default 'new'
     check (status in ('new', 'open', 'closed')),
   customer_name text not null,
-  customer_phone text not null,
+  customer_phone text,
   customer_email text,
   public_order_no text,
   subject text not null,
   locale text not null default 'he',
+  contact_preference text not null default 'whatsapp'
+    check (contact_preference in ('whatsapp', 'email', 'whatsapp_email')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   closed_at timestamptz,
   last_message_at timestamptz,
   constraint support_tickets_name_len check (char_length(trim(customer_name)) between 2 and 80),
-  constraint support_tickets_phone_len check (char_length(trim(customer_phone)) between 6 and 32),
+  constraint support_tickets_phone_len check (
+    customer_phone is null or char_length(trim(customer_phone)) between 6 and 32
+  ),
   constraint support_tickets_email_len check (
     customer_email is null or char_length(trim(customer_email)) between 3 and 120
   ),
   constraint support_tickets_order_len check (
     public_order_no is null or char_length(trim(public_order_no)) between 1 and 40
   ),
-  constraint support_tickets_subject_len check (char_length(trim(subject)) between 2 and 120)
+  constraint support_tickets_subject_len check (char_length(trim(subject)) between 2 and 120),
+  constraint support_tickets_contact_required check (
+    (contact_preference = 'whatsapp' and customer_phone is not null)
+    or (contact_preference = 'email' and customer_email is not null)
+    or (
+      contact_preference = 'whatsapp_email'
+      and customer_phone is not null
+      and customer_email is not null
+    )
+  )
 );
 
 create table if not exists public.support_messages (
@@ -68,6 +81,9 @@ comment on table public.support_messages is
 
 comment on column public.support_tickets.public_order_no is
   'Optional customer-typed order number. Not a foreign key.';
+
+comment on column public.support_tickets.contact_preference is
+  'How the customer asked us to reply: whatsapp | email | whatsapp_email.';
 
 alter table public.support_tickets replica identity full;
 alter table public.support_messages replica identity full;
@@ -127,14 +143,17 @@ create policy support_messages_auth_insert_staff
 -- -----------------------------------------------------------------------------
 -- Public create: SECURITY DEFINER RPC only (no anon table SELECT/INSERT)
 -- -----------------------------------------------------------------------------
+drop function if exists public.create_support_ticket(text, text, text, text, text, text, text);
+
 create or replace function public.create_support_ticket(
   p_name text,
-  p_phone text,
+  p_phone text default null,
   p_email text default null,
   p_order_no text default null,
   p_subject text default null,
   p_body text default null,
-  p_locale text default 'he'
+  p_locale text default 'he',
+  p_contact_preference text default 'whatsapp'
 )
 returns jsonb
 language plpgsql
@@ -145,25 +164,47 @@ declare
   v_id uuid;
   v_token uuid;
   v_name text := trim(coalesce(p_name, ''));
-  v_phone text := trim(coalesce(p_phone, ''));
+  v_phone text := nullif(trim(coalesce(p_phone, '')), '');
   v_email text := nullif(trim(coalesce(p_email, '')), '');
   v_order text := nullif(trim(coalesce(p_order_no, '')), '');
   v_subject text := trim(coalesce(p_subject, ''));
   v_body text := trim(coalesce(p_body, ''));
   v_locale text := lower(trim(coalesce(p_locale, 'he')));
+  v_pref text := lower(trim(coalesce(p_contact_preference, 'whatsapp')));
 begin
+  if v_pref not in ('whatsapp', 'email', 'whatsapp_email') then
+    v_pref := 'whatsapp';
+  end if;
+
   if char_length(v_name) < 2 or char_length(v_name) > 80 then
     raise exception 'invalid_name' using errcode = '22023';
   end if;
-  if char_length(v_phone) < 6 or char_length(v_phone) > 32 then
+
+  if v_pref in ('whatsapp', 'whatsapp_email') then
+    if v_phone is null
+      or char_length(v_phone) < 6
+      or char_length(v_phone) > 32 then
+      raise exception 'invalid_phone' using errcode = '22023';
+    end if;
+  elsif v_phone is not null and (
+    char_length(v_phone) < 6 or char_length(v_phone) > 32
+  ) then
     raise exception 'invalid_phone' using errcode = '22023';
   end if;
-  if v_email is not null and (
+
+  if v_pref in ('email', 'whatsapp_email') then
+    if v_email is null
+      or char_length(v_email) > 120
+      or v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then
+      raise exception 'invalid_email' using errcode = '22023';
+    end if;
+  elsif v_email is not null and (
     char_length(v_email) > 120
     or v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'
   ) then
     raise exception 'invalid_email' using errcode = '22023';
   end if;
+
   if v_order is not null and char_length(v_order) > 40 then
     raise exception 'invalid_order_no' using errcode = '22023';
   end if;
@@ -184,6 +225,7 @@ begin
     public_order_no,
     subject,
     locale,
+    contact_preference,
     status,
     last_message_at
   ) values (
@@ -193,6 +235,7 @@ begin
     v_order,
     v_subject,
     v_locale,
+    v_pref,
     'new',
     now()
   )
@@ -205,13 +248,13 @@ begin
 end;
 $$;
 
-revoke all on function public.create_support_ticket(text, text, text, text, text, text, text)
+revoke all on function public.create_support_ticket(text, text, text, text, text, text, text, text)
   from public, anon, authenticated;
-grant execute on function public.create_support_ticket(text, text, text, text, text, text, text)
+grant execute on function public.create_support_ticket(text, text, text, text, text, text, text, text)
   to anon, authenticated;
 
-comment on function public.create_support_ticket(text, text, text, text, text, text, text) is
-  'Public support form. Returns { ok, public_token }. Anon cannot SELECT tickets.';
+comment on function public.create_support_ticket(text, text, text, text, text, text, text, text) is
+  'Public support form. Phone required for WhatsApp preference, email required for email preference.';
 
 create or replace function public.touch_support_ticket_on_message()
 returns trigger

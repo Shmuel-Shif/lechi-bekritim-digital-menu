@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/support.css?v=83">
+  <link rel="stylesheet" href="css/support.css?v=101">
   <script>
     try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (e) {}
     if (location.hash) {
@@ -102,7 +102,7 @@
         <span class="hero__kicker-line hero__kicker-line--4" data-i18n="kicker4">לחיים</span>
       </p>
       <div class="hero__guide">
-        <img class="hero__bot" src="assets/images/help-bot/robot.png" alt="" width="1145" height="1374" fetchpriority="high" decoding="async">
+        <img class="hero__bot" src="assets/images/help-bot/robot.png" alt="" width="1145" height="1374" fetchpriority="high" decoding="async" style="--d: 620ms">
         <div class="hero__talk">
           <p class="hero__say hero__say--mini hero-in" style="--d: 700ms" data-i18n="heroMini">גם אני יודע שהלקוח במקום הראשון אצלנו.</p>
           <a class="hero__say hero-in" href="#support-panel" style="--d: 860ms">
@@ -153,10 +153,36 @@
       </div>
     </div>
     <svg class="hero__shore" viewBox="0 0 400 160" preserveAspectRatio="none" aria-hidden="true">
-      <path d="M0,28 C36,28 32,78 68,78 C104,78 98,34 138,34 C176,34 170,96 214,96 C256,96 250,40 292,40 C332,40 326,72 360,72 C384,72 392,32 400,32 L400,160 L0,160 Z"/>
+      <path d="M0,0 H400 V72 C368,72 354,118 318,118 C280,118 266,76 228,76 C190,76 176,128 136,128 C96,128 82,82 48,82 C22,82 10,72 0,72 Z"/>
     </svg>
     <svg class="wave wave--hero" viewBox="0 0 1440 90" preserveAspectRatio="none" aria-hidden="true">
-      <path d="M0,48 C240,90 480,8 720,42 C960,76 1200,14 1440,52 L1440,90 L0,90 Z"/>
+      <path fill="#17345d" d="M0,48 C240,90 480,8 720,42 C960,76 1200,14 1440,52 L1440,90 L0,90 Z"/>
+    </svg>
+  </section>
+
+  <section class="chat" aria-label="שיחה על מסעדת לחיים" data-i18n-aria="chatAria">
+    <div class="chat__venue" aria-hidden="true">
+      <img src="assets/images/entry/4.webp" alt="" width="1600" height="1067" loading="lazy" decoding="async">
+    </div>
+    <svg class="chat__crest" viewBox="0 0 400 100" preserveAspectRatio="none" aria-hidden="true">
+      <path fill="#17345d" d="M0,0 H400 V42 C368,42 354,78 316,78 C278,78 264,46 226,46 C188,46 174,86 134,86 C94,86 80,50 46,50 C22,50 10,42 0,42 Z"/>
+    </svg>
+    <div class="chat__thread">
+      <p class="chat__say chat__say--l reveal" data-i18n="chat1">מה אתה הכי אוהב בלחיים?</p>
+      <p class="chat__say chat__say--r reveal" style="--d: 70ms" data-i18n="chat2">קשה לבחור. יש פה הכול, בשר, דגים, סלטים, מנות ראשונות וקינוחים.</p>
+      <p class="chat__say chat__say--l reveal" style="--d: 120ms" data-i18n="chat3">וזה עוד לפני שדיברנו על האווירה במסעדה.</p>
+      <p class="chat__say chat__say--r reveal" style="--d: 170ms" data-i18n="chat4">נכון. אבל מבחינתי יש משהו חשוב אפילו יותר.</p>
+      <p class="chat__say chat__say--l reveal" style="--d: 220ms" data-i18n="chat5">הכשרות?</p>
+      <p class="chat__say chat__say--r reveal" style="--d: 270ms" data-i18n="chat6">בדיוק. כשר למהדרין, עם כשרות מהודרת ושחיטת ליובאוויטש.</p>
+      <p class="chat__say chat__say--l reveal" style="--d: 320ms" data-i18n="chat7">אז אוכל טוב, אווירה טובה וכשרות מהודרת.</p>
+      <p class="chat__say chat__say--r reveal" style="--d: 370ms" data-i18n="chat8">בדיוק. זה לחיים.</p>
+    </div>
+    <div class="chat__bots" aria-hidden="true">
+      <img class="chat__bot chat__bot--l" src="assets/images/help-bot/robot-man1.png" alt="" width="1086" height="1448" loading="lazy" decoding="async">
+      <img class="chat__bot chat__bot--r" src="assets/images/help-bot/robot-man2.png" alt="" width="1122" height="1402" loading="lazy" decoding="async">
+    </div>
+    <svg class="chat__shore" viewBox="0 0 400 80" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M0,34 C30,34 44,8 76,8 C110,8 124,42 158,42 C192,42 206,6 242,6 C278,6 292,40 328,40 C360,40 376,18 400,18 L400,80 L0,80 Z"/>
     </svg>
   </section>
 
@@ -173,25 +199,46 @@
     <div class="write__stage reveal" style="--d: 140ms">
       <div id="support-form-wrap">
         <form id="support-form" class="support-form" novalidate>
-          <label class="field">
+          <label class="field field--wide">
             <span data-i18n="fieldName">שם מלא *</span>
             <span class="field__box">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 12a4.5 4.5 0 100-9 4.5 4.5 0 000 9zm0 2c-4.4 0-8 2.2-8 5v1.5A1.5 1.5 0 005.5 22h13a1.5 1.5 0 001.5-1.5V19c0-2.8-3.6-5-8-5z"/></svg>
               <input type="text" id="support-name" name="name" required maxlength="80" autocomplete="name" autocapitalize="words">
             </span>
           </label>
-          <label class="field">
-            <span><span data-i18n="fieldPhone">טלפון *</span> <em data-i18n="fieldPhoneHint">לחזרה ב-WhatsApp</em></span>
-            <span class="field__box">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.01-.24 11.36 11.36 0 003.56.57 1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1 11.36 11.36 0 00.57 3.56 1 1 0 01-.24 1.01l-2.2 2.2z"/></svg>
-              <input type="tel" id="support-phone" name="phone" required maxlength="32" inputmode="tel" autocomplete="tel" dir="ltr">
-            </span>
-          </label>
           <label class="field field--wide">
             <span><span data-i18n="fieldOrder">מספר הזמנה</span> <em data-i18n="fieldOptional">(אופציונלי)</em></span>
-            <span class="field__box">
+            <span class="field__box field__box--order">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 3h10a2 2 0 012 2v16l-7-3-7 3V5a2 2 0 012-2zm2 5v2h6V8H9zm0 4v2h6v-2H9z"/></svg>
-              <input type="text" id="support-order" name="order" maxlength="40" autocomplete="off" dir="ltr">
+              <span class="field__prefix" aria-hidden="true">#</span>
+              <input type="text" id="support-order" name="order" maxlength="40" autocomplete="off" dir="ltr" inputmode="numeric">
+            </span>
+          </label>
+          <fieldset class="field field--wide contact-ways">
+            <legend data-i18n="contactHow">איך נוח לכם שנחזור אליכם?</legend>
+            <div class="contact-ways__list">
+              <label class="contact-ways__opt">
+                <input type="radio" id="support-contact-wa" name="contact_channel" value="whatsapp" checked>
+                <span data-i18n="contactWhatsApp">WhatsApp</span>
+              </label>
+              <label class="contact-ways__opt">
+                <input type="radio" id="support-contact-email" name="contact_channel" value="email">
+                <span data-i18n="contactEmail">אימייל</span>
+              </label>
+            </div>
+          </fieldset>
+          <label class="field field--wide" id="support-phone-field">
+            <span><span data-i18n="fieldPhone">טלפון</span><span id="support-phone-req" aria-hidden="true"> *</span> <em data-i18n="fieldPhoneHint">לחזרה ב-WhatsApp</em></span>
+            <span class="field__box">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.01-.24 11.36 11.36 0 003.56.57 1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1 11.36 11.36 0 00.57 3.56 1 1 0 01-.24 1.01l-2.2 2.2z"/></svg>
+              <input type="tel" id="support-phone" name="phone" maxlength="32" inputmode="tel" autocomplete="tel" dir="ltr">
+            </span>
+          </label>
+          <label class="field field--wide" id="support-email-field" hidden>
+            <span><span data-i18n="fieldEmail">אימייל</span><span id="support-email-req" aria-hidden="true"> *</span></span>
+            <span class="field__box">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V6a2 2 0 00-2-2zm0 4l-8 5L4 8V6l8 5 8-5v2z"/></svg>
+              <input type="email" id="support-email" name="email" maxlength="120" inputmode="email" autocomplete="email" dir="ltr">
             </span>
           </label>
           <label class="field field--wide">
@@ -205,42 +252,14 @@
           </p>
           <p class="support-error" id="support-error" role="alert" hidden></p>
           <button type="submit" class="cta cta--gold" id="support-submit" data-i18n="submit">שליחת פנייה</button>
-          <p class="write__note" data-i18n="formNote">צוות לחיים יקבל את הפנייה ויחזור אליכם ב-WhatsApp בהקדם האפשרי.</p>
+          <p class="write__note" data-i18n="formNote">צוות לחיים יקבל את הפנייה ויחזור אליכם בהקדם האפשרי.</p>
         </form>
       </div>
 
-      <div class="support-success" id="support-success" hidden tabindex="-1">
-        <h3 data-i18n="successTitle">הפנייה התקבלה</h3>
-        <p data-i18n="successBody">תודה שכתבתם לנו.<br>קיבלנו את הפנייה ונחזור אליכם ב-WhatsApp בהקדם האפשרי.</p>
-        <a class="cta" href="index.html" data-i18n="successHome">לעמוד הראשי שלנו</a>
-      </div>
       <img class="write__bot" src="assets/images/help-bot/robot-tofes.png" alt="" width="1024" height="1536" decoding="async">
     </div>
     <svg class="write__shore" viewBox="0 0 400 100" preserveAspectRatio="none" aria-hidden="true">
       <path d="M0,0 H400 V48 C372,48 358,82 328,82 C294,82 280,54 248,54 C214,54 198,88 164,88 C128,88 114,56 82,56 C52,56 38,78 18,78 C6,78 2,48 0,48 Z"/>
-    </svg>
-  </section>
-
-  <section class="chat" aria-label="שיחה על מסעדת לחיים" data-i18n-aria="chatAria">
-    <div class="chat__venue" aria-hidden="true">
-      <img src="assets/images/entry/4.webp" alt="" width="1600" height="1067" loading="lazy" decoding="async">
-    </div>
-    <div class="chat__thread">
-      <p class="chat__say chat__say--l reveal" data-i18n="chat1">מה אתה הכי אוהב בלחיים?</p>
-      <p class="chat__say chat__say--r reveal" style="--d: 70ms" data-i18n="chat2">קשה לבחור. יש פה הכול, בשר, דגים, סלטים, מנות ראשונות וקינוחים.</p>
-      <p class="chat__say chat__say--l reveal" style="--d: 120ms" data-i18n="chat3">וזה עוד לפני שדיברנו על האווירה במסעדה.</p>
-      <p class="chat__say chat__say--r reveal" style="--d: 170ms" data-i18n="chat4">נכון. אבל מבחינתי יש משהו חשוב אפילו יותר.</p>
-      <p class="chat__say chat__say--l reveal" style="--d: 220ms" data-i18n="chat5">הכשרות?</p>
-      <p class="chat__say chat__say--r reveal" style="--d: 270ms" data-i18n="chat6">בדיוק. כשר למהדרין, עם כשרות מהודרת ושחיטת ליובאוויטש.</p>
-      <p class="chat__say chat__say--l reveal" style="--d: 320ms" data-i18n="chat7">אז אוכל טוב, אווירה טובה וכשרות מהודרת.</p>
-      <p class="chat__say chat__say--r reveal" style="--d: 370ms" data-i18n="chat8">בדיוק. זה לחיים.</p>
-    </div>
-    <div class="chat__bots" aria-hidden="true">
-      <img class="chat__bot chat__bot--l" src="assets/images/help-bot/robot-man1.png" alt="" width="1086" height="1448" loading="lazy" decoding="async">
-      <img class="chat__bot chat__bot--r" src="assets/images/help-bot/robot-man2.png" alt="" width="1122" height="1402" loading="lazy" decoding="async">
-    </div>
-    <svg class="chat__shore" viewBox="0 0 400 80" preserveAspectRatio="none" aria-hidden="true">
-      <path d="M0,42 C32,42 46,14 78,14 C114,14 128,46 162,46 C198,46 212,10 248,10 C286,10 300,44 336,44 C368,44 384,42 400,42 V80 H0 Z"/>
     </svg>
   </section>
 
@@ -267,8 +286,18 @@
     </div>
   </footer>
 
+  <div class="support-success" id="support-success" hidden tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="support-success-title">
+    <div class="support-success__dim" aria-hidden="true"></div>
+    <div class="support-success__panel">
+      <h3 id="support-success-title" data-i18n="successTitle">הפנייה התקבלה</h3>
+      <p data-i18n="successThanks">תודה שכתבתם לנו.<br>קיבלנו את הפנייה ונחזור אליכם בהקדם האפשרי.</p>
+      <p id="support-success-reply" data-i18n="successReplyWhatsApp">נחזור אליכם ב-WhatsApp.</p>
+      <a class="cta" href="index.html" data-i18n="successHome">לעמוד הראשי שלנו</a>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
-  <script src="js/support-app.js?v=20" defer></script>
+  <script src="js/support-app.js?v=28" defer></script>
 </body>
 </html>

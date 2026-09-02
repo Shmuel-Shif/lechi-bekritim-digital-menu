@@ -11,15 +11,9 @@
   const badgeEl = document.getElementById('tab-badge-support');
   const filtersEl = document.getElementById('support-inbox-filters');
 
-  const STATUS_LABEL = {
-    new: '🆕 חדשה',
-    open: '🟡 בטיפול',
-    closed: '✅ סגורה',
-  };
   const EMPTY = {
     new: 'אין פניות חדשות',
-    open: 'אין פניות בטיפול',
-    closed: 'אין פניות סגורות',
+    closed: 'אין פניות שטופלו',
   };
 
   let client = null;
@@ -46,15 +40,21 @@
   }
 
   function formatWhen(iso) {
-    if (!iso) return '—';
+    if (!iso) return '';
     const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return '—';
+    if (Number.isNaN(d.getTime())) return '';
     const dd = String(d.getDate()).padStart(2, '0');
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const yy = d.getFullYear();
     const hh = String(d.getHours()).padStart(2, '0');
     const mi = String(d.getMinutes()).padStart(2, '0');
-    return `${dd}.${mm}.${yy} · ${hh}:${mi}`;
+    return { date: `${dd}.${mm}.${yy}`, time: `${hh}:${mi}` };
+  }
+
+  function formatClosedLine(iso) {
+    const parts = formatWhen(iso);
+    if (!parts) return '';
+    return `טופל בתאריך ${parts.date} בשעה ${parts.time}`;
   }
 
   function firstMessage(row) {
@@ -62,6 +62,10 @@
     list.sort((a, b) => (Date.parse(a.created_at || 0) || 0) - (Date.parse(b.created_at || 0) || 0));
     const customer = list.find((item) => item.sender === 'customer') || list[0];
     return String(customer?.body || '').trim();
+  }
+
+  function isOpenTicket(row) {
+    return String(row?.status || '') !== 'closed';
   }
 
   function setBadge(count) {
@@ -74,39 +78,117 @@
 
   function updateFilterCounts() {
     if (!filtersEl) return;
-    const counts = { new: 0, open: 0, closed: 0 };
-    cache.forEach((row) => {
-      const s = String(row.status || '');
-      if (counts[s] != null) counts[s] += 1;
-    });
     filtersEl.querySelectorAll('[data-support-filter]').forEach((btn) => {
-      const key = btn.dataset.supportFilter;
-      btn.classList.toggle('is-active', key === filter);
-      const badge = btn.querySelector('.admin-tab__badge');
-      const n = counts[key] || 0;
-      if (badge) {
-        badge.textContent = String(n);
-        badge.hidden = n <= 0;
-      }
+      btn.classList.toggle('is-active', btn.dataset.supportFilter === filter);
     });
   }
 
-  function nextStatus(status) {
-    if (status === 'new') return 'open';
-    if (status === 'open') return 'closed';
-    return null;
+  function handledAt(row) {
+    return Date.parse(row?.closed_at || row?.updated_at || 0) || 0;
   }
 
-  function nextLabel(status) {
-    if (status === 'new') return 'עברו לטיפול';
-    if (status === 'open') return 'סגרו פנייה';
+  function createdAt(row) {
+    return Date.parse(row?.created_at || 0) || 0;
+  }
+
+  function visibleTickets() {
+    const list = cache.filter((row) => (filter === 'closed' ? !isOpenTicket(row) : isOpenTicket(row)));
+    if (filter === 'closed') {
+      return list.sort((a, b) => handledAt(b) - handledAt(a));
+    }
+    return list.sort((a, b) => createdAt(b) - createdAt(a));
+  }
+
+  function toWhatsAppDigits(raw) {
+    const original = String(raw || '').trim();
+    let digits = original.replace(/\D/g, '');
+    if (!digits) return '';
+    if (digits.startsWith('00')) digits = digits.slice(2);
+    if (!digits) return '';
+    if (/^\s*\+|^\s*00/.test(original)) {
+      return digits.length >= 10 && digits.length <= 15 ? digits : '';
+    }
+    if (digits.startsWith('972') && digits.length >= 11 && digits.length <= 15) return digits;
+    if (digits.startsWith('30') && digits.length >= 11 && digits.length <= 15) return digits;
+    if (digits.startsWith('05') && digits.length === 10) return `972${digits.slice(1)}`;
+    if (digits.length === 9 && digits.startsWith('5')) return `972${digits}`;
+    if (digits.startsWith('069') && digits.length === 11) return `30${digits.slice(1)}`;
+    if (digits.length === 10 && digits.startsWith('69')) return `30${digits}`;
+    if (!digits.startsWith('0') && digits.length >= 10 && digits.length <= 15) return digits;
     return '';
+  }
+
+  function isValidIntlPhone(raw) {
+    const digits = toWhatsAppDigits(raw);
+    return digits.length >= 10 && digits.length <= 15;
+  }
+
+  function isValidEmail(raw) {
+    const email = String(raw || '').trim();
+    if (email.length < 3 || email.length > 120) return false;
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
+
+  function contactPreferenceOf(row) {
+    const raw = String(row?.contact_preference || '').trim();
+    if (raw === 'email' || raw === 'whatsapp_email' || raw === 'whatsapp') return raw;
+    return 'whatsapp';
+  }
+
+  function preferenceLabel(pref) {
+    if (pref === 'email') return 'אימייל';
+    if (pref === 'whatsapp_email') return 'WhatsApp + אימייל';
+    return 'WhatsApp';
+  }
+
+  function isMobileDevice() {
+    const ua = navigator.userAgent || '';
+    if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua)) return true;
+    return navigator.maxTouchPoints > 1 && /Macintosh/i.test(ua);
+  }
+
+  function openExternalUrl(url) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  function openCustomerWhatsApp(phoneRaw) {
+    const phone = toWhatsAppDigits(phoneRaw);
+    if (!phone) return false;
+    if (!isMobileDevice()) {
+      openExternalUrl(`https://web.whatsapp.com/send?phone=${encodeURIComponent(phone)}`);
+      return true;
+    }
+    const ua = navigator.userAgent || '';
+    if (/Android/i.test(ua)) {
+      const fallback = `https://wa.me/${phone}`;
+      openExternalUrl(
+        `intent://send/?phone=${phone}`
+        + '#Intent;scheme=whatsapp;package=com.whatsapp.w4b;'
+        + `S.browser_fallback_url=${encodeURIComponent(fallback)};end`
+      );
+      return true;
+    }
+    openExternalUrl(`https://wa.me/${phone}`);
+    return true;
+  }
+
+  function openCustomerEmail(emailRaw) {
+    const email = String(emailRaw || '').trim();
+    if (!isValidEmail(email)) return false;
+    openExternalUrl(`mailto:${email}`);
+    return true;
   }
 
   function render() {
     updateFilterCounts();
-    setBadge(cache.filter((row) => row.status === 'new').length);
-    const list = cache.filter((row) => row.status === filter);
+    setBadge(cache.filter(isOpenTicket).length);
+    const list = visibleTickets();
     if (emptyEl) {
       emptyEl.textContent = EMPTY[filter] || 'אין פניות';
       emptyEl.hidden = list.length > 0;
@@ -116,22 +198,40 @@
       const body = firstMessage(row);
       const order = String(row.public_order_no || '').trim();
       const email = String(row.customer_email || '').trim();
-      const nxt = nextStatus(row.status);
+      const phone = String(row.customer_phone || '').trim();
+      const pref = contactPreferenceOf(row);
+      const wantsWa = pref === 'whatsapp' || pref === 'whatsapp_email';
+      const wantsEmail = pref === 'email' || pref === 'whatsapp_email';
+      const waOk = wantsWa && isValidIntlPhone(phone);
+      const emailOk = wantsEmail && isValidEmail(email);
+      const phoneHtml = phone
+        ? `<p class="support-ticket__meta">טלפון <span dir="ltr">${escapeHtml(phone)}</span></p>`
+        : '';
+      const emailHtml = email
+        ? `<p class="support-ticket__meta">Email <span dir="ltr">${escapeHtml(email)}</span></p>`
+        : '';
+      const orderHtml = order
+        ? `<p class="support-ticket__order">הזמנה #${escapeHtml(order)}</p>`
+        : '';
+      const closedAt = row.closed_at || row.updated_at;
+      const closedHtml = !isOpenTicket(row) && closedAt
+        ? `<p class="support-ticket__closed">${escapeHtml(formatClosedLine(closedAt))}</p>`
+        : '';
       return `
-        <article class="support-ticket" data-support-id="${escapeHtml(row.id)}" data-support-status="${escapeHtml(row.status)}">
-          <header class="support-ticket__head">
-            <span class="support-ticket__status support-ticket__status--${escapeHtml(row.status)}">${escapeHtml(STATUS_LABEL[row.status] || row.status)}</span>
-            <time class="support-ticket__when">${escapeHtml(formatWhen(row.created_at))}</time>
-          </header>
+        <article class="support-ticket" data-support-id="${escapeHtml(row.id)}" data-support-status="${escapeHtml(isOpenTicket(row) ? 'new' : 'closed')}">
           <h3 class="support-ticket__name">${escapeHtml(row.customer_name || '—')}</h3>
-          <p class="support-ticket__meta">
-            <a href="tel:${escapeHtml(String(row.customer_phone || '').replace(/\s/g, ''))}">${escapeHtml(row.customer_phone || '—')}</a>
-            ${email ? ` · <span dir="ltr">${escapeHtml(email)}</span>` : ''}
-            ${order ? ` · הזמנה ${escapeHtml(order)}` : ''}
-          </p>
-          <p class="support-ticket__subject">${escapeHtml(row.subject || '')}</p>
-          ${body ? `<p class="support-ticket__body">${escapeHtml(body)}</p>` : ''}
-          ${nxt ? `<button type="button" class="admin-btn admin-btn--primary" data-support-next="${escapeHtml(nxt)}">${escapeHtml(nextLabel(row.status))}</button>` : ''}
+          ${closedHtml}
+          ${phoneHtml}
+          ${emailHtml}
+          <p class="support-ticket__pref">דרך יצירת קשר מועדפת: ${escapeHtml(preferenceLabel(pref))}</p>
+          ${orderHtml}
+          <p class="support-ticket__label">הודעת הלקוח</p>
+          ${body ? `<p class="support-ticket__body">${escapeHtml(body)}</p>` : '<p class="support-ticket__body">—</p>'}
+          <div class="support-ticket__actions">
+            ${waOk ? `<button type="button" class="admin-btn admin-btn--whatsapp" data-support-wa>WhatsApp</button>` : ''}
+            ${emailOk ? `<button type="button" class="admin-btn admin-btn--soft" data-support-email>אימייל</button>` : ''}
+            ${isOpenTicket(row) ? `<button type="button" class="admin-btn admin-btn--primary" data-support-done>טופל</button>` : ''}
+          </div>
         </article>
       `;
     }).join('');
@@ -140,11 +240,20 @@
   async function loadTickets() {
     const sb = getClient();
     if (!sb) throw new Error('חסר חיבור');
-    const { data, error } = await sb
+    let { data, error } = await sb
       .from('support_tickets')
-      .select('id, status, customer_name, customer_phone, customer_email, public_order_no, subject, created_at, support_messages(body, sender, created_at)')
+      .select('id, status, customer_name, customer_phone, customer_email, public_order_no, contact_preference, created_at, updated_at, closed_at, support_messages(body, sender, created_at)')
       .order('created_at', { ascending: false })
       .limit(200);
+    if (error && /contact_preference/i.test(String(error.message || error.code || ''))) {
+      const retry = await sb
+        .from('support_tickets')
+        .select('id, status, customer_name, customer_phone, customer_email, public_order_no, created_at, updated_at, closed_at, support_messages(body, sender, created_at)')
+        .order('created_at', { ascending: false })
+        .limit(200);
+      data = retry.data;
+      error = retry.error;
+    }
     if (error) throw error;
     cache = Array.isArray(data) ? data : [];
   }
@@ -155,7 +264,7 @@
     const { count, error } = await sb
       .from('support_tickets')
       .select('id', { count: 'exact', head: true })
-      .eq('status', 'new');
+      .neq('status', 'closed');
     if (!error) setBadge(count || 0);
   }
 
@@ -166,7 +275,7 @@
 
   async function setStatus(id, status) {
     const sb = getClient();
-    if (!sb || !id || !status) return;
+    if (!sb || !id || status !== 'closed') return;
     const patch = {
       status,
       updated_at: new Date().toISOString(),
@@ -180,6 +289,8 @@
     const row = cache.find((item) => item.id === id);
     if (row) {
       row.status = status;
+      row.updated_at = patch.updated_at;
+      row.closed_at = patch.closed_at;
       render();
     } else {
       await refresh();
@@ -235,16 +346,25 @@
     filtersEl?.addEventListener('click', (event) => {
       const btn = event.target.closest('[data-support-filter]');
       if (!btn) return;
-      filter = btn.dataset.supportFilter || 'new';
+      filter = btn.dataset.supportFilter === 'closed' ? 'closed' : 'new';
       render();
     });
     gridEl?.addEventListener('click', (event) => {
-      const btn = event.target.closest('[data-support-next]');
-      if (!btn) return;
-      const card = btn.closest('[data-support-id]');
+      const card = event.target.closest('[data-support-id]');
       const id = card?.dataset.supportId;
-      const next = btn.dataset.supportNext;
-      if (id && next) setStatus(id, next);
+      if (!id) return;
+      const row = cache.find((item) => item.id === id);
+      if (event.target.closest('[data-support-wa]')) {
+        if (row) openCustomerWhatsApp(row.customer_phone);
+        return;
+      }
+      if (event.target.closest('[data-support-email]')) {
+        if (row) openCustomerEmail(row.customer_email);
+        return;
+      }
+      if (event.target.closest('[data-support-done]')) {
+        setStatus(id, 'closed');
+      }
     });
   }
 

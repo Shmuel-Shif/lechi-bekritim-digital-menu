@@ -3047,6 +3047,25 @@ body.app-confirm-open {
   gap: 0.5rem;
 }
 
+.order-receipt__help {
+  margin: 0.45rem 0 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--color-navy, #152640);
+}
+
+.order-receipt__help a {
+  display: inline-block;
+  margin-inline-start: 0.35rem;
+  color: #8a6a2a;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.order-receipt__help a:hover {
+  text-decoration: underline;
+}
+
 body.order-receipt-open,
 body.table-order-open {
   overflow: hidden;

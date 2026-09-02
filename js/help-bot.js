@@ -196,6 +196,23 @@
     return t('helpBotAnswerLocation') || t('addressText');
   }
 
+  function supportFormHref() {
+    let order = '';
+    try {
+      const n = Number(window.LechaimOrderContext?.publicOrderNo);
+      if (Number.isFinite(n) && n > 0) order = String(n);
+    } catch (_) { /* ignore */ }
+    if (!order) {
+      try {
+        const session = JSON.parse(window.localStorage.getItem('lechaim-order-session') || 'null');
+        const n = Number(session?.publicOrderNo);
+        if (Number.isFinite(n) && n > 0) order = String(n);
+      } catch (_) { /* ignore */ }
+    }
+    const digits = String(order).replace(/\D/g, '').slice(0, 40);
+    return digits ? `support.html?order=${encodeURIComponent(digits)}` : 'support.html';
+  }
+
   function existingContactLink(kind) {
     if (kind === 'whatsapp') {
       return document.querySelector(
@@ -224,7 +241,7 @@
       );
     }
     parts.push(
-      `<a class="help-bot-answer__action" href="support.html">` +
+      `<a class="help-bot-answer__action" href="${escapeHtml(supportFormHref())}">` +
         `✉️ ${escapeHtml(t('helpBotStaffForm'))}` +
       '</a>'
     );
