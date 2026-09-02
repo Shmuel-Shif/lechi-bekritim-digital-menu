@@ -408,10 +408,10 @@ input, textarea, button {
 .hero__kicker-line--2 { font-size: clamp(3.5rem, 18.5vw, 5.1rem); color: #d8dbe1; }
 .hero__kicker-line--3 { font-size: clamp(3.4rem, 27.5vw, 6.8rem); color: #c4a06a; }
 .hero__kicker-line--4 { font-size: clamp(4.1rem, 21.5vw, 8.4rem); color: #f3eee4; }
-html[lang="en"] .hero__kicker-line--1 { font-size: clamp(2.7rem, 13.5vw, 4.4rem); }
-html[lang="en"] .hero__kicker-line--2 { font-size: clamp(2.55rem, 13vw, 4.2rem); }
-html[lang="en"] .hero__kicker-line--3 { font-size: clamp(2.2rem, 11vw, 3.6rem); }
-html[lang="en"] .hero__kicker-line--4 { font-size: clamp(2.8rem, 14vw, 4.6rem); }
+html[lang="en"] .hero__kicker-line--1 { font-size: clamp(3.5rem, 18vw, 5.1rem); }
+html[lang="en"] .hero__kicker-line--2 { font-size: clamp(3.05rem, 15.5vw, 4.4rem); }
+html[lang="en"] .hero__kicker-line--3 { font-size: clamp(2.7rem, 14vw, 4rem); }
+html[lang="en"] .hero__kicker-line--4 { font-size: clamp(3.4rem, 17.5vw, 5.6rem); }
 .hero__guide {
   position: relative;
   left: auto;
@@ -455,7 +455,7 @@ html[lang="en"] .hero__kicker-line--4 { font-size: clamp(2.8rem, 14vw, 4.6rem); 
   justify-items: stretch;
   gap: 0.5rem;
   min-width: 0;
-  margin: 0 var(--pad) 0.5rem 0.2rem;
+  margin: 0 var(--pad) 2.5rem 0.2rem;
   pointer-events: auto;
   direction: rtl;
 }
@@ -937,7 +937,6 @@ html[lang="en"] .chat__say {
   padding: 0.5rem 0.72rem;
 }
 html[lang="en"] .hero__say,
-html[lang="en"] .hero__talk,
 html[lang="en"] .write__title,
 html[lang="en"] .write__sub,
 html[lang="en"] .write__note,
@@ -1187,6 +1186,7 @@ html[lang="en"] .site-footer__follow {
     right: auto;
     bottom: auto;
     margin-top: 1.35rem;
+    transform: none;
     grid-template-columns: auto minmax(0, 1fr);
     align-items: center;
     pointer-events: auto;
