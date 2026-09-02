@@ -36,7 +36,28 @@
   }
 
   function scrollToForm() {
+    const isPhone = global.matchMedia?.('(max-width: 819px)')?.matches;
+    const hero = document.querySelector('.hero');
+    if (isPhone && hero) {
+      const heroBottom = hero.getBoundingClientRect().bottom + global.scrollY;
+      const top = Math.max(0, heroBottom);
+      global.scrollTo({ top, behavior: reduceMotion ? 'auto' : 'smooth' });
+      return;
+    }
     panel?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+  }
+
+  function initHeroCta() {
+    const cta = document.querySelector('.hero__cta');
+    if (!cta) return;
+    cta.addEventListener('click', (event) => {
+      event.preventDefault();
+      scrollToForm();
+      try { global.history.replaceState(null, '', '#support-panel'); } catch (_) { /* ignore */ }
+    });
+    if (global.location.hash === '#support-panel') {
+      global.requestAnimationFrame(scrollToForm);
+    }
   }
 
   function initHeader() {
@@ -88,6 +109,7 @@
   initHeader();
   initReveal();
   initParallax();
+  initHeroCta();
 
   form?.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -110,8 +132,8 @@
       setError('נא למלא מספר טלפון תקין.');
       return;
     }
-    if (body.length < 4) {
-      setError('נא לכתוב הודעה קצרה.');
+    if (body.length < 10) {
+      setError('נא לכתוב הודעה בת 10 תווים לפחות.');
       return;
     }
 

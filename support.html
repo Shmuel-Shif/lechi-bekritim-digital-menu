@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/support.css?v=39">
+  <link rel="stylesheet" href="css/support.css?v=52">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -60,7 +60,6 @@
         <img src="assets/logo/logo-image.png" alt="" width="46" height="46">
         <img src="assets/logo/logo-text.png" alt="LECHAIM" width="128" height="34">
       </a>
-      <a class="support-header__back" href="index.html">חזרה לאתר</a>
     </div>
   </header>
 
@@ -68,16 +67,55 @@
     <span class="orb orb--1" aria-hidden="true"></span>
     <span class="orb orb--2" aria-hidden="true"></span>
     <div class="hero__copy">
-      <p class="hero__kicker hero-in" style="--d: 0ms">שירות הלקוחות של לחיים</p>
-      <h1 class="hero__title hero-in" id="hero-title" style="--d: 120ms">יש משהו שתרצו לומר לנו?</h1>
-      <p class="hero__lead hero-in" style="--d: 240ms">מילה טובה, הערה, הצעה או משהו שלא היה בדיוק כמו שציפיתם. אנחנו כאן כדי לשמוע.</p>
-      <a class="hero__cta hero-in" href="#support-panel" style="--d: 400ms">כתבו לנו</a>
+      <p class="hero__kicker hero-in" style="--d: 520ms">
+        <span class="hero__kicker-line hero__kicker-line--1">שירות</span>
+        <span class="hero__kicker-line hero__kicker-line--2">הלקוחות</span>
+        <span class="hero__kicker-line hero__kicker-line--3">של</span>
+        <span class="hero__kicker-line hero__kicker-line--4">לחיים</span>
+      </p>
+      <h1 class="hero__title hero-in" id="hero-title" style="--d: 680ms">יש משהו שתרצו לומר לנו?</h1>
+      <p class="hero__lead hero-in" style="--d: 860ms">אנחנו כאן כדי לשמוע.</p>
+      <a class="hero__cta hero-in" href="#support-panel" style="--d: 1040ms">כתבו לנו</a>
     </div>
-    <div class="hero__visual hero-in" style="--d: 80ms">
+    <div class="hero__visual">
+      <div class="hero__split" aria-hidden="true">
+        <svg class="hero__masks" width="0" height="0" aria-hidden="true">
+          <defs>
+            <clipPath id="hero-rip-a" clipPathUnits="objectBoundingBox">
+              <path d="M0,0 H0.90 C0.82,0.08 0.94,0.14 0.80,0.22 C0.88,0.30 0.72,0.38 0.82,0.47 C0.66,0.56 0.76,0.64 0.58,0.72 C0.68,0.80 0.48,0.88 0.56,0.94 C0.38,0.98 0.26,1 0.18,1 H0 Z"/>
+            </clipPath>
+            <clipPath id="hero-rip-b" clipPathUnits="objectBoundingBox">
+              <path d="M1,0 H0.84 C0.76,0.08 0.88,0.14 0.74,0.22 C0.82,0.30 0.66,0.38 0.76,0.47 C0.60,0.56 0.70,0.64 0.52,0.72 C0.62,0.80 0.42,0.88 0.50,0.94 C0.32,0.98 0.20,1 0.12,1 H1 Z"/>
+            </clipPath>
+          </defs>
+        </svg>
+        <div class="hero__pane hero__pane--a">
+          <img src="assets/images/entry/about-2.png" alt="" width="960" height="720" fetchpriority="high" decoding="async">
+        </div>
+        <div class="hero__pane hero__pane--b">
+          <img src="assets/images/entry/5.webp" alt="" width="1600" height="1200" fetchpriority="high" decoding="async">
+        </div>
+        <svg class="hero__rip" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M87 0 C79 8 91 14 77 22 C85 30 69 38 79 47 C63 56 73 64 55 72 C65 80 45 88 53 94 C35 98 23 100 15 100" fill="none" stroke="currentColor" stroke-width="1.15" stroke-linecap="round"/>
+        </svg>
+      </div>
       <div class="hero__ring" aria-hidden="true"></div>
       <div class="hero__blob">
-        <img src="assets/images/entry/about-2.png" alt="פנים מסעדת לחיים בכרתים" width="960" height="720" fetchpriority="high" decoding="async" data-parallax sizes="(max-width: 819px) 72vw, 28rem">
+        <img src="assets/images/entry/about-2.png" alt="פנים מסעדת לחיים בכרתים" width="960" height="720" fetchpriority="high" decoding="async" data-parallax sizes="(max-width: 819px) 100vw, 28rem">
       </div>
+      <div class="hero__deco" aria-hidden="true">
+        <span class="hero__glow"></span>
+        <svg class="hero__arc" viewBox="0 0 160 160" fill="none">
+          <path d="M18 128c8-52 46-92 102-104" stroke="currentColor" stroke-width="1.15" stroke-linecap="round"/>
+          <circle cx="122" cy="22" r="2.2" fill="currentColor"/>
+        </svg>
+        <svg class="hero__tide" viewBox="0 0 220 18" fill="none">
+          <path d="M2 11c18-8 32 6 50 0s32-8 48 0 30 7 48 0 32-8 50 0" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <svg class="hero__shore" viewBox="0 0 390 90" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M0,38 C70,8 130,70 200,34 C268,2 322,58 390,22 L390,90 L0,90 Z"/>
+      </svg>
       <div class="hero__chip">
         <img src="assets/images/entry/5.webp" alt="" width="280" height="210" loading="lazy" decoding="async">
       </div>
@@ -137,10 +175,9 @@
       </div>
 
       <div class="support-success" id="support-success" hidden tabindex="-1">
-        <p class="support-success__mark" aria-hidden="true">✓</p>
         <h3>הפנייה התקבלה</h3>
         <p>תודה שכתבתם לנו.<br>קיבלנו את הפנייה ונחזור אליכם ב-WhatsApp בהקדם האפשרי.</p>
-        <a class="cta" href="index.html">חזרה לאתר</a>
+        <a class="cta" href="index.html">לעמוד הראשי שלנו</a>
       </div>
     </div>
   </section>
@@ -196,6 +233,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
-  <script src="js/support-app.js?v=8" defer></script>
+  <script src="js/support-app.js?v=13" defer></script>
 </body>
 </html>
