@@ -169,6 +169,9 @@
       `👥 מספר סועדים: ${party}`,
       '',
       'נשמח לראותכם במסעדת לחיים בכרתים.',
+      '📍 הגעה אלינו — מיקום מדויק:',
+      'Analipsi 700 14, Greece',
+      'https://maps.app.goo.gl/vMejA76qL8hCLQkF7?g_st=ac',
       '',
       '—',
       '',
@@ -181,6 +184,9 @@
       `👥 Guests: ${party}`,
       '',
       'We look forward to seeing you at Lechaim in Crete.',
+      '📍 Getting here — exact location:',
+      'Analipsi 700 14, Greece',
+      'https://maps.app.goo.gl/vMejA76qL8hCLQkF7?g_st=ac',
     ].join('\n');
   }
 

@@ -392,6 +392,11 @@
     const isAsap = !when || when === '—' || when === 'בהקדם האפשרי' || when === 'בהקדם';
     const header = `${kind}${no}${isAsap ? '' : ` ${when}`}`;
     const total = formatMoney(calcOrderPaidTotal(order));
+    const arrivalLines = [
+      '📍 הגעה אלינו — מיקום מדויק:',
+      'Analipsi 700 14, Greece',
+      'https://maps.app.goo.gl/vMejA76qL8hCLQkF7?g_st=ac',
+    ];
     const footer = delivery
       ? [
         `נא לאשר את ההזמנה סה"כ ${total}`,
@@ -399,7 +404,11 @@
         'צריכים עודף? אם כן תכתבו לנו כמה',
         'ברגע שיהיה מוכן השליח מיד יצא אליכם',
       ]
-      : [`נא לאשר את ההזמנה סה"כ ${total}`];
+      : [
+        `נא לאשר את ההזמנה סה"כ ${total}`,
+        '',
+        ...arrivalLines,
+      ];
     return [
       `שלום ${name}`,
       header,
