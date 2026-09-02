@@ -61,6 +61,15 @@
   const payrollRangeEl = document.getElementById('staff-payroll-range');
   const payrollTableEl = document.getElementById('staff-payroll-table');
   const payrollRateWarningEl = document.getElementById('staff-payroll-rate-warning');
+  const settingsLockBtn = document.getElementById('staff-settings-lock-btn');
+  const settingsCloseBtn = document.getElementById('staff-settings-close-btn');
+  const settingsModal = document.getElementById('staff-settings-modal');
+  const settingsBackdrop = document.getElementById('staff-settings-backdrop');
+  const settingsForm = document.getElementById('staff-settings-form');
+  const settingsCodeInput = document.getElementById('staff-settings-access-code');
+  const settingsFormError = document.getElementById('staff-settings-form-error');
+  const settingsCancel = document.getElementById('staff-settings-cancel');
+  const settingsSubtitleEl = document.getElementById('staff-hours-subtitle');
   const DAY_FRAME_HOURS = 5;
 
   let client = null;
@@ -86,6 +95,7 @@
   let summaryViewEmployee = null;
   let payrollShiftsCache = [];
   let payrollSummary = null;
+  let settingsUnlocked = false;
   let empFocusTrap = null;
   let shiftFocusTrap = null;
   let toastTimer = null;
@@ -607,18 +617,149 @@
   };
 
   function setPanel(panel) {
-    currentPanel = panel || 'clock';
+    if (!settingsUnlocked && panel && panel !== 'clock') {
+      currentPanel = 'clock';
+    } else {
+      currentPanel = panel || 'clock';
+    }
+    applySettingsGateUi();
+  }
+
+  function applySettingsGateUi() {
+    viewEl?.querySelectorAll('[data-staff-panel][data-staff-gated]').forEach((btn) => {
+      btn.hidden = !settingsUnlocked;
+    });
+    if (settingsCloseBtn) settingsCloseBtn.hidden = !settingsUnlocked;
+    if (settingsLockBtn) {
+      settingsLockBtn.setAttribute('aria-expanded', settingsUnlocked ? 'true' : 'false');
+    }
+    if (settingsSubtitleEl) {
+      settingsSubtitleEl.textContent = settingsUnlocked
+        ? 'Clock in / Clock out · עובדים · משמרות · סיכום חודשי'
+        : 'Clock in / Clock out';
+    }
     viewEl?.querySelectorAll('[data-staff-panel]').forEach((btn) => {
       const on = btn.getAttribute('data-staff-panel') === currentPanel;
       btn.classList.toggle('is-active', on);
       btn.setAttribute('aria-selected', on ? 'true' : 'false');
     });
     viewEl?.querySelectorAll('[data-staff-panel-view]').forEach((el) => {
+      const gated = el.hasAttribute('data-staff-gated');
+      if (!settingsUnlocked && gated) {
+        el.hidden = true;
+        return;
+      }
       el.hidden = el.getAttribute('data-staff-panel-view') !== currentPanel;
     });
   }
 
+  function openSettingsModal() {
+    if (!settingsModal) return;
+    showFormError(settingsFormError, '');
+    if (settingsCodeInput) settingsCodeInput.value = '';
+    settingsModal.hidden = false;
+    settingsModal.setAttribute('aria-hidden', 'false');
+    window.setTimeout(() => settingsCodeInput?.focus(), 30);
+  }
+
+  function closeSettingsModal() {
+    if (!settingsModal) return;
+    settingsModal.hidden = true;
+    settingsModal.setAttribute('aria-hidden', 'true');
+    showFormError(settingsFormError, '');
+    if (settingsCodeInput) settingsCodeInput.value = '';
+  }
+
+  function clearSensitiveCaches() {
+    employeesCache = [];
+    shiftsCache = [];
+    payrollShiftsCache = [];
+    payrollSummary = null;
+    shiftsViewEmployee = null;
+    summaryViewEmployee = null;
+    if (employeesTable) employeesTable.innerHTML = '';
+    if (shiftsTable) shiftsTable.innerHTML = '';
+    if (summaryTable) summaryTable.innerHTML = '';
+    if (payrollTableEl) payrollTableEl.innerHTML = '';
+    if (payrollXlsxBtn) payrollXlsxBtn.hidden = true;
+    if (payrollRangeEl) payrollRangeEl.textContent = '';
+    if (shiftsViewedEl) {
+      shiftsViewedEl.hidden = true;
+      shiftsViewedEl.textContent = '';
+    }
+    if (summaryViewedEl) {
+      summaryViewedEl.hidden = true;
+      summaryViewedEl.textContent = '';
+    }
+  }
+
+  async function lockSettings() {
+    settingsUnlocked = false;
+    closeEmployeeModal();
+    closeShiftModal();
+    closeSettingsModal();
+    clearSensitiveCaches();
+    currentPanel = 'clock';
+    applySettingsGateUi();
+    const sb = getClient();
+    if (!sb) return;
+    try {
+      await sb.rpc('staff_settings_lock');
+    } catch (err) {
+      console.error('[staff-hours] lock', err);
+    }
+  }
+
+  async function submitSettingsUnlock(event) {
+    event.preventDefault();
+    if (busy) return;
+    const code = settingsCodeInput?.value || '';
+    if (!String(code).trim()) {
+      showFormError(settingsFormError, 'הזינו קוד גישה');
+      return;
+    }
+    const sb = getClient();
+    if (!sb) {
+      showFormError(settingsFormError, 'Supabase לא מחובר');
+      return;
+    }
+    busy = true;
+    showFormError(settingsFormError, '');
+    try {
+      const { data, error } = await sb.rpc('staff_settings_unlock', { p_code: code });
+      if (settingsCodeInput) settingsCodeInput.value = '';
+      if (error) throw error;
+      const res = data || {};
+      if (!res.ok) {
+        if (res.error === 'invalid_code') {
+          showFormError(settingsFormError, 'קוד שגוי');
+        } else if (res.error === 'code_not_set') {
+          showFormError(settingsFormError, 'קוד הגישה עדיין לא הוגדר ב-Supabase');
+        } else if (res.error === 'not_authenticated') {
+          showFormError(settingsFormError, 'יש להתחבר לאדמין');
+        } else {
+          showFormError(settingsFormError, res.error || 'שגיאה');
+        }
+        return;
+      }
+      settingsUnlocked = true;
+      closeSettingsModal();
+      applySettingsGateUi();
+      await refreshAll();
+    } catch (err) {
+      console.error('[staff-hours] unlock', err);
+      showFormError(settingsFormError, mapRpcError(err));
+      if (settingsCodeInput) settingsCodeInput.value = '';
+    } finally {
+      busy = false;
+    }
+  }
+
   async function loadEmployees() {
+    if (!settingsUnlocked) {
+      employeesCache = [];
+      return employeesCache;
+    }
     const sb = getClient();
     if (!sb) throw new Error('Supabase לא מחובר');
     const { data, error } = await sb
@@ -632,7 +773,7 @@
 
   async function loadShiftsForMonth(ym, employeeId) {
     const range = monthRange(ym);
-    if (!range || !employeeId) {
+    if (!range || !employeeId || !settingsUnlocked) {
       shiftsCache = [];
       return shiftsCache;
     }
@@ -652,7 +793,7 @@
 
   async function loadShiftsForRange(fromYmd, toYmd) {
     const range = ymdInclusiveRange(fromYmd, toYmd);
-    if (!range) {
+    if (!range || !settingsUnlocked) {
       payrollShiftsCache = [];
       return payrollShiftsCache;
     }
@@ -678,6 +819,9 @@
   }
 
   async function findEmployeeByPin(pin) {
+    if (!settingsUnlocked) {
+      throw new Error('יש להזין קוד גישה להגדרות עובדים');
+    }
     if (!/^\d{4,12}$/.test(String(pin || '').trim())) {
       throw new Error('הזינו קוד עובד תקין (4–12 ספרות)');
     }
@@ -694,16 +838,21 @@
     return data;
   }
 
-  async function loadOpenShifts() {
+  async function loadOpenNow() {
     const sb = getClient();
     if (!sb) throw new Error('Supabase is not connected');
-    const { data, error } = await sb
-      .from('staff_shifts')
-      .select('id, employee_id, clock_in, clock_out, hourly_rate_snapshot')
-      .is('clock_out', null)
-      .order('clock_in', { ascending: false });
+    const { data, error } = await sb.rpc('staff_open_now');
     if (error) throw error;
-    return Array.isArray(data) ? data : [];
+    const res = data || {};
+    if (res.ok === false) {
+      if (res.error === 'not_authenticated') throw new Error('יש להתחבר לאדמין');
+      throw new Error(res.error || 'Error');
+    }
+    const rows = Array.isArray(res.rows) ? res.rows : [];
+    return rows.map((row) => ({
+      employee_name: row.employee_name || '—',
+      clock_in: row.clock_in,
+    }));
   }
 
   function employeeName(id) {
@@ -747,7 +896,7 @@
       <ul class="staff-open-cards">
         ${openShifts.map((shift) => `
           <li class="staff-open-card">
-            <strong dir="ltr">${escapeHtml(employeeName(shift.employee_id))}</strong>
+            <strong dir="ltr">${escapeHtml(shift.employee_name || '—')}</strong>
             <span>Clock in: ${escapeHtml(formatTimeAthens(shift.clock_in))}</span>
             <span class="staff-badge staff-badge--open">On shift</span>
           </li>
@@ -1106,6 +1255,12 @@
   }
 
   async function loadPayrollView() {
+    if (!settingsUnlocked) {
+      payrollSummary = null;
+      if (payrollTableEl) payrollTableEl.innerHTML = '';
+      if (payrollXlsxBtn) payrollXlsxBtn.hidden = true;
+      return;
+    }
     showError('');
     ensurePayrollDates();
     const months = selectedMonthToYmdRange(payrollMonthEl?.value || '');
@@ -1260,6 +1415,11 @@
   async function refreshAll() {
     showError('');
     try {
+      if (!settingsUnlocked) {
+        setPanel('clock');
+        renderOpenNow(await loadOpenNow());
+        return;
+      }
       await loadEmployees();
       fillEmployeeSelects();
       const ymShifts = shiftsMonth?.value || currentMonthValue();
@@ -1272,8 +1432,7 @@
       } else if (currentPanel === 'summary') {
         renderSummary();
       } else if (currentPanel === 'clock') {
-        const open = await loadOpenShifts();
-        renderOpenNow(open);
+        renderOpenNow(await loadOpenNow());
       } else if (currentPanel === 'employees') {
         renderEmployees();
       } else if (currentPanel === 'payroll') {
@@ -1285,6 +1444,8 @@
       const msg = err?.message || 'הטעינה נכשלה';
       if (/relation .* does not exist|Could not find the table/i.test(msg)) {
         showError('יש להריץ קודם את supabase-staff-hours.sql ב-SQL Editor של Supabase');
+      } else if (/staff_open_now|staff_settings_/i.test(msg)) {
+        showError('יש להריץ את supabase-staff-settings-gate.sql ב-SQL Editor של Supabase');
       } else {
         showError(msg);
       }
@@ -1446,6 +1607,7 @@
   function mapRpcError(err) {
     const msg = String(err?.message || err || '');
     if (/pin_taken/i.test(msg)) return 'הקוד הזה כבר בשימוש אצל עובד אחר';
+    if (/not_unlocked/i.test(msg)) return 'יש להזין קוד גישה להגדרות עובדים';
     if (/pin_required|invalid_pin|pin_digits/i.test(msg)) return 'קוד אישי לא תקין (4–12 ספרות)';
     if (/name_required/i.test(msg)) return 'יש למלא שם';
     if (/not_authenticated/i.test(msg)) return 'יש להתחבר לאדמין';
@@ -1686,7 +1848,7 @@
         renderSummary();
       }
       if (currentPanel === 'clock') {
-        renderOpenNow(await loadOpenShifts());
+        renderOpenNow(await loadOpenNow());
       }
     } catch (err) {
       console.error('[staff-hours] save shift', err);
@@ -1761,7 +1923,7 @@
           `${res.employee_name || ''} · Clock out ${formatTimeAthens(res.clock_out)} · ${formatHours(res.hours)} hours`
         );
       }
-      renderOpenNow(await loadOpenShifts());
+      renderOpenNow(await loadOpenNow());
     } catch (err) {
       console.error('[staff-hours] punch', err);
       showError(mapRpcError(err));
@@ -1776,9 +1938,22 @@
     viewEl?.querySelector('.staff-hours-subtabs')?.addEventListener('click', async (event) => {
       const btn = event.target.closest('[data-staff-panel]');
       if (!btn) return;
+      if (btn.hasAttribute('data-staff-gated') && !settingsUnlocked) {
+        openSettingsModal();
+        return;
+      }
       setPanel(btn.getAttribute('data-staff-panel'));
       await refreshAll();
     });
+
+    settingsLockBtn?.addEventListener('click', () => {
+      if (settingsUnlocked) return;
+      openSettingsModal();
+    });
+    settingsCloseBtn?.addEventListener('click', () => { void lockSettings(); });
+    settingsCancel?.addEventListener('click', closeSettingsModal);
+    settingsBackdrop?.addEventListener('click', closeSettingsModal);
+    settingsForm?.addEventListener('submit', (event) => { void submitSettingsUnlock(event); });
 
     clockInBtn?.addEventListener('click', () => { void punch('in'); });
     clockOutBtn?.addEventListener('click', () => { void punch('out'); });
@@ -1891,6 +2066,10 @@
 
     document.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape') return;
+      if (settingsModal && !settingsModal.hidden) {
+        closeSettingsModal();
+        return;
+      }
       if (employeeModal && !employeeModal.hidden) {
         closeEmployeeModal();
         return;
@@ -1909,14 +2088,21 @@
       if (shiftsMonth && !shiftsMonth.value) shiftsMonth.value = currentMonthValue();
       if (summaryMonth && !summaryMonth.value) summaryMonth.value = currentMonthValue();
       ensurePayrollDates();
+      settingsUnlocked = false;
+      applySettingsGateUi();
+      window.addEventListener('pagehide', () => { void lockSettings(); });
+      window.addEventListener('pageshow', (event) => {
+        if (event.persisted) void lockSettings();
+      });
     }
     if (viewEl.hidden) return;
-    setPanel(currentPanel);
+    setPanel(settingsUnlocked ? currentPanel : 'clock');
     await refreshAll();
   }
 
   global.LechaimAdminStaffHours = {
     start,
+    lockSettings,
     StaffHoursMath,
   };
 })(window);

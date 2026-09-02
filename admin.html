@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=101">
+  <link rel="stylesheet" href="css/admin.css?v=102">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
 <body>
@@ -761,17 +761,25 @@
         <header class="admin-header">
           <div class="admin-header__text">
             <p class="admin-header__eyebrow">ניהול</p>
-            <h1 class="admin-header__title">Attendance hours</h1>
-            <p class="admin-header__subtitle">Clock in / Clock out · עובדים · משמרות · סיכום חודשי</p>
+            <div class="staff-hours-title-row">
+              <h1 class="admin-header__title">Attendance hours</h1>
+              <button type="button" class="staff-hours-lock-btn" id="staff-settings-lock-btn" aria-label="כניסה להגדרות עובדים" aria-haspopup="dialog" aria-expanded="false">
+                <svg class="staff-hours-lock-btn__icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+                  <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M7 11V8a5 5 0 0 1 10 0v3M6.5 11h11A1.5 1.5 0 0 1 19 12.5v7A1.5 1.5 0 0 1 17.5 21h-11A1.5 1.5 0 0 1 5 19.5v-7A1.5 1.5 0 0 1 6.5 11Z"/>
+                </svg>
+              </button>
+              <button type="button" class="admin-btn admin-btn--ghost staff-btn-sm" id="staff-settings-close-btn" hidden>סגור</button>
+            </div>
+            <p class="admin-header__subtitle" id="staff-hours-subtitle">Clock in / Clock out</p>
           </div>
         </header>
 
         <div class="staff-hours-subtabs" role="tablist" aria-label="Attendance hours">
           <button type="button" class="admin-filter is-active" data-staff-panel="clock" role="tab" aria-selected="true">Clock in / Clock out</button>
-          <button type="button" class="admin-filter" data-staff-panel="employees" role="tab" aria-selected="false">עובדים</button>
-          <button type="button" class="admin-filter" data-staff-panel="shifts" role="tab" aria-selected="false">משמרות</button>
-          <button type="button" class="admin-filter" data-staff-panel="summary" role="tab" aria-selected="false">סיכום חודשי</button>
-          <button type="button" class="admin-filter" data-staff-panel="payroll" role="tab" aria-selected="false">סיכום עובדים</button>
+          <button type="button" class="admin-filter" data-staff-panel="employees" data-staff-gated="1" role="tab" aria-selected="false" hidden>עובדים</button>
+          <button type="button" class="admin-filter" data-staff-panel="shifts" data-staff-gated="1" role="tab" aria-selected="false" hidden>משמרות</button>
+          <button type="button" class="admin-filter" data-staff-panel="summary" data-staff-gated="1" role="tab" aria-selected="false" hidden>סיכום חודשי</button>
+          <button type="button" class="admin-filter" data-staff-panel="payroll" data-staff-gated="1" role="tab" aria-selected="false" hidden>סיכום עובדים</button>
         </div>
 
         <p class="admin-error" id="staff-hours-error" role="alert" hidden></p>
@@ -792,7 +800,7 @@
           <div class="staff-open-list" id="staff-open-now"></div>
         </section>
 
-        <section class="staff-panel" id="staff-panel-employees" data-staff-panel-view="employees" hidden>
+        <section class="staff-panel" id="staff-panel-employees" data-staff-panel-view="employees" data-staff-gated="1" hidden>
           <div class="staff-panel__toolbar">
             <h2 class="staff-panel__title">עובדים</h2>
             <button type="button" class="admin-btn admin-btn--primary" id="staff-employee-new">עובד חדש</button>
@@ -800,7 +808,7 @@
           <div class="staff-table-wrap" id="staff-employees-table"></div>
         </section>
 
-        <section class="staff-panel" id="staff-panel-shifts" data-staff-panel-view="shifts" hidden>
+        <section class="staff-panel" id="staff-panel-shifts" data-staff-panel-view="shifts" data-staff-gated="1" hidden>
           <div class="staff-panel__toolbar">
             <h2 class="staff-panel__title">משמרות</h2>
             <button type="button" class="admin-btn admin-btn--soft" id="staff-shift-new">משמרת חדשה</button>
@@ -822,7 +830,7 @@
           <div class="staff-table-wrap" id="staff-shifts-table"></div>
         </section>
 
-        <section class="staff-panel" id="staff-panel-summary" data-staff-panel-view="summary" hidden>
+        <section class="staff-panel" id="staff-panel-summary" data-staff-panel-view="summary" data-staff-gated="1" hidden>
           <div class="staff-panel__toolbar">
             <h2 class="staff-panel__title">סיכום חודשי</h2>
           </div>
@@ -843,7 +851,7 @@
           <div class="staff-table-wrap" id="staff-summary-table"></div>
         </section>
 
-        <section class="staff-panel" id="staff-panel-payroll" data-staff-panel-view="payroll" hidden>
+        <section class="staff-panel" id="staff-panel-payroll" data-staff-panel-view="payroll" data-staff-gated="1" hidden>
           <div class="staff-panel__toolbar">
             <h2 class="staff-panel__title">סיכום עובדים</h2>
             <button type="button" class="admin-btn admin-btn--primary" id="staff-payroll-xlsx" hidden>הורד קובץ למנהלים</button>
@@ -862,6 +870,24 @@
         </section>
       </div>
     </section>
+
+    <div class="admin-modal" id="staff-settings-modal" hidden aria-hidden="true">
+      <button type="button" class="admin-modal__backdrop" id="staff-settings-backdrop" aria-label="סגור"></button>
+      <div class="admin-modal__panel reservation-modal__panel" role="dialog" aria-modal="true" aria-labelledby="staff-settings-modal-title">
+        <h2 class="reservation-modal__title" id="staff-settings-modal-title">כניסה להגדרות עובדים</h2>
+        <form id="staff-settings-form" class="reservation-form" novalidate>
+          <label class="admin-field">
+            <span>קוד גישה</span>
+            <input type="password" id="staff-settings-access-code" maxlength="64" dir="ltr" autocomplete="off" spellcheck="false">
+          </label>
+          <p class="admin-error" id="staff-settings-form-error" role="alert" hidden></p>
+          <div class="reservation-modal__actions">
+            <button type="submit" class="admin-btn admin-btn--primary" id="staff-settings-enter">כניסה</button>
+            <button type="button" class="admin-btn admin-btn--ghost" id="staff-settings-cancel">ביטול</button>
+          </div>
+        </form>
+      </div>
+    </div>
 
     <div class="admin-modal" id="staff-employee-modal" hidden aria-hidden="true">
       <button type="button" class="admin-modal__backdrop" id="staff-employee-backdrop" aria-label="סגור"></button>
@@ -1483,11 +1509,11 @@
   <script src="js/admin-coupons.js" defer></script>
   <script src="js/admin-till.js?v=3" defer></script>
   <script src="js/staff-hours-xlsx.js?v=4" defer></script>
-  <script src="js/admin-staff-hours.js?v=13" defer></script>
+  <script src="js/admin-staff-hours.js?v=14" defer></script>
   <script src="js/admin-settings.js?v=7" defer></script>
   <script src="js/stock-catalog.js?v=6" defer></script>
   <script src="js/admin-stock.js?v=2" defer></script>
-  <script src="js/admin.js?v=68" defer></script>
+  <script src="js/admin.js?v=69" defer></script>
   <script src="js/admin-push.js?v=1" defer></script>
   <script src="js/admin-pwa.js?v=2" defer></script>
 </body>

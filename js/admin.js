@@ -1091,7 +1091,10 @@
 
     try {
       const session = await LechaimInventory.getSession();
-      if (session) await showPanel();
+      if (session) {
+        await window.LechaimAdminStaffHours?.lockSettings?.();
+        await showPanel();
+      }
       else showLogin();
     } catch (err) {
       console.error('[admin] session check failed', err);
@@ -1107,6 +1110,7 @@
     try {
       await LechaimInventory.signIn(emailInput.value.trim(), passwordInput.value);
       if (passwordInput) passwordInput.value = '';
+      await window.LechaimAdminStaffHours?.lockSettings?.();
       await showPanel();
     } catch (err) {
       console.error('[admin] login failed', err);
@@ -1119,6 +1123,7 @@
   logoutBtn?.addEventListener('click', async () => {
     showError(panelError, '');
     try {
+      await window.LechaimAdminStaffHours?.lockSettings?.();
       await LechaimInventory.signOut();
       showLogin();
     } catch (err) {

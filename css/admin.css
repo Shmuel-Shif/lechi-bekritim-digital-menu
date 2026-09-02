@@ -4872,6 +4872,40 @@ body.admin-inventory-open {
   background: rgba(30, 51, 84, 0.06);
 }
 
+.staff-hours-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.staff-hours-lock-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #8a93a3;
+  cursor: pointer;
+  opacity: 0.55;
+}
+
+.staff-hours-lock-btn:hover,
+.staff-hours-lock-btn:focus-visible {
+  opacity: 0.95;
+  color: var(--color-navy, #1e3354);
+  outline: none;
+  background: rgba(30, 51, 84, 0.06);
+}
+
+.staff-hours-lock-btn__icon {
+  display: block;
+}
+
 .staff-hours-subtabs {
   display: flex;
   flex-wrap: wrap;
