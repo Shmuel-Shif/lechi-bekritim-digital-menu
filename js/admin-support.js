@@ -178,10 +178,32 @@
     return true;
   }
 
-  function openCustomerEmail(emailRaw) {
-    const email = String(emailRaw || '').trim();
+  function supportEmailSubject(row) {
+    const order = String(row?.public_order_no || '').trim();
+    if (order) return `פנייה לשירות לקוחות - הזמנה #${order}`;
+    return 'פנייה לשירות לקוחות - Lechaim';
+  }
+
+  function supportEmailBody(row) {
+    const name = String(row?.customer_name || '').trim();
+    const greeting = name ? `שלום ${name},` : 'שלום,';
+    let message = firstMessage(row);
+    if (message.length > 1500) message = `${message.slice(0, 1500)}…`;
+    const quoted = message ? `"${message}"` : '"—"';
+    return `${greeting}\n\nתודה שפניתם אלינו.\n\nקיבלנו את פנייתכם:\n${quoted}\n\nבברכה,\nצוות Lechaim`;
+  }
+
+  function gmailComposeUrl(to, subject, body) {
+    return 'https://mail.google.com/mail/u/0/?view=cm&fs=1&tf=cm'
+      + `&to=${encodeURIComponent(to)}`
+      + `&su=${encodeURIComponent(subject)}`
+      + `&body=${encodeURIComponent(body)}`;
+  }
+
+  function openCustomerEmail(row) {
+    const email = String(row?.customer_email || '').trim();
     if (!isValidEmail(email)) return false;
-    openExternalUrl(`mailto:${email}`);
+    openExternalUrl(gmailComposeUrl(email, supportEmailSubject(row), supportEmailBody(row)));
     return true;
   }
 
@@ -359,7 +381,7 @@
         return;
       }
       if (event.target.closest('[data-support-email]')) {
-        if (row) openCustomerEmail(row.customer_email);
+        if (row) openCustomerEmail(row);
         return;
       }
       if (event.target.closest('[data-support-done]')) {
