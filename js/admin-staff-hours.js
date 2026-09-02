@@ -55,6 +55,14 @@
   const summaryRange = document.getElementById('staff-summary-range');
   const summaryTable = document.getElementById('staff-summary-table');
 
+  const payrollMonthEl = document.getElementById('staff-payroll-month');
+  const payrollLoadBtn = document.getElementById('staff-payroll-load');
+  const payrollXlsxBtn = document.getElementById('staff-payroll-xlsx');
+  const payrollRangeEl = document.getElementById('staff-payroll-range');
+  const payrollTableEl = document.getElementById('staff-payroll-table');
+  const payrollRateWarningEl = document.getElementById('staff-payroll-rate-warning');
+  const DAY_FRAME_HOURS = 5;
+
   let client = null;
   let started = false;
   let currentPanel = 'clock';
@@ -76,6 +84,8 @@
   let shiftsCache = [];
   let shiftsViewEmployee = null;
   let summaryViewEmployee = null;
+  let payrollShiftsCache = [];
+  let payrollSummary = null;
   let empFocusTrap = null;
   let shiftFocusTrap = null;
   let toastTimer = null;
@@ -372,11 +382,227 @@
     return { employees: 0, days: 0, hours: 0, pay: 0 };
   }
 
+  function round2(n) {
+    return Math.round((Number(n) || 0) * 100) / 100;
+  }
+
+  function parseYmd(ymd) {
+    const m = String(ymd || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return null;
+    return { y: Number(m[1]), mo: Number(m[2]), d: Number(m[3]), ymd: `${m[1]}-${m[2]}-${m[3]}` };
+  }
+
+  function addDaysYmd(ymd, delta) {
+    const p = parseYmd(ymd);
+    if (!p) return '';
+    const dt = new Date(Date.UTC(p.y, p.mo - 1, p.d + Number(delta)));
+    return `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth() + 1)}-${pad2(dt.getUTCDate())}`;
+  }
+
+  function formatYmdDots(ymd) {
+    const p = parseYmd(ymd);
+    if (!p) return '—';
+    return `${pad2(p.d)}.${pad2(p.mo)}.${p.y}`;
+  }
+
+  function formatYmdFile(ymd) {
+    const p = parseYmd(ymd);
+    if (!p) return '0000-00-00';
+    return `${pad2(p.d)}-${pad2(p.mo)}-${p.y}`;
+  }
+
+  function ymdInclusiveRange(fromYmd, toYmd) {
+    const from = parseYmd(fromYmd);
+    const to = parseYmd(toYmd);
+    if (!from || !to || from.ymd > to.ymd) return null;
+    const next = addDaysYmd(to.ymd, 1);
+    const n = parseYmd(next);
+    return {
+      fromYmd: from.ymd,
+      toYmd: to.ymd,
+      startIso: athensMonthStartIso(from.y, from.mo, from.d),
+      endIso: n ? athensMonthStartIso(n.y, n.mo, n.d) : athensMonthStartIso(to.y, to.mo, to.d + 1),
+      label: `${formatYmdDots(from.ymd)} - ${formatYmdDots(to.ymd)}`,
+    };
+  }
+
+  function defaultPayrollMonth() {
+    return currentMonthValue();
+  }
+
+  function ensurePayrollDates() {
+    if (payrollMonthEl && !payrollMonthEl.value) payrollMonthEl.value = defaultPayrollMonth();
+  }
+
+  function selectedMonthToYmdRange(ym) {
+    return monthsToYmdRange(ym, ym);
+  }
+
+  function monthsToYmdRange(fromYm, toYm) {
+    const from = monthRange(fromYm);
+    const to = monthRange(toYm);
+    if (!from || !to) return null;
+    if (from.startIso > to.startIso) return null;
+    return {
+      fromYmd: `${from.year}-${pad2(from.month)}-01`,
+      toYmd: `${to.year}-${pad2(to.month)}-${pad2(daysInMonth(to.year, to.month))}`,
+    };
+  }
+
+  function hasHourlyRate(value) {
+    const n = Number(value);
+    return Number.isFinite(n) && n > 0;
+  }
+
+  function splitDayHours(actual) {
+    const hours = round2(actual);
+    if (hours <= 0) return { actual: 0, inFrame: 0, overtime: 0 };
+    const inFrame = round2(Math.min(hours, DAY_FRAME_HOURS));
+    const overtime = round2(Math.max(hours - DAY_FRAME_HOURS, 0));
+    return { actual: hours, inFrame, overtime };
+  }
+
+  function rateForShift(shift, employee) {
+    if (hasHourlyRate(shift?.hourly_rate_snapshot)) return Number(shift.hourly_rate_snapshot);
+    if (hasHourlyRate(employee?.hourly_rate)) return Number(employee.hourly_rate);
+    return null;
+  }
+
+  function buildPayrollSummary(employees, shifts, fromYmd, toYmd) {
+    const range = ymdInclusiveRange(fromYmd, toYmd);
+    if (!range) {
+      return { range: null, rows: [], total: emptyPayrollTotal(), openWarnings: [] };
+    }
+    const startMs = new Date(range.startIso).getTime();
+    const endMs = new Date(range.endIso).getTime();
+    const byEmp = new Map();
+    (employees || []).forEach((emp) => {
+      byEmp.set(emp.id, {
+        employee: emp,
+        dayHours: new Map(),
+        missingRate: false,
+        openShifts: [],
+      });
+    });
+
+    (shifts || []).forEach((shift) => {
+      const inMs = new Date(shift.clock_in).getTime();
+      if (!Number.isFinite(inMs) || inMs < startMs || inMs >= endMs) return;
+      const parts = athensParts(shift.clock_in);
+      if (!parts?.ymd || parts.ymd < range.fromYmd || parts.ymd > range.toYmd) return;
+      let bucket = byEmp.get(shift.employee_id);
+      if (!bucket) {
+        bucket = {
+          employee: {
+            id: shift.employee_id,
+            name_en: '—',
+            position: '',
+            hourly_rate: shift.hourly_rate_snapshot,
+          },
+          dayHours: new Map(),
+          missingRate: false,
+          openShifts: [],
+        };
+        byEmp.set(shift.employee_id, bucket);
+      }
+      if (!shift.clock_out) {
+        bucket.openShifts.push(shift);
+        return;
+      }
+      const hours = calcHours(shift.clock_in, shift.clock_out);
+      if (hours == null) return;
+      const day = bucket.dayHours.get(parts.ymd) || { hours: 0, pay: 0 };
+      day.hours = round2(day.hours + hours);
+      const rate = rateForShift(shift, bucket.employee);
+      if (rate == null) bucket.missingRate = true;
+      else day.pay += hours * rate;
+      bucket.dayHours.set(parts.ymd, day);
+    });
+
+    const rows = Array.from(byEmp.values())
+      .map((row) => {
+        let hours = 0;
+        let inFrame = 0;
+        let overtime = 0;
+        let payInFrame = 0;
+        let payOvertime = 0;
+        row.dayHours.forEach((day) => {
+          const split = splitDayHours(day.hours);
+          hours += split.actual;
+          inFrame += split.inFrame;
+          overtime += split.overtime;
+          const dayPay = round2(day.pay);
+          if (split.actual > 0 && dayPay > 0) {
+            const inPay = round2(dayPay * (split.inFrame / split.actual));
+            payInFrame += inPay;
+            payOvertime += round2(dayPay - inPay);
+          }
+        });
+        const empRate = hasHourlyRate(row.employee.hourly_rate)
+          ? Number(row.employee.hourly_rate)
+          : null;
+        const pay = round2(payInFrame + payOvertime);
+        return {
+          id: row.employee.id,
+          name: row.employee.name_en || '—',
+          position: String(row.employee.position || '').trim(),
+          days: row.dayHours.size,
+          hours: round2(hours),
+          inFrame: round2(inFrame),
+          overtime: round2(overtime),
+          rate: empRate,
+          rateMissing: empRate == null,
+          payInFrame: round2(payInFrame),
+          payOvertime: round2(payOvertime),
+          pay,
+          payMissing: row.dayHours.size > 0 && pay === 0 && row.missingRate,
+          hasOpen: row.openShifts.length > 0,
+          openCount: row.openShifts.length,
+        };
+      })
+      .filter((row) => row.days > 0 || row.hours > 0 || row.hasOpen)
+      .sort((a, b) => a.name.localeCompare(b.name, 'en'));
+
+    const paidRows = rows.filter((row) => !row.payMissing);
+    const total = {
+      employees: rows.filter((row) => row.days > 0 || row.hours > 0).length,
+      days: rows.reduce((s, r) => s + r.days, 0),
+      hours: round2(rows.reduce((s, r) => s + r.hours, 0)),
+      inFrame: round2(rows.reduce((s, r) => s + r.inFrame, 0)),
+      overtime: round2(rows.reduce((s, r) => s + r.overtime, 0)),
+      payInFrame: round2(paidRows.reduce((s, r) => s + r.payInFrame, 0)),
+      payOvertime: round2(paidRows.reduce((s, r) => s + r.payOvertime, 0)),
+      pay: round2(paidRows.reduce((s, r) => s + r.pay, 0)),
+      payMissing: rows.some((r) => r.payMissing),
+      missingRates: rows.filter((r) => r.rateMissing).length,
+    };
+
+    return { range, rows, total };
+  }
+
+  function emptyPayrollTotal() {
+    return {
+      employees: 0,
+      days: 0,
+      hours: 0,
+      inFrame: 0,
+      overtime: 0,
+      payInFrame: 0,
+      payOvertime: 0,
+      pay: 0,
+      payMissing: false,
+      missingRates: 0,
+    };
+  }
+
   /* Exported for automated checks */
   const StaffHoursMath = {
     calcHours,
     buildMonthlySummary,
+    buildPayrollSummary,
+    splitDayHours,
     monthRange,
+    ymdInclusiveRange,
     athensParts,
   };
 
@@ -422,6 +648,25 @@
     if (error) throw error;
     shiftsCache = Array.isArray(data) ? data : [];
     return shiftsCache;
+  }
+
+  async function loadShiftsForRange(fromYmd, toYmd) {
+    const range = ymdInclusiveRange(fromYmd, toYmd);
+    if (!range) {
+      payrollShiftsCache = [];
+      return payrollShiftsCache;
+    }
+    const sb = getClient();
+    if (!sb) throw new Error('Supabase לא מחובר');
+    const { data, error } = await sb
+      .from('staff_shifts')
+      .select('id, employee_id, clock_in, clock_out, hourly_rate_snapshot, notes, created_at, updated_at')
+      .gte('clock_in', range.startIso)
+      .lt('clock_in', range.endIso)
+      .order('clock_in', { ascending: true });
+    if (error) throw error;
+    payrollShiftsCache = Array.isArray(data) ? data : [];
+    return payrollShiftsCache;
   }
 
 
@@ -758,6 +1003,174 @@
     `;
   }
 
+  function formatRateCell(row) {
+    if (row.rateMissing) return '<span class="staff-rate-missing">לא הוגדר</span>';
+    return escapeHtml(formatMoney(row.rate));
+  }
+
+  function formatPayCell(amount, missing) {
+    if (missing) return '<span class="staff-rate-missing">לא הוגדר</span>';
+    return escapeHtml(formatMoney(amount));
+  }
+
+  function renderPayroll() {
+    if (!payrollTableEl) return;
+    const summary = payrollSummary;
+    if (payrollXlsxBtn) payrollXlsxBtn.hidden = !summary?.rows?.length;
+    if (!summary?.range) {
+      if (payrollRangeEl) payrollRangeEl.textContent = '';
+      if (payrollRateWarningEl) payrollRateWarningEl.hidden = true;
+      payrollTableEl.innerHTML = '<p class="staff-muted">בחרו חודש ולחצו «הצג»</p>';
+      return;
+    }
+
+    if (payrollRangeEl) payrollRangeEl.textContent = summary.range.label;
+    if (payrollRateWarningEl) payrollRateWarningEl.hidden = !summary.total.missingRates;
+
+    if (!summary.rows.length) {
+      payrollTableEl.innerHTML = '<p class="staff-muted">אין רישומי עבודה בטווח שנבחר</p>';
+      return;
+    }
+
+    const total = summary.total;
+    const body = summary.rows.map((row) => `
+      <tr>
+        <td data-label="עובד" dir="ltr">
+          ${escapeHtml(row.name)}
+          ${row.hasOpen ? `
+            <div class="staff-open-warning" role="status">
+              יש משמרת פתוחה — לא נכללת בחישוב
+            </div>
+          ` : ''}
+          ${row.rateMissing ? `
+            <div class="staff-open-warning" role="status">לא הוגדר תעריף לשעה</div>
+          ` : ''}
+        </td>
+        <td data-label="תפקיד" dir="ltr">${escapeHtml(row.position || '—')}</td>
+        <td data-label="ימי עבודה" dir="ltr">${escapeHtml(String(row.days))}</td>
+        <td data-label="שעות בפועל" dir="ltr">${escapeHtml(formatHours(row.hours))}</td>
+        <td data-label="שעות במסגרת" dir="ltr">${escapeHtml(formatHours(row.inFrame))}</td>
+        <td data-label="שעות מעבר" dir="ltr">${escapeHtml(formatHours(row.overtime))}</td>
+        <td data-label="€/שעה" dir="ltr">${formatRateCell(row)}</td>
+        <td data-label="תשלום במסגרת" dir="ltr">${formatPayCell(row.payInFrame, row.payMissing)}</td>
+        <td data-label="תשלום מחוץ למסגרת" dir="ltr">${formatPayCell(row.payOvertime, row.payMissing)}</td>
+        <td data-label="סה״כ" dir="ltr">${formatPayCell(row.pay, row.payMissing)}</td>
+      </tr>
+    `).join('');
+
+    payrollTableEl.innerHTML = `
+      <table class="staff-table staff-table--payroll">
+        <thead>
+          <tr>
+            <th>עובד</th>
+            <th>תפקיד</th>
+            <th>ימי עבודה</th>
+            <th>שעות בפועל</th>
+            <th>שעות במסגרת</th>
+            <th>שעות מעבר</th>
+            <th>€/שעה</th>
+            <th>תשלום במסגרת</th>
+            <th>תשלום מחוץ למסגרת</th>
+            <th>סה״כ</th>
+          </tr>
+        </thead>
+        <tbody>${body}</tbody>
+        <tfoot>
+          <tr class="staff-total-row">
+            <td data-label="עובד"><strong>סה״כ על הכל</strong></td>
+            <td data-label="תפקיד"></td>
+            <td data-label="ימי עבודה" dir="ltr"><strong>${escapeHtml(String(total.days))}</strong></td>
+            <td data-label="שעות בפועל" dir="ltr"><strong>${escapeHtml(formatHours(total.hours))}</strong></td>
+            <td data-label="שעות במסגרת" dir="ltr"><strong>${escapeHtml(formatHours(total.inFrame))}</strong></td>
+            <td data-label="שעות מעבר" dir="ltr"><strong>${escapeHtml(formatHours(total.overtime))}</strong></td>
+            <td data-label="€/שעה"></td>
+            <td data-label="תשלום במסגרת" dir="ltr"><strong>${
+              total.payMissing && total.payInFrame === 0
+                ? '<span class="staff-rate-missing">לא הוגדר</span>'
+                : escapeHtml(formatMoney(total.payInFrame))
+            }</strong></td>
+            <td data-label="תשלום מחוץ למסגרת" dir="ltr"><strong>${
+              total.payMissing && total.payOvertime === 0
+                ? '<span class="staff-rate-missing">לא הוגדר</span>'
+                : escapeHtml(formatMoney(total.payOvertime))
+            }</strong></td>
+            <td data-label="סה״כ" dir="ltr"><strong>${
+              total.payMissing && total.pay === 0
+                ? '<span class="staff-rate-missing">לא הוגדר</span>'
+                : escapeHtml(formatMoney(total.pay))
+            }</strong></td>
+          </tr>
+        </tfoot>
+      </table>
+    `;
+  }
+
+  async function loadPayrollView() {
+    showError('');
+    ensurePayrollDates();
+    const months = selectedMonthToYmdRange(payrollMonthEl?.value || '');
+    if (!months) {
+      payrollSummary = null;
+      renderPayroll();
+      showError('בחרו חודש');
+      return;
+    }
+    const fromYmd = months.fromYmd;
+    const toYmd = months.toYmd;
+    const range = ymdInclusiveRange(fromYmd, toYmd);
+    if (!range) {
+      payrollSummary = null;
+      renderPayroll();
+      showError('בחרו חודש');
+      return;
+    }
+    try {
+      await loadEmployees();
+      await loadShiftsForRange(fromYmd, toYmd);
+      payrollSummary = buildPayrollSummary(employeesCache, payrollShiftsCache, fromYmd, toYmd);
+      renderPayroll();
+    } catch (err) {
+      console.error('[staff-hours] payroll', err);
+      payrollSummary = null;
+      renderPayroll();
+      showError(err?.message || 'טעינת הסיכום נכשלה');
+    }
+  }
+
+  function downloadPayrollFile() {
+    if (!payrollSummary?.rows?.length) {
+      showError('אין נתונים להורדה — לחצו «הצג» קודם');
+      return;
+    }
+    const api = global.LechaimStaffPayrollXlsx;
+    if (typeof api?.downloadPayrollXlsx !== 'function') {
+      showError('יצירת הקובץ לא זמינה');
+      return;
+    }
+    const fromYmd = payrollSummary.range.fromYmd;
+    const toYmd = payrollSummary.range.toYmd;
+    const filename = `סיכום_שעות_עובדים_${formatYmdFile(fromYmd)}_${formatYmdFile(toYmd)}.xlsx`;
+    api.downloadPayrollXlsx(filename, {
+      period: payrollSummary.range.label,
+      rows: payrollSummary.rows.map((row) => ({
+        name: row.name,
+        position: row.position || '',
+        days: row.days,
+        hours: row.hours,
+        inFrame: row.inFrame,
+        overtime: row.overtime,
+        rate: row.rate || 0,
+        rateMissing: row.rateMissing,
+        payInFrame: row.payInFrame,
+        payOvertime: row.payOvertime,
+        pay: row.pay,
+        payMissing: row.payMissing,
+      })),
+      total: payrollSummary.total,
+    });
+    showToast('הקובץ ירד — אפשר לשלוח אותו ידנית בוואטסאפ');
+  }
+
   function formatDateShortAthens(value) {
     const p = athensParts(value);
     if (!p) return '—';
@@ -863,6 +1276,9 @@
         renderOpenNow(open);
       } else if (currentPanel === 'employees') {
         renderEmployees();
+      } else if (currentPanel === 'payroll') {
+        ensurePayrollDates();
+        await loadPayrollView();
       }
     } catch (err) {
       console.error('[staff-hours] refresh failed', err);
@@ -1463,6 +1879,16 @@
       void printEmployeeShifts(summaryViewEmployee, shiftsCache);
     });
 
+    payrollLoadBtn?.addEventListener('click', () => { void loadPayrollView(); });
+    payrollXlsxBtn?.addEventListener('click', () => { downloadPayrollFile(); });
+    payrollMonthEl?.addEventListener('change', () => { void loadPayrollView(); });
+    payrollMonthEl?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        void loadPayrollView();
+      }
+    });
+
     document.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape') return;
       if (employeeModal && !employeeModal.hidden) {
@@ -1482,6 +1908,7 @@
       started = true;
       if (shiftsMonth && !shiftsMonth.value) shiftsMonth.value = currentMonthValue();
       if (summaryMonth && !summaryMonth.value) summaryMonth.value = currentMonthValue();
+      ensurePayrollDates();
     }
     if (viewEl.hidden) return;
     setPanel(currentPanel);

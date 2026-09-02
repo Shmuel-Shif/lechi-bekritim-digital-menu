@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=100">
+  <link rel="stylesheet" href="css/admin.css?v=101">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
 <body>
@@ -771,6 +771,7 @@
           <button type="button" class="admin-filter" data-staff-panel="employees" role="tab" aria-selected="false">עובדים</button>
           <button type="button" class="admin-filter" data-staff-panel="shifts" role="tab" aria-selected="false">משמרות</button>
           <button type="button" class="admin-filter" data-staff-panel="summary" role="tab" aria-selected="false">סיכום חודשי</button>
+          <button type="button" class="admin-filter" data-staff-panel="payroll" role="tab" aria-selected="false">סיכום עובדים</button>
         </div>
 
         <p class="admin-error" id="staff-hours-error" role="alert" hidden></p>
@@ -840,6 +841,24 @@
           <p class="staff-summary-range" id="staff-summary-range"></p>
           <p class="staff-viewed-name" id="staff-summary-viewed" hidden></p>
           <div class="staff-table-wrap" id="staff-summary-table"></div>
+        </section>
+
+        <section class="staff-panel" id="staff-panel-payroll" data-staff-panel-view="payroll" hidden>
+          <div class="staff-panel__toolbar">
+            <h2 class="staff-panel__title">סיכום עובדים</h2>
+            <button type="button" class="admin-btn admin-btn--primary" id="staff-payroll-xlsx" hidden>הורד קובץ למנהלים</button>
+          </div>
+          <p class="staff-panel__hint">בחרו חודש לפי שעון העסק. מוצג כל החודש. במסגרת: עד 5 שעות ליום. מחוץ למסגרת: מה שמעבר ל־5 שעות באותו יום. הקובץ מיועד לשליחה ידנית למנהלים בוואטסאפ.</p>
+          <div class="staff-shifts-filters">
+            <label class="admin-field staff-field--inline">
+              <span>חודש</span>
+              <input type="month" id="staff-payroll-month" dir="ltr">
+            </label>
+            <button type="button" class="admin-btn admin-btn--primary" id="staff-payroll-load">הצג</button>
+          </div>
+          <p class="staff-summary-range" id="staff-payroll-range"></p>
+          <p class="staff-open-warning" id="staff-payroll-rate-warning" hidden>יש עובדים ללא תעריף שעתי — הסכום שלהם לא הומצא.</p>
+          <div class="staff-table-wrap staff-table-wrap--payroll" id="staff-payroll-table"></div>
         </section>
       </div>
     </section>
@@ -1463,7 +1482,8 @@
   <script src="js/admin-history.js?v=2" defer></script>
   <script src="js/admin-coupons.js" defer></script>
   <script src="js/admin-till.js?v=3" defer></script>
-  <script src="js/admin-staff-hours.js?v=6" defer></script>
+  <script src="js/staff-hours-xlsx.js?v=4" defer></script>
+  <script src="js/admin-staff-hours.js?v=13" defer></script>
   <script src="js/admin-settings.js?v=7" defer></script>
   <script src="js/stock-catalog.js?v=6" defer></script>
   <script src="js/admin-stock.js?v=2" defer></script>
