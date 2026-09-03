@@ -42,6 +42,9 @@
   let pendingDeleteId = null;
   let deleteBusy = false;
   let deleteFocusRelease = null;
+  let knownTicketIds = new Set();
+  let knownTicketIdsSeeded = false;
+  let supportAudioCtx = null;
 
   function getClient() {
     if (client) return client;
@@ -204,6 +207,55 @@
     badgeEl.hidden = n <= 0;
   }
 
+  function playSupportNotifyChime() {
+    try {
+      const stamp = Date.now();
+      if (playSupportNotifyChime._last && stamp - playSupportNotifyChime._last < 1400) return;
+      playSupportNotifyChime._last = stamp;
+
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      if (!supportAudioCtx) supportAudioCtx = new AudioCtx();
+      if (supportAudioCtx.state === 'suspended') supportAudioCtx.resume().catch(() => {});
+      const now = supportAudioCtx.currentTime;
+      const tones = [
+        { freq: 880, at: 0, dur: 0.16 },
+        { freq: 1174, at: 0.14, dur: 0.18 },
+        { freq: 1397, at: 0.3, dur: 0.28 },
+      ];
+      tones.forEach((tone) => {
+        const osc = supportAudioCtx.createOscillator();
+        const gain = supportAudioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = tone.freq;
+        gain.gain.setValueAtTime(0.0001, now + tone.at);
+        gain.gain.exponentialRampToValueAtTime(0.28, now + tone.at + 0.018);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + tone.at + tone.dur);
+        osc.connect(gain);
+        gain.connect(supportAudioCtx.destination);
+        osc.start(now + tone.at);
+        osc.stop(now + tone.at + tone.dur + 0.02);
+      });
+    } catch (err) {
+      console.warn('[admin-support] chime failed', err);
+    }
+  }
+
+  function noteTicketIds(ids, opts) {
+    const list = (ids || []).map((id) => String(id || '')).filter(Boolean);
+    let arrived = false;
+    list.forEach((id) => {
+      if (knownTicketIds.has(id)) return;
+      knownTicketIds.add(id);
+      if (knownTicketIdsSeeded) arrived = true;
+    });
+    if (opts?.seed && !knownTicketIdsSeeded) {
+      knownTicketIdsSeeded = true;
+      return;
+    }
+    if (knownTicketIdsSeeded && arrived) playSupportNotifyChime();
+  }
+
   function updateFilterCounts() {
     if (!filtersEl) return;
     const newCount = cache.filter(isOpenTicket).length;
@@ -327,24 +379,31 @@
     a.remove();
   }
 
-  function openCustomerWhatsApp(phoneRaw) {
-    const phone = toWhatsAppDigits(phoneRaw);
+  function openCustomerWhatsApp(row) {
+    const phone = toWhatsAppDigits(row?.customer_phone);
     if (!phone) return false;
+    const textEnc = encodeURIComponent(supportEmailBody(row));
+    const textQuery = textEnc ? `&text=${textEnc}` : '';
+
     if (!isMobileDevice()) {
-      openExternalUrl(`https://web.whatsapp.com/send?phone=${encodeURIComponent(phone)}`);
+      openExternalUrl(
+        `https://web.whatsapp.com/send?phone=${encodeURIComponent(phone)}${textQuery}`
+      );
       return true;
     }
+
     const ua = navigator.userAgent || '';
     if (/Android/i.test(ua)) {
-      const fallback = `https://wa.me/${phone}`;
+      const fallback = `https://wa.me/${phone}?text=${textEnc}`;
       openExternalUrl(
-        `intent://send/?phone=${phone}`
+        `intent://send/?phone=${phone}&text=${textEnc}`
         + '#Intent;scheme=whatsapp;package=com.whatsapp.w4b;'
         + `S.browser_fallback_url=${encodeURIComponent(fallback)};end`
       );
       return true;
     }
-    openExternalUrl(`https://wa.me/${phone}`);
+
+    openExternalUrl(`https://wa.me/${phone}?text=${textEnc}`);
     return true;
   }
 
@@ -477,11 +536,15 @@
   async function refreshBadgeOnly() {
     const sb = getClient();
     if (!sb) return;
-    const { count, error } = await sb
+    const { data, error, count } = await sb
       .from('support_tickets')
-      .select('id', { count: 'exact', head: true })
-      .neq('status', 'closed');
-    if (!error) setBadge(count || 0);
+      .select('id', { count: 'exact' })
+      .neq('status', 'closed')
+      .limit(500);
+    if (error) return;
+    const ids = (Array.isArray(data) ? data : []).map((row) => row.id);
+    noteTicketIds(ids, { seed: true });
+    setBadge(typeof count === 'number' ? count : ids.length);
   }
 
   async function refresh() {
@@ -609,8 +672,11 @@
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'support_tickets' },
-        () => {
+        (payload) => {
           if (!active) return;
+          if (payload?.eventType === 'INSERT' && payload?.new?.id) {
+            noteTicketIds([payload.new.id]);
+          }
           if (viewEl && !viewEl.hidden) {
             refresh().catch(() => {});
           } else {
@@ -693,7 +759,7 @@
       if (!id) return;
       const row = cache.find((item) => item.id === id);
       if (event.target.closest('[data-support-wa]')) {
-        if (row) openCustomerWhatsApp(row.customer_phone);
+        if (row) openCustomerWhatsApp(row);
         return;
       }
       if (event.target.closest('[data-support-email]')) {
@@ -741,6 +807,8 @@
     stopRealtime();
     hideUndoToast();
     closeDeleteModal();
+    knownTicketIds = new Set();
+    knownTicketIdsSeeded = false;
   }
 
   global.LechaimAdminSupport = { start, stop, refresh };
