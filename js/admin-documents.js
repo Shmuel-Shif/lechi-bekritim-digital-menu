@@ -1,5 +1,5 @@
 /**
- * LECHAIM — Admin business documents (phone scanner + desktop dashboard).
+ * LECHAIM — Documents: phone scanner app + desktop dashboard.
  * Isolated from orders / till / print / kitchen / staff payroll.
  */
 (function (global) {
@@ -9,65 +9,35 @@
   const BUCKET = 'business-documents';
   const SIGNED_TTL_SEC = 90;
   const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
-  const MAX_IMAGE_EDGE = 2000;
-  const JPEG_QUALITY = 0.82;
+  const MAX_IMAGE_EDGE = 2400;
+  const JPEG_QUALITY = 0.88;
   const ALLOWED_MIME = {
     'image/jpeg': 'jpg',
     'image/png': 'png',
     'image/webp': 'webp',
     'application/pdf': 'pdf',
   };
-  const TYPE_LABELS = {
-    supplier_invoice: 'חשבונית ספק',
-    receipt: 'קבלה',
-    purchase_invoice: 'חשבונית רכישה',
-    expense: 'הוצאה',
-    other: 'אחר',
-  };
-  const STATUS_LABELS = {
-    draft: 'ממתין לטיפול',
-    saved: 'שמור',
-    archived: 'ארכיון',
-  };
-  const CATEGORY_HINTS = [
-    'מכולת',
-    'בשר',
-    'דגים',
+  const HE_MONTHS = [
+    'ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני',
+    'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר',
+  ];
+  const DEFAULT_SUPPLIERS = [
     'ירקות',
+    'דה מארט',
     'שתייה',
-    'חשמל',
-    'מים',
-    'גז',
-    'ציוד',
-    'ניקיון',
-    'תחזוקה',
-    'שכירות',
-    'אחר',
+    'דגים',
+    'לחם',
+    'ביצים',
+    'חד פעמי',
+    'חשבוניות קטנות',
+    'חשבוניות כלליות',
   ];
 
   const viewEl = document.getElementById('admin-view-documents');
   const errorEl = document.getElementById('docs-error');
   const toastEl = document.getElementById('docs-toast');
-  const lockBtn = document.getElementById('docs-lock-btn');
-  const statsTotalEl = document.getElementById('docs-stat-total');
-  const statsMonthCountEl = document.getElementById('docs-stat-month-count');
-  const statsMonthSumEl = document.getElementById('docs-stat-month-sum');
-  const dashCatsEl = document.getElementById('docs-dash-cats');
-  const dashSuppliersEl = document.getElementById('docs-dash-suppliers');
-  const dashRecentEl = document.getElementById('docs-dash-recent');
-  const dashPendingEl = document.getElementById('docs-dash-pending');
-  const dashPendingWrap = document.getElementById('docs-dash-pending-wrap');
-  const archiveEl = document.getElementById('docs-archive');
-  const listEl = document.getElementById('docs-list');
-  const emptyEl = document.getElementById('docs-empty');
-  const searchEl = document.getElementById('docs-search');
-  const typeFilterEl = document.getElementById('docs-filter-type');
-  const statusFilterEl = document.getElementById('docs-filter-status');
-  const dateFromEl = document.getElementById('docs-filter-from');
-  const dateToEl = document.getElementById('docs-filter-to');
   const cameraInput = document.getElementById('docs-camera-input');
   const fileInput = document.getElementById('docs-file-input');
-  const dropEl = document.getElementById('docs-drop');
   const scanOverlay = document.getElementById('docs-scan-overlay');
   const previewStep = document.getElementById('docs-preview-step');
   const previewFrame = document.getElementById('docs-preview-frame');
@@ -77,7 +47,6 @@
   const formEl = document.getElementById('docs-meta-form');
   const formTitleEl = document.getElementById('docs-form-title');
   const formErrorEl = document.getElementById('docs-form-error');
-  const formPreviewEl = document.getElementById('docs-form-preview');
   const vaultModal = document.getElementById('docs-vault-modal');
   const vaultForm = document.getElementById('docs-vault-form');
   const vaultCodeInput = document.getElementById('docs-vault-code');
@@ -86,6 +55,14 @@
   const viewTitleEl = document.getElementById('docs-view-title');
   const viewFrameEl = document.getElementById('docs-view-frame');
   const viewMetaEl = document.getElementById('docs-view-meta');
+  const pickModal = document.getElementById('docs-pick-modal');
+  const pickListEl = document.getElementById('docs-pick-list');
+  const newModal = document.getElementById('docs-new-modal');
+  const newForm = document.getElementById('docs-new-form');
+  const newNameInput = document.getElementById('docs-new-name');
+  const newFormError = document.getElementById('docs-new-form-error');
+  const deleteModal = document.getElementById('docs-delete-modal');
+  const deleteTextEl = document.getElementById('docs-delete-text');
 
   let client = null;
   let cache = [];
@@ -94,7 +71,6 @@
   let busy = false;
   let realtimeChannel = null;
   let toastTimer = null;
-  let archiveMode = false;
   let pendingFile = null;
   let pendingPreviewUrl = null;
   let captureSource = 'camera';
@@ -102,7 +78,17 @@
   let vaultTrap = null;
   let scanTrap = null;
   let viewTrap = null;
-  let searchTimer = null;
+  let pickTrap = null;
+  let newTrap = null;
+  let deleteTrap = null;
+  let deleteResolver = null;
+  let mobilePane = 'list';
+  let activeSupplier = '';
+  let scanSupplier = '';
+  let pendingSuppliers = [];
+  let newThenScan = false;
+  let moveDocId = null;
+  const openMonths = new Set();
 
   function getConfig() {
     return global.LECHAIM_SUPABASE_CONFIG || {};
@@ -162,10 +148,16 @@
     return athensParts(new Date())?.ym || '';
   }
 
+  function monthLabel(ym) {
+    const m = String(ym || '').match(/^(\d{4})-(\d{2})$/);
+    if (!m) return ym || '';
+    return `${HE_MONTHS[Number(m[2]) - 1] || m[2]} ${m[1]}`;
+  }
+
   function formatMoney(amount) {
-    if (amount == null || amount === '') return '—';
+    if (amount == null || amount === '') return '€0';
     const n = Number(amount);
-    if (!Number.isFinite(n)) return '—';
+    if (!Number.isFinite(n)) return '€0';
     return `€${n.toLocaleString('en-US', {
       minimumFractionDigits: n % 1 === 0 ? 0 : 2,
       maximumFractionDigits: 2,
@@ -175,7 +167,17 @@
   function formatDate(ymd) {
     const m = String(ymd || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (!m) return '—';
+    return `${m[3]}/${m[2]}`;
+  }
+
+  function formatDateFull(ymd) {
+    const m = String(ymd || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return '—';
     return `${m[3]}/${m[2]}/${m[1]}`;
+  }
+
+  function supplierKey(name) {
+    return String(name || '').trim();
   }
 
   function showError(message) {
@@ -202,7 +204,7 @@
     toastTimer = window.setTimeout(() => {
       toastEl.hidden = true;
       toastEl.textContent = '';
-    }, 2800);
+    }, 2200);
   }
 
   function showFormError(el, message) {
@@ -222,7 +224,18 @@
 
   function applyLayout() {
     if (!viewEl) return;
-    viewEl.classList.toggle('is-archive', !isDesktop() || archiveMode);
+    const desktop = isDesktop();
+    viewEl.classList.toggle('is-desktop', desktop);
+    viewEl.classList.toggle('is-folder', !desktop && mobilePane === 'folder');
+    const listPane = document.getElementById('docs-app-list');
+    const folderPane = document.getElementById('docs-app-folder');
+    if (desktop) {
+      if (listPane) listPane.hidden = false;
+      if (folderPane) folderPane.hidden = false;
+      return;
+    }
+    if (listPane) listPane.hidden = mobilePane === 'folder';
+    if (folderPane) folderPane.hidden = mobilePane !== 'folder';
   }
 
   function activateTrap(modal) {
@@ -231,6 +244,10 @@
 
   function releaseTrap(release) {
     if (typeof release === 'function') release();
+  }
+
+  function allDocsModals() {
+    return [vaultModal, scanOverlay, viewModal, pickModal, newModal, deleteModal];
   }
 
   function openModal(modal) {
@@ -244,17 +261,37 @@
     if (!modal) return;
     modal.hidden = true;
     modal.setAttribute('aria-hidden', 'true');
-    const closed = (el) => !el || el.hidden;
-    if (closed(vaultModal) && closed(scanOverlay) && closed(viewModal)) {
+    if (allDocsModals().every((el) => !el || el.hidden)) {
       document.body.classList.remove('admin-modal-open');
     }
   }
 
-  async function confirmDanger(message) {
-    if (typeof global.LechaimAdminTables?.showConfirmModal === 'function') {
-      return global.LechaimAdminTables.showConfirmModal(message, { yesLabel: 'מחק' });
+  function closeDeleteModal(ok) {
+    releaseTrap(deleteTrap);
+    deleteTrap = null;
+    closeModal(deleteModal);
+    if (typeof deleteResolver === 'function') {
+      deleteResolver(Boolean(ok));
+      deleteResolver = null;
     }
-    return window.confirm(String(message || ''));
+  }
+
+  function askDeleteConfirm(row) {
+    const label = formatDateFull(row?.document_date);
+    const amount = formatMoney(row?.amount_total);
+    if (deleteTextEl) {
+      deleteTextEl.textContent = label
+        ? `אתה בטוח? למחוק את החשבונית מ-${label} (${amount})? הקובץ יימחק לצמיתות.`
+        : 'אתה בטוח? החשבונית תימחק לצמיתות.';
+    }
+    openModal(deleteModal);
+    releaseTrap(deleteTrap);
+    deleteTrap = activateTrap(deleteModal);
+    window.setTimeout(() => document.getElementById('docs-delete-cancel')?.focus(), 50);
+    return new Promise((resolve) => {
+      if (typeof deleteResolver === 'function') deleteResolver(false);
+      deleteResolver = resolve;
+    });
   }
 
   function revokePreviewUrl() {
@@ -312,14 +349,12 @@
       const ctx = canvas.getContext('2d');
       if (!ctx) return file;
       ctx.drawImage(bitmap, 0, 0, width, height);
-      const outMime = mime === 'image/png' && file.size < 900000 ? 'image/png' : 'image/jpeg';
-      const quality = outMime === 'image/jpeg' ? JPEG_QUALITY : undefined;
+      const outMime = 'image/jpeg';
       const blob = await new Promise((resolve) => {
-        canvas.toBlob(resolve, outMime, quality);
+        canvas.toBlob(resolve, outMime, JPEG_QUALITY);
       });
       if (!blob) return file;
-      const name = safeFilename(file.name, outMime);
-      return blobToFile(blob, name, outMime);
+      return blobToFile(blob, safeFilename(file.name, outMime), outMime);
     } finally {
       bitmap.close?.();
     }
@@ -334,12 +369,8 @@
       prepared = await compressImage(file, guessed || 'image/jpeg');
     }
     const mime = guessMime(prepared) || (prepared.type === 'image/jpeg' ? 'image/jpeg' : '');
-    if (!ALLOWED_MIME[mime]) {
-      throw new Error('נתמכים רק JPEG, PNG, WebP או PDF');
-    }
-    if (prepared.size > MAX_UPLOAD_BYTES) {
-      throw new Error('הקובץ עדיין גדול מדי אחרי כיווץ');
-    }
+    if (!ALLOWED_MIME[mime]) throw new Error('נתמכים רק JPEG, PNG, WebP או PDF');
+    if (prepared.size > MAX_UPLOAD_BYTES) throw new Error('הקובץ עדיין גדול מדי אחרי כיווץ');
     return prepared;
   }
 
@@ -370,70 +401,168 @@
   function resetForm() {
     if (!formEl) return;
     formEl.reset();
-    const typeEl = document.getElementById('docs-field-type');
     const dateEl = document.getElementById('docs-field-date');
-    const currencyEl = document.getElementById('docs-field-currency');
-    if (typeEl) typeEl.value = 'supplier_invoice';
     if (dateEl) dateEl.value = todayYmd();
-    if (currencyEl) currencyEl.value = 'EUR';
+    const totalEl = document.getElementById('docs-field-total');
+    if (totalEl) totalEl.value = '';
     showFormError(formErrorEl, '');
   }
 
-  function fillForm(row) {
-    resetForm();
-    if (!row) return;
-    const set = (id, value) => {
-      const el = document.getElementById(id);
-      if (el) el.value = value == null ? '' : String(value);
-    };
-    set('docs-field-type', row.document_type || 'other');
-    set('docs-field-supplier', row.supplier_name || '');
-    set('docs-field-date', row.document_date || '');
-    set('docs-field-before-vat', row.amount_before_vat ?? '');
-    set('docs-field-vat', row.vat_amount ?? '');
-    set('docs-field-total', row.amount_total ?? '');
-    set('docs-field-number', row.document_number || '');
-    set('docs-field-category', row.category || '');
-    set('docs-field-notes', row.notes || '');
-    set('docs-field-currency', row.currency || 'EUR');
+  function activeRows() {
+    return cache.filter((row) => row.status !== 'archived');
   }
 
-  function readForm() {
-    const num = (id) => {
-      const raw = String(document.getElementById(id)?.value || '').trim();
-      if (!raw) return null;
-      const n = Number(raw);
-      return Number.isFinite(n) ? n : null;
-    };
-    const text = (id) => String(document.getElementById(id)?.value || '').trim();
-    const supplier = text('docs-field-supplier');
-    const date = text('docs-field-date');
-    const total = num('docs-field-total');
-    const status = supplier && date && total != null ? 'saved' : 'draft';
-    return {
-      document_type: text('docs-field-type') || 'other',
-      supplier_name: supplier,
-      document_date: date || null,
-      amount_before_vat: num('docs-field-before-vat'),
-      vat_amount: num('docs-field-vat'),
-      amount_total: total,
-      document_number: text('docs-field-number'),
-      category: text('docs-field-category'),
-      notes: text('docs-field-notes'),
-      currency: 'EUR',
-      status,
-    };
+  function rowsForSupplier(name) {
+    const key = supplierKey(name);
+    return activeRows().filter((row) => supplierKey(row.supplier_name) === key);
   }
 
-  function maybeFillTotal() {
-    const before = Number(document.getElementById('docs-field-before-vat')?.value);
-    const vat = Number(document.getElementById('docs-field-vat')?.value);
-    const totalEl = document.getElementById('docs-field-total');
-    if (!totalEl) return;
-    if (String(totalEl.value || '').trim()) return;
-    if (!Number.isFinite(before) || !Number.isFinite(vat)) return;
-    if (!before && !vat) return;
-    totalEl.value = String(Math.round((before + vat) * 100) / 100);
+  function monthOf(row) {
+    return String(row?.document_date || '').slice(0, 7);
+  }
+
+  function sumAmounts(rows) {
+    return rows.reduce((sum, row) => sum + (Number(row.amount_total) || 0), 0);
+  }
+
+  function supplierRank(name) {
+    const idx = DEFAULT_SUPPLIERS.indexOf(supplierKey(name));
+    return idx >= 0 ? idx : DEFAULT_SUPPLIERS.length;
+  }
+
+  function buildSuppliers() {
+    const map = new Map();
+    DEFAULT_SUPPLIERS.forEach((name) => {
+      map.set(name, { name, rows: [] });
+    });
+    activeRows().forEach((row) => {
+      const name = supplierKey(row.supplier_name);
+      if (!name) return;
+      if (!map.has(name)) map.set(name, { name, rows: [] });
+      map.get(name).rows.push(row);
+    });
+    pendingSuppliers.forEach((name) => {
+      const key = supplierKey(name);
+      if (key && !map.has(key)) map.set(key, { name: key, rows: [] });
+    });
+    const ym = currentYm();
+    return [...map.values()].map((item) => {
+      const monthRows = item.rows.filter((row) => monthOf(row) === ym);
+      return {
+        name: item.name,
+        monthCount: monthRows.length,
+        monthSum: sumAmounts(monthRows),
+      };
+    }).sort((a, b) => {
+      const rankDiff = supplierRank(a.name) - supplierRank(b.name);
+      if (rankDiff !== 0) return rankDiff;
+      return a.name.localeCompare(b.name, 'he');
+    });
+  }
+
+  function rememberSupplier(name) {
+    const key = supplierKey(name);
+    if (!key) return;
+    if (!pendingSuppliers.includes(key)) pendingSuppliers.push(key);
+  }
+
+  function openFolder(name) {
+    activeSupplier = supplierKey(name);
+    if (!activeSupplier) return;
+    rememberSupplier(activeSupplier);
+    mobilePane = 'folder';
+    openMonths.clear();
+    openMonths.add(currentYm());
+    applyLayout();
+    renderAll();
+    document.getElementById('docs-app-folder')?.scrollTo?.(0, 0);
+  }
+
+  function openList() {
+    mobilePane = 'list';
+    activeSupplier = '';
+    applyLayout();
+    renderAll();
+  }
+
+  function renderSuppliers() {
+    const list = document.getElementById('docs-supplier-list');
+    if (!list) return;
+    list.innerHTML = buildSuppliers().map((item) => {
+      const active = supplierKey(item.name) === activeSupplier ? ' is-active' : '';
+      return `
+      <button type="button" class="docs-chat${active}" data-docs-folder="${escapeHtml(item.name)}">
+        <span class="docs-chat__avatar" aria-hidden="true">${escapeHtml(item.name.slice(0, 1))}</span>
+        <span class="docs-chat__body">
+          <strong class="docs-chat__name">${escapeHtml(item.name)}</strong>
+          <span class="docs-chat__sum">${escapeHtml(formatMoney(item.monthSum))} החודש</span>
+          <span class="docs-chat__count">${item.monthCount} חשבוניות</span>
+        </span>
+      </button>
+    `;
+    }).join('');
+  }
+
+  function renderFolder() {
+    const titleEl = document.getElementById('docs-folder-title');
+    const sumEl = document.getElementById('docs-folder-sum');
+    const monthsEl = document.getElementById('docs-folder-months');
+    const emptyEl = document.getElementById('docs-folder-empty');
+    const idleEl = document.getElementById('docs-folder-idle');
+    const activeEl = document.getElementById('docs-folder-active');
+    const name = activeSupplier;
+    if (idleEl) idleEl.hidden = Boolean(name);
+    if (activeEl) activeEl.hidden = !name;
+    if (!name) {
+      if (titleEl) titleEl.textContent = '';
+      if (sumEl) sumEl.textContent = '€0';
+      if (monthsEl) monthsEl.innerHTML = '';
+      return;
+    }
+    if (titleEl) titleEl.textContent = name;
+    const rows = rowsForSupplier(name)
+      .slice()
+      .sort((a, b) => String(b.document_date || '').localeCompare(String(a.document_date || '')));
+    const ym = currentYm();
+    const monthRows = rows.filter((row) => monthOf(row) === ym);
+    if (sumEl) sumEl.textContent = formatMoney(sumAmounts(monthRows));
+    const groups = new Map();
+    if (rows.length) groups.set(ym, []);
+    rows.forEach((row) => {
+      const key = monthOf(row) || 'unknown';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(row);
+    });
+    const keys = [...groups.keys()].sort((a, b) => b.localeCompare(a));
+    if (emptyEl) emptyEl.hidden = rows.length > 0;
+    if (!monthsEl) return;
+    monthsEl.innerHTML = keys.map((key) => {
+      const open = openMonths.has(key);
+      const items = groups.get(key) || [];
+      return `
+        <section class="docs-month${open ? ' is-open' : ''}" data-docs-month="${escapeHtml(key)}">
+          <button type="button" class="docs-month__head" data-docs-month-toggle="${escapeHtml(key)}">
+            <strong class="docs-month__name">${escapeHtml(key === 'unknown' ? 'ללא תאריך' : monthLabel(key))}</strong>
+            <span class="docs-month__total">סה״כ ${escapeHtml(formatMoney(sumAmounts(items)))}</span>
+          </button>
+          <div class="docs-month__body">
+            ${items.length ? items.map((row) => `
+              <button type="button" class="docs-inv" data-docs-open="${escapeHtml(row.id)}">
+                <span class="docs-inv__date">${escapeHtml(formatDate(row.document_date))}</span>
+                <strong class="docs-inv__amount">${escapeHtml(formatMoney(row.amount_total))}</strong>
+                <span class="docs-inv__chev" aria-hidden="true">‹</span>
+              </button>
+            `).join('') : '<p class="docs-month__empty">אין חשבוניות בחודש זה</p>'}
+          </div>
+        </section>
+      `;
+    }).join('');
+  }
+
+  function renderAll() {
+    renderSuppliers();
+    renderFolder();
+    applyLayout();
   }
 
   function closeScanOverlay() {
@@ -442,7 +571,6 @@
     editingId = null;
     if (cameraInput) cameraInput.value = '';
     if (fileInput) fileInput.value = '';
-    if (formPreviewEl) formPreviewEl.innerHTML = '';
     if (previewFrame) previewFrame.innerHTML = '';
     releaseTrap(scanTrap);
     scanTrap = null;
@@ -464,7 +592,7 @@
     if (retakeBtn) {
       retakeBtn.textContent = mime === 'application/pdf' || captureSource === 'file'
         ? '🔄 בחר קובץ אחר'
-        : '🔄 צלם מחדש';
+        : '🔄 צילום מחדש';
     }
     if (useBtn) {
       useBtn.textContent = mime === 'application/pdf' ? '✓ המשך' : '✓ השתמש בתמונה';
@@ -474,13 +602,11 @@
   }
 
   function goToForm() {
-    if (formTitleEl) {
-      formTitleEl.textContent = editingId ? 'עריכת פרטי מסמך' : 'פרטי המסמך';
-    }
-    if (formPreviewEl && pendingFile && pendingPreviewUrl) {
-      renderPreviewInto(formPreviewEl, pendingFile, pendingPreviewUrl);
-    }
+    if (formTitleEl) formTitleEl.textContent = editingId ? 'עריכה' : (scanSupplier || activeSupplier || 'חשבונית');
+    const hint = document.getElementById('docs-form-supplier');
+    if (hint) hint.textContent = scanSupplier || activeSupplier || '';
     setScanStep('form');
+    window.setTimeout(() => document.getElementById('docs-field-total')?.focus(), 80);
   }
 
   function openVaultModal() {
@@ -505,6 +631,63 @@
     closeModal(viewModal);
   }
 
+  function closePickModal() {
+    releaseTrap(pickTrap);
+    pickTrap = null;
+    closeModal(pickModal);
+  }
+
+  function closeNewModal() {
+    releaseTrap(newTrap);
+    newTrap = null;
+    newThenScan = false;
+    if (newNameInput) newNameInput.value = '';
+    closeModal(newModal);
+  }
+
+  function openPickModal() {
+    const suppliers = buildSuppliers();
+    if (pickListEl) {
+      pickListEl.innerHTML = suppliers.map((item) => `
+        <button type="button" class="docs-pick-item" data-docs-pick-supplier="${escapeHtml(item.name)}">
+          📁 ${escapeHtml(item.name)}
+        </button>
+      `).join('');
+    }
+    openModal(pickModal);
+    releaseTrap(pickTrap);
+    pickTrap = activateTrap(pickModal);
+  }
+
+  function openNewModal(thenScan) {
+    newThenScan = Boolean(thenScan);
+    showFormError(newFormError, '');
+    openModal(newModal);
+    releaseTrap(newTrap);
+    newTrap = activateTrap(newModal);
+    window.setTimeout(() => newNameInput?.focus(), 50);
+  }
+
+  function beginScanFor(name) {
+    const key = supplierKey(name);
+    if (!key) {
+      showError('בחרו ספק תחילה');
+      return;
+    }
+    scanSupplier = key;
+    rememberSupplier(key);
+    cameraInput?.click();
+  }
+
+  function requestScan() {
+    showError('');
+    if (activeSupplier) {
+      beginScanFor(activeSupplier);
+      return;
+    }
+    showError('בחרו ספק תחילה');
+  }
+
   function upsertCache(row) {
     if (!row?.id) return;
     const idx = cache.findIndex((item) => item.id === row.id);
@@ -515,133 +698,6 @@
 
   function removeFromCache(id) {
     cache = cache.filter((item) => item.id !== id);
-  }
-
-  function visibleRows() {
-    const q = String(searchEl?.value || '').trim().toLowerCase();
-    const type = String(typeFilterEl?.value || 'all');
-    const status = String(statusFilterEl?.value || 'all');
-    const from = String(dateFromEl?.value || '');
-    const to = String(dateToEl?.value || '');
-    return cache.filter((row) => {
-      if (row.status === 'archived' && status !== 'archived') return false;
-      if (type !== 'all' && row.document_type !== type) return false;
-      if (status !== 'all' && row.status !== status) return false;
-      const date = String(row.document_date || '').slice(0, 10);
-      if (from && date && date < from) return false;
-      if (to && date && date > to) return false;
-      if (from && !date) return false;
-      if (!q) return true;
-      const hay = [
-        row.supplier_name,
-        row.document_number,
-        row.category,
-        row.notes,
-        TYPE_LABELS[row.document_type],
-        row.original_filename,
-      ].join(' ').toLowerCase();
-      return hay.includes(q);
-    });
-  }
-
-  function renderStats() {
-    const ym = currentYm();
-    const active = cache.filter((row) => row.status !== 'archived');
-    const monthRows = active.filter((row) => String(row.document_date || '').startsWith(ym));
-    const monthSum = monthRows.reduce((sum, row) => sum + (Number(row.amount_total) || 0), 0);
-    if (statsTotalEl) statsTotalEl.textContent = String(active.length);
-    if (statsMonthCountEl) statsMonthCountEl.textContent = String(monthRows.length);
-    if (statsMonthSumEl) statsMonthSumEl.textContent = formatMoney(monthSum);
-  }
-
-  function renderBreakdown(target, rows, key, emptyText) {
-    if (!target) return;
-    const map = new Map();
-    rows.forEach((row) => {
-      const label = String(row[key] || '').trim() || 'ללא';
-      const cur = map.get(label) || { count: 0, sum: 0 };
-      cur.count += 1;
-      cur.sum += Number(row.amount_total) || 0;
-      map.set(label, cur);
-    });
-    const list = [...map.entries()]
-      .sort((a, b) => b[1].sum - a[1].sum)
-      .slice(0, 8);
-    if (!list.length) {
-      target.innerHTML = `<p class="docs-dash__empty">${escapeHtml(emptyText)}</p>`;
-      return;
-    }
-    target.innerHTML = list.map(([label, val]) => `
-      <div class="docs-break__row">
-        <span class="docs-break__name">${escapeHtml(label)}</span>
-        <span class="docs-break__meta">${val.count} · ${escapeHtml(formatMoney(val.sum))}</span>
-      </div>
-    `).join('');
-  }
-
-  function miniCard(row) {
-    return `
-      <button type="button" class="docs-mini" data-docs-open="${escapeHtml(row.id)}">
-        <span class="docs-mini__type">${escapeHtml(TYPE_LABELS[row.document_type] || row.document_type)}</span>
-        <strong class="docs-mini__name">${escapeHtml(row.supplier_name || 'ללא ספק')}</strong>
-        <span class="docs-mini__meta">${escapeHtml(formatDate(row.document_date))} · ${escapeHtml(formatMoney(row.amount_total))}</span>
-      </button>
-    `;
-  }
-
-  function renderDashboard() {
-    const ym = currentYm();
-    const active = cache.filter((row) => row.status !== 'archived');
-    const monthRows = active.filter((row) => String(row.document_date || '').startsWith(ym));
-    const pending = active.filter((row) => row.status === 'draft');
-    renderBreakdown(dashCatsEl, monthRows, 'category', 'אין הוצאות לפי קטגוריה החודש');
-    renderBreakdown(dashSuppliersEl, monthRows, 'supplier_name', 'אין הוצאות לפי ספק החודש');
-    if (dashRecentEl) {
-      const recent = active.slice(0, 6);
-      dashRecentEl.innerHTML = recent.length
-        ? recent.map(miniCard).join('')
-        : '<p class="docs-dash__empty">אין מסמכים עדיין</p>';
-    }
-    if (dashPendingWrap) dashPendingWrap.hidden = pending.length === 0;
-    if (dashPendingEl) {
-      dashPendingEl.innerHTML = pending.slice(0, 8).map(miniCard).join('');
-    }
-  }
-
-  function renderList() {
-    const rows = visibleRows();
-    if (emptyEl) {
-      emptyEl.hidden = rows.length > 0;
-      emptyEl.textContent = cache.length ? 'אין מסמכים לפי הסינון' : 'אין מסמכים עדיין — סרקו חשבונית כדי להתחיל';
-    }
-    if (!listEl) return;
-    listEl.innerHTML = rows.map((row) => `
-      <article class="docs-card" data-docs-id="${escapeHtml(row.id)}">
-        <header class="docs-card__top">
-          <span class="docs-card__type">${escapeHtml(TYPE_LABELS[row.document_type] || row.document_type)}</span>
-          <span class="docs-card__status docs-card__status--${escapeHtml(row.status)}">${escapeHtml(STATUS_LABELS[row.status] || row.status)}</span>
-        </header>
-        <h3 class="docs-card__title">${escapeHtml(row.supplier_name || 'ללא ספק')}</h3>
-        <p class="docs-card__amount">${escapeHtml(formatMoney(row.amount_total))}</p>
-        <dl class="docs-card__meta">
-          <div><dt>תאריך</dt><dd>${escapeHtml(formatDate(row.document_date))}</dd></div>
-          <div><dt>קטגוריה</dt><dd>${escapeHtml(row.category || '—')}</dd></div>
-          <div><dt>מספר</dt><dd>${escapeHtml(row.document_number || '—')}</dd></div>
-        </dl>
-        <div class="docs-card__actions">
-          <button type="button" class="admin-btn admin-btn--soft" data-docs-open="${escapeHtml(row.id)}">צפייה</button>
-          <button type="button" class="admin-btn admin-btn--ghost" data-docs-edit="${escapeHtml(row.id)}">עריכה</button>
-          <button type="button" class="admin-btn admin-btn--ghost" data-docs-download="${escapeHtml(row.id)}">הורדה</button>
-          <button type="button" class="admin-btn admin-btn--danger" data-docs-delete="${escapeHtml(row.id)}">מחיקה</button>
-        </div>
-      </article>
-    `).join('');
-  }
-
-  function renderAll() {
-    renderStats();
-    renderDashboard();
-    renderList();
   }
 
   async function loadRows() {
@@ -676,15 +732,12 @@
     showError('');
     try {
       const url = await signedUrl(row.storage_path);
-      if (viewTitleEl) {
-        viewTitleEl.textContent = row.supplier_name || TYPE_LABELS[row.document_type] || 'מסמך';
-      }
+      if (viewTitleEl) viewTitleEl.textContent = row.supplier_name || 'חשבונית';
       if (viewMetaEl) {
         viewMetaEl.textContent = [
-          TYPE_LABELS[row.document_type],
-          formatDate(row.document_date),
+          row.supplier_name,
+          formatDateFull(row.document_date),
           formatMoney(row.amount_total),
-          row.document_number,
         ].filter(Boolean).join(' · ');
       }
       if (viewFrameEl) {
@@ -698,7 +751,7 @@
         } else {
           const img = document.createElement('img');
           img.className = 'docs-preview__img';
-          img.alt = row.original_filename || 'מסמך';
+          img.alt = row.original_filename || 'חשבונית';
           img.src = url;
           viewFrameEl.appendChild(img);
         }
@@ -729,24 +782,25 @@
     }
   }
 
-  async function editDocument(id) {
+  function editDocument(id) {
     const row = cache.find((item) => item.id === id);
     if (!row) return;
     editingId = id;
     pendingFile = null;
+    scanSupplier = supplierKey(row.supplier_name);
     revokePreviewUrl();
-    fillForm(row);
-    if (formPreviewEl) {
-      formPreviewEl.innerHTML = '<p class="docs-form__hint">הקובץ הקיים נשמר. כאן עורכים רק את הפרטים.</p>';
-    }
-    setScanStep('form');
+    resetForm();
+    const dateEl = document.getElementById('docs-field-date');
+    const totalEl = document.getElementById('docs-field-total');
+    if (dateEl) dateEl.value = row.document_date || todayYmd();
+    if (totalEl) totalEl.value = row.amount_total ?? '';
+    goToForm();
     openScanOverlay();
   }
 
   async function deleteDocument(id) {
     const row = cache.find((item) => item.id === id);
-    const label = row?.supplier_name || row?.original_filename || 'המסמך';
-    const ok = await confirmDanger(`למחוק את המסמך של ${label}? הקובץ יימחק לצמיתות.`);
+    const ok = await askDeleteConfirm(row);
     if (!ok) return;
     const sb = getClient();
     if (!sb) {
@@ -762,18 +816,64 @@
       removeFromCache(id);
       renderAll();
       closeViewModal();
-      showToast('המסמך נמחק');
+      showToast('נמחק');
     } catch (err) {
       showError(err?.message || 'המחיקה נכשלה');
     }
   }
 
+  async function moveDocument(id, newSupplier) {
+    const row = cache.find((item) => item.id === id);
+    if (!row) return;
+    const target = supplierKey(newSupplier);
+    if (!target) return;
+    if (supplierKey(row.supplier_name) === target) {
+      showToast('כבר באותו ספק');
+      return;
+    }
+    const sb = getClient();
+    if (!sb) { showError('Supabase לא מחובר'); return; }
+    try {
+      const { data, error } = await sb
+        .from('business_documents')
+        .update({ supplier_name: target })
+        .eq('id', id)
+        .select('*')
+        .single();
+      if (error) throw error;
+      upsertCache(data);
+      renderAll();
+      showToast(`הועבר ל${target}`);
+    } catch (err) {
+      showError(err?.message || 'ההעברה נכשלה');
+    }
+  }
+
+  function readSimpleForm() {
+    const date = String(document.getElementById('docs-field-date')?.value || '').trim();
+    const raw = String(document.getElementById('docs-field-total')?.value || '').trim();
+    const total = Number(raw);
+    return {
+      date: date || null,
+      total: raw && Number.isFinite(total) ? total : null,
+    };
+  }
+
   async function saveDocument(event) {
     event.preventDefault();
     if (busy) return;
-    const meta = readForm();
-    if (!TYPE_LABELS[meta.document_type]) {
-      showFormError(formErrorEl, 'בחרו סוג מסמך');
+    const simple = readSimpleForm();
+    const supplier = supplierKey(scanSupplier || activeSupplier);
+    if (!supplier) {
+      showFormError(formErrorEl, 'חסר ספק');
+      return;
+    }
+    if (!simple.date) {
+      showFormError(formErrorEl, 'בחרו תאריך');
+      return;
+    }
+    if (simple.total == null || simple.total < 0) {
+      showFormError(formErrorEl, 'הזינו סכום סופי');
       return;
     }
     const sb = getClient();
@@ -787,7 +887,12 @@
       if (editingId) {
         const { data, error } = await sb
           .from('business_documents')
-          .update(meta)
+          .update({
+            document_date: simple.date,
+            amount_total: simple.total,
+            supplier_name: supplier,
+            status: 'saved',
+          })
           .eq('id', editingId)
           .select('*')
           .single();
@@ -795,7 +900,7 @@
         upsertCache(data);
         renderAll();
         closeScanOverlay();
-        showToast('הפרטים עודכנו');
+        showToast('עודכן');
         return;
       }
       if (!pendingFile) {
@@ -805,7 +910,7 @@
       const prepared = await prepareUploadFile(pendingFile);
       const mime = guessMime(prepared);
       const id = global.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-      const parts = athensParts(new Date()) || { year: '1970', month: '01' };
+      const parts = athensParts(simple.date) || athensParts(new Date()) || { year: '1970', month: '01' };
       const filename = safeFilename(prepared.name || pendingFile.name, mime);
       const path = `${parts.year}/${parts.month}/${id}/${filename}`;
       const { error: upErr } = await sb.storage.from(BUCKET).upload(path, prepared, {
@@ -820,9 +925,19 @@
         original_filename: filename,
         mime_type: mime,
         file_size_bytes: prepared.size,
+        document_type: 'supplier_invoice',
+        category: '',
+        supplier_name: supplier,
+        document_number: '',
+        document_date: simple.date,
+        currency: 'EUR',
+        amount_before_vat: null,
+        vat_amount: null,
+        amount_total: simple.total,
+        notes: '',
+        status: 'saved',
         ocr_status: 'none',
         ocr_raw: null,
-        ...meta,
       };
       const { data, error } = await sb.from('business_documents').insert(row).select('*').single();
       if (error) {
@@ -830,9 +945,10 @@
         throw error;
       }
       upsertCache(data);
-      renderAll();
+      rememberSupplier(supplier);
+      openFolder(supplier);
       closeScanOverlay();
-      showToast('✓ המסמך נשמר');
+      showToast('✓ נשמר');
     } catch (err) {
       console.error('[documents] save', err);
       showFormError(formErrorEl, err?.message || 'השמירה נכשלה');
@@ -889,13 +1005,20 @@
   function clearSensitive() {
     cache = [];
     unlocked = false;
-    archiveMode = false;
+    mobilePane = 'list';
+    activeSupplier = '';
+    scanSupplier = '';
+    pendingSuppliers = [];
     closeScanOverlay();
     closeViewModal();
     closeVaultModal();
+    closePickModal();
+    closeNewModal();
+    closeDeleteModal(false);
     stopRealtime();
+    const appEl = document.getElementById('docs-app');
+    if (appEl) appEl.hidden = true;
     renderAll();
-    applyLayout();
   }
 
   async function lockVault() {
@@ -938,6 +1061,8 @@
       }
       unlocked = true;
       closeVaultModal();
+      const appEl = document.getElementById('docs-app');
+      if (appEl) appEl.hidden = false;
       await loadRows();
       startRealtime();
     } catch (err) {
@@ -948,80 +1073,70 @@
     }
   }
 
+  function submitNewSupplier(event) {
+    event.preventDefault();
+    const name = supplierKey(newNameInput?.value);
+    if (!name) {
+      showFormError(newFormError, 'הזינו שם ספק');
+      return;
+    }
+    const thenScan = newThenScan;
+    closeNewModal();
+    rememberSupplier(name);
+    openFolder(name);
+    if (thenScan) beginScanFor(name);
+  }
+
   function bindOnce() {
     if (bindDone) return;
     bindDone = true;
 
-    const hints = document.getElementById('docs-category-hints');
-    if (hints && !hints.childElementCount) {
-      CATEGORY_HINTS.forEach((name) => {
-        const opt = document.createElement('option');
-        opt.value = name;
-        hints.appendChild(opt);
-      });
-    }
-
     vaultForm?.addEventListener('submit', (event) => {
       submitVault(event).catch(() => {});
     });
-    document.getElementById('docs-vault-cancel')?.addEventListener('click', () => {
-      closeVaultModal();
-    });
-    document.getElementById('docs-vault-backdrop')?.addEventListener('click', () => {
-      closeVaultModal();
-    });
-
-    lockBtn?.addEventListener('click', () => {
-      lockVault().then(() => openVaultModal());
-    });
+    document.getElementById('docs-vault-cancel')?.addEventListener('click', closeVaultModal);
+    document.getElementById('docs-vault-backdrop')?.addEventListener('click', closeVaultModal);
 
     viewEl?.addEventListener('click', (event) => {
-      if (event.target.closest('#docs-lock-btn')) return;
+      if (event.target.closest('[data-docs-lock]')) {
+        lockVault().then(() => openVaultModal());
+        return;
+      }
       if (!unlocked) {
         openVaultModal();
         return;
       }
-      const scan = event.target.closest('[data-docs-scan]');
-      if (scan) {
-        cameraInput?.click();
+      if (event.target.closest('[data-docs-scan]')) {
+        requestScan();
         return;
       }
-      const pick = event.target.closest('[data-docs-pick]');
-      if (pick) {
+      if (event.target.closest('[data-docs-pick-file]')) {
+        if (activeSupplier) scanSupplier = activeSupplier;
         fileInput?.click();
         return;
       }
-      const archiveBtn = event.target.closest('[data-docs-archive]');
-      if (archiveBtn) {
-        archiveMode = true;
-        applyLayout();
+      if (event.target.closest('[data-docs-new-supplier]')) {
+        openNewModal(false);
         return;
       }
-      const dashBtn = event.target.closest('[data-docs-dashboard]');
-      if (dashBtn) {
-        archiveMode = false;
-        applyLayout();
+      if (event.target.closest('[data-docs-back]')) {
+        openList();
+        return;
+      }
+      const folder = event.target.closest('[data-docs-folder]')?.getAttribute('data-docs-folder');
+      if (folder) {
+        openFolder(folder);
+        return;
+      }
+      const monthKey = event.target.closest('[data-docs-month-toggle]')?.getAttribute('data-docs-month-toggle');
+      if (monthKey) {
+        if (openMonths.has(monthKey)) openMonths.delete(monthKey);
+        else openMonths.add(monthKey);
+        renderFolder();
         return;
       }
       const openId = event.target.closest('[data-docs-open]')?.getAttribute('data-docs-open');
-      if (openId) {
-        openDocument(openId).catch(() => {});
-        return;
-      }
-      const editId = event.target.closest('[data-docs-edit]')?.getAttribute('data-docs-edit');
-      if (editId) {
-        editDocument(editId).catch(() => {});
-        return;
-      }
-      const dlId = event.target.closest('[data-docs-download]')?.getAttribute('data-docs-download');
-      if (dlId) {
-        downloadDocument(dlId).catch(() => {});
-        return;
-      }
-      const delId = event.target.closest('[data-docs-delete]')?.getAttribute('data-docs-delete');
-      if (delId) {
-        deleteDocument(delId).catch(() => {});
-      }
+      if (openId) openDocument(openId).catch(() => {});
     });
 
     cameraInput?.addEventListener('change', () => {
@@ -1035,30 +1150,11 @@
       fileInput.value = '';
     });
 
-    ['dragenter', 'dragover'].forEach((name) => {
-      dropEl?.addEventListener(name, (event) => {
-        event.preventDefault();
-        dropEl.classList.add('is-over');
-      });
-    });
-    ['dragleave', 'drop'].forEach((name) => {
-      dropEl?.addEventListener(name, (event) => {
-        event.preventDefault();
-        dropEl.classList.remove('is-over');
-      });
-    });
-    dropEl?.addEventListener('drop', (event) => {
-      const file = event.dataTransfer?.files?.[0];
-      if (file) handlePickedFile(file, 'file').catch(() => {});
-    });
-
     retakeBtn?.addEventListener('click', () => {
       if (captureSource === 'file') fileInput?.click();
       else cameraInput?.click();
     });
-    useBtn?.addEventListener('click', () => {
-      goToForm();
-    });
+    useBtn?.addEventListener('click', goToForm);
     document.getElementById('docs-scan-cancel')?.addEventListener('click', closeScanOverlay);
     document.getElementById('docs-scan-backdrop')?.addEventListener('click', closeScanOverlay);
     document.getElementById('docs-form-cancel')?.addEventListener('click', closeScanOverlay);
@@ -1075,36 +1171,59 @@
     document.getElementById('docs-view-edit')?.addEventListener('click', () => {
       const id = viewModal?.dataset.docId;
       closeViewModal();
-      if (id) editDocument(id).catch(() => {});
+      if (id) editDocument(id);
     });
     document.getElementById('docs-view-delete')?.addEventListener('click', () => {
       const id = viewModal?.dataset.docId;
       if (id) deleteDocument(id).catch(() => {});
     });
-
-    document.getElementById('docs-field-before-vat')?.addEventListener('input', maybeFillTotal);
-    document.getElementById('docs-field-vat')?.addEventListener('input', maybeFillTotal);
-
-    searchEl?.addEventListener('input', () => {
-      window.clearTimeout(searchTimer);
-      searchTimer = window.setTimeout(renderList, 120);
+    document.getElementById('docs-view-move')?.addEventListener('click', () => {
+      const id = viewModal?.dataset.docId;
+      if (!id) return;
+      closeViewModal();
+      moveDocId = id;
+      openPickModal();
     });
-    typeFilterEl?.addEventListener('change', renderList);
-    statusFilterEl?.addEventListener('change', renderList);
-    dateFromEl?.addEventListener('change', renderList);
-    dateToEl?.addEventListener('change', renderList);
+
+    pickModal?.addEventListener('click', (event) => {
+      if (event.target.closest('#docs-pick-backdrop') || event.target.closest('#docs-pick-cancel')) {
+        closePickModal();
+        moveDocId = null;
+        return;
+      }
+      if (event.target.closest('[data-docs-pick-new]')) {
+        closePickModal();
+        openNewModal(true);
+        return;
+      }
+      const name = event.target.closest('[data-docs-pick-supplier]')?.getAttribute('data-docs-pick-supplier');
+      if (name) {
+        closePickModal();
+        if (moveDocId) {
+          moveDocument(moveDocId, name).catch(() => {});
+          moveDocId = null;
+        } else {
+          beginScanFor(name);
+        }
+      }
+    });
+
+    newForm?.addEventListener('submit', submitNewSupplier);
+    document.getElementById('docs-new-cancel')?.addEventListener('click', closeNewModal);
+    document.getElementById('docs-new-backdrop')?.addEventListener('click', closeNewModal);
+
+    document.getElementById('docs-delete-yes')?.addEventListener('click', () => closeDeleteModal(true));
+    document.getElementById('docs-delete-cancel')?.addEventListener('click', () => closeDeleteModal(false));
+    document.getElementById('docs-delete-backdrop')?.addEventListener('click', () => closeDeleteModal(false));
 
     document.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape') return;
-      if (viewModal && !viewModal.hidden) {
-        closeViewModal();
-        return;
-      }
-      if (scanOverlay && !scanOverlay.hidden) {
-        closeScanOverlay();
-        return;
-      }
-      if (vaultModal && !vaultModal.hidden) closeVaultModal();
+      if (deleteModal && !deleteModal.hidden) closeDeleteModal(false);
+      else if (viewModal && !viewModal.hidden) closeViewModal();
+      else if (scanOverlay && !scanOverlay.hidden) closeScanOverlay();
+      else if (pickModal && !pickModal.hidden) closePickModal();
+      else if (newModal && !newModal.hidden) closeNewModal();
+      else if (vaultModal && !vaultModal.hidden) closeVaultModal();
     });
 
     window.addEventListener('resize', applyLayout);
@@ -1129,6 +1248,9 @@
   function stop() {
     closeScanOverlay();
     closeViewModal();
+    closePickModal();
+    closeNewModal();
+    closeDeleteModal(false);
   }
 
   global.LechaimAdminDocuments = {

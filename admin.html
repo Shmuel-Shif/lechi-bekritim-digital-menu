@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#1e3354">
   <meta name="mobile-web-app-capable" content="yes">
@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=104">
+  <link rel="stylesheet" href="css/admin.css?v=112">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
 <body>
@@ -103,7 +103,7 @@
             <button type="button" class="admin-tab" data-tab="history">היסטוריה</button>
             <button type="button" class="admin-tab" data-tab="till">מכירות</button>
             <button type="button" class="admin-tab" data-tab="inventory">מלאי</button>
-            <button type="button" class="admin-tab" data-tab="documents">📄 מסמכים</button>
+            <button type="button" class="admin-tab" data-tab="documents">מסמכים</button>
             <button type="button" class="admin-tab" data-tab="stats">קופונים</button>
             <button type="button" class="admin-tab" data-tab="settings">הגדרות</button>
           </div>
@@ -762,119 +762,39 @@
 
       <!-- Documents tab -->
       <div class="admin-view" id="admin-view-documents" hidden>
-        <header class="admin-header admin-header--row">
-          <div class="admin-header__text">
-            <p class="admin-header__eyebrow">ניהול</p>
-            <h1 class="admin-header__title">📄 מסמכים</h1>
-            <p class="admin-header__subtitle">סריקת חשבוניות וקבלות · הטלפון הוא הסורק, המחשב הוא לוח הבקרה</p>
-          </div>
-          <button type="button" class="admin-btn admin-btn--ghost" id="docs-lock-btn" title="נעילת כספת המסמכים">נעילה</button>
-        </header>
         <p class="admin-error" id="docs-error" role="alert" hidden></p>
         <p class="admin-toast" id="docs-toast" role="status" aria-live="polite" hidden></p>
 
-        <div class="admin-stats docs-stats" aria-live="polite">
-          <div class="admin-stat">
-            <span class="admin-stat__value" id="docs-stat-total">0</span>
-            <span class="admin-stat__label">סה״כ מסמכים</span>
+        <section class="docs-app" id="docs-app" hidden>
+          <div class="docs-app__pane docs-app__pane--list" id="docs-app-list">
+            <header class="docs-app__head">
+              <h1 class="docs-app__title">חשבוניות</h1>
+              <button type="button" class="docs-app__lock" data-docs-lock aria-label="נעילה">נעילה</button>
+            </header>
+            <div class="docs-chat-list" id="docs-supplier-list"></div>
+            <button type="button" class="docs-new-supplier" data-docs-new-supplier>+ ספק חדש</button>
           </div>
-          <div class="admin-stat">
-            <span class="admin-stat__value" id="docs-stat-month-count">0</span>
-            <span class="admin-stat__label">מסמכים החודש</span>
-          </div>
-          <div class="admin-stat admin-stat--ok">
-            <span class="admin-stat__value" id="docs-stat-month-sum">€0</span>
-            <span class="admin-stat__label">הוצאות החודש</span>
-          </div>
-        </div>
 
-        <section class="docs-dashboard" id="docs-dashboard">
-          <div class="docs-dash-grid">
-            <article class="docs-dash-card">
-              <h2 class="docs-dash-card__title">הוצאות לפי קטגוריה</h2>
-              <div id="docs-dash-cats"></div>
-            </article>
-            <article class="docs-dash-card">
-              <h2 class="docs-dash-card__title">הוצאות לפי ספק</h2>
-              <div id="docs-dash-suppliers"></div>
-            </article>
-          </div>
-          <article class="docs-dash-card" id="docs-dash-pending-wrap" hidden>
-            <h2 class="docs-dash-card__title">ממתינים לטיפול</h2>
-            <div class="docs-mini-list" id="docs-dash-pending"></div>
-          </article>
-          <article class="docs-dash-card">
-            <h2 class="docs-dash-card__title">מסמכים אחרונים</h2>
-            <div class="docs-mini-list" id="docs-dash-recent"></div>
-          </article>
-          <div class="docs-dash-actions">
-            <button type="button" class="admin-btn admin-btn--primary" data-docs-scan>📷 סרוק מסמך</button>
-            <button type="button" class="admin-btn admin-btn--soft" data-docs-archive>📱 ניהול כל המסמכים</button>
-          </div>
-        </section>
-
-        <section class="docs-archive" id="docs-archive">
-          <div class="docs-scan-bar">
-            <button type="button" class="docs-scan-btn" data-docs-scan>📷 סרוק מסמך</button>
-            <button type="button" class="admin-btn admin-btn--soft docs-pick-btn" data-docs-pick>📁 בחר קובץ</button>
-            <button type="button" class="admin-btn admin-btn--ghost docs-back-dash" data-docs-dashboard>חזרה ללוח הבקרה</button>
-          </div>
-          <div class="docs-drop" id="docs-drop">
-            גררו לכאן תמונה או PDF מהמחשב
-          </div>
-          <div class="docs-toolbar">
-            <label class="admin-search">
-              <span class="visually-hidden">חיפוש מסמכים</span>
-              <input type="search" id="docs-search" placeholder="חיפוש ספק, מספר, קטגוריה…" autocomplete="off">
-            </label>
-            <div class="docs-filters">
-              <label>
-                <span class="visually-hidden">סוג</span>
-                <select id="docs-filter-type">
-                  <option value="all">כל הסוגים</option>
-                  <option value="supplier_invoice">חשבונית ספק</option>
-                  <option value="receipt">קבלה</option>
-                  <option value="purchase_invoice">חשבונית רכישה</option>
-                  <option value="expense">הוצאה</option>
-                  <option value="other">אחר</option>
-                </select>
-              </label>
-              <label>
-                <span class="visually-hidden">סטטוס</span>
-                <select id="docs-filter-status">
-                  <option value="all">כל הסטטוסים</option>
-                  <option value="draft">ממתין לטיפול</option>
-                  <option value="saved">שמור</option>
-                  <option value="archived">ארכיון</option>
-                </select>
-              </label>
-              <label>
-                <span class="visually-hidden">מתאריך</span>
-                <input type="date" id="docs-filter-from" dir="ltr" aria-label="מתאריך">
-              </label>
-              <label>
-                <span class="visually-hidden">עד תאריך</span>
-                <input type="date" id="docs-filter-to" dir="ltr" aria-label="עד תאריך">
-              </label>
+          <div class="docs-app__pane docs-app__pane--folder" id="docs-app-folder" hidden>
+            <header class="docs-app__head docs-app__head--folder">
+              <button type="button" class="docs-back" data-docs-back>← חזרה</button>
+              <button type="button" class="docs-app__lock" data-docs-lock aria-label="נעילה">נעילה</button>
+            </header>
+            <p class="docs-folder-idle" id="docs-folder-idle">בחרו ספק מהרשימה</p>
+            <div id="docs-folder-active" hidden>
+              <h2 class="docs-folder__title" id="docs-folder-title"></h2>
+              <p class="docs-folder__sum-label">סה״כ החודש</p>
+              <p class="docs-folder__sum" id="docs-folder-sum">€0</p>
+              <button type="button" class="docs-scan-main" data-docs-scan>סרוק חשבונית</button>
+              <button type="button" class="docs-pick-file" data-docs-pick-file>בחר קובץ</button>
+              <p class="docs-app__empty" id="docs-folder-empty">אין חשבוניות עדיין — סרקו את הראשונה</p>
+              <div id="docs-folder-months"></div>
             </div>
           </div>
-          <div class="docs-list" id="docs-list"></div>
-          <p class="tables-category__empty" id="docs-empty">אין מסמכים עדיין — סרקו חשבונית כדי להתחיל</p>
         </section>
 
-        <input
-          type="file"
-          id="docs-camera-input"
-          accept="image/*"
-          capture="environment"
-          hidden
-        >
-        <input
-          type="file"
-          id="docs-file-input"
-          accept="image/jpeg,image/png,image/webp,image/*,application/pdf"
-          hidden
-        >
+        <input type="file" id="docs-camera-input" accept="image/*" capture="environment" hidden>
+        <input type="file" id="docs-file-input" accept="image/jpeg,image/png,image/webp,image/*,application/pdf" hidden>
       </div>
 
       <!-- Coupons tab -->
@@ -1046,69 +966,32 @@
       <button type="button" class="admin-modal__backdrop" id="docs-scan-backdrop" aria-label="סגור"></button>
       <div class="admin-modal__panel docs-scan-modal__panel" role="dialog" aria-modal="true" aria-labelledby="docs-form-title">
         <div id="docs-preview-step">
-          <h2 class="reservation-modal__title">תצוגה לפני שמירה</h2>
+          <h2 class="docs-scan-title">תצוגה</h2>
           <div class="docs-preview-frame" id="docs-preview-frame"></div>
           <div class="docs-scan-modal__actions">
-            <button type="button" class="admin-btn admin-btn--primary" id="docs-use">✓ השתמש בתמונה</button>
-            <button type="button" class="admin-btn admin-btn--soft" id="docs-retake">🔄 צלם מחדש</button>
+            <button type="button" class="docs-scan-confirm" id="docs-use">✓ השתמש בתמונה</button>
+            <button type="button" class="docs-scan-retake" id="docs-retake">🔄 צילום מחדש</button>
             <button type="button" class="admin-btn admin-btn--ghost" id="docs-scan-cancel">ביטול</button>
           </div>
         </div>
         <div id="docs-form-step" hidden>
-          <h2 class="reservation-modal__title" id="docs-form-title">פרטי המסמך</h2>
-          <div class="docs-preview-frame docs-preview-frame--form" id="docs-form-preview"></div>
-          <form id="docs-meta-form" class="reservation-form docs-meta-form" novalidate>
-            <label class="admin-field">
-              <span>סוג מסמך</span>
-              <select id="docs-field-type">
-                <option value="supplier_invoice">חשבונית ספק</option>
-                <option value="receipt">קבלה</option>
-                <option value="purchase_invoice">חשבונית רכישה</option>
-                <option value="expense">הוצאה</option>
-                <option value="other">אחר</option>
-              </select>
-            </label>
-            <label class="admin-field">
-              <span>ספק</span>
-              <input type="text" id="docs-field-supplier" maxlength="120" autocomplete="off">
-            </label>
-            <label class="admin-field">
-              <span>תאריך המסמך</span>
+          <h2 class="docs-scan-title" id="docs-form-title">📄 חשבונית</h2>
+          <p class="docs-form-supplier" id="docs-form-supplier"></p>
+          <form id="docs-meta-form" class="docs-mini-form" novalidate>
+            <label class="docs-mini-field">
+              <span>תאריך</span>
               <input type="date" id="docs-field-date" dir="ltr">
             </label>
-            <div class="docs-meta-form__row">
-              <label class="admin-field">
-                <span>לפני מע״מ (€)</span>
-                <input type="number" id="docs-field-before-vat" min="0" step="0.01" inputmode="decimal" dir="ltr">
-              </label>
-              <label class="admin-field">
-                <span>מע״מ (€)</span>
-                <input type="number" id="docs-field-vat" min="0" step="0.01" inputmode="decimal" dir="ltr">
-              </label>
-            </div>
-            <label class="admin-field">
-              <span>סכום סופי (€)</span>
-              <input type="number" id="docs-field-total" min="0" step="0.01" inputmode="decimal" dir="ltr">
+            <label class="docs-mini-field docs-mini-field--amount">
+              <span>סכום סופי</span>
+              <span class="docs-amount-wrap">
+                <span class="docs-amount-prefix" aria-hidden="true">€</span>
+                <input type="number" id="docs-field-total" min="0" step="0.01" inputmode="decimal" dir="ltr" placeholder="0.00">
+              </span>
             </label>
-            <label class="admin-field">
-              <span>מספר מסמך</span>
-              <input type="text" id="docs-field-number" maxlength="80" autocomplete="off">
-            </label>
-            <label class="admin-field">
-              <span>קטגוריה</span>
-              <input type="text" id="docs-field-category" maxlength="80" list="docs-category-hints" autocomplete="off">
-            </label>
-            <datalist id="docs-category-hints"></datalist>
-            <label class="admin-field">
-              <span>הערות</span>
-              <textarea id="docs-field-notes" rows="3" maxlength="2000"></textarea>
-            </label>
-            <input type="hidden" id="docs-field-currency" value="EUR">
             <p class="admin-error" id="docs-form-error" role="alert" hidden></p>
-            <div class="reservation-modal__actions">
-              <button type="submit" class="admin-btn admin-btn--primary">שמירה</button>
-              <button type="button" class="admin-btn admin-btn--ghost" id="docs-form-cancel">ביטול</button>
-            </div>
+            <button type="submit" class="docs-save-btn">שמור</button>
+            <button type="button" class="admin-btn admin-btn--ghost" id="docs-form-cancel">ביטול</button>
           </form>
         </div>
       </div>
@@ -1117,15 +1000,54 @@
     <div class="admin-modal docs-view-modal" id="docs-view-modal" hidden aria-hidden="true">
       <button type="button" class="admin-modal__backdrop" id="docs-view-backdrop" aria-label="סגור"></button>
       <div class="admin-modal__panel docs-view-modal__panel" role="dialog" aria-modal="true" aria-labelledby="docs-view-title">
-        <h2 class="reservation-modal__title" id="docs-view-title">מסמך</h2>
+        <h2 class="docs-scan-title" id="docs-view-title">חשבונית</h2>
         <p class="docs-view-meta" id="docs-view-meta"></p>
         <div class="docs-preview-frame" id="docs-view-frame"></div>
-        <div class="docs-scan-modal__actions">
+        <div class="docs-view-actions">
           <button type="button" class="admin-btn admin-btn--soft" id="docs-view-download">הורדה</button>
           <button type="button" class="admin-btn admin-btn--ghost" id="docs-view-edit">עריכה</button>
+          <button type="button" class="admin-btn admin-btn--ghost" id="docs-view-move">העבר לספק</button>
           <button type="button" class="admin-btn admin-btn--danger" id="docs-view-delete">מחיקה</button>
           <button type="button" class="admin-btn admin-btn--ghost" id="docs-view-close">סגור</button>
         </div>
+      </div>
+    </div>
+
+    <div class="admin-modal" id="docs-delete-modal" hidden aria-hidden="true">
+      <button type="button" class="admin-modal__backdrop" id="docs-delete-backdrop" aria-label="סגור"></button>
+      <div class="admin-modal__panel docs-sheet" role="dialog" aria-modal="true" aria-labelledby="docs-delete-title">
+        <h2 class="docs-scan-title" id="docs-delete-title">מחיקת חשבונית</h2>
+        <p class="docs-delete-text" id="docs-delete-text">אתה בטוח? החשבונית תימחק לצמיתות.</p>
+        <div class="docs-view-actions">
+          <button type="button" class="admin-btn admin-btn--danger" id="docs-delete-yes">מחק</button>
+          <button type="button" class="admin-btn admin-btn--ghost" id="docs-delete-cancel">ביטול</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="admin-modal" id="docs-pick-modal" hidden aria-hidden="true">
+      <button type="button" class="admin-modal__backdrop" id="docs-pick-backdrop" aria-label="סגור"></button>
+      <div class="admin-modal__panel docs-sheet" role="dialog" aria-modal="true" aria-labelledby="docs-pick-title">
+        <h2 class="docs-scan-title" id="docs-pick-title">לאיזה ספק?</h2>
+        <div class="docs-pick-list" id="docs-pick-list"></div>
+        <button type="button" class="docs-new-supplier" data-docs-pick-new>+ ספק חדש</button>
+        <button type="button" class="admin-btn admin-btn--ghost" id="docs-pick-cancel">ביטול</button>
+      </div>
+    </div>
+
+    <div class="admin-modal" id="docs-new-modal" hidden aria-hidden="true">
+      <button type="button" class="admin-modal__backdrop" id="docs-new-backdrop" aria-label="סגור"></button>
+      <div class="admin-modal__panel docs-sheet" role="dialog" aria-modal="true" aria-labelledby="docs-new-title">
+        <h2 class="docs-scan-title" id="docs-new-title">ספק חדש</h2>
+        <form id="docs-new-form" class="docs-mini-form" novalidate>
+          <label class="docs-mini-field">
+            <span>שם הספק</span>
+            <input type="text" id="docs-new-name" maxlength="120" autocomplete="off">
+          </label>
+          <p class="admin-error" id="docs-new-form-error" role="alert" hidden></p>
+          <button type="submit" class="docs-save-btn">המשך</button>
+          <button type="button" class="admin-btn admin-btn--ghost" id="docs-new-cancel">ביטול</button>
+        </form>
       </div>
     </div>
 
@@ -1791,7 +1713,7 @@
   <script src="js/admin-till.js?v=4" defer></script>
   <script src="js/staff-hours-xlsx.js?v=4" defer></script>
   <script src="js/admin-staff-hours.js?v=14" defer></script>
-  <script src="js/admin-documents.js?v=1" defer></script>
+  <script src="js/admin-documents.js?v=6" defer></script>
   <script src="js/admin-settings.js?v=7" defer></script>
   <script src="js/stock-catalog.js?v=6" defer></script>
   <script src="js/admin-stock.js?v=2" defer></script>
