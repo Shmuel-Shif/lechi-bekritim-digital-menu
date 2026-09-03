@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=119">
+  <link rel="stylesheet" href="css/admin.css?v=125">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
 <body>
@@ -415,34 +415,38 @@
             <ul class="admin-till-products__list" id="admin-till-products-list" hidden></ul>
           </section>
           <article class="admin-till-card" id="admin-till-summary-card" hidden>
-            <p class="admin-till-card__date" id="admin-till-date-label">—</p>
-            <div class="admin-till-card__row admin-till-card__row--tip-total">
-              <span class="admin-till-card__label">סה״כ טיפ</span>
-              <strong class="admin-till-card__value" id="admin-till-tip">€0</strong>
+            <div class="admin-till-card__date-row">
+              <p class="admin-till-card__date" id="admin-till-date-label">—</p>
+              <button type="button" class="admin-till-card__edit" id="admin-till-edit-report">עריכה</button>
             </div>
-            <div class="admin-till-card__row admin-till-card__row--received">
-              <span class="admin-till-card__label">סה״כ כולל טיפים</span>
-              <strong class="admin-till-card__value" id="admin-till-received">€0</strong>
-            </div>
+            <p class="admin-till-card__source" id="admin-till-source" hidden>דוח ערוך</p>
             <div class="admin-till-card__row admin-till-card__row--total">
               <span class="admin-till-card__label">סה״כ מכירות</span>
               <strong class="admin-till-card__value" id="admin-till-total">€0</strong>
             </div>
             <div class="admin-till-card__row">
-              <span class="admin-till-card__label">מזומן</span>
+              <span class="admin-till-card__label">סה״כ מזומן</span>
               <strong class="admin-till-card__value" id="admin-till-cash">€0</strong>
             </div>
             <div class="admin-till-card__row">
-              <span class="admin-till-card__label">אשראי</span>
+              <span class="admin-till-card__label">סה״כ אשראי</span>
               <strong class="admin-till-card__value" id="admin-till-credit">€0</strong>
             </div>
             <div class="admin-till-card__row">
-              <span class="admin-till-card__label">טיפ מזומן</span>
-              <strong class="admin-till-card__value" id="admin-till-tip-cash">€0</strong>
+              <span class="admin-till-card__label">סה״כ טיפים</span>
+              <strong class="admin-till-card__value" id="admin-till-tip">€0</strong>
             </div>
-            <div class="admin-till-card__row">
-              <span class="admin-till-card__label">טיפ אשראי</span>
-              <strong class="admin-till-card__value" id="admin-till-tip-credit">€0</strong>
+            <div class="admin-till-card__opening">
+              <form id="admin-till-opening-form" class="admin-till-opening-form">
+                <span class="admin-till-card__label">פתיחת קופה</span>
+                <label class="admin-till-opening-form__field">
+                  <span class="visually-hidden">סכום פתיחת קופה</span>
+                  <span class="admin-till-opening-form__prefix" dir="ltr">€</span>
+                  <input type="number" id="admin-till-opening-input" min="0" step="0.01" inputmode="decimal" dir="ltr" placeholder="0">
+                </label>
+                <button type="submit" class="admin-btn admin-btn--ghost" id="admin-till-opening-save">שמירה</button>
+              </form>
+              <p class="admin-till-card__opening-hint">יתרת מזומן לפתיחת היום — לא נכללת במכירות</p>
             </div>
             <button type="button" class="admin-btn admin-btn--whatsapp admin-till-card__wa" id="admin-till-whatsapp">
               <svg class="admin-wa-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
@@ -788,7 +792,11 @@
           <div class="docs-app__pane docs-app__pane--folder" id="docs-app-folder" hidden>
             <header class="docs-app__head docs-app__head--folder">
               <button type="button" class="docs-back" data-docs-back>← חזרה</button>
-              <button type="button" class="docs-app__lock" data-docs-lock aria-label="נעילה">נעילה</button>
+              <div class="docs-app__head-actions">
+                <button type="button" class="docs-app__summary" id="docs-folder-copy-pay" hidden>העתק תשלומים</button>
+                <button type="button" class="docs-app__summary" id="docs-folder-z-pdf" hidden>PDF דוח Z</button>
+                <button type="button" class="docs-app__lock" data-docs-lock aria-label="נעילה">נעילה</button>
+              </div>
             </header>
             <div id="docs-folder-active">
               <h2 class="docs-folder__title" id="docs-folder-title"></h2>
@@ -796,6 +804,7 @@
               <p class="docs-folder__sum" id="docs-folder-sum">€0</p>
               <button type="button" class="docs-scan-main" data-docs-scan>סרוק חשבונית</button>
               <button type="button" class="docs-pick-file" data-docs-pick-file>בחר קובץ</button>
+              <button type="button" class="docs-scan-main" id="docs-add-payment" hidden>תשלום חדש</button>
               <p class="docs-app__empty" id="docs-folder-empty">אין חשבוניות עדיין — סרקו את הראשונה</p>
               <div id="docs-folder-months"></div>
             </div>
@@ -1057,6 +1066,41 @@
       </div>
     </div>
 
+    <div class="admin-modal" id="till-edit-report-modal" hidden aria-hidden="true">
+      <button type="button" class="admin-modal__backdrop" id="till-edit-report-backdrop" aria-label="סגור"></button>
+      <div class="admin-modal__panel reservation-modal__panel" role="dialog" aria-modal="true" aria-labelledby="till-edit-report-title">
+        <h2 class="reservation-modal__title" id="till-edit-report-title">עריכת דוח מכירות</h2>
+        <p class="docs-vault-hint" id="till-edit-report-date">—</p>
+        <form id="till-edit-report-form" class="reservation-form" novalidate>
+          <label class="admin-field">
+            <span>מזומן</span>
+            <input type="number" id="till-edit-cash" min="0" step="0.01" inputmode="decimal" dir="ltr">
+          </label>
+          <label class="admin-field">
+            <span>אשראי</span>
+            <input type="number" id="till-edit-credit" min="0" step="0.01" inputmode="decimal" dir="ltr">
+          </label>
+          <label class="admin-field">
+            <span>טיפים</span>
+            <input type="number" id="till-edit-tip" min="0" step="0.01" inputmode="decimal" dir="ltr">
+          </label>
+          <div class="admin-till-edit-inclusive">
+            <span>כולל הכל</span>
+            <strong id="till-edit-inclusive" dir="ltr">€0</strong>
+          </div>
+          <label class="admin-field" id="till-edit-code-wrap" hidden>
+            <span>קוד גישה</span>
+            <input type="password" id="till-edit-code" maxlength="64" dir="ltr" autocomplete="off" spellcheck="false">
+          </label>
+          <p class="admin-error" id="till-edit-report-error" role="alert" hidden></p>
+          <div class="reservation-modal__actions">
+            <button type="submit" class="admin-btn admin-btn--primary">שמירה</button>
+            <button type="button" class="admin-btn admin-btn--ghost" id="till-edit-report-cancel">ביטול</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <div class="admin-modal docs-scan-modal" id="docs-scan-overlay" hidden aria-hidden="true">
       <button type="button" class="admin-modal__backdrop" id="docs-scan-backdrop" aria-label="סגור"></button>
       <div class="admin-modal__panel docs-scan-modal__panel" role="dialog" aria-modal="true" aria-labelledby="docs-form-title">
@@ -1084,6 +1128,16 @@
                 <input type="number" id="docs-field-total" min="0" step="0.01" inputmode="decimal" dir="ltr" placeholder="0.00">
               </span>
             </label>
+            <div id="docs-manual-fields" hidden>
+              <label class="docs-mini-field">
+                <span>על מה יצא התשלום</span>
+                <input type="text" id="docs-field-notes" maxlength="2000" autocomplete="off">
+              </label>
+              <div class="docs-pay-methods" role="group" aria-label="מזומן או אשראי">
+                <button type="button" class="admin-btn admin-btn--soft" data-docs-pay="cash">מזומן</button>
+                <button type="button" class="admin-btn admin-btn--soft" data-docs-pay="credit">אשראי</button>
+              </div>
+            </div>
             <p class="admin-error" id="docs-form-error" role="alert" hidden></p>
             <button type="submit" class="docs-save-btn">שמור</button>
             <button type="button" class="admin-btn admin-btn--ghost" id="docs-form-cancel">ביטול</button>
@@ -1631,106 +1685,106 @@
         aria-modal="true"
         aria-labelledby="admin-payment-title"
       >
-        <h2 class="admin-payment-modal__title" id="admin-payment-title">אמצעי תשלום</h2>
-        <p class="admin-payment-modal__subtitle" id="admin-payment-subtitle"></p>
-        <p class="admin-payment-modal__amount" id="admin-payment-amount"></p>
-        <div class="admin-payment-modal__choices">
-          <button type="button" class="admin-btn admin-btn--primary admin-payment-modal__choice" id="admin-payment-cash" data-payment="cash">מזומן</button>
-          <button type="button" class="admin-btn admin-btn--soft admin-payment-modal__choice" id="admin-payment-credit" data-payment="credit">אשראי</button>
-          <button type="button" class="admin-btn admin-btn--soft admin-payment-modal__choice admin-payment-modal__choice--split" id="admin-payment-split" data-payment="split">מפוצל</button>
-          <button type="button" class="admin-btn admin-btn--ghost admin-payment-modal__choice admin-payment-modal__choice--void" id="admin-payment-void" data-payment="void">סגור הזמנה</button>
+        <header class="admin-payment-pos__head">
+          <h2 class="admin-payment-modal__title" id="admin-payment-title">סגור הזמנה</h2>
+          <p class="admin-payment-modal__subtitle" id="admin-payment-subtitle"></p>
+        </header>
+        <div class="admin-payment-pos">
+          <section class="admin-payment-pos__ledger" aria-live="polite">
+            <p class="admin-payment-pos__ledger-label" id="admin-payment-ledger-label">סה״כ לתשלום</p>
+            <p class="admin-payment-pos__ledger-amount" id="admin-payment-amount"></p>
+            <dl class="admin-payment-pos__rows" id="admin-payment-ledger-rows"></dl>
+          </section>
+          <section class="admin-payment-pos__pad">
+            <div class="admin-payment-modal__choices" id="admin-payment-choices">
+              <button type="button" class="admin-btn admin-btn--primary admin-payment-modal__choice" id="admin-payment-cash" data-payment="cash">מזומן</button>
+              <button type="button" class="admin-btn admin-btn--soft admin-payment-modal__choice" id="admin-payment-credit" data-payment="credit">אשראי</button>
+              <button type="button" class="admin-btn admin-btn--soft admin-payment-modal__choice admin-payment-modal__choice--split" id="admin-payment-split" data-payment="split">מפוצל</button>
+              <button type="button" class="admin-btn admin-btn--ghost admin-payment-modal__choice admin-payment-modal__choice--void" id="admin-payment-void" data-payment="void">סגירה ללא תשלום</button>
+            </div>
+            <div class="admin-payment-step" id="admin-payment-cash-panel" hidden>
+              <label class="admin-payment-split__field">
+                <span>הלקוח נתן</span>
+                <input type="number" id="admin-payment-tender-input" min="0" step="0.01" inputmode="decimal" dir="ltr" autocomplete="off">
+              </label>
+              <p class="admin-payment-credit__q">טיפ</p>
+              <div class="admin-payment-tip-presets" data-tip-input="admin-payment-cash-tip">
+                <button type="button" data-tip-pct="none" class="is-on">ללא טיפ</button>
+                <button type="button" data-tip-pct="10">10%</button>
+                <button type="button" data-tip-pct="15">15%</button>
+                <button type="button" data-tip-pct="20">20%</button>
+                <button type="button" data-tip-pct="custom">סכום אחר</button>
+              </div>
+              <label class="admin-payment-split__field admin-payment-tip-manual" id="admin-payment-cash-tip-wrap" hidden>
+                <span>סכום טיפ</span>
+                <input type="number" id="admin-payment-cash-tip" min="0" step="0.01" inputmode="decimal" dir="ltr" autocomplete="off" value="0">
+              </label>
+              <button type="button" class="admin-btn admin-btn--primary" id="admin-payment-cash-confirm" disabled>סגור הזמנה</button>
+            </div>
+            <div class="admin-payment-step" id="admin-payment-credit-panel" hidden>
+              <p class="admin-payment-credit__q">טיפ</p>
+              <div class="admin-payment-tip-presets" data-tip-input="admin-payment-credit-tip">
+                <button type="button" data-tip-pct="none" class="is-on">ללא טיפ</button>
+                <button type="button" data-tip-pct="10">10%</button>
+                <button type="button" data-tip-pct="15">15%</button>
+                <button type="button" data-tip-pct="20">20%</button>
+                <button type="button" data-tip-pct="custom">סכום אחר</button>
+              </div>
+              <label class="admin-payment-split__field admin-payment-tip-manual" id="admin-payment-credit-tip-wrap" hidden>
+                <span>סכום טיפ</span>
+                <input type="number" id="admin-payment-credit-tip" min="0" step="0.01" inputmode="decimal" dir="ltr" autocomplete="off" value="0">
+              </label>
+              <button type="button" class="admin-btn admin-btn--primary" id="admin-payment-credit-confirm">אישור סגירה</button>
+            </div>
+            <div class="admin-payment-step" id="admin-payment-split-panel" hidden>
+              <label class="admin-payment-split__field">
+                <span>מזומן</span>
+                <input type="number" id="admin-payment-cash-input" min="0" step="0.01" inputmode="decimal" dir="ltr">
+              </label>
+              <label class="admin-payment-split__field">
+                <span>אשראי</span>
+                <input type="number" id="admin-payment-credit-input" min="0" step="0.01" inputmode="decimal" dir="ltr">
+              </label>
+              <p class="admin-payment-split__hint" id="admin-payment-split-hint"></p>
+              <div id="admin-payment-split-tip-block" hidden>
+                <p class="admin-payment-credit__q">טיפ</p>
+                <div class="admin-payment-tip-presets" data-tip-input="admin-payment-split-tip">
+                  <button type="button" data-tip-pct="none" class="is-on">ללא טיפ</button>
+                  <button type="button" data-tip-pct="10">10%</button>
+                  <button type="button" data-tip-pct="15">15%</button>
+                  <button type="button" data-tip-pct="20">20%</button>
+                  <button type="button" data-tip-pct="custom">סכום אחר</button>
+                </div>
+                <label class="admin-payment-split__field admin-payment-tip-manual" id="admin-payment-split-tip-wrap" hidden>
+                  <span>סכום טיפ</span>
+                  <input type="number" id="admin-payment-split-tip" min="0" step="0.01" inputmode="decimal" dir="ltr" autocomplete="off" value="0">
+                </label>
+              </div>
+              <fieldset hidden class="admin-payment-split__tip-via" id="admin-payment-split-tip-via">
+                <legend>איך התקבל הטיפ</legend>
+                <label>
+                  <input type="radio" name="admin-payment-split-tip-via" value="cash" checked>
+                  טיפ במזומן
+                </label>
+                <label>
+                  <input type="radio" name="admin-payment-split-tip-via" value="credit">
+                  טיפ באשראי
+                </label>
+              </fieldset>
+              <button type="button" class="admin-btn admin-btn--primary" id="admin-payment-split-confirm" hidden disabled>אישור סגירה</button>
+            </div>
+            <div class="admin-payment-step" id="admin-payment-void-panel" hidden>
+              <p class="admin-payment-credit__q">סגירת ההזמנה ללא רישום כמכירה</p>
+              <label class="admin-payment-split__field">
+                <span>קוד גישה</span>
+                <input type="password" id="admin-payment-void-code" maxlength="64" dir="ltr" autocomplete="off" spellcheck="false">
+              </label>
+              <p class="admin-error" id="admin-payment-void-error" role="alert" hidden></p>
+              <button type="button" class="admin-btn admin-btn--primary" id="admin-payment-void-confirm">סגירה ללא תשלום</button>
+            </div>
+          </section>
         </div>
-        <div class="admin-payment-split" id="admin-payment-split-panel" hidden>
-          <label class="admin-payment-split__field">
-            <span>מזומן (€)</span>
-            <input type="number" id="admin-payment-cash-input" min="0" step="0.01" inputmode="decimal" dir="ltr">
-          </label>
-          <label class="admin-payment-split__field">
-            <span>אשראי (€)</span>
-            <input type="number" id="admin-payment-credit-input" min="0" step="0.01" inputmode="decimal" dir="ltr" readonly tabindex="-1">
-          </label>
-          <p class="admin-payment-split__hint" id="admin-payment-split-hint">השלימו את סכום המזומן — האשראי יחושב אוטומטית</p>
-          <p class="admin-payment-credit__q">טיפ</p>
-          <div class="admin-payment-tip-presets" data-tip-input="admin-payment-split-tip">
-            <button type="button" data-tip-pct="10">10%</button>
-            <button type="button" data-tip-pct="15">15%</button>
-            <button type="button" data-tip-pct="20">20%</button>
-            <button type="button" data-tip-pct="custom">סכום אחר</button>
-            <button type="button" data-tip-pct="none" class="is-on">ללא טיפ</button>
-          </div>
-          <label class="admin-payment-split__field admin-payment-tip-manual" id="admin-payment-split-tip-wrap" hidden>
-            <span>טיפ (€)</span>
-            <input type="number" id="admin-payment-split-tip" min="0" step="0.01" inputmode="decimal" dir="ltr" autocomplete="off" value="0">
-          </label>
-          <fieldset class="admin-payment-split__tip-via" id="admin-payment-split-tip-via">
-            <legend>איך התקבל הטיפ</legend>
-            <label>
-              <input type="radio" name="admin-payment-split-tip-via" value="cash" checked>
-              טיפ במזומן
-            </label>
-            <label>
-              <input type="radio" name="admin-payment-split-tip-via" value="credit">
-              טיפ באשראי
-            </label>
-          </fieldset>
-          <button type="button" class="admin-btn admin-btn--primary" id="admin-payment-split-confirm">אשר סגירה</button>
-        </div>
-        <div class="admin-payment-split admin-payment-cash" id="admin-payment-cash-panel" hidden>
-          <p class="admin-payment-cash__due" id="admin-payment-cash-due"></p>
-          <p class="admin-payment-credit__q">טיפ</p>
-          <div class="admin-payment-tip-presets" data-tip-input="admin-payment-cash-tip">
-            <button type="button" data-tip-pct="10">10%</button>
-            <button type="button" data-tip-pct="15">15%</button>
-            <button type="button" data-tip-pct="20">20%</button>
-            <button type="button" data-tip-pct="custom">סכום אחר</button>
-            <button type="button" data-tip-pct="none" class="is-on">ללא טיפ</button>
-          </div>
-          <label class="admin-payment-split__field admin-payment-tip-manual" id="admin-payment-cash-tip-wrap" hidden>
-            <span>טיפ במזומן (€)</span>
-            <input type="number" id="admin-payment-cash-tip" min="0" step="0.01" inputmode="decimal" dir="ltr" autocomplete="off" value="0">
-          </label>
-          <label class="admin-payment-split__field">
-            <span>הלקוח שילם (€)</span>
-            <input type="number" id="admin-payment-tender-input" min="0" step="0.01" inputmode="decimal" dir="ltr" autocomplete="off">
-          </label>
-          <dl class="admin-payment-cash__breakdown" id="admin-payment-cash-breakdown" hidden>
-            <div><dt>החשבון</dt><dd id="admin-payment-cash-bill">€0</dd></div>
-            <div><dt>התקבל</dt><dd id="admin-payment-cash-received">€0</dd></div>
-            <div><dt>הפרש</dt><dd id="admin-payment-cash-diff">€0</dd></div>
-          </dl>
-          <p class="admin-payment-split__hint" id="admin-payment-cash-change"></p>
-          <div class="admin-payment-cash__diff-actions" id="admin-payment-cash-diff-actions" hidden>
-            <button type="button" class="admin-btn admin-btn--primary" id="admin-payment-cash-as-tip">טיפ</button>
-            <button type="button" class="admin-btn admin-btn--soft" id="admin-payment-cash-as-change">עודף</button>
-          </div>
-          <button type="button" class="admin-btn admin-btn--primary" id="admin-payment-cash-confirm" disabled>סגור שולחן</button>
-        </div>
-        <div class="admin-payment-split admin-payment-credit" id="admin-payment-credit-panel" hidden>
-          <p class="admin-payment-credit__q">האם הלקוח השאיר טיפ?</p>
-          <div class="admin-payment-tip-presets" data-tip-input="admin-payment-credit-tip">
-            <button type="button" data-tip-pct="10">10%</button>
-            <button type="button" data-tip-pct="15">15%</button>
-            <button type="button" data-tip-pct="20">20%</button>
-            <button type="button" data-tip-pct="custom">סכום אחר</button>
-            <button type="button" data-tip-pct="none" class="is-on">ללא טיפ</button>
-          </div>
-          <label class="admin-payment-split__field admin-payment-tip-manual" id="admin-payment-credit-tip-wrap" hidden>
-            <span>טיפ באשראי (€)</span>
-            <input type="number" id="admin-payment-credit-tip" min="0" step="0.01" inputmode="decimal" dir="ltr" autocomplete="off" value="0">
-          </label>
-          <button type="button" class="admin-btn admin-btn--primary" id="admin-payment-credit-confirm">סגור באשראי</button>
-        </div>
-        <div class="admin-payment-split admin-payment-void-code" id="admin-payment-void-panel" hidden>
-          <p class="admin-payment-credit__q">כניסה לסגירת הזמנה</p>
-          <label class="admin-payment-split__field">
-            <span>קוד גישה</span>
-            <input type="password" id="admin-payment-void-code" maxlength="64" dir="ltr" autocomplete="off" spellcheck="false">
-          </label>
-          <p class="admin-error" id="admin-payment-void-error" role="alert" hidden></p>
-          <button type="button" class="admin-btn admin-btn--primary" id="admin-payment-void-confirm">כניסה</button>
-        </div>
-        <p class="admin-payment-modal__hint">בחרו אמצעי תשלום או «סגור הזמנה» — ביטול מחזיר לכרטיס בלי לסגור</p>
-        <button type="button" class="admin-btn admin-btn--ghost" id="admin-payment-cancel">ביטול</button>
+        <button type="button" class="admin-btn admin-btn--ghost admin-payment-pos__back" id="admin-payment-cancel">ביטול</button>
       </div>
     </div>
 
@@ -1815,7 +1869,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
   <script src="js/order-types.js" defer></script>
-  <script src="js/supabase-order-service.js?v=30" defer></script>
+  <script src="js/supabase-order-service.js?v=32" defer></script>
   <script src="js/menu-data.js?v=103" defer></script>
   <script src="js/opening-hours.js?v=12" defer></script>
   <script src="js/app-settings.js?v=6" defer></script>
@@ -1828,7 +1882,7 @@
   <script src="js/a11y-focus-trap.js" defer></script>
   <script src="js/kitchen-progress.js?v=2" defer></script>
   <script src="js/kitchen-dish-groups.js?v=1" defer></script>
-  <script src="js/admin-tables.js?v=95" defer></script>
+  <script src="js/admin-tables.js?v=96" defer></script>
   <script src="js/admin-shabbat.js?v=8" defer></script>
   <script src="js/place-reservations.js?v=9" defer></script>
   <script src="js/admin-reservations.js?v=7" defer></script>
@@ -1838,12 +1892,12 @@
   <script src="js/admin-kitchen-board.js?v=34" defer></script>
   <script src="js/admin-history.js?v=2" defer></script>
   <script src="js/admin-coupons.js" defer></script>
-  <script src="js/admin-till.js?v=6" defer></script>
+  <script src="js/admin-till.js?v=9" defer></script>
   <script src="js/staff-hours-xlsx.js?v=4" defer></script>
   <script src="js/admin-staff-hours.js?v=17" defer></script>
   <script src="js/docs-monthly-xlsx.js?v=1" defer></script>
   <script src="js/docs-monthly-pdf.js?v=1" defer></script>
-  <script src="js/admin-documents.js?v=11" defer></script>
+  <script src="js/admin-documents.js?v=14" defer></script>
   <script src="js/admin-settings.js?v=7" defer></script>
   <script src="js/stock-catalog.js?v=6" defer></script>
   <script src="js/admin-stock.js?v=2" defer></script>

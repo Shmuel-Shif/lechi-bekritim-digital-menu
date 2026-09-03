@@ -59,6 +59,7 @@
   const cartBackdrop = $('#cart-backdrop');
   const cartClear = $('#cart-clear');
   const cartSend = $('#cart-send');
+  const cartDishNotes = $('#cart-dish-notes');
   const cartRequestBill = $('#cart-request-bill');
   const cartToast = $('#cart-toast');
   const orderFeedback = $('#order-feedback');
@@ -296,6 +297,7 @@
     if (!allowed) {
       setSendButtonState({ empty: true });
       if (cartClear) cartClear.disabled = true;
+      if (cartDishNotes) cartDishNotes.disabled = true;
     }
   }
 
@@ -1964,6 +1966,19 @@
     });
   }
 
+  function getDineInUserNotesDraft() {
+    const modal = document.getElementById('dinein-notes-modal');
+    const input = document.getElementById('dinein-notes-input');
+    if (modal && !modal.hidden && input) {
+      return String(input.value || '').trim();
+    }
+    const ctx = window.LechaimOrderContext || {};
+    const session = window.LechaimOrderSession?.getSession?.() || {};
+    const strip = window.LechaimOrderSession?.stripPlaceReservationNote;
+    const raw = ctx.customerNotes || session.customerNotes || '';
+    return typeof strip === 'function' ? strip(raw) : String(raw || '').trim();
+  }
+
   function applyDineInOrderNotes(notes) {
     const text = composePersistedDineInNotes(notes);
     updateOrderContext({
@@ -1977,6 +1992,26 @@
       });
     } catch (err) {
       console.warn('[dine-in notes] failed to persist local session notes', err);
+    }
+  }
+
+  function applyTakeawayOrderNotes(notes) {
+    const text = String(notes || '').trim();
+    updateOrderContext({ customerNotes: text });
+    try {
+      window.LechaimOrderSession?.patchSession?.({ customerNotes: text });
+    } catch (err) {
+      console.warn('[takeaway notes] failed to persist local session notes', err);
+    }
+  }
+
+  function persistCartDishNotes(notes) {
+    if (isDineInContext()) {
+      applyDineInOrderNotes(notes);
+      return;
+    }
+    if (isTakeawayContext() && !isButcherContext()) {
+      applyTakeawayOrderNotes(notes);
     }
   }
 
@@ -2015,11 +2050,7 @@
 
   function openDineInNotesModal() {
     const modal = document.getElementById('dinein-notes-modal');
-    if (!modal) {
-      applyDineInOrderNotes('');
-      handleSendOrder();
-      return;
-    }
+    if (!modal) return;
 
     const input = document.getElementById('dinein-notes-input');
     const title = document.getElementById('dinein-notes-title');
@@ -2030,7 +2061,7 @@
     if (hint) hint.textContent = t('dineInNotesHint');
     if (submit) submit.textContent = t('dineInNotesSubmit');
     if (cancel) cancel.textContent = t('clearCartCancel');
-    if (input) input.value = '';
+    if (input) input.value = getDineInUserNotesDraft();
 
     modal.hidden = false;
     modal.setAttribute('aria-hidden', 'false');
@@ -2041,11 +2072,9 @@
     input?.focus();
   }
 
-  function confirmDineInNotesAndSend(notes) {
-    if (isSendingOrder) return;
-    applyDineInOrderNotes(notes);
+  function saveDineInNotes(notes) {
+    persistCartDishNotes(notes);
     closeDineInNotesModal();
-    handleSendOrder();
   }
 
   function initDineInNotesModal() {
@@ -2056,7 +2085,7 @@
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       const notes = String(document.getElementById('dinein-notes-input')?.value || '').trim();
-      confirmDineInNotesAndSend(notes);
+      saveDineInNotes(notes);
     });
     document.getElementById('dinein-notes-cancel')?.addEventListener('click', closeDineInNotesModal);
     document.getElementById('dinein-notes-backdrop')?.addEventListener('click', closeDineInNotesModal);
@@ -4871,6 +4900,9 @@
     cartSend?.addEventListener('click', () => {
       handleSendOrder();
     });
+    cartDishNotes?.addEventListener('click', () => {
+      openDineInNotesModal();
+    });
     cartRequestBill?.addEventListener('click', openBillConfirm);
     appConfirmYes?.addEventListener('click', () => {
       const kind = appConfirmKind;
@@ -5757,15 +5789,28 @@
     }
   }
 
+  function syncDineInNotesButton({ sending = false } = {}) {
+    if (!cartDishNotes) return;
+    const show = (isDineInContext() || isTakeawayContext())
+      && !isButcherContext()
+      && !Boolean(window.LechaimOrderContext?.browseOnly)
+      && isOrderingAllowed();
+    cartDishNotes.hidden = !show;
+    cartDishNotes.disabled = !show || sending || isSendingOrder;
+    if (!sending) cartDishNotes.textContent = t('dineInNotesBtn');
+  }
+
   function setSendButtonState({ sending = false, empty = false } = {}) {
-    if (!cartSend) return;
-    if (sending) {
-      cartSend.disabled = true;
-      cartSend.textContent = t('sendingOrder');
-      return;
+    if (cartSend) {
+      if (sending) {
+        cartSend.disabled = true;
+        cartSend.textContent = t('sendingOrder');
+      } else {
+        cartSend.disabled = empty || isSendingOrder;
+        cartSend.textContent = t('sendOrder');
+      }
     }
-    cartSend.disabled = empty || isSendingOrder;
-    cartSend.textContent = t('sendOrder');
+    syncDineInNotesButton({ sending });
   }
 
   function hideOrderFeedback() {
@@ -5949,17 +5994,17 @@
         openButcherCheckoutModal();
         return;
       }
+      if (isDineInContext() || (isTakeawayContext() && !isButcherContext())) {
+        persistCartDishNotes(getDineInUserNotesDraft());
+      }
       if (isTakeawayContext() && !hasTakeawayCustomerDetails()) {
         openTakeawayCheckoutModal();
-        return;
-      }
-      if (isDineInContext() && !hasDineInNotesConfirmed()) {
-        openDineInNotesModal();
         return;
       }
 
       setSendButtonState({ sending: true });
       if (cartClear) cartClear.disabled = true;
+      if (cartDishNotes) cartDishNotes.disabled = true;
 
       const session = ensureActiveOrderSession();
       if (!session) {
@@ -7666,6 +7711,8 @@
     if (!isSendingOrder) {
       setSendButtonState({ empty });
       if (cartClear) cartClear.disabled = empty;
+    } else {
+      syncDineInNotesButton({ sending: true });
     }
 
     updateTableHeader();

@@ -14,10 +14,7 @@
   const cashEl = document.getElementById('admin-till-cash');
   const creditEl = document.getElementById('admin-till-credit');
   const totalEl = document.getElementById('admin-till-total');
-  const tipCashEl = document.getElementById('admin-till-tip-cash');
-  const tipCreditEl = document.getElementById('admin-till-tip-credit');
   const tipEl = document.getElementById('admin-till-tip');
-  const receivedEl = document.getElementById('admin-till-received');
   const whatsappBtn = document.getElementById('admin-till-whatsapp');
   const todayBtn = document.getElementById('admin-till-today');
   const yesterdayBtn = document.getElementById('admin-till-yesterday');
@@ -31,8 +28,23 @@
   const totalsForm = document.getElementById('till-totals-form');
   const totalsCodeInput = document.getElementById('till-totals-code');
   const totalsFormError = document.getElementById('till-totals-form-error');
+  const openingForm = document.getElementById('admin-till-opening-form');
+  const openingInput = document.getElementById('admin-till-opening-input');
+  const openingSaveBtn = document.getElementById('admin-till-opening-save');
+  const sourceEl = document.getElementById('admin-till-source');
+  const editReportBtn = document.getElementById('admin-till-edit-report');
+  const editReportModal = document.getElementById('till-edit-report-modal');
+  const editReportForm = document.getElementById('till-edit-report-form');
+  const editReportDateEl = document.getElementById('till-edit-report-date');
+  const editCashInput = document.getElementById('till-edit-cash');
+  const editCreditInput = document.getElementById('till-edit-credit');
+  const editTipInput = document.getElementById('till-edit-tip');
+  const editInclusiveEl = document.getElementById('till-edit-inclusive');
+  const editCodeInput = document.getElementById('till-edit-code');
+  const editCodeWrap = document.getElementById('till-edit-code-wrap');
+  const editReportError = document.getElementById('till-edit-report-error');
 
-  let cache = { date: '', cash: 0, credit: 0, tipCash: 0, tipCredit: 0, tip: 0, products: [] };
+  let cache = emptyCache('');
   let started = false;
   let refreshTimer = null;
   let loadSeq = 0;
@@ -42,6 +54,19 @@
   let menuCategories = [];
   let totalsUnlocked = false;
   let totalsBusy = false;
+  let openingBusy = false;
+  let editReportBusy = false;
+
+  function emptyCache(date) {
+    return {
+      date: date || '',
+      live: { cash: 0, credit: 0, tip: 0 },
+      report: null,
+      opening: null,
+      products: [],
+      layersMissing: false,
+    };
+  }
 
   function OrdersApi() {
     return window.LechaimSupabaseOrders;
@@ -171,6 +196,42 @@
     return `€${n % 1 === 0 ? n.toFixed(0) : n.toFixed(2)}`;
   }
 
+  function roundMoney(amount) {
+    return Math.round((Number(amount) || 0) * 100) / 100;
+  }
+
+  function parseMoneyInput(value) {
+    const n = Number(String(value ?? '').trim().replace(',', '.'));
+    if (!Number.isFinite(n) || n < 0) return null;
+    return roundMoney(n);
+  }
+
+  function inclusiveTotal(cash, credit, tip) {
+    return roundMoney(roundMoney(cash) + roundMoney(credit) + roundMoney(tip));
+  }
+
+  function displayedSales(live, report) {
+    if (report) {
+      return {
+        cash: roundMoney(report.cash),
+        credit: roundMoney(report.credit),
+        tip: roundMoney(report.tip),
+        source: 'edited',
+      };
+    }
+    return {
+      cash: roundMoney(live?.cash),
+      credit: roundMoney(live?.credit),
+      tip: roundMoney(live?.tip),
+      source: 'live',
+    };
+  }
+
+  function isLayersMissingError(err) {
+    return err?.code === 'TILL_DAY_LAYERS_MISSING'
+      || /TILL_DAY_LAYERS_MISSING|till_day_openings|till_day_reports/i.test(String(err?.message || ''));
+  }
+
   function escapeHtml(str) {
     return String(str == null ? '' : str)
       .replace(/&/g, '&amp;')
@@ -240,23 +301,17 @@
   function buildSummary(rows) {
     let cash = 0;
     let credit = 0;
-    let tipCash = 0;
-    let tipCredit = 0;
     let tip = 0;
     (rows || []).forEach((row) => {
       const method = String(row?.payment_method || '').toLowerCase();
       if (method !== 'cash' && method !== 'credit' && method !== 'split') return;
       cash += sessionCashAmount(row);
       credit += sessionCreditAmount(row);
-      tipCash += sessionTipCashAmount(row);
-      tipCredit += sessionTipCreditAmount(row);
       tip += sessionTipAmount(row);
     });
     return {
       cash: Math.round(cash * 100) / 100,
       credit: Math.round(credit * 100) / 100,
-      tipCash: Math.round(tipCash * 100) / 100,
-      tipCredit: Math.round(tipCredit * 100) / 100,
       tip: Math.round(tip * 100) / 100,
     };
   }
@@ -342,33 +397,33 @@
   }
 
   function renderSummary() {
-    const sales = Math.round((Number(cache.cash) + Number(cache.credit)) * 100) / 100;
-    const tip = Number(cache.tip) || 0;
-    const received = Math.round((sales + tip) * 100) / 100;
+    const shown = displayedSales(cache.live, cache.report);
+    const sales = roundMoney(shown.cash + shown.credit);
     if (dateLabelEl) dateLabelEl.textContent = formatDisplayDate(cache.date);
-    if (cashEl) cashEl.textContent = formatMoney(cache.cash);
-    if (creditEl) creditEl.textContent = formatMoney(cache.credit);
     if (totalEl) totalEl.textContent = formatMoney(sales);
-    if (tipCashEl) tipCashEl.textContent = formatMoney(cache.tipCash);
-    if (tipCreditEl) tipCreditEl.textContent = formatMoney(cache.tipCredit);
-    if (tipEl) tipEl.textContent = formatMoney(tip);
-    if (receivedEl) receivedEl.textContent = formatMoney(received);
+    if (cashEl) cashEl.textContent = formatMoney(shown.cash);
+    if (creditEl) creditEl.textContent = formatMoney(shown.credit);
+    if (tipEl) tipEl.textContent = formatMoney(shown.tip);
+    if (sourceEl) {
+      const edited = shown.source === 'edited';
+      sourceEl.hidden = !edited;
+      sourceEl.textContent = edited ? 'דוח ערוך' : '';
+    }
+    if (openingInput && document.activeElement !== openingInput) {
+      openingInput.value = cache.opening == null ? '' : String(cache.opening);
+    }
     renderProducts();
   }
 
   function buildWhatsAppText() {
-    const sales = Math.round((Number(cache.cash) + Number(cache.credit)) * 100) / 100;
-    const tip = Number(cache.tip) || 0;
-    const received = Math.round((sales + tip) * 100) / 100;
+    const shown = displayedSales(cache.live, cache.report);
+    const sales = roundMoney(shown.cash + shown.credit);
     return [
       formatDisplayDate(cache.date),
-      `סה״כ טיפ ${formatMoney(tip)}`,
-      `סה״כ כולל טיפים ${formatMoney(received)}`,
       `סה״כ מכירות ${formatMoney(sales)}`,
-      `מזומן ${formatMoney(cache.cash)}`,
-      `אשראי ${formatMoney(cache.credit)}`,
-      `טיפ מזומן ${formatMoney(cache.tipCash)}`,
-      `טיפ אשראי ${formatMoney(cache.tipCredit)}`,
+      `סה״כ מזומן ${formatMoney(shown.cash)}`,
+      `סה״כ אשראי ${formatMoney(shown.credit)}`,
+      `סה״כ טיפים ${formatMoney(shown.tip)}`,
     ].join('\n');
   }
 
@@ -457,36 +512,70 @@
     }
   }
 
+  async function loadTillLayers(api, date) {
+    const out = { opening: null, report: null, missing: false };
+    const jobs = [];
+    if (typeof api.getTillDayOpening === 'function') {
+      jobs.push(
+        api.getTillDayOpening(date)
+          .then((row) => { out.opening = row?.amount == null ? null : roundMoney(row.amount); })
+          .catch((err) => {
+            if (isLayersMissingError(err)) out.missing = true;
+            else console.warn('[admin-till] opening load failed', err);
+          })
+      );
+    }
+    if (typeof api.getTillDayReport === 'function') {
+      jobs.push(
+        api.getTillDayReport(date)
+          .then((row) => {
+            out.report = row
+              ? { cash: roundMoney(row.cash), credit: roundMoney(row.credit), tip: roundMoney(row.tip) }
+              : null;
+          })
+          .catch((err) => {
+            if (isLayersMissingError(err)) out.missing = true;
+            else console.warn('[admin-till] edited report load failed', err);
+          })
+      );
+    }
+    if (jobs.length) await Promise.all(jobs);
+    return out;
+  }
+
   async function loadReport() {
     const api = OrdersApi();
     const date = dateInput?.value || todayLocalYmd();
     if (dateInput && !dateInput.value) dateInput.value = date;
 
-    /* Days before go-live show a clean zero till */
-    if (date < TILL_COUNT_FROM_YMD) {
-      showError('');
-      cache = { date, cash: 0, credit: 0, tipCash: 0, tipCredit: 0, tip: 0, products: [] };
-      renderSummary();
-      return;
-    }
-
     if (!api?.isConfigured?.() || typeof api.getDailyTillReport !== 'function') {
       showError('מכירות לא זמינות — בדקו חיבור Supabase');
-      cache = { date, cash: 0, credit: 0, tipCash: 0, tipCredit: 0, tip: 0, products: [] };
+      cache = emptyCache(date);
       renderSummary();
       return;
     }
 
     const seq = ++loadSeq;
     try {
-      const [rows, products] = await Promise.all([
-        api.getDailyTillReport(date),
-        loadSoldProducts(api, date),
+      const beforeGoLive = date < TILL_COUNT_FROM_YMD;
+      const [rows, products, layers] = await Promise.all([
+        beforeGoLive ? Promise.resolve([]) : api.getDailyTillReport(date),
+        beforeGoLive ? Promise.resolve([]) : loadSoldProducts(api, date),
+        loadTillLayers(api, date),
       ]);
       if (seq !== loadSeq) return;
-      showError('');
-      const sums = buildSummary(rows);
-      cache = { date, ...sums, products };
+      const sums = beforeGoLive ? { cash: 0, credit: 0, tip: 0 } : buildSummary(rows);
+      cache = {
+        date,
+        live: sums,
+        report: layers.report,
+        opening: layers.opening,
+        products: beforeGoLive ? [] : products,
+        layersMissing: layers.missing,
+      };
+      showError(layers.missing
+        ? 'חסרות טבלאות קופה יומית — הריצו supabase-till-day-layers.sql'
+        : '');
       renderSummary();
     } catch (err) {
       if (seq !== loadSeq) return;
@@ -497,7 +586,7 @@
       } else {
         showError('לא ניתן לטעון את המכירות');
       }
-      cache = { date, cash: 0, credit: 0, tipCash: 0, tipCredit: 0, tip: 0, products: [] };
+      cache = emptyCache(date);
       renderSummary();
     }
   }
@@ -507,6 +596,171 @@
     refreshTimer = window.setTimeout(() => {
       void loadReport();
     }, 280);
+  }
+
+  function showEditReportError(message) {
+    if (!editReportError) return;
+    if (!message) {
+      editReportError.hidden = true;
+      editReportError.textContent = '';
+      return;
+    }
+    editReportError.hidden = false;
+    editReportError.textContent = message;
+  }
+
+  function updateEditInclusive() {
+    if (!editInclusiveEl) return;
+    const cash = parseMoneyInput(editCashInput?.value);
+    const credit = parseMoneyInput(editCreditInput?.value);
+    const tip = parseMoneyInput(editTipInput?.value);
+    if (cash == null || credit == null || tip == null) {
+      editInclusiveEl.textContent = '—';
+      return;
+    }
+    editInclusiveEl.textContent = formatMoney(inclusiveTotal(cash, credit, tip));
+  }
+
+  function openEditReportModal() {
+    const shown = displayedSales(cache.live, cache.report);
+    if (editReportDateEl) {
+      editReportDateEl.textContent = formatDisplayDate(dateInput?.value || cache.date || todayLocalYmd());
+    }
+    if (editCashInput) editCashInput.value = String(shown.cash);
+    if (editCreditInput) editCreditInput.value = String(shown.credit);
+    if (editTipInput) editTipInput.value = String(shown.tip);
+    if (editCodeInput) editCodeInput.value = '';
+    hideEditCode();
+    showEditReportError('');
+    updateEditInclusive();
+    if (!editReportModal) return;
+    editReportModal.hidden = false;
+    editReportModal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('admin-modal-open');
+    window.setTimeout(() => editCashInput?.focus(), 50);
+  }
+
+  function hideEditCode() {
+    if (editCodeInput) editCodeInput.value = '';
+    if (editCodeWrap) editCodeWrap.hidden = true;
+  }
+
+  function revealEditCode() {
+    if (editCodeWrap) editCodeWrap.hidden = false;
+    window.setTimeout(() => editCodeInput?.focus(), 50);
+  }
+
+  function closeEditReportModal() {
+    hideEditCode();
+    if (!editReportModal) return;
+    editReportModal.hidden = true;
+    editReportModal.setAttribute('aria-hidden', 'true');
+    const open = document.querySelector('.admin-modal:not([hidden])');
+    if (!open) document.body.classList.remove('admin-modal-open');
+  }
+
+  async function verifyStaffSettingsCode(code) {
+    const sb = getSb() || OrdersApi()?.getClient?.();
+    if (!sb) {
+      return { ok: false, error: 'not_connected' };
+    }
+    const { data, error } = await sb.rpc('staff_settings_verify_code', { p_code: code });
+    if (error) throw error;
+    return data || {};
+  }
+
+  async function submitOpening(event) {
+    event.preventDefault();
+    if (openingBusy) return;
+    const amount = parseMoneyInput(openingInput?.value);
+    if (amount == null) {
+      showError('סכום פתיחת קופה לא תקין');
+      return;
+    }
+    const api = OrdersApi();
+    const date = dateInput?.value || cache.date || todayLocalYmd();
+    if (typeof api?.upsertTillDayOpening !== 'function') {
+      showError('חסרות טבלאות קופה יומית — הריצו supabase-till-day-layers.sql');
+      return;
+    }
+    openingBusy = true;
+    if (openingSaveBtn) openingSaveBtn.disabled = true;
+    try {
+      const row = await api.upsertTillDayOpening(date, amount);
+      cache.opening = roundMoney(row?.amount ?? amount);
+      showError('');
+      renderSummary();
+    } catch (err) {
+      console.error('[admin-till] opening save', err);
+      showError(isLayersMissingError(err)
+        ? 'חסרות טבלאות קופה יומית — הריצו supabase-till-day-layers.sql'
+        : 'לא ניתן לשמור את פתיחת הקופה');
+    } finally {
+      openingBusy = false;
+      if (openingSaveBtn) openingSaveBtn.disabled = false;
+    }
+  }
+
+  async function submitEditReport(event) {
+    event.preventDefault();
+    if (editReportBusy) return;
+    const cash = parseMoneyInput(editCashInput?.value);
+    const credit = parseMoneyInput(editCreditInput?.value);
+    const tip = parseMoneyInput(editTipInput?.value);
+    if (cash == null || credit == null || tip == null) {
+      showEditReportError('הזינו סכומים תקינים');
+      return;
+    }
+    if (editCodeWrap?.hidden) {
+      showEditReportError('');
+      revealEditCode();
+      return;
+    }
+    const code = editCodeInput?.value || '';
+    if (!String(code).trim()) {
+      showEditReportError('הזינו קוד גישה');
+      return;
+    }
+    const api = OrdersApi();
+    const date = dateInput?.value || cache.date || todayLocalYmd();
+    if (typeof api?.upsertTillDayReport !== 'function') {
+      showEditReportError('חסרות טבלאות קופה יומית — הריצו supabase-till-day-layers.sql');
+      return;
+    }
+    editReportBusy = true;
+    showEditReportError('');
+    try {
+      const verified = await verifyStaffSettingsCode(code);
+      if (editCodeInput) editCodeInput.value = '';
+      if (!verified.ok) {
+        if (verified.error === 'invalid_code') showEditReportError('קוד שגוי');
+        else if (verified.error === 'code_not_set') showEditReportError('קוד הגישה עדיין לא הוגדר ב-Supabase');
+        else if (verified.error === 'not_authenticated') showEditReportError('יש להתחבר לאדמין');
+        else if (verified.error === 'not_connected') showEditReportError('Supabase לא מחובר');
+        else showEditReportError(verified.error || 'שגיאה');
+        return;
+      }
+      const row = await api.upsertTillDayReport(date, { cash, credit, tip });
+      cache.report = {
+        cash: roundMoney(row?.cash ?? cash),
+        credit: roundMoney(row?.credit ?? credit),
+        tip: roundMoney(row?.tip ?? tip),
+      };
+      renderSummary();
+      closeEditReportModal();
+    } catch (err) {
+      console.error('[admin-till] edit report save', err);
+      const msg = String(err?.message || '');
+      if (/staff_settings_verify_code|function/i.test(msg)) {
+        showEditReportError('יש להריץ את supabase-till-tip-and-void-gate.sql ב-Supabase');
+      } else if (isLayersMissingError(err)) {
+        showEditReportError('חסרות טבלאות קופה יומית — הריצו supabase-till-day-layers.sql');
+      } else {
+        showEditReportError('לא ניתן לשמור את הדוח');
+      }
+    } finally {
+      editReportBusy = false;
+    }
   }
 
   function start() {
@@ -540,6 +794,18 @@
     });
     document.getElementById('till-totals-cancel')?.addEventListener('click', closeTotalsModal);
     document.getElementById('till-totals-backdrop')?.addEventListener('click', closeTotalsModal);
+    openingForm?.addEventListener('submit', (event) => {
+      submitOpening(event).catch(() => {});
+    });
+    editReportBtn?.addEventListener('click', openEditReportModal);
+    editReportForm?.addEventListener('submit', (event) => {
+      submitEditReport(event).catch(() => {});
+    });
+    editCashInput?.addEventListener('input', updateEditInclusive);
+    editCreditInput?.addEventListener('input', updateEditInclusive);
+    editTipInput?.addEventListener('input', updateEditInclusive);
+    document.getElementById('till-edit-report-cancel')?.addEventListener('click', closeEditReportModal);
+    document.getElementById('till-edit-report-backdrop')?.addEventListener('click', closeEditReportModal);
     applyTotalsGate();
     void loadReport();
   }
@@ -556,6 +822,9 @@
       sessionTipCashAmount,
       sessionTipCreditAmount,
       buildSummary,
+      displayedSales,
+      inclusiveTotal,
+      roundMoney,
     },
   };
 })();

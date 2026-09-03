@@ -21,6 +21,8 @@
     'ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני',
     'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר',
   ];
+  const MANUAL_PAYMENT_SUPPLIER = 'תשלום מזומן/אשראי';
+  const Z_REPORT_SUPPLIER = 'דוח Z';
   const DEFAULT_SUPPLIERS = [
     'ירקות',
     'דה מארט',
@@ -31,6 +33,8 @@
     'חד פעמי',
     'חשבוניות קטנות',
     'חשבוניות כלליות',
+    Z_REPORT_SUPPLIER,
+    MANUAL_PAYMENT_SUPPLIER,
   ];
   const SUPPLIER_COLORS = {
     'ירקות': '#3f8f5b',
@@ -42,6 +46,8 @@
     'חד פעמי': '#6b7c8a',
     'חשבוניות קטנות': '#8a5a8c',
     'חשבוניות כלליות': '#c45a3d',
+    [Z_REPORT_SUPPLIER]: '#1e3354',
+    [MANUAL_PAYMENT_SUPPLIER]: '#5a6b4e',
   };
   const EXTRA_COLORS = ['#8d6e4c', '#5a7d6a', '#9a5b6a', '#4a6d8c', '#7d6b3a', '#5c6b9a'];
   const TILL_COUNT_FROM_YMD = '2026-08-10';
@@ -101,6 +107,7 @@
   let activeSupplier = '';
   let scanSupplier = '';
   let pendingSuppliers = [];
+  let pendingPayMethod = '';
   let newThenScan = false;
   let moveDocId = null;
   let selectedYm = '';
@@ -220,6 +227,30 @@
 
   function supplierKey(name) {
     return String(name || '').trim();
+  }
+
+  function isManualPaymentSupplier(name) {
+    return supplierKey(name) === MANUAL_PAYMENT_SUPPLIER;
+  }
+
+  function isZReportSupplier(name) {
+    return supplierKey(name) === Z_REPORT_SUPPLIER;
+  }
+
+  function isInvoiceExportRow(row) {
+    return hasDocumentFile(row)
+      && !isZReportSupplier(row.supplier_name)
+      && !isManualPaymentSupplier(row.supplier_name);
+  }
+
+  function hasDocumentFile(row) {
+    return Boolean(String(row?.storage_path || '').trim());
+  }
+
+  function payMethodLabel(value) {
+    if (value === 'cash') return 'מזומן';
+    if (value === 'credit') return 'אשראי';
+    return '';
   }
 
   function showError(message) {
@@ -349,9 +380,12 @@
     const amount = formatMoney(row?.amount_total);
     resetDeleteModal();
     if (deleteTextEl) {
+      const hasFile = hasDocumentFile(row);
       deleteTextEl.textContent = label
-        ? `אתה בטוח? למחוק את החשבונית מ-${label} (${amount})? הקובץ יימחק לצמיתות.`
-        : 'אתה בטוח? החשבונית תימחק לצמיתות.';
+        ? (hasFile
+          ? `אתה בטוח? למחוק את החשבונית מ-${label} (${amount})? הקובץ יימחק לצמיתות.`
+          : `אתה בטוח? למחוק את התשלום מ-${label} (${amount})?`)
+        : 'אתה בטוח? הרשומה תימחק לצמיתות.';
     }
     openModal(deleteModal);
     releaseTrap(deleteTrap);
@@ -530,7 +564,23 @@
     if (dateEl) dateEl.value = todayYmd();
     const totalEl = document.getElementById('docs-field-total');
     if (totalEl) totalEl.value = '';
+    const notesEl = document.getElementById('docs-field-notes');
+    if (notesEl) notesEl.value = '';
+    pendingPayMethod = '';
+    setPayMethodHighlight('');
     showFormError(formErrorEl, '');
+  }
+
+  function setManualFormVisible(on) {
+    const wrap = document.getElementById('docs-manual-fields');
+    if (wrap) wrap.hidden = !on;
+    scanOverlay?.querySelector('.docs-scan-modal__panel')?.classList.toggle('is-manual', Boolean(on));
+  }
+
+  function setPayMethodHighlight(method) {
+    document.querySelectorAll('[data-docs-pay]').forEach((btn) => {
+      btn.classList.toggle('is-on', btn.getAttribute('data-docs-pay') === method);
+    });
   }
 
   function activeRows() {
@@ -561,12 +611,12 @@
       });
   }
 
-  function setPdfButtonState(busy, label) {
-    const btn = document.getElementById('docs-month-pdf');
+  function setPdfButtonState(busy, label, buttonId, idleLabel) {
+    const btn = document.getElementById(buttonId || 'docs-month-pdf');
     if (!btn) return;
     btn.disabled = Boolean(busy);
     btn.setAttribute('aria-busy', busy ? 'true' : 'false');
-    btn.textContent = label || 'הפק PDF לחודש';
+    btn.textContent = label || idleLabel || 'הפק PDF לחודש';
   }
 
   function sumAmounts(rows) {
@@ -614,6 +664,61 @@
     if (!pendingSuppliers.includes(key)) pendingSuppliers.push(key);
   }
 
+  function isMissingSuppliersTable(err) {
+    const msg = String(err?.message || err || '');
+    return /business_document_suppliers/i.test(msg)
+      || (/Could not find the table|relation .* does not exist/i.test(msg) && /supplier/i.test(msg));
+  }
+
+  function isMissingManualPaymentSupport(err) {
+    const msg = String(err?.message || err || '');
+    return /manual_payment|manual_file|storage_path|mime_type|file_size/i.test(msg)
+      && /violat|check|not-null|not null|invalid/i.test(msg);
+  }
+
+  function isRlsSaveError(err) {
+    const msg = String(err?.message || err?.code || '');
+    return /row-level security|violates row-level|42501|PGRST301/i.test(msg);
+  }
+
+  async function currentAuthUserId(sb) {
+    try {
+      const { data } = await sb.auth.getUser();
+      return data?.user?.id || null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  async function persistSupplier(name) {
+    const key = supplierKey(name);
+    if (!key) return;
+    rememberSupplier(key);
+    const sb = getClient();
+    if (!sb) throw new Error('Supabase לא מחובר');
+    const { error } = await sb.from('business_document_suppliers').insert({ name: key });
+    if (!error) return;
+    if (/duplicate|unique/i.test(String(error.message || ''))) return;
+    if (isMissingSuppliersTable(error)) {
+      throw new Error('יש להריץ את supabase-business-documents-suppliers-and-manual.sql ב-SQL Editor של Supabase');
+    }
+    throw error;
+  }
+
+  async function loadCatalogSuppliers() {
+    const sb = getClient();
+    if (!sb) return;
+    const { data, error } = await sb
+      .from('business_document_suppliers')
+      .select('name')
+      .order('name', { ascending: true });
+    if (error) {
+      if (isMissingSuppliersTable(error)) return;
+      throw error;
+    }
+    (data || []).forEach((row) => rememberSupplier(row.name));
+  }
+
   function openFolder(name) {
     activeSupplier = supplierKey(name);
     if (!activeSupplier) return;
@@ -651,7 +756,7 @@
         <span class="docs-chat__body">
           <strong class="docs-chat__name">${escapeHtml(item.name)}</strong>
           <span class="docs-chat__sum">${escapeHtml(formatMoney(item.monthSum))} החודש</span>
-          <span class="docs-chat__count">${item.monthCount} חשבוניות</span>
+          <span class="docs-chat__count">${item.monthCount} ${isManualPaymentSupplier(item.name) ? 'תשלומים' : 'חשבוניות'}</span>
         </span>
       </button>
     `;
@@ -684,6 +789,23 @@
     const ym = activeYm();
     const monthRows = rows.filter((row) => monthOf(row) === ym);
     if (sumEl) sumEl.textContent = formatMoney(sumAmounts(monthRows));
+    const scanBtn = document.querySelector('#docs-folder-active [data-docs-scan]');
+    const fileBtn = document.querySelector('#docs-folder-active [data-docs-pick-file]');
+    const payBtn = document.getElementById('docs-add-payment');
+    const copyPayBtn = document.getElementById('docs-folder-copy-pay');
+    const zPdfBtn = document.getElementById('docs-folder-z-pdf');
+    const manual = isManualPaymentSupplier(name);
+    const zReport = isZReportSupplier(name);
+    if (scanBtn) scanBtn.hidden = manual;
+    if (fileBtn) fileBtn.hidden = manual;
+    if (payBtn) payBtn.hidden = !manual;
+    if (copyPayBtn) copyPayBtn.hidden = !manual;
+    if (zPdfBtn) zPdfBtn.hidden = !zReport;
+    if (emptyEl) {
+      emptyEl.textContent = manual
+        ? 'אין תשלומים עדיין — הוסיפו את הראשון'
+        : 'אין חשבוניות עדיין — סרקו את הראשונה';
+    }
     const groups = new Map();
     if (rows.length) groups.set(ym, []);
     rows.forEach((row) => {
@@ -708,9 +830,11 @@
               <button type="button" class="docs-inv" data-docs-open="${escapeHtml(row.id)}">
                 <span class="docs-inv__date">${escapeHtml(formatDate(row.document_date))}</span>
                 <strong class="docs-inv__amount">${escapeHtml(formatMoney(row.amount_total))}</strong>
+                ${row.notes ? `<span class="docs-inv__note">${escapeHtml(row.notes)}</span>` : ''}
+                ${payMethodLabel(row.category) ? `<span class="docs-inv__note">${escapeHtml(payMethodLabel(row.category))}</span>` : ''}
                 <span class="docs-inv__chev" aria-hidden="true">‹</span>
               </button>
-            `).join('') : '<p class="docs-month__empty">אין חשבוניות בחודש זה</p>'}
+            `).join('') : `<p class="docs-month__empty">${manual ? 'אין תשלומים בחודש זה' : 'אין חשבוניות בחודש זה'}</p>`}
           </div>
         </section>
       `;
@@ -865,12 +989,10 @@
     showToast('הקובץ ירד');
   }
 
-  async function downloadMonthPdf() {
+  async function downloadDocumentsPdf(rows, filename, emptyMessage, buttonId, idleLabel) {
     if (pdfBusy) return;
-    const ym = activeYm();
-    const rows = monthDocuments(ym);
     if (!rows.length) {
-      showError('אין מסמכים בחודש שנבחר');
+      showError(emptyMessage);
       return;
     }
     const api = global.LechaimDocsMonthlyPdf;
@@ -878,24 +1000,23 @@
       showError('יצירת ה-PDF לא זמינה');
       return;
     }
-    const label = monthLabel(ym);
     pdfBusy = true;
     showError('');
-    setPdfButtonState(true, `מכין PDF… 0/${rows.length}`);
+    setPdfButtonState(true, `מכין PDF… 0/${rows.length}`, buttonId, idleLabel);
     try {
       const bytes = await api.buildMonthlyDocumentsPdf({
         count: rows.length,
         onProgress: (done, total) => {
-          setPdfButtonState(true, `מכין PDF… ${done}/${total}`);
+          setPdfButtonState(true, `מכין PDF… ${done}/${total}`, buttonId, idleLabel);
         },
         getItem: async (index) => {
           const row = rows[index];
-          setPdfButtonState(true, `טוען ${index + 1}/${rows.length}`);
+          setPdfButtonState(true, `טוען ${index + 1}/${rows.length}`, buttonId, idleLabel);
           const url = await signedUrl(row.storage_path);
           const res = await fetch(url);
           if (!res.ok) {
             throw new Error(
-              `לא ניתן לטעון את החשבונית של ${row.supplier_name || 'ספק'} מתאריך ${formatDateFull(row.document_date)}`
+              `לא ניתן לטעון את ${row.supplier_name || 'המסמך'} מתאריך ${formatDateFull(row.document_date)}`
             );
           }
           return {
@@ -904,14 +1025,115 @@
           };
         },
       });
-      api.downloadPdf(`מסמכים_${label.replace(/\s+/g, '_')}.pdf`, bytes);
+      api.downloadPdf(filename, bytes);
       showToast('ה-PDF ירד');
     } catch (err) {
       showError(err?.message || 'יצירת ה-PDF נכשלה');
     } finally {
       pdfBusy = false;
-      setPdfButtonState(false, 'הפק PDF לחודש');
+      setPdfButtonState(false, idleLabel, buttonId, idleLabel);
     }
+  }
+
+  function monthInvoiceDocuments(ym) {
+    return monthDocuments(ym).filter(isInvoiceExportRow);
+  }
+
+  function monthZDocuments(ym) {
+    return monthDocuments(ym).filter((row) => isZReportSupplier(row.supplier_name) && hasDocumentFile(row));
+  }
+
+  function monthManualPayments(ym) {
+    return monthDocuments(ym).filter((row) => isManualPaymentSupplier(row.supplier_name));
+  }
+
+  async function downloadMonthPdf() {
+    const ym = activeYm();
+    const label = monthLabel(ym);
+    await downloadDocumentsPdf(
+      monthInvoiceDocuments(ym),
+      `חשבוניות_${label.replace(/\s+/g, '_')}.pdf`,
+      'אין חשבוניות עם תמונה בחודש שנבחר',
+      'docs-month-pdf',
+      'הפק PDF לחודש'
+    );
+  }
+
+  async function downloadZReportPdf() {
+    const ym = activeYm();
+    const label = monthLabel(ym);
+    await downloadDocumentsPdf(
+      monthZDocuments(ym),
+      `דוח_Z_${label.replace(/\s+/g, '_')}.pdf`,
+      'אין דוח Z עם תמונה בחודש שנבחר',
+      'docs-folder-z-pdf',
+      'PDF דוח Z'
+    );
+  }
+
+  function buildManualPaymentsText(ym) {
+    const rows = monthManualPayments(ym).slice().sort((a, b) => {
+      const dates = String(a.document_date || '').localeCompare(String(b.document_date || ''));
+      if (dates) return dates;
+      return String(a.created_at || '').localeCompare(String(b.created_at || ''));
+    });
+    if (!rows.length) return '';
+    let cash = 0;
+    let credit = 0;
+    const lines = [`תשלום מזומן/אשראי — ${monthLabel(ym)}`, ''];
+    rows.forEach((row) => {
+      const amount = Number(row.amount_total) || 0;
+      if (row.category === 'cash') cash += amount;
+      if (row.category === 'credit') credit += amount;
+      const method = payMethodLabel(row.category) || 'תשלום';
+      const note = String(row.notes || '').trim();
+      lines.push(
+        [formatDateFull(row.document_date), method, formatMoney(amount), note]
+          .filter(Boolean)
+          .join('  ')
+      );
+    });
+    lines.push(
+      '',
+      `סה״כ מזומן ${formatMoney(cash)}`,
+      `סה״כ אשראי ${formatMoney(credit)}`,
+      `סה״כ ${formatMoney(cash + credit)}`
+    );
+    return lines.join('\n');
+  }
+
+  async function copyText(text) {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch (_) { /* fall through */ }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:fixed;left:-9999px;top:0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      ta.remove();
+      return ok;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  async function copyManualPaymentsText() {
+    const text = buildManualPaymentsText(activeYm());
+    if (!text) {
+      showError('אין תשלומי מזומן/אשראי בחודש שנבחר');
+      return;
+    }
+    showError('');
+    const ok = await copyText(text);
+    if (ok) showToast('תשלומי מזומן/אשראי הועתקו');
+    else showError('לא ניתן להעתיק את הטקסט');
   }
 
   function renderAll() {
@@ -928,6 +1150,8 @@
     revokePreviewUrl();
     pendingFile = null;
     editingId = null;
+    pendingPayMethod = '';
+    setManualFormVisible(false);
     if (cameraInput) cameraInput.value = '';
     if (fileInput) fileInput.value = '';
     if (previewFrame) previewFrame.innerHTML = '';
@@ -961,11 +1185,34 @@
   }
 
   function goToForm() {
-    if (formTitleEl) formTitleEl.textContent = editingId ? 'עריכה' : (scanSupplier || activeSupplier || 'חשבונית');
+    const supplier = scanSupplier || activeSupplier || '';
+    const manual = isManualPaymentSupplier(supplier);
+    if (formTitleEl) {
+      formTitleEl.textContent = editingId
+        ? 'עריכה'
+        : (manual ? 'תשלום מזומן/אשראי' : (supplier || 'חשבונית'));
+    }
     const hint = document.getElementById('docs-form-supplier');
     if (hint) hint.hidden = true;
+    setManualFormVisible(manual);
     setScanStep('form');
-    window.setTimeout(() => document.getElementById('docs-field-total')?.focus(), 80);
+    window.setTimeout(() => (
+      manual
+        ? document.getElementById('docs-field-notes')?.focus()
+        : document.getElementById('docs-field-total')?.focus()
+    ), 80);
+  }
+
+  function openManualPaymentForm() {
+    scanSupplier = MANUAL_PAYMENT_SUPPLIER;
+    rememberSupplier(MANUAL_PAYMENT_SUPPLIER);
+    editingId = null;
+    pendingFile = null;
+    revokePreviewUrl();
+    resetForm();
+    setManualFormVisible(true);
+    goToForm();
+    openScanOverlay();
   }
 
   function openVaultModal() {
@@ -1005,7 +1252,7 @@
   }
 
   function openPickModal() {
-    const suppliers = buildSuppliers();
+    const suppliers = buildSuppliers().filter((item) => !isManualPaymentSupplier(item.name));
     if (pickListEl) {
       pickListEl.innerHTML = suppliers.map((item) => `
         <button type="button" class="docs-pick-item" data-docs-pick-supplier="${escapeHtml(item.name)}" ${colorStyle(item.name)}>
@@ -1036,6 +1283,10 @@
     }
     scanSupplier = key;
     rememberSupplier(key);
+    if (isManualPaymentSupplier(key)) {
+      openManualPaymentForm();
+      return;
+    }
     cameraInput?.click();
   }
 
@@ -1090,30 +1341,45 @@
     const row = cache.find((item) => item.id === id);
     if (!row) return;
     showError('');
+    const downloadBtn = document.getElementById('docs-view-download');
+    const moveBtn = document.getElementById('docs-view-move');
     try {
-      const url = await signedUrl(row.storage_path);
       if (viewTitleEl) viewTitleEl.textContent = row.supplier_name || 'חשבונית';
       if (viewMetaEl) {
         viewMetaEl.textContent = [
           row.supplier_name,
           formatDateFull(row.document_date),
           formatMoney(row.amount_total),
+          payMethodLabel(row.category),
+          row.notes || '',
         ].filter(Boolean).join(' · ');
       }
+      if (downloadBtn) downloadBtn.hidden = !hasDocumentFile(row);
+      if (moveBtn) moveBtn.hidden = isManualPaymentSupplier(row.supplier_name);
       if (viewFrameEl) {
         viewFrameEl.innerHTML = '';
-        if (row.mime_type === 'application/pdf') {
-          const iframe = document.createElement('iframe');
-          iframe.className = 'docs-preview__pdf';
-          iframe.title = 'תצוגת PDF';
-          iframe.src = url;
-          viewFrameEl.appendChild(iframe);
+        if (!hasDocumentFile(row)) {
+          const box = document.createElement('p');
+          box.className = 'docs-view-note';
+          box.textContent = row.notes
+            ? `${payMethodLabel(row.category) || 'תשלום'} · ${row.notes}`
+            : (payMethodLabel(row.category) || 'תשלום בלי תמונה');
+          viewFrameEl.appendChild(box);
         } else {
-          const img = document.createElement('img');
-          img.className = 'docs-preview__img';
-          img.alt = row.original_filename || 'חשבונית';
-          img.src = url;
-          viewFrameEl.appendChild(img);
+          const url = await signedUrl(row.storage_path);
+          if (row.mime_type === 'application/pdf') {
+            const iframe = document.createElement('iframe');
+            iframe.className = 'docs-preview__pdf';
+            iframe.title = 'תצוגת PDF';
+            iframe.src = url;
+            viewFrameEl.appendChild(iframe);
+          } else {
+            const img = document.createElement('img');
+            img.className = 'docs-preview__img';
+            img.alt = row.original_filename || 'חשבונית';
+            img.src = url;
+            viewFrameEl.appendChild(img);
+          }
         }
       }
       viewModal.dataset.docId = id;
@@ -1127,7 +1393,7 @@
 
   async function downloadDocument(id) {
     const row = cache.find((item) => item.id === id);
-    if (!row) return;
+    if (!row || !hasDocumentFile(row)) return;
     try {
       const url = await signedUrl(row.storage_path, row.original_filename || 'document');
       const a = document.createElement('a');
@@ -1152,8 +1418,12 @@
     resetForm();
     const dateEl = document.getElementById('docs-field-date');
     const totalEl = document.getElementById('docs-field-total');
+    const notesEl = document.getElementById('docs-field-notes');
     if (dateEl) dateEl.value = row.document_date || todayYmd();
     if (totalEl) totalEl.value = row.amount_total ?? '';
+    if (notesEl) notesEl.value = row.notes || '';
+    pendingPayMethod = row.category === 'credit' ? 'credit' : (row.category === 'cash' ? 'cash' : '');
+    setPayMethodHighlight(pendingPayMethod);
     goToForm();
     openScanOverlay();
   }
@@ -1205,6 +1475,10 @@
       showToast('כבר באותו ספק');
       return;
     }
+    if (isManualPaymentSupplier(row.supplier_name) || isManualPaymentSupplier(target)) {
+      showError('תשלום מזומן/אשראי נשאר בתיקייה שלו');
+      return;
+    }
     const sb = getClient();
     if (!sb) { showError('Supabase לא מחובר'); return; }
     try {
@@ -1227,9 +1501,12 @@
     const date = String(document.getElementById('docs-field-date')?.value || '').trim();
     const raw = String(document.getElementById('docs-field-total')?.value || '').trim();
     const total = Number(raw);
+    const notes = String(document.getElementById('docs-field-notes')?.value || '').trim();
     return {
       date: date || null,
       total: raw && Number.isFinite(total) ? total : null,
+      notes,
+      method: pendingPayMethod === 'credit' ? 'credit' : (pendingPayMethod === 'cash' ? 'cash' : ''),
     };
   }
 
@@ -1250,6 +1527,15 @@
       showFormError(formErrorEl, 'הזינו סכום סופי');
       return;
     }
+    const manual = isManualPaymentSupplier(supplier);
+    if (manual && !simple.notes) {
+      showFormError(formErrorEl, 'כתבו על מה יצא התשלום');
+      return;
+    }
+    if (manual && !simple.method) {
+      showFormError(formErrorEl, 'בחרו מזומן או אשראי');
+      return;
+    }
     const sb = getClient();
     if (!sb) {
       showFormError(formErrorEl, 'Supabase לא מחובר');
@@ -1258,13 +1544,21 @@
     busy = true;
     showFormError(formErrorEl, '');
     try {
+      const userId = await currentAuthUserId(sb);
+      if (!userId) {
+        showFormError(formErrorEl, 'יש להתחבר לאדמין');
+        return;
+      }
       if (editingId) {
+        const existing = cache.find((item) => item.id === editingId);
         const { data, error } = await sb
           .from('business_documents')
           .update({
             document_date: simple.date,
             amount_total: simple.total,
             supplier_name: supplier,
+            notes: manual ? simple.notes : (existing?.notes || ''),
+            category: manual ? simple.method : (existing?.category || ''),
             status: 'saved',
           })
           .eq('id', editingId)
@@ -1275,6 +1569,39 @@
         renderAll();
         closeScanOverlay();
         showToast('עודכן');
+        return;
+      }
+      if (manual) {
+        const id = global.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        const row = {
+          id,
+          storage_bucket: BUCKET,
+          storage_path: null,
+          original_filename: '',
+          mime_type: '',
+          file_size_bytes: null,
+          document_type: 'manual_payment',
+          category: simple.method,
+          supplier_name: MANUAL_PAYMENT_SUPPLIER,
+          document_number: '',
+          document_date: simple.date,
+          currency: 'EUR',
+          amount_before_vat: null,
+          vat_amount: null,
+          amount_total: simple.total,
+          notes: simple.notes,
+          status: 'saved',
+          ocr_status: 'none',
+          ocr_raw: null,
+          created_by: userId,
+        };
+        const { data, error } = await sb.from('business_documents').insert(row).select('*').single();
+        if (error) throw error;
+        upsertCache(data);
+        await persistSupplier(MANUAL_PAYMENT_SUPPLIER).catch(() => {});
+        openFolder(MANUAL_PAYMENT_SUPPLIER);
+        closeScanOverlay();
+        showToast('✓ נשמר');
         return;
       }
       if (!pendingFile) {
@@ -1312,6 +1639,7 @@
         status: 'saved',
         ocr_status: 'none',
         ocr_raw: null,
+        created_by: userId,
       };
       const { data, error } = await sb.from('business_documents').insert(row).select('*').single();
       if (error) {
@@ -1320,12 +1648,19 @@
       }
       upsertCache(data);
       rememberSupplier(supplier);
+      persistSupplier(supplier).catch(() => {});
       openFolder(supplier);
       closeScanOverlay();
       showToast('✓ נשמר');
     } catch (err) {
       console.error('[documents] save', err);
-      showFormError(formErrorEl, err?.message || 'השמירה נכשלה');
+      if (isMissingManualPaymentSupport(err) || isMissingSuppliersTable(err)) {
+        showFormError(formErrorEl, 'יש להריץ את supabase-business-documents-suppliers-and-manual.sql ב-SQL Editor של Supabase');
+      } else if (isRlsSaveError(err)) {
+        showFormError(formErrorEl, 'אין הרשאה לשמור. נעלו ופתחו שוב את כספת המסמכים. אם זה חוזר — הריצו supabase-business-documents-insert-fix.sql');
+      } else {
+        showFormError(formErrorEl, err?.message || 'השמירה נכשלה');
+      }
     } finally {
       busy = false;
     }
@@ -1441,6 +1776,7 @@
       closeVaultModal();
       const appEl = document.getElementById('docs-app');
       if (appEl) appEl.hidden = false;
+      await loadCatalogSuppliers();
       await loadRows();
       startRealtime();
     } catch (err) {
@@ -1451,7 +1787,7 @@
     }
   }
 
-  function submitNewSupplier(event) {
+  async function submitNewSupplier(event) {
     event.preventDefault();
     const name = supplierKey(newNameInput?.value);
     if (!name) {
@@ -1459,8 +1795,13 @@
       return;
     }
     const thenScan = newThenScan;
+    try {
+      await persistSupplier(name);
+    } catch (err) {
+      showFormError(newFormError, err?.message || 'לא ניתן לשמור את הספק');
+      return;
+    }
     closeNewModal();
-    rememberSupplier(name);
     openFolder(name);
     if (thenScan) beginScanFor(name);
   }
@@ -1519,6 +1860,14 @@
       }
       if (event.target.closest('#docs-month-pdf')) {
         downloadMonthPdf().catch(() => {});
+        return;
+      }
+      if (event.target.closest('#docs-folder-z-pdf')) {
+        downloadZReportPdf().catch(() => {});
+        return;
+      }
+      if (event.target.closest('#docs-folder-copy-pay')) {
+        copyManualPaymentsText().catch(() => {});
         return;
       }
       const folder = event.target.closest('[data-docs-folder]')?.getAttribute('data-docs-folder');
@@ -1606,7 +1955,18 @@
       }
     });
 
-    newForm?.addEventListener('submit', submitNewSupplier);
+    newForm?.addEventListener('submit', (event) => {
+      submitNewSupplier(event).catch(() => {});
+    });
+    document.getElementById('docs-add-payment')?.addEventListener('click', () => {
+      openManualPaymentForm();
+    });
+    document.querySelectorAll('[data-docs-pay]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        pendingPayMethod = btn.getAttribute('data-docs-pay') || '';
+        setPayMethodHighlight(pendingPayMethod);
+      });
+    });
     document.getElementById('docs-new-cancel')?.addEventListener('click', closeNewModal);
     document.getElementById('docs-new-backdrop')?.addEventListener('click', closeNewModal);
 
@@ -1643,6 +2003,7 @@
       return;
     }
     try {
+      await loadCatalogSuppliers();
       await loadRows();
       startRealtime();
     } catch (err) {

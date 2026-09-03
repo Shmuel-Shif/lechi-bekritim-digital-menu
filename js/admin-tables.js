@@ -1142,6 +1142,38 @@
     hidePaymentVoidPanel();
   }
 
+  function setPaymentLedger(heroLabel, heroAmount, rows) {
+    const labelEl = document.getElementById('admin-payment-ledger-label');
+    const amountEl = document.getElementById('admin-payment-amount');
+    const rowsEl = document.getElementById('admin-payment-ledger-rows');
+    if (labelEl) labelEl.textContent = heroLabel;
+    if (amountEl) amountEl.textContent = formatMoneyEuro(heroAmount);
+    if (!rowsEl) return;
+    rowsEl.innerHTML = (rows || []).map((row) => {
+      const cls = row.warn ? ' class="is-warn"' : '';
+      return `<div${cls}><dt>${escapeHtml(row.label)}</dt><dd>${escapeHtml(row.value)}</dd></div>`;
+    }).join('');
+  }
+
+  function syncPaymentHomeChrome() {
+    const choices = document.getElementById('admin-payment-choices');
+    if (choices) choices.hidden = false;
+    const title = document.getElementById('admin-payment-title');
+    if (title) title.textContent = 'סגור הזמנה';
+    const cancel = document.getElementById('admin-payment-cancel');
+    if (cancel) cancel.textContent = 'ביטול';
+    setPaymentLedger('סה״כ לתשלום', pendingPaymentTotal, []);
+  }
+
+  function enterPaymentStep(title) {
+    const choices = document.getElementById('admin-payment-choices');
+    if (choices) choices.hidden = true;
+    const titleEl = document.getElementById('admin-payment-title');
+    if (titleEl) titleEl.textContent = title;
+    const cancel = document.getElementById('admin-payment-cancel');
+    if (cancel) cancel.textContent = 'חזרה';
+  }
+
   function isPaymentStepOpen() {
     return Boolean(
       isPaymentCashPanelOpen()
@@ -1173,53 +1205,41 @@
   }
 
   function syncPaymentCashTender() {
-    const dueEl = document.getElementById('admin-payment-cash-due');
     const input = document.getElementById('admin-payment-tender-input');
-    const hint = document.getElementById('admin-payment-cash-change');
     const confirmBtn = document.getElementById('admin-payment-cash-confirm');
-    const breakdown = document.getElementById('admin-payment-cash-breakdown');
-    const billEl = document.getElementById('admin-payment-cash-bill');
-    const receivedEl = document.getElementById('admin-payment-cash-received');
-    const diffEl = document.getElementById('admin-payment-cash-diff');
-    const diffActions = document.getElementById('admin-payment-cash-diff-actions');
-    const tipBtn = document.getElementById('admin-payment-cash-as-tip');
-    const changeBtn = document.getElementById('admin-payment-cash-as-change');
-    const total = roundMoney(pendingPaymentTotal);
-    const given = parseTenderedAmount(input?.value);
-    const state = cashTenderState(total, given);
-    const hasInput = String(input?.value ?? '').trim() !== '';
-    const over = state.ok && state.change > 0;
-    const exact = state.ok && state.change === 0 && hasInput;
-
-    if (dueEl) dueEl.textContent = `סה״כ לתשלום: ${formatMoneyEuro(total)}`;
-    if (breakdown) breakdown.hidden = !hasInput;
-    if (billEl) billEl.textContent = formatMoneyEuro(total);
-    if (receivedEl) receivedEl.textContent = formatMoneyEuro(given);
-    if (diffEl) {
-      diffEl.textContent = hasInput
-        ? formatMoneyEuro(state.ok ? state.change : state.missing)
-        : formatMoneyEuro(0);
+    const bill = roundMoney(pendingPaymentTotal);
+    const givenRaw = String(input?.value ?? '').trim();
+    const given = parseTenderedAmount(givenRaw);
+    const tip = parseTenderedAmount(document.getElementById('admin-payment-cash-tip')?.value);
+    const due = roundMoney(bill + tip);
+    const hasInput = givenRaw !== '';
+    const change = roundMoney(given - due);
+    const ok = hasInput && change >= 0;
+    const rows = [];
+    if (tip > 0) rows.push({ label: 'טיפ', value: formatMoneyEuro(tip) });
+    if (hasInput) rows.push({ label: 'הלקוח נתן', value: formatMoneyEuro(given) });
+    if (hasInput && ok) rows.push({ label: 'עודף', value: formatMoneyEuro(change) });
+    if (hasInput && !ok) {
+      rows.push({ label: 'חסר', value: formatMoneyEuro(roundMoney(-change)), warn: true });
     }
-    if (diffActions) diffActions.hidden = !over;
-    if (tipBtn) tipBtn.textContent = `טיפ ${formatMoneyEuro(state.change)}`;
-    if (changeBtn) changeBtn.textContent = `עודף ${formatMoneyEuro(state.change)}`;
-    if (hint) {
-      hint.classList.toggle('is-short', !state.ok);
-      hint.classList.toggle('is-ok', state.ok);
-      if (!hasInput) {
-        hint.textContent = 'הזינו כמה הלקוח נתן';
-      } else if (!state.ok) {
-        hint.textContent = `חסר: ${formatMoneyEuro(state.missing)}`;
-      } else if (over) {
-        hint.textContent = `הפרש: ${formatMoneyEuro(state.change)} — בחרו טיפ או עודף`;
-      } else {
-        hint.textContent = 'סכום מדויק';
-      }
-    }
+    setPaymentLedger('סה״כ לתשלום', bill, rows);
     if (confirmBtn) {
-      confirmBtn.hidden = !exact;
-      confirmBtn.disabled = !exact;
+      confirmBtn.hidden = false;
+      confirmBtn.disabled = !ok;
     }
+  }
+
+  function syncPaymentCreditLedger() {
+    const bill = roundMoney(pendingPaymentTotal);
+    const tip = parseTenderedAmount(document.getElementById('admin-payment-credit-tip')?.value);
+    if (tip > 0) {
+      setPaymentLedger('לחיוב', roundMoney(bill + tip), [
+        { label: 'חשבון', value: formatMoneyEuro(bill) },
+        { label: 'טיפ', value: formatMoneyEuro(tip) },
+      ]);
+      return;
+    }
+    setPaymentLedger('סה״כ לתשלום', bill, []);
   }
 
   function tipPercentOfBill(pct) {
@@ -1242,16 +1262,18 @@
     if (pct === 'none') {
       input.value = '0';
       if (wrap) wrap.hidden = true;
-      return;
-    }
-    if (wrap) wrap.hidden = false;
-    if (pct === 'custom') {
+    } else if (pct === 'custom') {
+      if (wrap) wrap.hidden = false;
       if (parseTenderedAmount(input.value) === 0) input.value = '';
       input.focus();
       if (typeof input.select === 'function') input.select();
-      return;
+    } else {
+      if (wrap) wrap.hidden = true;
+      input.value = String(tipPercentOfBill(pct));
     }
-    input.value = String(tipPercentOfBill(pct));
+    if (inputId === 'admin-payment-cash-tip') syncPaymentCashTender();
+    if (inputId === 'admin-payment-credit-tip') syncPaymentCreditLedger();
+    if (inputId === 'admin-payment-split-tip') syncPaymentSplitFields();
   }
 
   function resetTipPreset(inputId) {
@@ -1262,6 +1284,9 @@
     const wrap = document.getElementById(`${inputId}-wrap`);
     if (wrap) wrap.hidden = false;
     setTipPresetHighlight(inputId, 'custom');
+    if (inputId === 'admin-payment-cash-tip') syncPaymentCashTender();
+    if (inputId === 'admin-payment-credit-tip') syncPaymentCreditLedger();
+    if (inputId === 'admin-payment-split-tip') syncPaymentSplitFields();
   }
 
   function showPaymentCashPanel() {
@@ -1269,6 +1294,7 @@
     const panel = document.getElementById('admin-payment-cash-panel');
     const input = document.getElementById('admin-payment-tender-input');
     if (!panel) return;
+    enterPaymentStep('מזומן');
     panel.hidden = false;
     resetTipPreset('admin-payment-cash-tip');
     if (input) {
@@ -1299,17 +1325,16 @@
     };
   }
 
-  function confirmPaymentCash(disposition) {
+  function confirmPaymentCash() {
     const total = roundMoney(pendingPaymentTotal);
     const given = parseTenderedAmount(document.getElementById('admin-payment-tender-input')?.value);
     const extraTip = parseTenderedAmount(document.getElementById('admin-payment-cash-tip')?.value);
-    const state = cashTenderState(total, given);
-    if (!state.ok) {
+    if (given + 1e-9 < roundMoney(total + extraTip)) {
       syncPaymentCashTender();
       return;
     }
-    const mode = state.change > 0 ? disposition : 'exact';
-    const amounts = cashCloseAmounts(total, given, mode === 'exact' ? 'change' : mode, extraTip);
+    /* Same paid_* mapping as before: sale stays in paid_cash, selected tip in paid_tip_cash. */
+    const amounts = cashCloseAmounts(total, given, 'change', extraTip);
     if (!amounts) {
       syncPaymentCashTender();
       return;
@@ -1317,27 +1342,42 @@
     closePaymentModal(amounts);
   }
 
-  function syncPaymentSplitFields(fromCash = true) {
+  function syncPaymentSplitFields() {
     const total = roundMoney(pendingPaymentTotal);
     const cashInput = document.getElementById('admin-payment-cash-input');
     const creditInput = document.getElementById('admin-payment-credit-input');
     const hint = document.getElementById('admin-payment-split-hint');
+    const tipBlock = document.getElementById('admin-payment-split-tip-block');
+    const confirmBtn = document.getElementById('admin-payment-split-confirm');
     if (!cashInput || !creditInput) return;
 
-    let cash = roundMoney(cashInput.value);
-    if (!Number.isFinite(cash) || cash < 0) cash = 0;
-    if (cash > total) cash = total;
-    const credit = roundMoney(total - cash);
-
-    if (fromCash) {
-      cashInput.value = String(cash);
-      creditInput.value = String(credit);
+    const cash = parseTenderedAmount(cashInput.value);
+    const credit = parseTenderedAmount(creditInput.value);
+    const remaining = roundMoney(total - cash - credit);
+    const complete = cash > 0 && credit > 0 && remaining === 0;
+    const rows = [];
+    if (cash > 0) rows.push({ label: 'מזומן', value: formatMoneyEuro(cash) });
+    if (credit > 0) rows.push({ label: 'אשראי', value: formatMoneyEuro(credit) });
+    if (remaining < 0) {
+      rows.push({ label: 'עודף הזנה', value: formatMoneyEuro(roundMoney(-remaining)), warn: true });
+    } else {
+      rows.push({ label: 'נשאר לתשלום', value: formatMoneyEuro(remaining) });
     }
+    const tip = parseTenderedAmount(document.getElementById('admin-payment-split-tip')?.value);
+    if (complete && tip > 0) rows.push({ label: 'טיפ', value: formatMoneyEuro(tip) });
+    setPaymentLedger('סה״כ לתשלום', total, rows);
 
     if (hint) {
-      hint.textContent = cash > 0 && credit > 0
-        ? `מזומן ${formatMoney(cash)} · אשראי ${formatMoney(credit)}`
-        : 'הזינו סכום מזומן בין 0 לסכום המלא';
+      hint.classList.toggle('is-short', remaining !== 0 || cash <= 0 || credit <= 0);
+      hint.classList.toggle('is-ok', complete);
+      if (complete) hint.textContent = 'החשבון הושלם';
+      else if (remaining < 0) hint.textContent = 'הסכומים גדולים מהחשבון';
+      else hint.textContent = 'השלימו מזומן ואשראי עד לסכום החשבון';
+    }
+    if (tipBlock) tipBlock.hidden = !complete;
+    if (confirmBtn) {
+      confirmBtn.hidden = !complete;
+      confirmBtn.disabled = !complete;
     }
   }
 
@@ -1345,16 +1385,15 @@
     hidePaymentExtraPanels();
     const panel = document.getElementById('admin-payment-split-panel');
     const cashInput = document.getElementById('admin-payment-cash-input');
+    const creditInput = document.getElementById('admin-payment-credit-input');
     if (!panel) return;
+    enterPaymentStep('מפוצל');
     panel.hidden = false;
-    const half = roundMoney(pendingPaymentTotal / 2);
-    if (cashInput) {
-      cashInput.value = String(half);
-      syncPaymentSplitFields(true);
-      cashInput.focus();
-      cashInput.select();
-    }
+    if (cashInput) cashInput.value = '';
+    if (creditInput) creditInput.value = '';
     resetTipPreset('admin-payment-split-tip');
+    syncPaymentSplitFields();
+    cashInput?.focus();
   }
 
   function closePaymentModal(result = null) {
@@ -1399,7 +1438,6 @@
   function showPaymentModal(entry) {
     const modal = document.getElementById('admin-payment-modal');
     const subtitle = document.getElementById('admin-payment-subtitle');
-    const amountEl = document.getElementById('admin-payment-amount');
     if (!modal) return Promise.resolve(null);
 
     if (typeof paymentResolver === 'function') {
@@ -1415,8 +1453,8 @@
     const paid = calcOrderPaidTotal(entry?.order);
     pendingPaymentTotal = paid;
     hidePaymentExtraPanels();
-    if (subtitle) subtitle.textContent = `${label} · בחרו אמצעי תשלום לסגירה`;
-    if (amountEl) amountEl.textContent = formatMoney(paid);
+    syncPaymentHomeChrome();
+    if (subtitle) subtitle.textContent = label;
 
     modal.hidden = false;
     modal.setAttribute('aria-hidden', 'false');
@@ -1431,13 +1469,11 @@
 
   function confirmPaymentSplit() {
     const total = roundMoney(pendingPaymentTotal);
-    const cashInput = document.getElementById('admin-payment-cash-input');
-    let cash = roundMoney(cashInput?.value);
-    if (!Number.isFinite(cash) || cash < 0) cash = 0;
-    if (cash > total) cash = total;
-    const credit = roundMoney(total - cash);
-    if (cash <= 0 || credit <= 0) {
+    const cash = parseTenderedAmount(document.getElementById('admin-payment-cash-input')?.value);
+    const credit = parseTenderedAmount(document.getElementById('admin-payment-credit-input')?.value);
+    if (cash <= 0 || credit <= 0 || roundMoney(cash + credit) !== total) {
       showToast('בתשלום מפוצל צריך גם מזומן וגם אשראי');
+      syncPaymentSplitFields();
       return;
     }
     const tip = parseTenderedAmount(document.getElementById('admin-payment-split-tip')?.value);
@@ -1453,8 +1489,10 @@
     hidePaymentExtraPanels();
     const panel = document.getElementById('admin-payment-credit-panel');
     if (!panel) return;
+    enterPaymentStep('אשראי');
     panel.hidden = false;
     resetTipPreset('admin-payment-credit-tip');
+    syncPaymentCreditLedger();
   }
 
   function confirmPaymentCredit() {
@@ -1468,7 +1506,9 @@
     const panel = document.getElementById('admin-payment-void-panel');
     const input = document.getElementById('admin-payment-void-code');
     if (!panel) return;
+    enterPaymentStep('סגירה ללא תשלום');
     panel.hidden = false;
+    setPaymentLedger('לא נרשם כמכירה', pendingPaymentTotal, []);
     if (input) {
       input.value = '';
       input.focus();
@@ -4690,7 +4730,10 @@
       showPaymentVoidPanel();
     });
     document.getElementById('admin-payment-cash-input')?.addEventListener('input', () => {
-      syncPaymentSplitFields(true);
+      syncPaymentSplitFields();
+    });
+    document.getElementById('admin-payment-credit-input')?.addEventListener('input', () => {
+      syncPaymentSplitFields();
     });
     document.getElementById('admin-payment-split-confirm')?.addEventListener('click', () => {
       confirmPaymentSplit();
@@ -4701,16 +4744,10 @@
     document.getElementById('admin-payment-tender-input')?.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter') return;
       event.preventDefault();
-      confirmPaymentCash('exact');
+      confirmPaymentCash();
     });
     document.getElementById('admin-payment-cash-confirm')?.addEventListener('click', () => {
-      confirmPaymentCash('exact');
-    });
-    document.getElementById('admin-payment-cash-as-tip')?.addEventListener('click', () => {
-      confirmPaymentCash('tip');
-    });
-    document.getElementById('admin-payment-cash-as-change')?.addEventListener('click', () => {
-      confirmPaymentCash('change');
+      confirmPaymentCash();
     });
     document.getElementById('admin-payment-credit-confirm')?.addEventListener('click', () => {
       confirmPaymentCredit();
@@ -4744,6 +4781,7 @@
     document.getElementById('admin-payment-cancel')?.addEventListener('click', () => {
       if (isPaymentStepOpen()) {
         hidePaymentExtraPanels();
+        syncPaymentHomeChrome();
         document.getElementById('admin-payment-cash')?.focus();
         return;
       }
@@ -4752,6 +4790,7 @@
     document.getElementById('admin-payment-backdrop')?.addEventListener('click', () => {
       if (isPaymentStepOpen()) {
         hidePaymentExtraPanels();
+        syncPaymentHomeChrome();
         document.getElementById('admin-payment-cash')?.focus();
         return;
       }

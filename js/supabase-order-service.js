@@ -2218,8 +2218,39 @@
     return data || [];
   }
 
+  async function fetchAllClosedSessionsForDay(sb, {
+    columns,
+    startIso,
+    endIso,
+    paymentMethods = null,
+  }) {
+    const pageSize = 1000;
+    const all = [];
+    let from = 0;
+    for (;;) {
+      let query = sb
+        .from(TABLE_SESSIONS)
+        .select(columns)
+        .eq('status', 'closed')
+        .gte('closed_at', startIso)
+        .lte('closed_at', endIso)
+        .order('closed_at', { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (Array.isArray(paymentMethods) && paymentMethods.length) {
+        query = query.in('payment_method', paymentMethods);
+      }
+      const { data, error } = await query;
+      if (error) return { data: all, error };
+      const rows = Array.isArray(data) ? data : [];
+      all.push(...rows);
+      if (rows.length < pageSize) return { data: all, error: null };
+      from += pageSize;
+    }
+  }
+
   /**
    * Closed sessions for one local calendar day (till / קופה).
+   * Pages past PostgREST row caps — no 500-row cut.
    * @param {string} dateStr YYYY-MM-DD (local business day)
    * @returns {Promise<object[]>}
    */
@@ -2236,27 +2267,23 @@
       throw new Error('[LechaimSupabaseOrders.getDailyTillReport] invalid date');
     }
 
+    const startIso = start.toISOString();
+    const endIso = end.toISOString();
     const fullCols = 'session_id, table_number, order_type, payment_method, paid_total, paid_cash, paid_credit, paid_tip, paid_tip_cash, paid_tip_credit, subtotal, discount_amount, delivery_fee, closed_at, customer_name, fulfillment_type, public_order_no';
     const basicCols = 'session_id, table_number, order_type, payment_method, paid_total, paid_cash, paid_credit, subtotal, discount_amount, delivery_fee, closed_at, customer_name, fulfillment_type, public_order_no';
 
-    let { data, error } = await sb
-      .from(TABLE_SESSIONS)
-      .select(fullCols)
-      .eq('status', 'closed')
-      .gte('closed_at', start.toISOString())
-      .lte('closed_at', end.toISOString())
-      .order('closed_at', { ascending: true })
-      .limit(500);
+    let { data, error } = await fetchAllClosedSessionsForDay(sb, {
+      columns: fullCols,
+      startIso,
+      endIso,
+    });
 
     if (error && /paid_tip|paid_cash|paid_credit|column/i.test(String(error.message || ''))) {
-      ({ data, error } = await sb
-        .from(TABLE_SESSIONS)
-        .select(basicCols)
-        .eq('status', 'closed')
-        .gte('closed_at', start.toISOString())
-        .lte('closed_at', end.toISOString())
-        .order('closed_at', { ascending: true })
-        .limit(500));
+      ({ data, error } = await fetchAllClosedSessionsForDay(sb, {
+        columns: basicCols,
+        startIso,
+        endIso,
+      }));
     }
 
     throwIfError(error, 'getDailyTillReport');
@@ -2284,32 +2311,46 @@
       throw new Error('[LechaimSupabaseOrders.getDailySoldProducts] invalid date');
     }
 
-    const { data: sessions, error: sessionErr } = await sb
-      .from(TABLE_SESSIONS)
-      .select('session_id, payment_method')
-      .eq('status', 'closed')
-      .in('payment_method', ['cash', 'credit', 'split'])
-      .gte('closed_at', start.toISOString())
-      .lte('closed_at', end.toISOString())
-      .limit(500);
+    const { data: sessions, error: sessionErr } = await fetchAllClosedSessionsForDay(sb, {
+      columns: 'session_id, payment_method',
+      startIso: start.toISOString(),
+      endIso: end.toISOString(),
+      paymentMethods: ['cash', 'credit', 'split'],
+    });
 
     throwIfError(sessionErr, 'getDailySoldProducts.sessions');
     const sessionIds = (sessions || []).map((row) => row.session_id).filter(Boolean);
     if (!sessionIds.length) return [];
 
-    const { data: orders, error: orderErr } = await sb
-      .from(TABLE_ORDERS)
-      .select('id')
-      .in('session_id', sessionIds);
+    async function fetchInChunks(table, columns, key, ids) {
+      const chunkSize = 200;
+      const out = [];
+      for (let i = 0; i < ids.length; i += chunkSize) {
+        const slice = ids.slice(i, i + chunkSize);
+        const { data, error } = await sb.from(table).select(columns).in(key, slice);
+        if (error) return { data: out, error };
+        out.push(...(data || []));
+      }
+      return { data: out, error: null };
+    }
+
+    const { data: orders, error: orderErr } = await fetchInChunks(
+      TABLE_ORDERS,
+      'id',
+      'session_id',
+      sessionIds
+    );
 
     throwIfError(orderErr, 'getDailySoldProducts.orders');
     const orderIds = (orders || []).map((row) => row.id).filter(Boolean);
     if (!orderIds.length) return [];
 
-    const { data: items, error: itemErr } = await sb
-      .from(TABLE_ITEMS)
-      .select('product_id, product_name, print_name, quantity, parent_item_id')
-      .in('order_id', orderIds);
+    const { data: items, error: itemErr } = await fetchInChunks(
+      TABLE_ITEMS,
+      'product_id, product_name, print_name, quantity, parent_item_id',
+      'order_id',
+      orderIds
+    );
 
     throwIfError(itemErr, 'getDailySoldProducts.items');
 
@@ -2332,6 +2373,138 @@
     return Array.from(byProduct.values()).sort((a, b) => (
       (b.qty - a.qty) || a.name.localeCompare(b.name, 'he')
     ));
+  }
+
+  const TILL_DAY_OPENINGS = 'till_day_openings';
+  const TILL_DAY_REPORTS = 'till_day_reports';
+
+  function assertTillBusinessDate(dateStr, context) {
+    const day = String(dateStr || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+      throw new Error(`[LechaimSupabaseOrders.${context}] date YYYY-MM-DD required`);
+    }
+    return day;
+  }
+
+  function isMissingTillLayerTable(error, tableName) {
+    const blob = errorBlob(error);
+    return (
+      error?.code === 'PGRST205'
+      || error?.code === '42P01'
+      || (new RegExp(tableName, 'i').test(blob) && /does not exist|schema cache|relation/i.test(blob))
+    );
+  }
+
+  function throwTillLayerError(error, context, tableName) {
+    if (!error) return;
+    if (isMissingTillLayerTable(error, tableName)) {
+      const err = new Error('TILL_DAY_LAYERS_MISSING');
+      err.code = 'TILL_DAY_LAYERS_MISSING';
+      err.cause = error;
+      throw err;
+    }
+    throwIfError(error, context);
+  }
+
+  async function currentAuthUserId(sb) {
+    try {
+      const { data } = await sb.auth.getUser();
+      return data?.user?.id || null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /**
+   * Opening float for one business date. Separate from sales / till_day_reports.
+   * @param {string} dateStr YYYY-MM-DD
+   * @returns {Promise<{ business_date: string, amount: number, updated_at: string, updated_by: string|null }|null>}
+   */
+  async function getTillDayOpening(dateStr) {
+    const sb = getClient();
+    const day = assertTillBusinessDate(dateStr, 'getTillDayOpening');
+    const { data, error } = await sb
+      .from(TILL_DAY_OPENINGS)
+      .select('business_date, amount, updated_at, updated_by')
+      .eq('business_date', day)
+      .maybeSingle();
+    throwTillLayerError(error, 'getTillDayOpening', TILL_DAY_OPENINGS);
+    return data || null;
+  }
+
+  /**
+   * Upsert opening float for one business date. Does not touch order_sessions.
+   * @param {string} dateStr YYYY-MM-DD
+   * @param {number} amount
+   */
+  async function upsertTillDayOpening(dateStr, amount) {
+    const sb = getClient();
+    const day = assertTillBusinessDate(dateStr, 'upsertTillDayOpening');
+    const value = Math.round((Number(amount) || 0) * 100) / 100;
+    if (!Number.isFinite(value) || value < 0) {
+      throw new Error('[LechaimSupabaseOrders.upsertTillDayOpening] amount must be >= 0');
+    }
+    const payload = {
+      business_date: day,
+      amount: value,
+      updated_at: new Date().toISOString(),
+      updated_by: await currentAuthUserId(sb),
+    };
+    const { data, error } = await sb
+      .from(TILL_DAY_OPENINGS)
+      .upsert(payload, { onConflict: 'business_date' })
+      .select('business_date, amount, updated_at, updated_by')
+      .single();
+    throwTillLayerError(error, 'upsertTillDayOpening', TILL_DAY_OPENINGS);
+    return data;
+  }
+
+  /**
+   * Edited daily sales declaration for one date. Null if the day still uses live closes.
+   * @param {string} dateStr YYYY-MM-DD
+   */
+  async function getTillDayReport(dateStr) {
+    const sb = getClient();
+    const day = assertTillBusinessDate(dateStr, 'getTillDayReport');
+    const { data, error } = await sb
+      .from(TILL_DAY_REPORTS)
+      .select('business_date, cash, credit, tip, updated_at, updated_by')
+      .eq('business_date', day)
+      .maybeSingle();
+    throwTillLayerError(error, 'getTillDayReport', TILL_DAY_REPORTS);
+    return data || null;
+  }
+
+  /**
+   * Upsert edited daily sales declaration. Does not store כולל הכל.
+   * Does not touch order_sessions or paid_*.
+   * @param {string} dateStr YYYY-MM-DD
+   * @param {{ cash: number, credit: number, tip: number }} totals
+   */
+  async function upsertTillDayReport(dateStr, totals) {
+    const sb = getClient();
+    const day = assertTillBusinessDate(dateStr, 'upsertTillDayReport');
+    const cash = Math.round((Number(totals?.cash) || 0) * 100) / 100;
+    const credit = Math.round((Number(totals?.credit) || 0) * 100) / 100;
+    const tip = Math.round((Number(totals?.tip) || 0) * 100) / 100;
+    if (![cash, credit, tip].every((n) => Number.isFinite(n) && n >= 0)) {
+      throw new Error('[LechaimSupabaseOrders.upsertTillDayReport] cash/credit/tip must be >= 0');
+    }
+    const payload = {
+      business_date: day,
+      cash,
+      credit,
+      tip,
+      updated_at: new Date().toISOString(),
+      updated_by: await currentAuthUserId(sb),
+    };
+    const { data, error } = await sb
+      .from(TILL_DAY_REPORTS)
+      .upsert(payload, { onConflict: 'business_date' })
+      .select('business_date, cash, credit, tip, updated_at, updated_by')
+      .single();
+    throwTillLayerError(error, 'upsertTillDayReport', TILL_DAY_REPORTS);
+    return data;
   }
 
   /**
@@ -3320,6 +3493,10 @@
     getShabbatSessionsReport,
     getDailyTillReport,
     getDailySoldProducts,
+    getTillDayOpening,
+    upsertTillDayOpening,
+    getTillDayReport,
+    upsertTillDayReport,
     getDineInCloseAt,
     startDineInCloseCountdown,
     clearDineInCloseCountdown,
