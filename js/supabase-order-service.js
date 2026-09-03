@@ -1737,6 +1737,9 @@
         next.paid_total = null;
         next.paid_cash = null;
         next.paid_credit = null;
+        next.paid_tip = null;
+        next.paid_tip_cash = null;
+        next.paid_tip_credit = null;
       }
     }
 
@@ -1785,6 +1788,23 @@
           : null;
       }
     }
+    const tipPatches = [
+      ['paidTip', 'paid_tip'],
+      ['paidTipCash', 'paid_tip_cash'],
+      ['paidTipCredit', 'paid_tip_credit'],
+    ];
+    tipPatches.forEach(([camel, snake]) => {
+      if (patch[camel] === undefined && patch[snake] === undefined) return;
+      const raw = patch[camel] !== undefined ? patch[camel] : patch[snake];
+      if (raw == null || raw === '') {
+        next[snake] = null;
+        return;
+      }
+      const amt = Number(raw);
+      next[snake] = Number.isFinite(amt) && amt >= 0
+        ? Math.round(amt * 100) / 100
+        : null;
+    });
 
     if (patch.billRequested != null || patch.bill_requested != null) {
       next.bill_requested = Boolean(patch.billRequested ?? patch.bill_requested);
@@ -2216,8 +2236,8 @@
       throw new Error('[LechaimSupabaseOrders.getDailyTillReport] invalid date');
     }
 
-    const fullCols = 'session_id, table_number, order_type, payment_method, paid_total, paid_cash, paid_credit, subtotal, discount_amount, delivery_fee, closed_at, customer_name, fulfillment_type, public_order_no';
-    const basicCols = 'session_id, table_number, order_type, payment_method, paid_total, subtotal, discount_amount, delivery_fee, closed_at, customer_name, fulfillment_type, public_order_no';
+    const fullCols = 'session_id, table_number, order_type, payment_method, paid_total, paid_cash, paid_credit, paid_tip, paid_tip_cash, paid_tip_credit, subtotal, discount_amount, delivery_fee, closed_at, customer_name, fulfillment_type, public_order_no';
+    const basicCols = 'session_id, table_number, order_type, payment_method, paid_total, paid_cash, paid_credit, subtotal, discount_amount, delivery_fee, closed_at, customer_name, fulfillment_type, public_order_no';
 
     let { data, error } = await sb
       .from(TABLE_SESSIONS)
@@ -2228,7 +2248,7 @@
       .order('closed_at', { ascending: true })
       .limit(500);
 
-    if (error && /paid_cash|paid_credit|column/i.test(String(error.message || ''))) {
+    if (error && /paid_tip|paid_cash|paid_credit|column/i.test(String(error.message || ''))) {
       ({ data, error } = await sb
         .from(TABLE_SESSIONS)
         .select(basicCols)

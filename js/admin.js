@@ -42,6 +42,7 @@
   const viewStaffHours = document.getElementById('admin-view-staff-hours');
   const viewSettings = document.getElementById('admin-view-settings');
   const viewKitchen = document.getElementById('admin-view-kitchen');
+  const viewDocuments = document.getElementById('admin-view-documents');
   const shopHoursBtn = document.getElementById('admin-shop-hours-btn');
   const kitchenBeepBtn = document.getElementById('admin-kitchen-beep-btn');
   const hugMeBtn = document.getElementById('admin-hug-me-btn');
@@ -174,6 +175,7 @@
     else if (tab === 'history') currentTab = 'history';
     else if (tab === 'settings') currentTab = 'settings';
     else if (tab === 'kitchen') currentTab = 'kitchen';
+    else if (tab === 'documents') currentTab = 'documents';
     else currentTab = 'tables';
 
     tabsEl?.querySelectorAll('.admin-tab').forEach((btn) => {
@@ -196,6 +198,7 @@
     if (viewStats) viewStats.hidden = currentTab !== 'stats';
     if (viewSettings) viewSettings.hidden = currentTab !== 'settings';
     if (viewKitchen) viewKitchen.hidden = currentTab !== 'kitchen';
+    if (viewDocuments) viewDocuments.hidden = currentTab !== 'documents';
 
     if (currentTab !== 'inventory') closeInventoryModal();
 
@@ -246,6 +249,12 @@
 
     if (currentTab === 'settings') {
       window.LechaimAdminSettings?.start?.();
+    }
+
+    if (currentTab === 'documents') {
+      window.LechaimAdminDocuments?.start?.();
+    } else {
+      window.LechaimAdminDocuments?.stop?.();
     }
   }
 
@@ -1093,6 +1102,7 @@
       const session = await LechaimInventory.getSession();
       if (session) {
         await window.LechaimAdminStaffHours?.lockSettings?.();
+        await window.LechaimAdminDocuments?.lockVault?.();
         await showPanel();
       }
       else showLogin();
@@ -1111,6 +1121,7 @@
       await LechaimInventory.signIn(emailInput.value.trim(), passwordInput.value);
       if (passwordInput) passwordInput.value = '';
       await window.LechaimAdminStaffHours?.lockSettings?.();
+      await window.LechaimAdminDocuments?.lockVault?.();
       await showPanel();
     } catch (err) {
       console.error('[admin] login failed', err);
@@ -1124,6 +1135,7 @@
     showError(panelError, '');
     try {
       await window.LechaimAdminStaffHours?.lockSettings?.();
+      await window.LechaimAdminDocuments?.lockVault?.();
       await LechaimInventory.signOut();
       showLogin();
     } catch (err) {
@@ -1237,6 +1249,7 @@
       && tab !== 'stats'
       && tab !== 'settings'
       && tab !== 'kitchen'
+      && tab !== 'documents'
     ) return;
     setTab(tab);
     if (tab === 'inventory') {

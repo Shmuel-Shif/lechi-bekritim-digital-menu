@@ -104,6 +104,7 @@
   let pendingBillCoupon = null;
   let paymentResolver = null;
   let pendingPaymentTotal = 0;
+  let paymentBusy = false;
   let boardFilter = 'tables'; /* 'tables' | 'pickup' | 'delivery' | 'butcher' */
 
   function pickupCaches() {
@@ -245,12 +246,7 @@
       { yesLabel: 'כן', noLabel: 'לא' }
     );
     if (ok) {
-      closePaymentModal({
-        method: 'void',
-        paidTotal: null,
-        paidCash: null,
-        paidCredit: null,
-      });
+      closePaymentModal(voidPaymentResult());
     } else {
       document.getElementById('admin-payment-cancel')?.focus();
     }
@@ -1122,9 +1118,37 @@
     if (panel) panel.hidden = true;
   }
 
+  function hidePaymentCreditPanel() {
+    const panel = document.getElementById('admin-payment-credit-panel');
+    if (panel) panel.hidden = true;
+  }
+
+  function hidePaymentVoidPanel() {
+    const panel = document.getElementById('admin-payment-void-panel');
+    if (panel) panel.hidden = true;
+    const err = document.getElementById('admin-payment-void-error');
+    const input = document.getElementById('admin-payment-void-code');
+    if (err) {
+      err.hidden = true;
+      err.textContent = '';
+    }
+    if (input) input.value = '';
+  }
+
   function hidePaymentExtraPanels() {
     hidePaymentSplitPanel();
     hidePaymentCashPanel();
+    hidePaymentCreditPanel();
+    hidePaymentVoidPanel();
+  }
+
+  function isPaymentStepOpen() {
+    return Boolean(
+      isPaymentCashPanelOpen()
+      || (document.getElementById('admin-payment-credit-panel') && !document.getElementById('admin-payment-credit-panel').hidden)
+      || (document.getElementById('admin-payment-split-panel') && !document.getElementById('admin-payment-split-panel').hidden)
+      || (document.getElementById('admin-payment-void-panel') && !document.getElementById('admin-payment-void-panel').hidden)
+    );
   }
 
   function isPaymentCashPanelOpen() {
@@ -1153,23 +1177,53 @@
     const input = document.getElementById('admin-payment-tender-input');
     const hint = document.getElementById('admin-payment-cash-change');
     const confirmBtn = document.getElementById('admin-payment-cash-confirm');
+    const breakdown = document.getElementById('admin-payment-cash-breakdown');
+    const billEl = document.getElementById('admin-payment-cash-bill');
+    const receivedEl = document.getElementById('admin-payment-cash-received');
+    const diffEl = document.getElementById('admin-payment-cash-diff');
+    const diffActions = document.getElementById('admin-payment-cash-diff-actions');
+    const tipBtn = document.getElementById('admin-payment-cash-as-tip');
+    const changeBtn = document.getElementById('admin-payment-cash-as-change');
     const total = roundMoney(pendingPaymentTotal);
     const given = parseTenderedAmount(input?.value);
     const state = cashTenderState(total, given);
+    const hasInput = String(input?.value ?? '').trim() !== '';
+    const over = state.ok && state.change > 0;
+    const exact = state.ok && state.change === 0 && hasInput;
 
     if (dueEl) dueEl.textContent = `סה״כ לתשלום: ${formatMoneyEuro(total)}`;
+    if (breakdown) breakdown.hidden = !hasInput;
+    if (billEl) billEl.textContent = formatMoneyEuro(total);
+    if (receivedEl) receivedEl.textContent = formatMoneyEuro(given);
+    if (diffEl) {
+      diffEl.textContent = hasInput
+        ? formatMoneyEuro(state.ok ? state.change : state.missing)
+        : formatMoneyEuro(0);
+    }
+    if (diffActions) diffActions.hidden = !over;
+    if (tipBtn) tipBtn.textContent = `טיפ ${formatMoneyEuro(state.change)}`;
+    if (changeBtn) changeBtn.textContent = `עודף ${formatMoneyEuro(state.change)}`;
     if (hint) {
       hint.classList.toggle('is-short', !state.ok);
       hint.classList.toggle('is-ok', state.ok);
-      hint.textContent = state.ok
-        ? `עודף להחזיר: ${formatMoneyEuro(state.change)}`
-        : `חסר: ${formatMoneyEuro(state.missing)}`;
+      if (!hasInput) {
+        hint.textContent = 'הזינו כמה הלקוח נתן';
+      } else if (!state.ok) {
+        hint.textContent = `חסר: ${formatMoneyEuro(state.missing)}`;
+      } else if (over) {
+        hint.textContent = `הפרש: ${formatMoneyEuro(state.change)} — בחרו טיפ או עודף`;
+      } else {
+        hint.textContent = 'סכום מדויק';
+      }
     }
-    if (confirmBtn) confirmBtn.disabled = !state.ok;
+    if (confirmBtn) {
+      confirmBtn.hidden = !exact;
+      confirmBtn.disabled = !exact;
+    }
   }
 
   function showPaymentCashPanel() {
-    hidePaymentSplitPanel();
+    hidePaymentExtraPanels();
     const panel = document.getElementById('admin-payment-cash-panel');
     const input = document.getElementById('admin-payment-tender-input');
     if (!panel) return;
@@ -1184,7 +1238,24 @@
     }
   }
 
-  function confirmPaymentCash() {
+  function cashCloseAmounts(bill, tendered, disposition) {
+    const total = roundMoney(bill);
+    const state = cashTenderState(total, tendered);
+    if (!state.ok) return null;
+    if (state.change > 0 && disposition !== 'tip' && disposition !== 'change') return null;
+    const tip = disposition === 'tip' ? state.change : 0;
+    return {
+      method: 'cash',
+      paidTotal: total,
+      paidCash: total,
+      paidCredit: 0,
+      paidTip: tip,
+      paidTipCash: tip,
+      paidTipCredit: 0,
+    };
+  }
+
+  function confirmPaymentCash(disposition) {
     const total = roundMoney(pendingPaymentTotal);
     const given = parseTenderedAmount(document.getElementById('admin-payment-tender-input')?.value);
     const state = cashTenderState(total, given);
@@ -1192,7 +1263,13 @@
       syncPaymentCashTender();
       return;
     }
-    closePaymentModal(buildPaymentResult('cash', total, total, 0));
+    const mode = state.change > 0 ? disposition : 'exact';
+    const amounts = cashCloseAmounts(total, given, mode === 'exact' ? 'change' : mode);
+    if (!amounts) {
+      syncPaymentCashTender();
+      return;
+    }
+    closePaymentModal(amounts);
   }
 
   function syncPaymentSplitFields(fromCash = true) {
@@ -1220,9 +1297,10 @@
   }
 
   function showPaymentSplitPanel() {
-    hidePaymentCashPanel();
+    hidePaymentExtraPanels();
     const panel = document.getElementById('admin-payment-split-panel');
     const cashInput = document.getElementById('admin-payment-cash-input');
+    const tipInput = document.getElementById('admin-payment-split-tip');
     if (!panel) return;
     panel.hidden = false;
     const half = roundMoney(pendingPaymentTotal / 2);
@@ -1232,6 +1310,7 @@
       cashInput.focus();
       cashInput.select();
     }
+    if (tipInput) tipInput.value = '0';
   }
 
   function closePaymentModal(result = null) {
@@ -1249,12 +1328,27 @@
     if (typeof resolve === 'function') resolve(result);
   }
 
-  function buildPaymentResult(method, paidTotal, paidCash, paidCredit) {
+  function buildPaymentResult(method, paidTotal, paidCash, paidCredit, paidTip, paidTipCash, paidTipCredit) {
     return {
       method,
       paidTotal: roundMoney(paidTotal),
       paidCash: roundMoney(paidCash),
       paidCredit: roundMoney(paidCredit),
+      paidTip: roundMoney(paidTip),
+      paidTipCash: roundMoney(paidTipCash),
+      paidTipCredit: roundMoney(paidTipCredit),
+    };
+  }
+
+  function voidPaymentResult() {
+    return {
+      method: 'void',
+      paidTotal: null,
+      paidCash: null,
+      paidCredit: null,
+      paidTip: null,
+      paidTipCash: null,
+      paidTipCredit: null,
     };
   }
 
@@ -1302,7 +1396,97 @@
       showToast('בתשלום מפוצל צריך גם מזומן וגם אשראי');
       return;
     }
-    closePaymentModal(buildPaymentResult('split', total, cash, credit));
+    const tip = parseTenderedAmount(document.getElementById('admin-payment-split-tip')?.value);
+    const via = document.querySelector('input[name="admin-payment-split-tip-via"]:checked')?.value === 'credit'
+      ? 'credit'
+      : 'cash';
+    const tipCash = tip > 0 && via === 'cash' ? tip : 0;
+    const tipCredit = tip > 0 && via === 'credit' ? tip : 0;
+    closePaymentModal(buildPaymentResult('split', total, cash, credit, tip, tipCash, tipCredit));
+  }
+
+  function showPaymentCreditPanel() {
+    hidePaymentExtraPanels();
+    const panel = document.getElementById('admin-payment-credit-panel');
+    const input = document.getElementById('admin-payment-credit-tip');
+    if (!panel) return;
+    panel.hidden = false;
+    if (input) {
+      input.value = '0';
+      input.focus();
+      if (typeof input.select === 'function') input.select();
+    }
+  }
+
+  function confirmPaymentCredit() {
+    const total = roundMoney(pendingPaymentTotal);
+    const tip = parseTenderedAmount(document.getElementById('admin-payment-credit-tip')?.value);
+    closePaymentModal(buildPaymentResult('credit', total, 0, total, tip, 0, tip));
+  }
+
+  function showPaymentVoidPanel() {
+    hidePaymentExtraPanels();
+    const panel = document.getElementById('admin-payment-void-panel');
+    const input = document.getElementById('admin-payment-void-code');
+    if (!panel) return;
+    panel.hidden = false;
+    if (input) {
+      input.value = '';
+      input.focus();
+    }
+  }
+
+  function setPaymentVoidError(message) {
+    const el = document.getElementById('admin-payment-void-error');
+    if (!el) return;
+    if (!message) {
+      el.hidden = true;
+      el.textContent = '';
+      return;
+    }
+    el.hidden = false;
+    el.textContent = message;
+  }
+
+  async function confirmPaymentVoid() {
+    if (paymentBusy) return;
+    const input = document.getElementById('admin-payment-void-code');
+    const code = String(input?.value || '');
+    if (!code.trim()) {
+      setPaymentVoidError('הזינו קוד גישה');
+      return;
+    }
+    const sb = OrdersApi()?.getClient?.();
+    if (!sb) {
+      setPaymentVoidError('Supabase לא מחובר');
+      return;
+    }
+    paymentBusy = true;
+    setPaymentVoidError('');
+    try {
+      const { data, error } = await sb.rpc('staff_settings_verify_code', { p_code: code });
+      if (input) input.value = '';
+      if (error) throw error;
+      const res = data || {};
+      if (!res.ok) {
+        if (res.error === 'invalid_code') setPaymentVoidError('קוד שגוי');
+        else if (res.error === 'code_not_set') setPaymentVoidError('קוד הגישה עדיין לא הוגדר ב-Supabase');
+        else if (res.error === 'not_authenticated') setPaymentVoidError('יש להתחבר לאדמין');
+        else setPaymentVoidError(res.error || 'שגיאה');
+        return;
+      }
+      closePaymentModal(voidPaymentResult());
+    } catch (err) {
+      console.error('[admin-tables] void code', err);
+      const msg = String(err?.message || '');
+      if (/staff_settings_verify_code|function/i.test(msg)) {
+        setPaymentVoidError('יש להריץ את supabase-till-tip-and-void-gate.sql ב-Supabase');
+      } else {
+        setPaymentVoidError(msg || 'שגיאה');
+      }
+    } finally {
+      paymentBusy = false;
+    }
   }
 
   function entryKey(entry) {
@@ -4128,11 +4312,17 @@
             patch.paidTotal = null;
             patch.paidCash = null;
             patch.paidCredit = null;
+            patch.paidTip = null;
+            patch.paidTipCash = null;
+            patch.paidTipCredit = null;
           } else {
             patch.paymentMethod = payment.method;
             patch.paidTotal = payment.paidTotal;
             patch.paidCash = payment.paidCash;
             patch.paidCredit = payment.paidCredit;
+            patch.paidTip = payment.paidTip || 0;
+            patch.paidTipCash = payment.paidTipCash || 0;
+            patch.paidTipCredit = payment.paidTipCredit || 0;
           }
           await OrdersApi().updateSessionStatus(entry.order._supabaseSessionId, patch);
           closed = true;
@@ -4161,8 +4351,8 @@
       } catch (err) {
         console.error('[admin-tables] close table failed', err);
         const msg = String(err?.message || '');
-        if (msg.includes('payment_method') || msg.includes('paid_total') || msg.includes('paid_cash') || msg.includes('column')) {
-          showToast('חסרות עמודות קופה — הריצו supabase-till-payment.sql');
+        if (msg.includes('payment_method') || msg.includes('paid_total') || msg.includes('paid_cash') || msg.includes('paid_tip') || msg.includes('column')) {
+          showToast('חסרות עמודות קופה — הריצו supabase-till-payment.sql ו-supabase-till-tip-and-void-gate.sql');
         } else {
           showToast('לא ניתן לסגור');
         }
@@ -4452,14 +4642,13 @@
       showPaymentCashPanel();
     });
     document.getElementById('admin-payment-credit')?.addEventListener('click', () => {
-      const total = roundMoney(pendingPaymentTotal);
-      closePaymentModal(buildPaymentResult('credit', total, 0, total));
+      showPaymentCreditPanel();
     });
     document.getElementById('admin-payment-split')?.addEventListener('click', () => {
       showPaymentSplitPanel();
     });
     document.getElementById('admin-payment-void')?.addEventListener('click', () => {
-      closePaymentModal(buildPaymentResult('void', 0, 0, 0));
+      showPaymentVoidPanel();
     });
     document.getElementById('admin-payment-cash-input')?.addEventListener('input', () => {
       syncPaymentSplitFields(true);
@@ -4473,23 +4662,45 @@
     document.getElementById('admin-payment-tender-input')?.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter') return;
       event.preventDefault();
-      confirmPaymentCash();
+      confirmPaymentCash('exact');
     });
     document.getElementById('admin-payment-cash-confirm')?.addEventListener('click', () => {
-      confirmPaymentCash();
+      confirmPaymentCash('exact');
     });
-    /* Cancel / backdrop: cash-tender step returns to method choice; otherwise dismiss without closing the table */
+    document.getElementById('admin-payment-cash-as-tip')?.addEventListener('click', () => {
+      confirmPaymentCash('tip');
+    });
+    document.getElementById('admin-payment-cash-as-change')?.addEventListener('click', () => {
+      confirmPaymentCash('change');
+    });
+    document.getElementById('admin-payment-credit-confirm')?.addEventListener('click', () => {
+      confirmPaymentCredit();
+    });
+    document.getElementById('admin-payment-credit-tip')?.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      confirmPaymentCredit();
+    });
+    document.getElementById('admin-payment-void-confirm')?.addEventListener('click', () => {
+      void confirmPaymentVoid();
+    });
+    document.getElementById('admin-payment-void-code')?.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      void confirmPaymentVoid();
+    });
+    /* Cancel / backdrop: a payment step returns to method choice; otherwise dismiss without closing the table */
     document.getElementById('admin-payment-cancel')?.addEventListener('click', () => {
-      if (isPaymentCashPanelOpen()) {
-        hidePaymentCashPanel();
+      if (isPaymentStepOpen()) {
+        hidePaymentExtraPanels();
         document.getElementById('admin-payment-cash')?.focus();
         return;
       }
       closePaymentModal(null);
     });
     document.getElementById('admin-payment-backdrop')?.addEventListener('click', () => {
-      if (isPaymentCashPanelOpen()) {
-        hidePaymentCashPanel();
+      if (isPaymentStepOpen()) {
+        hidePaymentExtraPanels();
         document.getElementById('admin-payment-cash')?.focus();
         return;
       }
@@ -4673,6 +4884,11 @@
     renderDrawerItemsHtml,
     openOrderWhatsApp,
     openCourierModal,
+    PaymentMath: {
+      roundMoney,
+      cashTenderState,
+      cashCloseAmounts,
+    },
   };
 
   if (document.readyState === 'loading') {

@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=102">
+  <link rel="stylesheet" href="css/admin.css?v=104">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
 <body>
@@ -103,6 +103,7 @@
             <button type="button" class="admin-tab" data-tab="history">היסטוריה</button>
             <button type="button" class="admin-tab" data-tab="till">מכירות</button>
             <button type="button" class="admin-tab" data-tab="inventory">מלאי</button>
+            <button type="button" class="admin-tab" data-tab="documents">📄 מסמכים</button>
             <button type="button" class="admin-tab" data-tab="stats">קופונים</button>
             <button type="button" class="admin-tab" data-tab="settings">הגדרות</button>
           </div>
@@ -427,6 +428,22 @@
               <span class="admin-till-card__label">אשראי</span>
               <strong class="admin-till-card__value" id="admin-till-credit">€0</strong>
             </div>
+            <div class="admin-till-card__row">
+              <span class="admin-till-card__label">טיפ מזומן</span>
+              <strong class="admin-till-card__value" id="admin-till-tip-cash">€0</strong>
+            </div>
+            <div class="admin-till-card__row">
+              <span class="admin-till-card__label">טיפ אשראי</span>
+              <strong class="admin-till-card__value" id="admin-till-tip-credit">€0</strong>
+            </div>
+            <div class="admin-till-card__row">
+              <span class="admin-till-card__label">סה״כ טיפ</span>
+              <strong class="admin-till-card__value" id="admin-till-tip">€0</strong>
+            </div>
+            <div class="admin-till-card__row admin-till-card__row--received">
+              <span class="admin-till-card__label">סה״כ התקבל</span>
+              <strong class="admin-till-card__value" id="admin-till-received">€0</strong>
+            </div>
             <button type="button" class="admin-btn admin-btn--whatsapp admin-till-card__wa" id="admin-till-whatsapp">
               <svg class="admin-wa-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
               <span>WhatsApp</span>
@@ -743,6 +760,123 @@
         <div id="admin-stock-panel" hidden></div>
       </div>
 
+      <!-- Documents tab -->
+      <div class="admin-view" id="admin-view-documents" hidden>
+        <header class="admin-header admin-header--row">
+          <div class="admin-header__text">
+            <p class="admin-header__eyebrow">ניהול</p>
+            <h1 class="admin-header__title">📄 מסמכים</h1>
+            <p class="admin-header__subtitle">סריקת חשבוניות וקבלות · הטלפון הוא הסורק, המחשב הוא לוח הבקרה</p>
+          </div>
+          <button type="button" class="admin-btn admin-btn--ghost" id="docs-lock-btn" title="נעילת כספת המסמכים">נעילה</button>
+        </header>
+        <p class="admin-error" id="docs-error" role="alert" hidden></p>
+        <p class="admin-toast" id="docs-toast" role="status" aria-live="polite" hidden></p>
+
+        <div class="admin-stats docs-stats" aria-live="polite">
+          <div class="admin-stat">
+            <span class="admin-stat__value" id="docs-stat-total">0</span>
+            <span class="admin-stat__label">סה״כ מסמכים</span>
+          </div>
+          <div class="admin-stat">
+            <span class="admin-stat__value" id="docs-stat-month-count">0</span>
+            <span class="admin-stat__label">מסמכים החודש</span>
+          </div>
+          <div class="admin-stat admin-stat--ok">
+            <span class="admin-stat__value" id="docs-stat-month-sum">€0</span>
+            <span class="admin-stat__label">הוצאות החודש</span>
+          </div>
+        </div>
+
+        <section class="docs-dashboard" id="docs-dashboard">
+          <div class="docs-dash-grid">
+            <article class="docs-dash-card">
+              <h2 class="docs-dash-card__title">הוצאות לפי קטגוריה</h2>
+              <div id="docs-dash-cats"></div>
+            </article>
+            <article class="docs-dash-card">
+              <h2 class="docs-dash-card__title">הוצאות לפי ספק</h2>
+              <div id="docs-dash-suppliers"></div>
+            </article>
+          </div>
+          <article class="docs-dash-card" id="docs-dash-pending-wrap" hidden>
+            <h2 class="docs-dash-card__title">ממתינים לטיפול</h2>
+            <div class="docs-mini-list" id="docs-dash-pending"></div>
+          </article>
+          <article class="docs-dash-card">
+            <h2 class="docs-dash-card__title">מסמכים אחרונים</h2>
+            <div class="docs-mini-list" id="docs-dash-recent"></div>
+          </article>
+          <div class="docs-dash-actions">
+            <button type="button" class="admin-btn admin-btn--primary" data-docs-scan>📷 סרוק מסמך</button>
+            <button type="button" class="admin-btn admin-btn--soft" data-docs-archive>📱 ניהול כל המסמכים</button>
+          </div>
+        </section>
+
+        <section class="docs-archive" id="docs-archive">
+          <div class="docs-scan-bar">
+            <button type="button" class="docs-scan-btn" data-docs-scan>📷 סרוק מסמך</button>
+            <button type="button" class="admin-btn admin-btn--soft docs-pick-btn" data-docs-pick>📁 בחר קובץ</button>
+            <button type="button" class="admin-btn admin-btn--ghost docs-back-dash" data-docs-dashboard>חזרה ללוח הבקרה</button>
+          </div>
+          <div class="docs-drop" id="docs-drop">
+            גררו לכאן תמונה או PDF מהמחשב
+          </div>
+          <div class="docs-toolbar">
+            <label class="admin-search">
+              <span class="visually-hidden">חיפוש מסמכים</span>
+              <input type="search" id="docs-search" placeholder="חיפוש ספק, מספר, קטגוריה…" autocomplete="off">
+            </label>
+            <div class="docs-filters">
+              <label>
+                <span class="visually-hidden">סוג</span>
+                <select id="docs-filter-type">
+                  <option value="all">כל הסוגים</option>
+                  <option value="supplier_invoice">חשבונית ספק</option>
+                  <option value="receipt">קבלה</option>
+                  <option value="purchase_invoice">חשבונית רכישה</option>
+                  <option value="expense">הוצאה</option>
+                  <option value="other">אחר</option>
+                </select>
+              </label>
+              <label>
+                <span class="visually-hidden">סטטוס</span>
+                <select id="docs-filter-status">
+                  <option value="all">כל הסטטוסים</option>
+                  <option value="draft">ממתין לטיפול</option>
+                  <option value="saved">שמור</option>
+                  <option value="archived">ארכיון</option>
+                </select>
+              </label>
+              <label>
+                <span class="visually-hidden">מתאריך</span>
+                <input type="date" id="docs-filter-from" dir="ltr" aria-label="מתאריך">
+              </label>
+              <label>
+                <span class="visually-hidden">עד תאריך</span>
+                <input type="date" id="docs-filter-to" dir="ltr" aria-label="עד תאריך">
+              </label>
+            </div>
+          </div>
+          <div class="docs-list" id="docs-list"></div>
+          <p class="tables-category__empty" id="docs-empty">אין מסמכים עדיין — סרקו חשבונית כדי להתחיל</p>
+        </section>
+
+        <input
+          type="file"
+          id="docs-camera-input"
+          accept="image/*"
+          capture="environment"
+          hidden
+        >
+        <input
+          type="file"
+          id="docs-file-input"
+          accept="image/jpeg,image/png,image/webp,image/*,application/pdf"
+          hidden
+        >
+      </div>
+
       <!-- Coupons tab -->
       <div class="admin-view" id="admin-view-stats" hidden>
         <header class="admin-header">
@@ -886,6 +1020,112 @@
             <button type="button" class="admin-btn admin-btn--ghost" id="staff-settings-cancel">ביטול</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <div class="admin-modal" id="docs-vault-modal" hidden aria-hidden="true">
+      <button type="button" class="admin-modal__backdrop" id="docs-vault-backdrop" aria-label="סגור"></button>
+      <div class="admin-modal__panel reservation-modal__panel" role="dialog" aria-modal="true" aria-labelledby="docs-vault-modal-title">
+        <h2 class="reservation-modal__title" id="docs-vault-modal-title">כניסה למסמכים</h2>
+        <p class="docs-vault-hint">כספת נפרדת ממשכורות. הקוד לא נשמר במכשיר.</p>
+        <form id="docs-vault-form" class="reservation-form" novalidate>
+          <label class="admin-field">
+            <span>קוד גישה</span>
+            <input type="password" id="docs-vault-code" maxlength="64" dir="ltr" autocomplete="off" spellcheck="false">
+          </label>
+          <p class="admin-error" id="docs-vault-form-error" role="alert" hidden></p>
+          <div class="reservation-modal__actions">
+            <button type="submit" class="admin-btn admin-btn--primary">כניסה</button>
+            <button type="button" class="admin-btn admin-btn--ghost" id="docs-vault-cancel">ביטול</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="admin-modal docs-scan-modal" id="docs-scan-overlay" hidden aria-hidden="true">
+      <button type="button" class="admin-modal__backdrop" id="docs-scan-backdrop" aria-label="סגור"></button>
+      <div class="admin-modal__panel docs-scan-modal__panel" role="dialog" aria-modal="true" aria-labelledby="docs-form-title">
+        <div id="docs-preview-step">
+          <h2 class="reservation-modal__title">תצוגה לפני שמירה</h2>
+          <div class="docs-preview-frame" id="docs-preview-frame"></div>
+          <div class="docs-scan-modal__actions">
+            <button type="button" class="admin-btn admin-btn--primary" id="docs-use">✓ השתמש בתמונה</button>
+            <button type="button" class="admin-btn admin-btn--soft" id="docs-retake">🔄 צלם מחדש</button>
+            <button type="button" class="admin-btn admin-btn--ghost" id="docs-scan-cancel">ביטול</button>
+          </div>
+        </div>
+        <div id="docs-form-step" hidden>
+          <h2 class="reservation-modal__title" id="docs-form-title">פרטי המסמך</h2>
+          <div class="docs-preview-frame docs-preview-frame--form" id="docs-form-preview"></div>
+          <form id="docs-meta-form" class="reservation-form docs-meta-form" novalidate>
+            <label class="admin-field">
+              <span>סוג מסמך</span>
+              <select id="docs-field-type">
+                <option value="supplier_invoice">חשבונית ספק</option>
+                <option value="receipt">קבלה</option>
+                <option value="purchase_invoice">חשבונית רכישה</option>
+                <option value="expense">הוצאה</option>
+                <option value="other">אחר</option>
+              </select>
+            </label>
+            <label class="admin-field">
+              <span>ספק</span>
+              <input type="text" id="docs-field-supplier" maxlength="120" autocomplete="off">
+            </label>
+            <label class="admin-field">
+              <span>תאריך המסמך</span>
+              <input type="date" id="docs-field-date" dir="ltr">
+            </label>
+            <div class="docs-meta-form__row">
+              <label class="admin-field">
+                <span>לפני מע״מ (€)</span>
+                <input type="number" id="docs-field-before-vat" min="0" step="0.01" inputmode="decimal" dir="ltr">
+              </label>
+              <label class="admin-field">
+                <span>מע״מ (€)</span>
+                <input type="number" id="docs-field-vat" min="0" step="0.01" inputmode="decimal" dir="ltr">
+              </label>
+            </div>
+            <label class="admin-field">
+              <span>סכום סופי (€)</span>
+              <input type="number" id="docs-field-total" min="0" step="0.01" inputmode="decimal" dir="ltr">
+            </label>
+            <label class="admin-field">
+              <span>מספר מסמך</span>
+              <input type="text" id="docs-field-number" maxlength="80" autocomplete="off">
+            </label>
+            <label class="admin-field">
+              <span>קטגוריה</span>
+              <input type="text" id="docs-field-category" maxlength="80" list="docs-category-hints" autocomplete="off">
+            </label>
+            <datalist id="docs-category-hints"></datalist>
+            <label class="admin-field">
+              <span>הערות</span>
+              <textarea id="docs-field-notes" rows="3" maxlength="2000"></textarea>
+            </label>
+            <input type="hidden" id="docs-field-currency" value="EUR">
+            <p class="admin-error" id="docs-form-error" role="alert" hidden></p>
+            <div class="reservation-modal__actions">
+              <button type="submit" class="admin-btn admin-btn--primary">שמירה</button>
+              <button type="button" class="admin-btn admin-btn--ghost" id="docs-form-cancel">ביטול</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="admin-modal docs-view-modal" id="docs-view-modal" hidden aria-hidden="true">
+      <button type="button" class="admin-modal__backdrop" id="docs-view-backdrop" aria-label="סגור"></button>
+      <div class="admin-modal__panel docs-view-modal__panel" role="dialog" aria-modal="true" aria-labelledby="docs-view-title">
+        <h2 class="reservation-modal__title" id="docs-view-title">מסמך</h2>
+        <p class="docs-view-meta" id="docs-view-meta"></p>
+        <div class="docs-preview-frame" id="docs-view-frame"></div>
+        <div class="docs-scan-modal__actions">
+          <button type="button" class="admin-btn admin-btn--soft" id="docs-view-download">הורדה</button>
+          <button type="button" class="admin-btn admin-btn--ghost" id="docs-view-edit">עריכה</button>
+          <button type="button" class="admin-btn admin-btn--danger" id="docs-view-delete">מחיקה</button>
+          <button type="button" class="admin-btn admin-btn--ghost" id="docs-view-close">סגור</button>
+        </div>
       </div>
     </div>
 
@@ -1387,6 +1627,21 @@
             <input type="number" id="admin-payment-credit-input" min="0" step="0.01" inputmode="decimal" dir="ltr" readonly tabindex="-1">
           </label>
           <p class="admin-payment-split__hint" id="admin-payment-split-hint">השלימו את סכום המזומן — האשראי יחושב אוטומטית</p>
+          <label class="admin-payment-split__field">
+            <span>טיפ (€)</span>
+            <input type="number" id="admin-payment-split-tip" min="0" step="0.01" inputmode="decimal" dir="ltr" autocomplete="off" value="0">
+          </label>
+          <fieldset class="admin-payment-split__tip-via" id="admin-payment-split-tip-via">
+            <legend>איך התקבל הטיפ</legend>
+            <label>
+              <input type="radio" name="admin-payment-split-tip-via" value="cash" checked>
+              טיפ במזומן
+            </label>
+            <label>
+              <input type="radio" name="admin-payment-split-tip-via" value="credit">
+              טיפ באשראי
+            </label>
+          </fieldset>
           <button type="button" class="admin-btn admin-btn--primary" id="admin-payment-split-confirm">אשר סגירה</button>
         </div>
         <div class="admin-payment-split admin-payment-cash" id="admin-payment-cash-panel" hidden>
@@ -1395,8 +1650,34 @@
             <span>הלקוח שילם (€)</span>
             <input type="number" id="admin-payment-tender-input" min="0" step="0.01" inputmode="decimal" dir="ltr" autocomplete="off">
           </label>
+          <dl class="admin-payment-cash__breakdown" id="admin-payment-cash-breakdown" hidden>
+            <div><dt>החשבון</dt><dd id="admin-payment-cash-bill">€0</dd></div>
+            <div><dt>התקבל</dt><dd id="admin-payment-cash-received">€0</dd></div>
+            <div><dt>הפרש</dt><dd id="admin-payment-cash-diff">€0</dd></div>
+          </dl>
           <p class="admin-payment-split__hint" id="admin-payment-cash-change"></p>
+          <div class="admin-payment-cash__diff-actions" id="admin-payment-cash-diff-actions" hidden>
+            <button type="button" class="admin-btn admin-btn--primary" id="admin-payment-cash-as-tip">טיפ</button>
+            <button type="button" class="admin-btn admin-btn--soft" id="admin-payment-cash-as-change">עודף</button>
+          </div>
           <button type="button" class="admin-btn admin-btn--primary" id="admin-payment-cash-confirm" disabled>סגור שולחן</button>
+        </div>
+        <div class="admin-payment-split admin-payment-credit" id="admin-payment-credit-panel" hidden>
+          <p class="admin-payment-credit__q">האם הלקוח השאיר טיפ?</p>
+          <label class="admin-payment-split__field">
+            <span>טיפ באשראי (€)</span>
+            <input type="number" id="admin-payment-credit-tip" min="0" step="0.01" inputmode="decimal" dir="ltr" autocomplete="off" value="0">
+          </label>
+          <button type="button" class="admin-btn admin-btn--primary" id="admin-payment-credit-confirm">סגור באשראי</button>
+        </div>
+        <div class="admin-payment-split admin-payment-void-code" id="admin-payment-void-panel" hidden>
+          <p class="admin-payment-credit__q">כניסה לסגירת הזמנה</p>
+          <label class="admin-payment-split__field">
+            <span>קוד גישה</span>
+            <input type="password" id="admin-payment-void-code" maxlength="64" dir="ltr" autocomplete="off" spellcheck="false">
+          </label>
+          <p class="admin-error" id="admin-payment-void-error" role="alert" hidden></p>
+          <button type="button" class="admin-btn admin-btn--primary" id="admin-payment-void-confirm">כניסה</button>
         </div>
         <p class="admin-payment-modal__hint">בחרו אמצעי תשלום או «סגור הזמנה» — ביטול מחזיר לכרטיס בלי לסגור</p>
         <button type="button" class="admin-btn admin-btn--ghost" id="admin-payment-cancel">ביטול</button>
@@ -1484,7 +1765,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
   <script src="js/order-types.js" defer></script>
-  <script src="js/supabase-order-service.js?v=29" defer></script>
+  <script src="js/supabase-order-service.js?v=30" defer></script>
   <script src="js/menu-data.js?v=103" defer></script>
   <script src="js/opening-hours.js?v=12" defer></script>
   <script src="js/app-settings.js?v=6" defer></script>
@@ -1497,7 +1778,7 @@
   <script src="js/a11y-focus-trap.js" defer></script>
   <script src="js/kitchen-progress.js?v=2" defer></script>
   <script src="js/kitchen-dish-groups.js?v=1" defer></script>
-  <script src="js/admin-tables.js?v=93" defer></script>
+  <script src="js/admin-tables.js?v=94" defer></script>
   <script src="js/admin-shabbat.js?v=8" defer></script>
   <script src="js/place-reservations.js?v=9" defer></script>
   <script src="js/admin-reservations.js?v=7" defer></script>
@@ -1507,13 +1788,14 @@
   <script src="js/admin-kitchen-board.js?v=34" defer></script>
   <script src="js/admin-history.js?v=2" defer></script>
   <script src="js/admin-coupons.js" defer></script>
-  <script src="js/admin-till.js?v=3" defer></script>
+  <script src="js/admin-till.js?v=4" defer></script>
   <script src="js/staff-hours-xlsx.js?v=4" defer></script>
   <script src="js/admin-staff-hours.js?v=14" defer></script>
+  <script src="js/admin-documents.js?v=1" defer></script>
   <script src="js/admin-settings.js?v=7" defer></script>
   <script src="js/stock-catalog.js?v=6" defer></script>
   <script src="js/admin-stock.js?v=2" defer></script>
-  <script src="js/admin.js?v=69" defer></script>
+  <script src="js/admin.js?v=70" defer></script>
   <script src="js/admin-push.js?v=1" defer></script>
   <script src="js/admin-pwa.js?v=2" defer></script>
 </body>

@@ -14,6 +14,10 @@
   const cashEl = document.getElementById('admin-till-cash');
   const creditEl = document.getElementById('admin-till-credit');
   const totalEl = document.getElementById('admin-till-total');
+  const tipCashEl = document.getElementById('admin-till-tip-cash');
+  const tipCreditEl = document.getElementById('admin-till-tip-credit');
+  const tipEl = document.getElementById('admin-till-tip');
+  const receivedEl = document.getElementById('admin-till-received');
   const whatsappBtn = document.getElementById('admin-till-whatsapp');
   const todayBtn = document.getElementById('admin-till-today');
   const yesterdayBtn = document.getElementById('admin-till-yesterday');
@@ -22,7 +26,7 @@
   const searchInput = document.getElementById('admin-till-product-search');
   const catsEl = document.getElementById('admin-till-cats');
 
-  let cache = { date: '', cash: 0, credit: 0, products: [] };
+  let cache = { date: '', cash: 0, credit: 0, tipCash: 0, tipCredit: 0, tip: 0, products: [] };
   let started = false;
   let refreshTimer = null;
   let loadSeq = 0;
@@ -120,18 +124,48 @@
     return 0;
   }
 
+  function sessionTipCashAmount(row) {
+    if (row?.paid_tip_cash != null && Number.isFinite(Number(row.paid_tip_cash))) {
+      return Math.max(0, Number(row.paid_tip_cash));
+    }
+    return 0;
+  }
+
+  function sessionTipCreditAmount(row) {
+    if (row?.paid_tip_credit != null && Number.isFinite(Number(row.paid_tip_credit))) {
+      return Math.max(0, Number(row.paid_tip_credit));
+    }
+    return 0;
+  }
+
+  function sessionTipAmount(row) {
+    if (row?.paid_tip != null && Number.isFinite(Number(row.paid_tip))) {
+      return Math.max(0, Number(row.paid_tip));
+    }
+    return Math.round((sessionTipCashAmount(row) + sessionTipCreditAmount(row)) * 100) / 100;
+  }
+
   function buildSummary(rows) {
     let cash = 0;
     let credit = 0;
+    let tipCash = 0;
+    let tipCredit = 0;
+    let tip = 0;
     (rows || []).forEach((row) => {
       const method = String(row?.payment_method || '').toLowerCase();
       if (method !== 'cash' && method !== 'credit' && method !== 'split') return;
       cash += sessionCashAmount(row);
       credit += sessionCreditAmount(row);
+      tipCash += sessionTipCashAmount(row);
+      tipCredit += sessionTipCreditAmount(row);
+      tip += sessionTipAmount(row);
     });
     return {
       cash: Math.round(cash * 100) / 100,
       credit: Math.round(credit * 100) / 100,
+      tipCash: Math.round(tipCash * 100) / 100,
+      tipCredit: Math.round(tipCredit * 100) / 100,
+      tip: Math.round(tip * 100) / 100,
     };
   }
 
@@ -216,23 +250,32 @@
   }
 
   function renderSummary() {
+    const sales = Math.round((Number(cache.cash) + Number(cache.credit)) * 100) / 100;
+    const tip = Number(cache.tip) || 0;
+    const received = Math.round((sales + tip) * 100) / 100;
     if (dateLabelEl) dateLabelEl.textContent = formatDisplayDate(cache.date);
     if (cashEl) cashEl.textContent = formatMoney(cache.cash);
     if (creditEl) creditEl.textContent = formatMoney(cache.credit);
-    if (totalEl) {
-      totalEl.textContent = formatMoney(
-        Math.round((Number(cache.cash) + Number(cache.credit)) * 100) / 100
-      );
-    }
+    if (totalEl) totalEl.textContent = formatMoney(sales);
+    if (tipCashEl) tipCashEl.textContent = formatMoney(cache.tipCash);
+    if (tipCreditEl) tipCreditEl.textContent = formatMoney(cache.tipCredit);
+    if (tipEl) tipEl.textContent = formatMoney(tip);
+    if (receivedEl) receivedEl.textContent = formatMoney(received);
     renderProducts();
   }
 
   function buildWhatsAppText() {
-    /* Same content as the original till card — do not add total/products */
+    const sales = Math.round((Number(cache.cash) + Number(cache.credit)) * 100) / 100;
+    const tip = Number(cache.tip) || 0;
+    const received = Math.round((sales + tip) * 100) / 100;
     return [
       formatDisplayDate(cache.date),
       `מזומן ${formatMoney(cache.cash)}`,
       `אשראי ${formatMoney(cache.credit)}`,
+      `טיפ מזומן ${formatMoney(cache.tipCash)}`,
+      `טיפ אשראי ${formatMoney(cache.tipCredit)}`,
+      `סה״כ טיפ ${formatMoney(tip)}`,
+      `סה״כ התקבל ${formatMoney(received)}`,
     ].join('\n');
   }
 
@@ -329,14 +372,14 @@
     /* Days before go-live show a clean zero till */
     if (date < TILL_COUNT_FROM_YMD) {
       showError('');
-      cache = { date, cash: 0, credit: 0, products: [] };
+      cache = { date, cash: 0, credit: 0, tipCash: 0, tipCredit: 0, tip: 0, products: [] };
       renderSummary();
       return;
     }
 
     if (!api?.isConfigured?.() || typeof api.getDailyTillReport !== 'function') {
       showError('מכירות לא זמינות — בדקו חיבור Supabase');
-      cache = { date, cash: 0, credit: 0, products: [] };
+      cache = { date, cash: 0, credit: 0, tipCash: 0, tipCredit: 0, tip: 0, products: [] };
       renderSummary();
       return;
     }
@@ -356,12 +399,12 @@
       if (seq !== loadSeq) return;
       console.error('[admin-till] load failed', err);
       const msg = String(err?.message || '');
-      if (msg.includes('payment_method') || msg.includes('paid_total') || msg.includes('paid_cash') || msg.includes('column')) {
-        showError('חסרות עמודות קופה — הריצו supabase-till-payment.sql ב-Supabase');
+      if (msg.includes('payment_method') || msg.includes('paid_total') || msg.includes('paid_cash') || msg.includes('paid_tip') || msg.includes('column')) {
+        showError('חסרות עמודות קופה — הריצו supabase-till-payment.sql ו-supabase-till-tip-and-void-gate.sql');
       } else {
         showError('לא ניתן לטעון את המכירות');
       }
-      cache = { date, cash: 0, credit: 0, products: [] };
+      cache = { date, cash: 0, credit: 0, tipCash: 0, tipCredit: 0, tip: 0, products: [] };
       renderSummary();
     }
   }
@@ -404,5 +447,14 @@
   window.LechaimAdminTill = {
     start,
     refresh: scheduleRefresh,
+    TillMath: {
+      sessionPaidAmount,
+      sessionCashAmount,
+      sessionCreditAmount,
+      sessionTipAmount,
+      sessionTipCashAmount,
+      sessionTipCreditAmount,
+      buildSummary,
+    },
   };
 })();
