@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=112">
+  <link rel="stylesheet" href="css/admin.css?v=116">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
 <body>
@@ -414,8 +414,16 @@
             <p class="admin-till-products__empty" id="admin-till-products-empty">אין מוצרים שנמכרו ביום זה</p>
             <ul class="admin-till-products__list" id="admin-till-products-list" hidden></ul>
           </section>
-          <article class="admin-till-card" id="admin-till-summary-card">
+          <article class="admin-till-card" id="admin-till-summary-card" hidden>
             <p class="admin-till-card__date" id="admin-till-date-label">—</p>
+            <div class="admin-till-card__row admin-till-card__row--tip-total">
+              <span class="admin-till-card__label">סה״כ טיפ</span>
+              <strong class="admin-till-card__value" id="admin-till-tip">€0</strong>
+            </div>
+            <div class="admin-till-card__row admin-till-card__row--received">
+              <span class="admin-till-card__label">סה״כ כולל טיפים</span>
+              <strong class="admin-till-card__value" id="admin-till-received">€0</strong>
+            </div>
             <div class="admin-till-card__row admin-till-card__row--total">
               <span class="admin-till-card__label">סה״כ מכירות</span>
               <strong class="admin-till-card__value" id="admin-till-total">€0</strong>
@@ -436,19 +444,12 @@
               <span class="admin-till-card__label">טיפ אשראי</span>
               <strong class="admin-till-card__value" id="admin-till-tip-credit">€0</strong>
             </div>
-            <div class="admin-till-card__row">
-              <span class="admin-till-card__label">סה״כ טיפ</span>
-              <strong class="admin-till-card__value" id="admin-till-tip">€0</strong>
-            </div>
-            <div class="admin-till-card__row admin-till-card__row--received">
-              <span class="admin-till-card__label">סה״כ התקבל</span>
-              <strong class="admin-till-card__value" id="admin-till-received">€0</strong>
-            </div>
             <button type="button" class="admin-btn admin-btn--whatsapp admin-till-card__wa" id="admin-till-whatsapp">
               <svg class="admin-wa-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
               <span>WhatsApp</span>
             </button>
           </article>
+          <button type="button" class="admin-till-unlock" id="admin-till-unlock-totals">הצג סיכום מכירות</button>
         </div>
       </div>
 
@@ -769,8 +770,16 @@
           <div class="docs-app__pane docs-app__pane--list" id="docs-app-list">
             <header class="docs-app__head">
               <h1 class="docs-app__title">חשבוניות</h1>
-              <button type="button" class="docs-app__lock" data-docs-lock aria-label="נעילה">נעילה</button>
+              <div class="docs-app__head-actions">
+                <button type="button" class="docs-app__summary" data-docs-open-report>סיכום</button>
+                <button type="button" class="docs-app__lock" data-docs-lock aria-label="נעילה">נעילה</button>
+              </div>
             </header>
+            <nav class="docs-month-nav" aria-label="בחירת חודש">
+              <button type="button" class="docs-month-nav__btn" id="docs-month-prev" aria-label="חודש קודם">‹</button>
+              <strong id="docs-month-label">—</strong>
+              <button type="button" class="docs-month-nav__btn" id="docs-month-next" aria-label="חודש הבא">›</button>
+            </nav>
             <div class="docs-chat-list" id="docs-supplier-list"></div>
             <button type="button" class="docs-new-supplier" data-docs-new-supplier>+ ספק חדש</button>
           </div>
@@ -780,8 +789,7 @@
               <button type="button" class="docs-back" data-docs-back>← חזרה</button>
               <button type="button" class="docs-app__lock" data-docs-lock aria-label="נעילה">נעילה</button>
             </header>
-            <p class="docs-folder-idle" id="docs-folder-idle">בחרו ספק מהרשימה</p>
-            <div id="docs-folder-active" hidden>
+            <div id="docs-folder-active">
               <h2 class="docs-folder__title" id="docs-folder-title"></h2>
               <p class="docs-folder__sum-label">סה״כ החודש</p>
               <p class="docs-folder__sum" id="docs-folder-sum">€0</p>
@@ -791,6 +799,34 @@
               <div id="docs-folder-months"></div>
             </div>
           </div>
+
+          <section class="docs-app__pane docs-app__pane--report" id="docs-month-report" hidden>
+            <header class="docs-app__head">
+              <button type="button" class="docs-back" data-docs-back>← חזרה</button>
+              <h1 class="docs-app__title">סיכום חודשי</h1>
+              <button type="button" class="docs-app__lock" data-docs-lock aria-label="נעילה">נעילה</button>
+            </header>
+            <nav class="docs-month-nav" aria-label="בחירת חודש">
+              <button type="button" class="docs-month-nav__btn" id="docs-month-prev-report" aria-label="חודש קודם">‹</button>
+              <strong id="docs-month-label-report">—</strong>
+              <button type="button" class="docs-month-nav__btn" id="docs-month-next-report" aria-label="חודש הבא">›</button>
+            </nav>
+            <div class="docs-month-report__body">
+              <div class="docs-month-report__stats">
+                <article class="docs-month-report__stat">
+                  <span class="docs-month-report__label">סה״כ הכנסות</span>
+                  <strong class="docs-month-report__value" id="docs-income-sum">€0</strong>
+                </article>
+                <article class="docs-month-report__stat">
+                  <span class="docs-month-report__label">סה״כ הוצאות</span>
+                  <strong class="docs-month-report__value" id="docs-expense-sum">€0</strong>
+                </article>
+              </div>
+              <h2 class="docs-month-report__title">פירוט הוצאות</h2>
+              <div id="docs-expense-break"></div>
+              <button type="button" class="docs-xlsx-btn" id="docs-xlsx">הורד דוח Excel</button>
+            </div>
+          </section>
         </section>
 
         <input type="file" id="docs-camera-input" accept="image/*" capture="environment" hidden>
@@ -957,6 +993,25 @@
           <div class="reservation-modal__actions">
             <button type="submit" class="admin-btn admin-btn--primary">כניסה</button>
             <button type="button" class="admin-btn admin-btn--ghost" id="docs-vault-cancel">ביטול</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="admin-modal" id="till-totals-modal" hidden aria-hidden="true">
+      <button type="button" class="admin-modal__backdrop" id="till-totals-backdrop" aria-label="סגור"></button>
+      <div class="admin-modal__panel reservation-modal__panel" role="dialog" aria-modal="true" aria-labelledby="till-totals-modal-title">
+        <h2 class="reservation-modal__title" id="till-totals-modal-title">סיכום מכירות</h2>
+        <p class="docs-vault-hint">אותו קוד כמו מסמכים.</p>
+        <form id="till-totals-form" class="reservation-form" novalidate>
+          <label class="admin-field">
+            <span>קוד גישה</span>
+            <input type="password" id="till-totals-code" maxlength="64" dir="ltr" autocomplete="off" spellcheck="false">
+          </label>
+          <p class="admin-error" id="till-totals-form-error" role="alert" hidden></p>
+          <div class="reservation-modal__actions">
+            <button type="submit" class="admin-btn admin-btn--primary">הצג</button>
+            <button type="button" class="admin-btn admin-btn--ghost" id="till-totals-cancel">ביטול</button>
           </div>
         </form>
       </div>
@@ -1549,7 +1604,15 @@
             <input type="number" id="admin-payment-credit-input" min="0" step="0.01" inputmode="decimal" dir="ltr" readonly tabindex="-1">
           </label>
           <p class="admin-payment-split__hint" id="admin-payment-split-hint">השלימו את סכום המזומן — האשראי יחושב אוטומטית</p>
-          <label class="admin-payment-split__field">
+          <p class="admin-payment-credit__q">טיפ</p>
+          <div class="admin-payment-tip-presets" data-tip-input="admin-payment-split-tip">
+            <button type="button" data-tip-pct="10">10%</button>
+            <button type="button" data-tip-pct="15">15%</button>
+            <button type="button" data-tip-pct="20">20%</button>
+            <button type="button" data-tip-pct="custom">סכום אחר</button>
+            <button type="button" data-tip-pct="none" class="is-on">ללא טיפ</button>
+          </div>
+          <label class="admin-payment-split__field admin-payment-tip-manual" id="admin-payment-split-tip-wrap" hidden>
             <span>טיפ (€)</span>
             <input type="number" id="admin-payment-split-tip" min="0" step="0.01" inputmode="decimal" dir="ltr" autocomplete="off" value="0">
           </label>
@@ -1568,6 +1631,18 @@
         </div>
         <div class="admin-payment-split admin-payment-cash" id="admin-payment-cash-panel" hidden>
           <p class="admin-payment-cash__due" id="admin-payment-cash-due"></p>
+          <p class="admin-payment-credit__q">טיפ</p>
+          <div class="admin-payment-tip-presets" data-tip-input="admin-payment-cash-tip">
+            <button type="button" data-tip-pct="10">10%</button>
+            <button type="button" data-tip-pct="15">15%</button>
+            <button type="button" data-tip-pct="20">20%</button>
+            <button type="button" data-tip-pct="custom">סכום אחר</button>
+            <button type="button" data-tip-pct="none" class="is-on">ללא טיפ</button>
+          </div>
+          <label class="admin-payment-split__field admin-payment-tip-manual" id="admin-payment-cash-tip-wrap" hidden>
+            <span>טיפ במזומן (€)</span>
+            <input type="number" id="admin-payment-cash-tip" min="0" step="0.01" inputmode="decimal" dir="ltr" autocomplete="off" value="0">
+          </label>
           <label class="admin-payment-split__field">
             <span>הלקוח שילם (€)</span>
             <input type="number" id="admin-payment-tender-input" min="0" step="0.01" inputmode="decimal" dir="ltr" autocomplete="off">
@@ -1586,7 +1661,14 @@
         </div>
         <div class="admin-payment-split admin-payment-credit" id="admin-payment-credit-panel" hidden>
           <p class="admin-payment-credit__q">האם הלקוח השאיר טיפ?</p>
-          <label class="admin-payment-split__field">
+          <div class="admin-payment-tip-presets" data-tip-input="admin-payment-credit-tip">
+            <button type="button" data-tip-pct="10">10%</button>
+            <button type="button" data-tip-pct="15">15%</button>
+            <button type="button" data-tip-pct="20">20%</button>
+            <button type="button" data-tip-pct="custom">סכום אחר</button>
+            <button type="button" data-tip-pct="none" class="is-on">ללא טיפ</button>
+          </div>
+          <label class="admin-payment-split__field admin-payment-tip-manual" id="admin-payment-credit-tip-wrap" hidden>
             <span>טיפ באשראי (€)</span>
             <input type="number" id="admin-payment-credit-tip" min="0" step="0.01" inputmode="decimal" dir="ltr" autocomplete="off" value="0">
           </label>
@@ -1700,7 +1782,7 @@
   <script src="js/a11y-focus-trap.js" defer></script>
   <script src="js/kitchen-progress.js?v=2" defer></script>
   <script src="js/kitchen-dish-groups.js?v=1" defer></script>
-  <script src="js/admin-tables.js?v=94" defer></script>
+  <script src="js/admin-tables.js?v=95" defer></script>
   <script src="js/admin-shabbat.js?v=8" defer></script>
   <script src="js/place-reservations.js?v=9" defer></script>
   <script src="js/admin-reservations.js?v=7" defer></script>
@@ -1710,14 +1792,15 @@
   <script src="js/admin-kitchen-board.js?v=34" defer></script>
   <script src="js/admin-history.js?v=2" defer></script>
   <script src="js/admin-coupons.js" defer></script>
-  <script src="js/admin-till.js?v=4" defer></script>
+  <script src="js/admin-till.js?v=6" defer></script>
   <script src="js/staff-hours-xlsx.js?v=4" defer></script>
   <script src="js/admin-staff-hours.js?v=14" defer></script>
-  <script src="js/admin-documents.js?v=6" defer></script>
+  <script src="js/docs-monthly-xlsx.js?v=1" defer></script>
+  <script src="js/admin-documents.js?v=8" defer></script>
   <script src="js/admin-settings.js?v=7" defer></script>
   <script src="js/stock-catalog.js?v=6" defer></script>
   <script src="js/admin-stock.js?v=2" defer></script>
-  <script src="js/admin.js?v=70" defer></script>
+  <script src="js/admin.js?v=71" defer></script>
   <script src="js/admin-push.js?v=1" defer></script>
   <script src="js/admin-pwa.js?v=2" defer></script>
 </body>

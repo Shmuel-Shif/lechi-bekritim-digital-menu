@@ -25,6 +25,12 @@
   const productsEmptyEl = document.getElementById('admin-till-products-empty');
   const searchInput = document.getElementById('admin-till-product-search');
   const catsEl = document.getElementById('admin-till-cats');
+  const summaryCard = document.getElementById('admin-till-summary-card');
+  const unlockTotalsBtn = document.getElementById('admin-till-unlock-totals');
+  const totalsModal = document.getElementById('till-totals-modal');
+  const totalsForm = document.getElementById('till-totals-form');
+  const totalsCodeInput = document.getElementById('till-totals-code');
+  const totalsFormError = document.getElementById('till-totals-form-error');
 
   let cache = { date: '', cash: 0, credit: 0, tipCash: 0, tipCredit: 0, tip: 0, products: [] };
   let started = false;
@@ -34,6 +40,8 @@
   let searchQuery = '';
   let productCategoryById = new Map();
   let menuCategories = [];
+  let totalsUnlocked = false;
+  let totalsBusy = false;
 
   function OrdersApi() {
     return window.LechaimSupabaseOrders;
@@ -48,6 +56,90 @@
     }
     errorEl.hidden = false;
     errorEl.textContent = message;
+  }
+
+  function applyTotalsGate() {
+    if (summaryCard) summaryCard.hidden = !totalsUnlocked;
+    if (unlockTotalsBtn) unlockTotalsBtn.hidden = totalsUnlocked;
+  }
+
+  function getSb() {
+    if (typeof window.LechaimInventory?.getClient === 'function') {
+      return window.LechaimInventory.getClient();
+    }
+    return null;
+  }
+
+  function showTotalsFormError(message) {
+    if (!totalsFormError) return;
+    if (!message) {
+      totalsFormError.hidden = true;
+      totalsFormError.textContent = '';
+      return;
+    }
+    totalsFormError.hidden = false;
+    totalsFormError.textContent = message;
+  }
+
+  function openTotalsModal() {
+    showTotalsFormError('');
+    if (!totalsModal) return;
+    totalsModal.hidden = false;
+    totalsModal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('admin-modal-open');
+    window.setTimeout(() => totalsCodeInput?.focus(), 50);
+  }
+
+  function closeTotalsModal() {
+    if (totalsCodeInput) totalsCodeInput.value = '';
+    if (!totalsModal) return;
+    totalsModal.hidden = true;
+    totalsModal.setAttribute('aria-hidden', 'true');
+    const open = document.querySelector('.admin-modal:not([hidden])');
+    if (!open) document.body.classList.remove('admin-modal-open');
+  }
+
+  function lockTotals() {
+    totalsUnlocked = false;
+    applyTotalsGate();
+    closeTotalsModal();
+  }
+
+  async function submitTotalsUnlock(event) {
+    event.preventDefault();
+    if (totalsBusy) return;
+    const code = totalsCodeInput?.value || '';
+    if (!String(code).trim()) {
+      showTotalsFormError('הזינו קוד גישה');
+      return;
+    }
+    const sb = getSb();
+    if (!sb) {
+      showTotalsFormError('Supabase לא מחובר');
+      return;
+    }
+    totalsBusy = true;
+    showTotalsFormError('');
+    try {
+      const { data, error } = await sb.rpc('documents_vault_unlock', { p_code: code });
+      if (totalsCodeInput) totalsCodeInput.value = '';
+      if (error) throw error;
+      const res = data || {};
+      if (!res.ok) {
+        if (res.error === 'invalid_code') showTotalsFormError('קוד שגוי');
+        else if (res.error === 'code_not_set') showTotalsFormError('הקוד עדיין לא הוגדר');
+        else if (res.error === 'not_authenticated') showTotalsFormError('יש להתחבר לאדמין');
+        else showTotalsFormError(res.error || 'שגיאה');
+        return;
+      }
+      totalsUnlocked = true;
+      applyTotalsGate();
+      closeTotalsModal();
+    } catch (err) {
+      showTotalsFormError(err?.message || 'הכניסה נכשלה');
+    } finally {
+      totalsBusy = false;
+    }
   }
 
   function pad2(n) {
@@ -270,12 +362,13 @@
     const received = Math.round((sales + tip) * 100) / 100;
     return [
       formatDisplayDate(cache.date),
+      `סה״כ טיפ ${formatMoney(tip)}`,
+      `סה״כ כולל טיפים ${formatMoney(received)}`,
+      `סה״כ מכירות ${formatMoney(sales)}`,
       `מזומן ${formatMoney(cache.cash)}`,
       `אשראי ${formatMoney(cache.credit)}`,
       `טיפ מזומן ${formatMoney(cache.tipCash)}`,
       `טיפ אשראי ${formatMoney(cache.tipCredit)}`,
-      `סה״כ טיפ ${formatMoney(tip)}`,
-      `סה״כ התקבל ${formatMoney(received)}`,
     ].join('\n');
   }
 
@@ -441,12 +534,20 @@
       event.preventDefault();
       void openTillWhatsApp();
     });
+    unlockTotalsBtn?.addEventListener('click', openTotalsModal);
+    totalsForm?.addEventListener('submit', (event) => {
+      submitTotalsUnlock(event).catch(() => {});
+    });
+    document.getElementById('till-totals-cancel')?.addEventListener('click', closeTotalsModal);
+    document.getElementById('till-totals-backdrop')?.addEventListener('click', closeTotalsModal);
+    applyTotalsGate();
     void loadReport();
   }
 
   window.LechaimAdminTill = {
     start,
     refresh: scheduleRefresh,
+    lockTotals,
     TillMath: {
       sessionPaidAmount,
       sessionCashAmount,

@@ -1222,12 +1222,55 @@
     }
   }
 
+  function tipPercentOfBill(pct) {
+    return roundMoney(pendingPaymentTotal * (Number(pct) / 100));
+  }
+
+  function setTipPresetHighlight(inputId, pct) {
+    const group = document.querySelector(`[data-tip-input="${inputId}"]`);
+    if (!group) return;
+    group.querySelectorAll('[data-tip-pct]').forEach((btn) => {
+      btn.classList.toggle('is-on', btn.getAttribute('data-tip-pct') === String(pct));
+    });
+  }
+
+  function applyTipPreset(inputId, pct) {
+    const input = document.getElementById(inputId);
+    const wrap = document.getElementById(`${inputId}-wrap`);
+    setTipPresetHighlight(inputId, pct);
+    if (!input) return;
+    if (pct === 'none') {
+      input.value = '0';
+      if (wrap) wrap.hidden = true;
+      return;
+    }
+    if (wrap) wrap.hidden = false;
+    if (pct === 'custom') {
+      if (parseTenderedAmount(input.value) === 0) input.value = '';
+      input.focus();
+      if (typeof input.select === 'function') input.select();
+      return;
+    }
+    input.value = String(tipPercentOfBill(pct));
+  }
+
+  function resetTipPreset(inputId) {
+    applyTipPreset(inputId, 'none');
+  }
+
+  function markTipCustomFromInput(inputId) {
+    const wrap = document.getElementById(`${inputId}-wrap`);
+    if (wrap) wrap.hidden = false;
+    setTipPresetHighlight(inputId, 'custom');
+  }
+
   function showPaymentCashPanel() {
     hidePaymentExtraPanels();
     const panel = document.getElementById('admin-payment-cash-panel');
     const input = document.getElementById('admin-payment-tender-input');
     if (!panel) return;
     panel.hidden = false;
+    resetTipPreset('admin-payment-cash-tip');
     if (input) {
       input.value = '';
       syncPaymentCashTender();
@@ -1238,12 +1281,13 @@
     }
   }
 
-  function cashCloseAmounts(bill, tendered, disposition) {
+  function cashCloseAmounts(bill, tendered, disposition, extraTip = 0) {
     const total = roundMoney(bill);
     const state = cashTenderState(total, tendered);
     if (!state.ok) return null;
     if (state.change > 0 && disposition !== 'tip' && disposition !== 'change') return null;
-    const tip = disposition === 'tip' ? state.change : 0;
+    const leftoverTip = disposition === 'tip' ? state.change : 0;
+    const tip = roundMoney(leftoverTip + parseTenderedAmount(extraTip));
     return {
       method: 'cash',
       paidTotal: total,
@@ -1258,13 +1302,14 @@
   function confirmPaymentCash(disposition) {
     const total = roundMoney(pendingPaymentTotal);
     const given = parseTenderedAmount(document.getElementById('admin-payment-tender-input')?.value);
+    const extraTip = parseTenderedAmount(document.getElementById('admin-payment-cash-tip')?.value);
     const state = cashTenderState(total, given);
     if (!state.ok) {
       syncPaymentCashTender();
       return;
     }
     const mode = state.change > 0 ? disposition : 'exact';
-    const amounts = cashCloseAmounts(total, given, mode === 'exact' ? 'change' : mode);
+    const amounts = cashCloseAmounts(total, given, mode === 'exact' ? 'change' : mode, extraTip);
     if (!amounts) {
       syncPaymentCashTender();
       return;
@@ -1300,7 +1345,6 @@
     hidePaymentExtraPanels();
     const panel = document.getElementById('admin-payment-split-panel');
     const cashInput = document.getElementById('admin-payment-cash-input');
-    const tipInput = document.getElementById('admin-payment-split-tip');
     if (!panel) return;
     panel.hidden = false;
     const half = roundMoney(pendingPaymentTotal / 2);
@@ -1310,7 +1354,7 @@
       cashInput.focus();
       cashInput.select();
     }
-    if (tipInput) tipInput.value = '0';
+    resetTipPreset('admin-payment-split-tip');
   }
 
   function closePaymentModal(result = null) {
@@ -1408,14 +1452,9 @@
   function showPaymentCreditPanel() {
     hidePaymentExtraPanels();
     const panel = document.getElementById('admin-payment-credit-panel');
-    const input = document.getElementById('admin-payment-credit-tip');
     if (!panel) return;
     panel.hidden = false;
-    if (input) {
-      input.value = '0';
-      input.focus();
-      if (typeof input.select === 'function') input.select();
-    }
+    resetTipPreset('admin-payment-credit-tip');
   }
 
   function confirmPaymentCredit() {
@@ -4680,6 +4719,18 @@
       if (event.key !== 'Enter') return;
       event.preventDefault();
       confirmPaymentCredit();
+    });
+    document.getElementById('admin-payment-modal')?.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-tip-pct]');
+      if (!btn) return;
+      const group = btn.closest('[data-tip-input]');
+      if (!group) return;
+      applyTipPreset(group.getAttribute('data-tip-input'), btn.getAttribute('data-tip-pct'));
+    });
+    ['admin-payment-credit-tip', 'admin-payment-split-tip', 'admin-payment-cash-tip'].forEach((id) => {
+      document.getElementById(id)?.addEventListener('input', () => {
+        markTipCustomFromInput(id);
+      });
     });
     document.getElementById('admin-payment-void-confirm')?.addEventListener('click', () => {
       void confirmPaymentVoid();

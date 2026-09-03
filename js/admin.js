@@ -1103,6 +1103,7 @@
       if (session) {
         await window.LechaimAdminStaffHours?.lockSettings?.();
         await window.LechaimAdminDocuments?.lockVault?.();
+        window.LechaimAdminTill?.lockTotals?.();
         await showPanel();
       }
       else showLogin();
@@ -1122,6 +1123,7 @@
       if (passwordInput) passwordInput.value = '';
       await window.LechaimAdminStaffHours?.lockSettings?.();
       await window.LechaimAdminDocuments?.lockVault?.();
+      window.LechaimAdminTill?.lockTotals?.();
       await showPanel();
     } catch (err) {
       console.error('[admin] login failed', err);
@@ -1136,6 +1138,7 @@
     try {
       await window.LechaimAdminStaffHours?.lockSettings?.();
       await window.LechaimAdminDocuments?.lockVault?.();
+      window.LechaimAdminTill?.lockTotals?.();
       await LechaimInventory.signOut();
       showLogin();
     } catch (err) {

@@ -32,6 +32,19 @@
     'חשבוניות קטנות',
     'חשבוניות כלליות',
   ];
+  const SUPPLIER_COLORS = {
+    'ירקות': '#3f8f5b',
+    'דה מארט': '#3a6ea8',
+    'שתייה': '#2a9b8a',
+    'דגים': '#2c4a7c',
+    'לחם': '#c4892d',
+    'ביצים': '#d4a017',
+    'חד פעמי': '#6b7c8a',
+    'חשבוניות קטנות': '#8a5a8c',
+    'חשבוניות כלליות': '#c45a3d',
+  };
+  const EXTRA_COLORS = ['#8d6e4c', '#5a7d6a', '#9a5b6a', '#4a6d8c', '#7d6b3a', '#5c6b9a'];
+  const TILL_COUNT_FROM_YMD = '2026-08-10';
 
   const viewEl = document.getElementById('admin-view-documents');
   const errorEl = document.getElementById('docs-error');
@@ -82,12 +95,15 @@
   let newTrap = null;
   let deleteTrap = null;
   let deleteResolver = null;
-  let mobilePane = 'list';
+  let docsPane = 'list';
   let activeSupplier = '';
   let scanSupplier = '';
   let pendingSuppliers = [];
   let newThenScan = false;
   let moveDocId = null;
+  let selectedYm = '';
+  let incomeByYm = {};
+  let incomeBusyYm = '';
   const openMonths = new Set();
 
   function getConfig() {
@@ -152,6 +168,29 @@
     const m = String(ym || '').match(/^(\d{4})-(\d{2})$/);
     if (!m) return ym || '';
     return `${HE_MONTHS[Number(m[2]) - 1] || m[2]} ${m[1]}`;
+  }
+
+  function shiftYm(ym, delta) {
+    const m = String(ym || '').match(/^(\d{4})-(\d{2})$/);
+    if (!m) return currentYm();
+    const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1 + delta, 1));
+    return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}`;
+  }
+
+  function activeYm() {
+    return selectedYm || currentYm();
+  }
+
+  function supplierColor(name) {
+    const key = supplierKey(name);
+    if (SUPPLIER_COLORS[key]) return SUPPLIER_COLORS[key];
+    let h = 0;
+    for (let i = 0; i < key.length; i += 1) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+    return EXTRA_COLORS[h % EXTRA_COLORS.length];
+  }
+
+  function colorStyle(name) {
+    return `style="--docs-color:${supplierColor(name)}"`;
   }
 
   function formatMoney(amount) {
@@ -224,18 +263,15 @@
 
   function applyLayout() {
     if (!viewEl) return;
-    const desktop = isDesktop();
-    viewEl.classList.toggle('is-desktop', desktop);
-    viewEl.classList.toggle('is-folder', !desktop && mobilePane === 'folder');
+    viewEl.classList.toggle('is-desktop', isDesktop());
+    viewEl.classList.toggle('is-folder', docsPane === 'folder');
+    viewEl.classList.toggle('is-report', docsPane === 'report');
     const listPane = document.getElementById('docs-app-list');
     const folderPane = document.getElementById('docs-app-folder');
-    if (desktop) {
-      if (listPane) listPane.hidden = false;
-      if (folderPane) folderPane.hidden = false;
-      return;
-    }
-    if (listPane) listPane.hidden = mobilePane === 'folder';
-    if (folderPane) folderPane.hidden = mobilePane !== 'folder';
+    const reportPane = document.getElementById('docs-month-report');
+    if (listPane) listPane.hidden = docsPane !== 'list';
+    if (folderPane) folderPane.hidden = docsPane !== 'folder';
+    if (reportPane) reportPane.hidden = docsPane !== 'report';
   }
 
   function activateTrap(modal) {
@@ -445,7 +481,7 @@
       const key = supplierKey(name);
       if (key && !map.has(key)) map.set(key, { name: key, rows: [] });
     });
-    const ym = currentYm();
+    const ym = activeYm();
     return [...map.values()].map((item) => {
       const monthRows = item.rows.filter((row) => monthOf(row) === ym);
       return {
@@ -470,19 +506,26 @@
     activeSupplier = supplierKey(name);
     if (!activeSupplier) return;
     rememberSupplier(activeSupplier);
-    mobilePane = 'folder';
+    docsPane = 'folder';
     openMonths.clear();
-    openMonths.add(currentYm());
+    openMonths.add(activeYm());
     applyLayout();
     renderAll();
     document.getElementById('docs-app-folder')?.scrollTo?.(0, 0);
   }
 
   function openList() {
-    mobilePane = 'list';
+    docsPane = 'list';
     activeSupplier = '';
     applyLayout();
     renderAll();
+  }
+
+  function openReport() {
+    docsPane = 'report';
+    applyLayout();
+    renderAll();
+    loadMonthIncome(activeYm()).catch(() => {});
   }
 
   function renderSuppliers() {
@@ -491,8 +534,8 @@
     list.innerHTML = buildSuppliers().map((item) => {
       const active = supplierKey(item.name) === activeSupplier ? ' is-active' : '';
       return `
-      <button type="button" class="docs-chat${active}" data-docs-folder="${escapeHtml(item.name)}">
-        <span class="docs-chat__avatar" aria-hidden="true">${escapeHtml(item.name.slice(0, 1))}</span>
+      <button type="button" class="docs-chat${active}" data-docs-folder="${escapeHtml(item.name)}" ${colorStyle(item.name)}>
+        <span class="docs-chat__swatch" aria-hidden="true"></span>
         <span class="docs-chat__body">
           <strong class="docs-chat__name">${escapeHtml(item.name)}</strong>
           <span class="docs-chat__sum">${escapeHtml(formatMoney(item.monthSum))} החודש</span>
@@ -511,7 +554,7 @@
     const idleEl = document.getElementById('docs-folder-idle');
     const activeEl = document.getElementById('docs-folder-active');
     const name = activeSupplier;
-    if (idleEl) idleEl.hidden = Boolean(name);
+    if (idleEl) idleEl.hidden = true;
     if (activeEl) activeEl.hidden = !name;
     if (!name) {
       if (titleEl) titleEl.textContent = '';
@@ -519,11 +562,14 @@
       if (monthsEl) monthsEl.innerHTML = '';
       return;
     }
-    if (titleEl) titleEl.textContent = name;
+    if (titleEl) {
+      titleEl.textContent = name;
+      titleEl.style.setProperty('--docs-color', supplierColor(name));
+    }
     const rows = rowsForSupplier(name)
       .slice()
       .sort((a, b) => String(b.document_date || '').localeCompare(String(a.document_date || '')));
-    const ym = currentYm();
+    const ym = activeYm();
     const monthRows = rows.filter((row) => monthOf(row) === ym);
     if (sumEl) sumEl.textContent = formatMoney(sumAmounts(monthRows));
     const groups = new Map();
@@ -559,10 +605,162 @@
     }).join('');
   }
 
+  function monthSessionSales(row) {
+    const method = String(row?.payment_method || '').toLowerCase();
+    if (method !== 'cash' && method !== 'credit' && method !== 'split') return 0;
+    const cash = Number(row?.paid_cash);
+    const credit = Number(row?.paid_credit);
+    const hasCash = row?.paid_cash != null && Number.isFinite(cash);
+    const hasCredit = row?.paid_credit != null && Number.isFinite(credit);
+    if (hasCash || hasCredit) {
+      return Math.max(0, (hasCash ? cash : 0) + (hasCredit ? credit : 0));
+    }
+    return 0;
+  }
+
+  function monthIsoWindow(ym) {
+    const m = String(ym || '').match(/^(\d{4})-(\d{2})$/);
+    if (!m) return null;
+    const y = Number(m[1]);
+    const mo = Number(m[2]);
+    const last = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+    const start = new Date(Date.UTC(y, mo - 1, 1) - 12 * 3600000);
+    const end = new Date(Date.UTC(y, mo - 1, last, 23, 59, 59, 999) + 12 * 3600000);
+    return { start: start.toISOString(), end: end.toISOString() };
+  }
+
+  async function loadMonthIncome(ym) {
+    if (!ym || incomeByYm[ym] != null || incomeBusyYm === ym) return;
+    const sb = getClient();
+    if (!sb) {
+      incomeByYm[ym] = 0;
+      return;
+    }
+    const windowIso = monthIsoWindow(ym);
+    if (!windowIso) {
+      incomeByYm[ym] = 0;
+      return;
+    }
+    incomeBusyYm = ym;
+    try {
+      const page = 1000;
+      let from = 0;
+      const rows = [];
+      while (true) {
+        const { data, error } = await sb
+          .from('order_sessions')
+          .select('closed_at, payment_method, paid_cash, paid_credit, status')
+          .eq('status', 'closed')
+          .gte('closed_at', windowIso.start)
+          .lte('closed_at', windowIso.end)
+          .range(from, from + page - 1);
+        if (error) throw error;
+        const chunk = Array.isArray(data) ? data : [];
+        rows.push(...chunk);
+        if (chunk.length < page) break;
+        from += page;
+      }
+      let sum = 0;
+      rows.forEach((row) => {
+        const parts = athensParts(row.closed_at);
+        if (!parts || parts.ym !== ym) return;
+        if (parts.ymd < TILL_COUNT_FROM_YMD) return;
+        sum += monthSessionSales(row);
+      });
+      incomeByYm[ym] = Math.round(sum * 100) / 100;
+    } catch (err) {
+      console.error('[documents] income', err);
+      incomeByYm[ym] = 0;
+    } finally {
+      if (incomeBusyYm === ym) incomeBusyYm = '';
+    }
+    if (activeYm() === ym) renderReport();
+  }
+
+  function expenseBreakdown() {
+    const ym = activeYm();
+    return buildSuppliers().map((item) => ({
+      name: item.name,
+      sum: item.monthSum,
+      count: item.monthCount,
+    })).filter((item, idx) => idx < DEFAULT_SUPPLIERS.length || item.sum > 0 || item.count > 0);
+  }
+
+  function renderMonthNav() {
+    const ym = activeYm();
+    const labelEl = document.getElementById('docs-month-label');
+    const labelReportEl = document.getElementById('docs-month-label-report');
+    const nextBtn = document.getElementById('docs-month-next');
+    const nextReportBtn = document.getElementById('docs-month-next-report');
+    if (labelEl) labelEl.textContent = monthLabel(ym);
+    if (labelReportEl) labelReportEl.textContent = monthLabel(ym);
+    if (nextBtn) nextBtn.disabled = ym >= currentYm();
+    if (nextReportBtn) nextReportBtn.disabled = ym >= currentYm();
+  }
+
+  function renderReport() {
+    const ym = activeYm();
+    const incomeEl = document.getElementById('docs-income-sum');
+    const expenseEl = document.getElementById('docs-expense-sum');
+    const listEl = document.getElementById('docs-expense-break');
+    const breakdown = expenseBreakdown();
+    const expense = breakdown.reduce((sum, item) => sum + item.sum, 0);
+    const income = incomeByYm[ym];
+    if (incomeEl) incomeEl.textContent = income == null ? '…' : formatMoney(income);
+    if (expenseEl) expenseEl.textContent = formatMoney(expense);
+    if (listEl) {
+      listEl.innerHTML = breakdown.map((item) => `
+        <div class="docs-break__row" ${colorStyle(item.name)}>
+          <span class="docs-break__swatch" aria-hidden="true"></span>
+          <span class="docs-break__name">${escapeHtml(item.name)}</span>
+          <span class="docs-break__meta">${escapeHtml(formatMoney(item.sum))}</span>
+        </div>
+      `).join('');
+    }
+  }
+
+  function changeMonth(delta) {
+    const next = shiftYm(activeYm(), delta);
+    if (delta > 0 && next > currentYm()) return;
+    selectedYm = next;
+    openMonths.clear();
+    openMonths.add(selectedYm);
+    renderAll();
+    loadMonthIncome(selectedYm).catch(() => {});
+  }
+
+  function downloadMonthExcel() {
+    const ym = activeYm();
+    const income = incomeByYm[ym];
+    if (income == null) {
+      showError('ממתינים לסכום ההכנסות');
+      return;
+    }
+    const api = global.LechaimDocsMonthlyXlsx;
+    if (typeof api?.downloadMonthlyReportXlsx !== 'function') {
+      showError('יצירת הקובץ לא זמינה');
+      return;
+    }
+    const breakdown = expenseBreakdown();
+    const expense = breakdown.reduce((sum, item) => sum + item.sum, 0);
+    const label = monthLabel(ym);
+    api.downloadMonthlyReportXlsx(`דוח_חודשי_${label.replace(/\s+/g, '_')}.xlsx`, {
+      title: `דוח חודשי - ${label}`,
+      income,
+      expense,
+      suppliers: breakdown.map((item) => ({ name: item.name, sum: item.sum })),
+    });
+    showToast('הקובץ ירד');
+  }
+
   function renderAll() {
+    if (!selectedYm) selectedYm = currentYm();
+    renderMonthNav();
     renderSuppliers();
     renderFolder();
+    renderReport();
     applyLayout();
+    loadMonthIncome(activeYm()).catch(() => {});
   }
 
   function closeScanOverlay() {
@@ -649,8 +847,9 @@
     const suppliers = buildSuppliers();
     if (pickListEl) {
       pickListEl.innerHTML = suppliers.map((item) => `
-        <button type="button" class="docs-pick-item" data-docs-pick-supplier="${escapeHtml(item.name)}">
-          📁 ${escapeHtml(item.name)}
+        <button type="button" class="docs-pick-item" data-docs-pick-supplier="${escapeHtml(item.name)}" ${colorStyle(item.name)}>
+          <span class="docs-break__swatch" aria-hidden="true"></span>
+          ${escapeHtml(item.name)}
         </button>
       `).join('');
     }
@@ -1005,10 +1204,13 @@
   function clearSensitive() {
     cache = [];
     unlocked = false;
-    mobilePane = 'list';
+    docsPane = 'list';
     activeSupplier = '';
     scanSupplier = '';
     pendingSuppliers = [];
+    selectedYm = '';
+    incomeByYm = {};
+    incomeBusyYm = '';
     closeScanOverlay();
     closeViewModal();
     closeVaultModal();
@@ -1060,6 +1262,7 @@
         return;
       }
       unlocked = true;
+      selectedYm = currentYm();
       closeVaultModal();
       const appEl = document.getElementById('docs-app');
       if (appEl) appEl.hidden = false;
@@ -1119,8 +1322,24 @@
         openNewModal(false);
         return;
       }
+      if (event.target.closest('[data-docs-open-report]')) {
+        openReport();
+        return;
+      }
       if (event.target.closest('[data-docs-back]')) {
         openList();
+        return;
+      }
+      if (event.target.closest('#docs-month-prev') || event.target.closest('#docs-month-prev-report')) {
+        changeMonth(-1);
+        return;
+      }
+      if (event.target.closest('#docs-month-next') || event.target.closest('#docs-month-next-report')) {
+        changeMonth(1);
+        return;
+      }
+      if (event.target.closest('#docs-xlsx')) {
+        downloadMonthExcel();
         return;
       }
       const folder = event.target.closest('[data-docs-folder]')?.getAttribute('data-docs-folder');
