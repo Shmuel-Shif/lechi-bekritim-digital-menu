@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=118">
+  <link rel="stylesheet" href="css/admin.css?v=119">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
 <body>
@@ -871,6 +871,7 @@
           <button type="button" class="admin-filter" data-staff-panel="shifts" data-staff-gated="1" role="tab" aria-selected="false" hidden>משמרות</button>
           <button type="button" class="admin-filter" data-staff-panel="summary" data-staff-gated="1" role="tab" aria-selected="false" hidden>סיכום חודשי</button>
           <button type="button" class="admin-filter" data-staff-panel="payroll" data-staff-gated="1" role="tab" aria-selected="false" hidden>סיכום עובדים</button>
+          <button type="button" class="admin-filter" data-staff-panel="salary" data-staff-gated="1" role="tab" aria-selected="false" hidden>משכורות ששולם</button>
         </div>
 
         <p class="admin-error" id="staff-hours-error" role="alert" hidden></p>
@@ -958,6 +959,44 @@
           <p class="staff-summary-range" id="staff-payroll-range"></p>
           <p class="staff-open-warning" id="staff-payroll-rate-warning" hidden>יש עובדים ללא תעריף שעתי — הסכום שלהם לא הומצא.</p>
           <div class="staff-table-wrap staff-table-wrap--payroll" id="staff-payroll-table"></div>
+        </section>
+
+        <section class="staff-panel" id="staff-panel-salary" data-staff-panel-view="salary" data-staff-gated="1" hidden>
+          <div class="staff-panel__toolbar">
+            <h2 class="staff-panel__title">משכורות ששולם</h2>
+          </div>
+          <p class="staff-panel__hint">רשמו תשלום: שם, תאריך וסכום — בנק או מזומן. לפי חודש התשלום מוצג כמה קיבל, כמה נותר, ומי שולם הכל. אפשר לאפס לעובד או את כל החודש.</p>
+          <div class="staff-shifts-filters">
+            <label class="admin-field staff-field--inline">
+              <span>חודש</span>
+              <input type="month" id="staff-salary-month" dir="ltr">
+            </label>
+            <button type="button" class="admin-btn admin-btn--primary" id="staff-salary-load">הצג</button>
+            <button type="button" class="admin-btn admin-btn--danger" id="staff-salary-reset-all" hidden>אפס הכל</button>
+          </div>
+          <form id="staff-salary-form" class="staff-salary-form" novalidate>
+            <label class="admin-field staff-field--inline">
+              <span>שם</span>
+              <select id="staff-salary-employee" required></select>
+            </label>
+            <label class="admin-field staff-field--inline">
+              <span>תאריך</span>
+              <input type="date" id="staff-salary-date" required dir="ltr">
+            </label>
+            <label class="admin-field staff-field--inline">
+              <span>סכום (€)</span>
+              <input type="number" id="staff-salary-amount" required min="0.01" step="0.01" inputmode="decimal" dir="ltr">
+            </label>
+            <div class="staff-pay-methods">
+              <button type="button" class="admin-btn admin-btn--primary" id="staff-salary-save-bank" data-salary-method="bank">בנק</button>
+              <button type="button" class="admin-btn admin-btn--soft" id="staff-salary-save-cash" data-salary-method="cash">מזומן</button>
+            </div>
+          </form>
+          <p class="staff-summary-range" id="staff-salary-range"></p>
+          <div class="staff-payroll-totals" id="staff-salary-totals" hidden></div>
+          <div class="staff-table-wrap staff-table-wrap--payroll" id="staff-salary-balance"></div>
+          <h3 class="staff-panel__subtitle staff-salary-list-title">תשלומים</h3>
+          <div class="staff-table-wrap" id="staff-salary-list"></div>
         </section>
       </div>
     </section>
@@ -1801,7 +1840,7 @@
   <script src="js/admin-coupons.js" defer></script>
   <script src="js/admin-till.js?v=6" defer></script>
   <script src="js/staff-hours-xlsx.js?v=4" defer></script>
-  <script src="js/admin-staff-hours.js?v=14" defer></script>
+  <script src="js/admin-staff-hours.js?v=17" defer></script>
   <script src="js/docs-monthly-xlsx.js?v=1" defer></script>
   <script src="js/docs-monthly-pdf.js?v=1" defer></script>
   <script src="js/admin-documents.js?v=11" defer></script>

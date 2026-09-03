@@ -61,6 +61,17 @@
   const payrollRangeEl = document.getElementById('staff-payroll-range');
   const payrollTableEl = document.getElementById('staff-payroll-table');
   const payrollRateWarningEl = document.getElementById('staff-payroll-rate-warning');
+  const salaryMonthEl = document.getElementById('staff-salary-month');
+  const salaryLoadBtn = document.getElementById('staff-salary-load');
+  const salaryResetAllBtn = document.getElementById('staff-salary-reset-all');
+  const salaryForm = document.getElementById('staff-salary-form');
+  const salaryEmployeeSelect = document.getElementById('staff-salary-employee');
+  const salaryDateEl = document.getElementById('staff-salary-date');
+  const salaryAmountEl = document.getElementById('staff-salary-amount');
+  const salaryRangeEl = document.getElementById('staff-salary-range');
+  const salaryTotalsEl = document.getElementById('staff-salary-totals');
+  const salaryBalanceEl = document.getElementById('staff-salary-balance');
+  const salaryListEl = document.getElementById('staff-salary-list');
   const settingsLockBtn = document.getElementById('staff-settings-lock-btn');
   const settingsCloseBtn = document.getElementById('staff-settings-close-btn');
   const settingsModal = document.getElementById('staff-settings-modal');
@@ -95,6 +106,8 @@
   let summaryViewEmployee = null;
   let payrollShiftsCache = [];
   let payrollSummary = null;
+  let salaryPaymentsCache = [];
+  let salaryBalanceSummary = null;
   let settingsUnlocked = false;
   let empFocusTrap = null;
   let shiftFocusTrap = null;
@@ -232,6 +245,11 @@
   function currentMonthValue() {
     const p = athensParts(new Date());
     return p ? `${p.year}-${p.month}` : '';
+  }
+
+  function currentAthensYmd() {
+    const p = athensParts(new Date());
+    return p ? p.ymd : '';
   }
 
   function monthRange(ym) {
@@ -602,7 +620,90 @@
       pay: 0,
       payMissing: false,
       missingRates: 0,
+      paidCash: 0,
+      paidBank: 0,
+      paidTotal: 0,
+      remaining: 0,
+      paidInFullCount: 0,
+      owedCount: 0,
     };
+  }
+
+  function aggregateSalaryPayments(payments) {
+    const map = new Map();
+    (payments || []).forEach((row) => {
+      const id = row?.employee_id;
+      if (!id) return;
+      const cur = map.get(id) || { cash: 0, bank: 0 };
+      const amount = round2(row.amount);
+      if (row.method === 'cash') cur.cash = round2(cur.cash + amount);
+      else if (row.method === 'bank') cur.bank = round2(cur.bank + amount);
+      map.set(id, cur);
+    });
+    return map;
+  }
+
+  function salaryPaymentFields(pay, payMissing, agg) {
+    const paidCash = round2(agg?.cash || 0);
+    const paidBank = round2(agg?.bank || 0);
+    const paidTotal = round2(paidCash + paidBank);
+    const remainingRaw = payMissing ? null : round2((Number(pay) || 0) - paidTotal);
+    const remaining = remainingRaw == null ? null : round2(Math.max(0, remainingRaw));
+    const paidInFull = remainingRaw != null && Number(pay) > 0 && remainingRaw <= 0.005;
+    return { paidCash, paidBank, paidTotal, remaining, remainingRaw, paidInFull };
+  }
+
+  function applySalaryPayments(summary, payments, employees) {
+    const base = summary || { range: null, rows: [], total: emptyPayrollTotal() };
+    const agg = aggregateSalaryPayments(payments);
+    const rows = (base.rows || []).map((row) => Object.assign({}, row, salaryPaymentFields(
+      row.pay,
+      row.payMissing,
+      agg.get(row.id)
+    )));
+    const seen = new Set(rows.map((row) => row.id));
+    (employees || []).forEach((emp) => {
+      if (!emp?.id || seen.has(emp.id)) return;
+      const bucket = agg.get(emp.id);
+      if (!bucket || (bucket.cash + bucket.bank) <= 0) return;
+      rows.push(Object.assign({
+        id: emp.id,
+        name: emp.name_en || '—',
+        position: String(emp.position || '').trim(),
+        days: 0,
+        hours: 0,
+        inFrame: 0,
+        overtime: 0,
+        rate: hasHourlyRate(emp.hourly_rate) ? Number(emp.hourly_rate) : null,
+        rateMissing: !hasHourlyRate(emp.hourly_rate),
+        payInFrame: 0,
+        payOvertime: 0,
+        pay: 0,
+        payMissing: false,
+        hasOpen: false,
+        openCount: 0,
+      }, salaryPaymentFields(0, false, bucket)));
+    });
+    rows.sort((a, b) => a.name.localeCompare(b.name, 'en'));
+
+    const owedRows = rows.filter((row) => !row.payMissing);
+    const owedCount = rows.filter((r) => !r.payMissing && Number(r.pay) > 0).length;
+    const total = Object.assign({}, base.total || emptyPayrollTotal(), {
+      paidCash: round2(rows.reduce((s, r) => s + (r.paidCash || 0), 0)),
+      paidBank: round2(rows.reduce((s, r) => s + (r.paidBank || 0), 0)),
+      paidTotal: round2(rows.reduce((s, r) => s + (r.paidTotal || 0), 0)),
+      remaining: round2(owedRows.reduce((s, r) => s + (Number(r.remaining) || 0), 0)),
+      paidInFullCount: rows.filter((r) => r.paidInFull).length,
+      owedCount,
+    });
+
+    return { range: base.range, rows, total };
+  }
+
+  function isMissingSalaryPaymentsTable(err) {
+    const msg = String(err?.message || err || '');
+    return /staff_salary_payments/i.test(msg)
+      || (/Could not find the table/i.test(msg) && /salary/i.test(msg));
   }
 
   /* Exported for automated checks */
@@ -610,6 +711,7 @@
     calcHours,
     buildMonthlySummary,
     buildPayrollSummary,
+    applySalaryPayments,
     splitDayHours,
     monthRange,
     ymdInclusiveRange,
@@ -635,7 +737,7 @@
     }
     if (settingsSubtitleEl) {
       settingsSubtitleEl.textContent = settingsUnlocked
-        ? 'Clock in / Clock out · עובדים · משמרות · סיכום חודשי'
+        ? 'Clock in / Clock out · עובדים · משמרות · סיכום חודשי · משכורות ששולם'
         : 'Clock in / Clock out';
     }
     viewEl?.querySelectorAll('[data-staff-panel]').forEach((btn) => {
@@ -675,12 +777,22 @@
     shiftsCache = [];
     payrollShiftsCache = [];
     payrollSummary = null;
+    salaryPaymentsCache = [];
+    salaryBalanceSummary = null;
     shiftsViewEmployee = null;
     summaryViewEmployee = null;
     if (employeesTable) employeesTable.innerHTML = '';
     if (shiftsTable) shiftsTable.innerHTML = '';
     if (summaryTable) summaryTable.innerHTML = '';
     if (payrollTableEl) payrollTableEl.innerHTML = '';
+    if (salaryBalanceEl) salaryBalanceEl.innerHTML = '';
+    if (salaryListEl) salaryListEl.innerHTML = '';
+    if (salaryTotalsEl) {
+      salaryTotalsEl.hidden = true;
+      salaryTotalsEl.innerHTML = '';
+    }
+    if (salaryRangeEl) salaryRangeEl.textContent = '';
+    if (salaryResetAllBtn) salaryResetAllBtn.hidden = true;
     if (payrollXlsxBtn) payrollXlsxBtn.hidden = true;
     if (payrollRangeEl) payrollRangeEl.textContent = '';
     if (shiftsViewedEl) {
@@ -810,6 +922,25 @@
     return payrollShiftsCache;
   }
 
+  async function loadSalaryPaymentsForRange(fromYmd, toYmd) {
+    if (!fromYmd || !toYmd || !settingsUnlocked) {
+      salaryPaymentsCache = [];
+      return salaryPaymentsCache;
+    }
+    const sb = getClient();
+    if (!sb) throw new Error('Supabase לא מחובר');
+    const { data, error } = await sb
+      .from('staff_salary_payments')
+      .select('id, employee_id, paid_on, amount, method, created_at')
+      .gte('paid_on', fromYmd)
+      .lte('paid_on', toYmd)
+      .order('paid_on', { ascending: false })
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    salaryPaymentsCache = Array.isArray(data) ? data : [];
+    return salaryPaymentsCache;
+  }
+
 
   async function sha256Hex(text) {
     const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(text || '').trim()));
@@ -861,9 +992,7 @@
   }
 
   function fillEmployeeSelects() {
-    if (!shiftEmployeeSelect) return;
-    const prev = shiftEmployeeSelect.value;
-    shiftEmployeeSelect.innerHTML = employeesCache
+    const options = employeesCache
       .filter((e) => e.active !== false)
       .concat(employeesCache.filter((e) => e.active === false))
       .filter((e, i, arr) => arr.findIndex((x) => x.id === e.id) === i)
@@ -871,7 +1000,18 @@
         `<option value="${escapeHtml(emp.id)}">${escapeHtml(emp.name_en)}${emp.active === false ? ' (לא פעיל)' : ''}</option>`
       ))
       .join('');
-    if (prev) shiftEmployeeSelect.value = prev;
+    if (shiftEmployeeSelect) {
+      const prev = shiftEmployeeSelect.value;
+      shiftEmployeeSelect.innerHTML = options;
+      if (prev) shiftEmployeeSelect.value = prev;
+    }
+    if (salaryEmployeeSelect) {
+      const prev = salaryEmployeeSelect.value;
+      salaryEmployeeSelect.innerHTML = options
+        ? `<option value="">בחרו עובד</option>${options}`
+        : '<option value="">אין עובדים</option>';
+      if (prev) salaryEmployeeSelect.value = prev;
+    }
   }
 
   function setViewedLabel(el, emp) {
@@ -1326,6 +1466,360 @@
     showToast('הקובץ ירד — אפשר לשלוח אותו ידנית בוואטסאפ');
   }
 
+  function defaultYmdForSalaryMonth(ym) {
+    const range = monthRange(ym);
+    if (!range) return currentAthensYmd();
+    const today = athensParts(new Date());
+    const todayYm = today ? `${today.year}-${today.month}` : '';
+    if (today && ym === todayYm) return today.ymd;
+    const lastDay = pad2(daysInMonth(range.year, range.month));
+    if (today && ym < todayYm) return `${range.year}-${pad2(range.month)}-${lastDay}`;
+    return `${range.year}-${pad2(range.month)}-01`;
+  }
+
+  function ensureSalaryDates() {
+    if (salaryMonthEl && !salaryMonthEl.value) salaryMonthEl.value = currentMonthValue();
+    if (!salaryDateEl) return;
+    const ym = salaryMonthEl?.value || currentMonthValue();
+    const dateYm = String(salaryDateEl.value || '').slice(0, 7);
+    if (!salaryDateEl.value || dateYm !== ym) {
+      salaryDateEl.value = defaultYmdForSalaryMonth(ym);
+    }
+  }
+
+  function salaryMethodLabel(method) {
+    if (method === 'cash') return 'מזומן';
+    if (method === 'bank') return 'בנק';
+    return method || '—';
+  }
+
+  function formatSalaryStatus(row) {
+    if (row.payMissing) return '<span class="staff-rate-missing">לא הוגדר</span>';
+    if (row.paidInFull) return '<span class="staff-badge staff-badge--ok">שולם הכל</span>';
+    if ((Number(row.pay) || 0) <= 0) {
+      return (Number(row.paidTotal) || 0) > 0
+        ? '<span class="staff-badge">שולם</span>'
+        : '—';
+    }
+    return '<span class="staff-badge">נותר</span>';
+  }
+
+  function renderSalaryTotals(summary) {
+    if (!salaryTotalsEl) return;
+    const total = summary?.total;
+    if (!total || !summary?.rows?.length) {
+      salaryTotalsEl.hidden = true;
+      salaryTotalsEl.innerHTML = '';
+      return;
+    }
+    const remaining = total.remaining || 0;
+    salaryTotalsEl.hidden = false;
+    salaryTotalsEl.innerHTML = `
+      <div class="staff-payroll-stat">
+        <span class="staff-payroll-stat__label">מגיע</span>
+        <span class="staff-payroll-stat__value">${escapeHtml(formatMoney(total.pay || 0))}</span>
+      </div>
+      <div class="staff-payroll-stat">
+        <span class="staff-payroll-stat__label">קיבל מזומן</span>
+        <span class="staff-payroll-stat__value">${escapeHtml(formatMoney(total.paidCash || 0))}</span>
+      </div>
+      <div class="staff-payroll-stat">
+        <span class="staff-payroll-stat__label">קיבל בנק</span>
+        <span class="staff-payroll-stat__value">${escapeHtml(formatMoney(total.paidBank || 0))}</span>
+      </div>
+      <div class="staff-payroll-stat">
+        <span class="staff-payroll-stat__label">קיבל</span>
+        <span class="staff-payroll-stat__value">${escapeHtml(formatMoney(total.paidTotal || 0))}</span>
+      </div>
+      <div class="staff-payroll-stat${remaining > 0 ? ' staff-payroll-stat--warn' : ' staff-payroll-stat--ok'}">
+        <span class="staff-payroll-stat__label">נותר</span>
+        <span class="staff-payroll-stat__value">${escapeHtml(formatMoney(remaining))}</span>
+      </div>
+      <div class="staff-payroll-stat${remaining <= 0 && (total.pay || 0) > 0 ? ' staff-payroll-stat--ok' : ''}">
+        <span class="staff-payroll-stat__label">שולם הכל</span>
+        <span class="staff-payroll-stat__value">${escapeHtml(String(total.paidInFullCount || 0))} / ${escapeHtml(String(total.owedCount || 0))}</span>
+      </div>
+    `;
+  }
+
+  function renderSalaryBalance(summary) {
+    if (!salaryBalanceEl) return;
+    if (!summary?.range) {
+      salaryBalanceEl.innerHTML = '<p class="staff-muted">בחרו חודש ולחצו «הצג»</p>';
+      return;
+    }
+    if (!summary.rows.length) {
+      salaryBalanceEl.innerHTML = '<p class="staff-muted">אין משכורות או תשלומים בחודש שנבחר</p>';
+      return;
+    }
+    const total = summary.total;
+    const body = summary.rows.map((row) => `
+      <tr>
+        <td data-label="עובד" dir="ltr">${escapeHtml(row.name)}</td>
+        <td data-label="מגיע" dir="ltr">${formatPayCell(row.pay, row.payMissing)}</td>
+        <td data-label="מזומן" dir="ltr">${escapeHtml(formatMoney(row.paidCash || 0))}</td>
+        <td data-label="בנק" dir="ltr">${escapeHtml(formatMoney(row.paidBank || 0))}</td>
+        <td data-label="קיבל" dir="ltr">${escapeHtml(formatMoney(row.paidTotal || 0))}</td>
+        <td data-label="נותר" dir="ltr">${
+          row.payMissing
+            ? '<span class="staff-rate-missing">לא הוגדר</span>'
+            : escapeHtml(formatMoney(row.remaining || 0))
+        }</td>
+        <td data-label="סטטוס">${formatSalaryStatus(row)}</td>
+        <td class="staff-actions-cell" data-label="">
+          ${(Number(row.paidTotal) || 0) > 0 ? `
+            <button type="button" class="admin-btn admin-btn--danger staff-btn-sm" data-reset-salary-employee="${escapeHtml(row.id)}">אפס</button>
+          ` : ''}
+        </td>
+      </tr>
+    `).join('');
+    salaryBalanceEl.innerHTML = `
+      <table class="staff-table staff-table--payroll">
+        <thead>
+          <tr>
+            <th>עובד</th>
+            <th>מגיע</th>
+            <th>מזומן</th>
+            <th>בנק</th>
+            <th>קיבל</th>
+            <th>נותר</th>
+            <th>סטטוס</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>${body}</tbody>
+        <tfoot>
+          <tr class="staff-total-row">
+            <td data-label="עובד"><strong>סה״כ</strong></td>
+            <td data-label="מגיע" dir="ltr"><strong>${escapeHtml(formatMoney(total.pay || 0))}</strong></td>
+            <td data-label="מזומן" dir="ltr"><strong>${escapeHtml(formatMoney(total.paidCash || 0))}</strong></td>
+            <td data-label="בנק" dir="ltr"><strong>${escapeHtml(formatMoney(total.paidBank || 0))}</strong></td>
+            <td data-label="קיבל" dir="ltr"><strong>${escapeHtml(formatMoney(total.paidTotal || 0))}</strong></td>
+            <td data-label="נותר" dir="ltr"><strong>${escapeHtml(formatMoney(total.remaining || 0))}</strong></td>
+            <td data-label="סטטוס"><strong class="${total.remaining <= 0 && (total.pay || 0) > 0 ? 'staff-salary-paid-all' : ''}">${
+              total.remaining <= 0 && (total.pay || 0) > 0
+                ? 'שולם הכל'
+                : `${total.paidInFullCount || 0} שולם הכל`
+            }</strong></td>
+            <td data-label=""></td>
+          </tr>
+        </tfoot>
+      </table>
+    `;
+  }
+
+  function renderSalaryList() {
+    if (!salaryListEl) return;
+    if (!salaryPaymentsCache.length) {
+      salaryListEl.innerHTML = '<p class="staff-muted">אין תשלומים בחודש שנבחר</p>';
+      return;
+    }
+    salaryListEl.innerHTML = `
+      <table class="staff-table">
+        <thead>
+          <tr>
+            <th>שם</th>
+            <th>תאריך</th>
+            <th>סכום</th>
+            <th>אופן</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${salaryPaymentsCache.map((row) => `
+            <tr>
+              <td dir="ltr">${escapeHtml(employeeName(row.employee_id))}</td>
+              <td dir="ltr">${escapeHtml(formatYmdDots(String(row.paid_on || '').slice(0, 10)))}</td>
+              <td dir="ltr">${escapeHtml(formatMoney(row.amount))}</td>
+              <td>${escapeHtml(salaryMethodLabel(row.method))}</td>
+              <td class="staff-actions-cell">
+                <button type="button" class="admin-btn admin-btn--danger staff-btn-sm" data-delete-salary="${escapeHtml(row.id)}">מחק</button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  function renderSalaryPaid() {
+    const summary = salaryBalanceSummary;
+    if (salaryRangeEl) salaryRangeEl.textContent = summary?.range?.label || '';
+    if (salaryResetAllBtn) salaryResetAllBtn.hidden = !salaryPaymentsCache.length;
+    renderSalaryTotals(summary);
+    renderSalaryBalance(summary);
+    renderSalaryList();
+  }
+
+  async function loadSalaryPaidView() {
+    if (!settingsUnlocked) {
+      salaryPaymentsCache = [];
+      salaryBalanceSummary = null;
+      renderSalaryPaid();
+      return;
+    }
+    showError('');
+    ensureSalaryDates();
+    const months = selectedMonthToYmdRange(salaryMonthEl?.value || '');
+    if (!months) {
+      salaryPaymentsCache = [];
+      salaryBalanceSummary = null;
+      renderSalaryPaid();
+      showError('בחרו חודש');
+      return;
+    }
+    try {
+      await loadEmployees();
+      fillEmployeeSelects();
+      await loadShiftsForRange(months.fromYmd, months.toYmd);
+      await loadSalaryPaymentsForRange(months.fromYmd, months.toYmd);
+      salaryBalanceSummary = applySalaryPayments(
+        buildPayrollSummary(employeesCache, payrollShiftsCache, months.fromYmd, months.toYmd),
+        salaryPaymentsCache,
+        employeesCache
+      );
+      renderSalaryPaid();
+    } catch (err) {
+      console.error('[staff-hours] salary', err);
+      salaryPaymentsCache = [];
+      salaryBalanceSummary = null;
+      renderSalaryPaid();
+      if (isMissingSalaryPaymentsTable(err)) {
+        showError('יש להריץ את supabase-staff-salary-payments.sql ב-SQL Editor של Supabase');
+      } else {
+        showError(err?.message || 'טעינת התשלומים נכשלה');
+      }
+    }
+  }
+
+  async function saveSalaryPayment(method) {
+    if (busy || !settingsUnlocked) return;
+    if (method !== 'cash' && method !== 'bank') {
+      showError('בחרו בנק או מזומן');
+      return;
+    }
+    const employeeId = salaryEmployeeSelect?.value || '';
+    const paidOn = salaryDateEl?.value || '';
+    const amount = round2(salaryAmountEl?.value);
+    if (!employeeId) {
+      showError('בחרו עובד');
+      return;
+    }
+    if (!parseYmd(paidOn)) {
+      showError('בחרו תאריך');
+      return;
+    }
+    if (!(amount > 0)) {
+      showError('הזינו סכום גדול מאפס');
+      return;
+    }
+    const sb = getClient();
+    if (!sb) {
+      showError('Supabase לא מחובר');
+      return;
+    }
+    busy = true;
+    showError('');
+    try {
+      const { error } = await sb.from('staff_salary_payments').insert({
+        employee_id: employeeId,
+        paid_on: paidOn,
+        amount,
+        method,
+      });
+      if (error) throw error;
+      if (salaryAmountEl) salaryAmountEl.value = '';
+      showToast(method === 'cash' ? 'נרשם תשלום במזומן' : 'נרשם תשלום בבנק');
+      await loadSalaryPaidView();
+    } catch (err) {
+      console.error('[staff-hours] salary save', err);
+      if (isMissingSalaryPaymentsTable(err)) {
+        showError('יש להריץ את supabase-staff-salary-payments.sql ב-SQL Editor של Supabase');
+      } else {
+        showError(err?.message || 'שמירת התשלום נכשלה');
+      }
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function deleteSalaryPayment(id) {
+    if (!id || busy || !settingsUnlocked) return;
+    const row = salaryPaymentsCache.find((item) => item.id === id);
+    const name = row ? employeeName(row.employee_id) : '';
+    const ok = await showConfirm(
+      name ? `למחוק את התשלום של ${name}?` : 'למחוק את התשלום?',
+      'מחק'
+    );
+    if (!ok) return;
+    const sb = getClient();
+    if (!sb) {
+      showError('Supabase לא מחובר');
+      return;
+    }
+    busy = true;
+    showError('');
+    try {
+      const { error } = await sb.from('staff_salary_payments').delete().eq('id', id);
+      if (error) throw error;
+      showToast('התשלום נמחק');
+      await loadSalaryPaidView();
+    } catch (err) {
+      console.error('[staff-hours] salary delete', err);
+      showError(err?.message || 'מחיקת התשלום נכשלה');
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function resetSalaryPayments(employeeId) {
+    if (busy || !settingsUnlocked) return;
+    const months = selectedMonthToYmdRange(salaryMonthEl?.value || '');
+    if (!months) {
+      showError('בחרו חודש');
+      return;
+    }
+    const rows = employeeId
+      ? salaryPaymentsCache.filter((row) => row.employee_id === employeeId)
+      : salaryPaymentsCache;
+    if (!rows.length) {
+      showError('אין תשלומים לאיפוס בחודש הזה');
+      return;
+    }
+    const empName = employeeId ? employeeName(employeeId) : '';
+    const ok = await showConfirm(
+      employeeId
+        ? `לאפס כמה שולם ל־${empName} בחודש הזה?\nקיבל יחזור ל־€0 והיתרה תתעדכן.`
+        : 'לאפס כמה שולם לכולם בחודש הזה?\nקיבל של כולם יחזור ל־€0.',
+      'אפס'
+    );
+    if (!ok) return;
+    const sb = getClient();
+    if (!sb) {
+      showError('Supabase לא מחובר');
+      return;
+    }
+    busy = true;
+    showError('');
+    try {
+      let query = sb
+        .from('staff_salary_payments')
+        .delete()
+        .gte('paid_on', months.fromYmd)
+        .lte('paid_on', months.toYmd);
+      if (employeeId) query = query.eq('employee_id', employeeId);
+      const { error } = await query;
+      if (error) throw error;
+      showToast(employeeId ? `התשלומים של ${empName} אופסו` : 'התשלומים לחודש אופסו');
+      await loadSalaryPaidView();
+    } catch (err) {
+      console.error('[staff-hours] salary reset', err);
+      showError(err?.message || 'איפוס התשלומים נכשל');
+    } finally {
+      busy = false;
+    }
+  }
+
   function formatDateShortAthens(value) {
     const p = athensParts(value);
     if (!p) return '—';
@@ -1438,11 +1932,16 @@
       } else if (currentPanel === 'payroll') {
         ensurePayrollDates();
         await loadPayrollView();
+      } else if (currentPanel === 'salary') {
+        ensureSalaryDates();
+        await loadSalaryPaidView();
       }
     } catch (err) {
       console.error('[staff-hours] refresh failed', err);
       const msg = err?.message || 'הטעינה נכשלה';
-      if (/relation .* does not exist|Could not find the table/i.test(msg)) {
+      if (/staff_salary_payments/i.test(msg)) {
+        showError('יש להריץ את supabase-staff-salary-payments.sql ב-SQL Editor של Supabase');
+      } else if (/relation .* does not exist|Could not find the table/i.test(msg)) {
         showError('יש להריץ קודם את supabase-staff-hours.sql ב-SQL Editor של Supabase');
       } else if (/staff_open_now|staff_settings_/i.test(msg)) {
         showError('יש להריץ את supabase-staff-settings-gate.sql ב-SQL Editor של Supabase');
@@ -1606,6 +2105,7 @@
 
   function mapRpcError(err) {
     const msg = String(err?.message || err || '');
+    if (/staff_salary_payments/i.test(msg)) return 'אי אפשר למחוק עובד שיש לו תשלומי משכורת';
     if (/pin_taken/i.test(msg)) return 'הקוד הזה כבר בשימוש אצל עובד אחר';
     if (/not_unlocked/i.test(msg)) return 'יש להזין קוד גישה להגדרות עובדים';
     if (/pin_required|invalid_pin|pin_digits/i.test(msg)) return 'קוד אישי לא תקין (4–12 ספרות)';
@@ -2064,6 +2564,33 @@
       }
     });
 
+    salaryLoadBtn?.addEventListener('click', () => { void loadSalaryPaidView(); });
+    salaryResetAllBtn?.addEventListener('click', () => { void resetSalaryPayments(null); });
+    salaryMonthEl?.addEventListener('change', () => { void loadSalaryPaidView(); });
+    salaryMonthEl?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        void loadSalaryPaidView();
+      }
+    });
+    salaryForm?.addEventListener('submit', (event) => { event.preventDefault(); });
+    document.getElementById('staff-salary-save-bank')?.addEventListener('click', () => {
+      void saveSalaryPayment('bank');
+    });
+    document.getElementById('staff-salary-save-cash')?.addEventListener('click', () => {
+      void saveSalaryPayment('cash');
+    });
+    salaryListEl?.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-delete-salary]');
+      if (!btn) return;
+      void deleteSalaryPayment(btn.getAttribute('data-delete-salary'));
+    });
+    salaryBalanceEl?.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-reset-salary-employee]');
+      if (!btn) return;
+      void resetSalaryPayments(btn.getAttribute('data-reset-salary-employee'));
+    });
+
     document.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape') return;
       if (settingsModal && !settingsModal.hidden) {
@@ -2088,6 +2615,7 @@
       if (shiftsMonth && !shiftsMonth.value) shiftsMonth.value = currentMonthValue();
       if (summaryMonth && !summaryMonth.value) summaryMonth.value = currentMonthValue();
       ensurePayrollDates();
+      ensureSalaryDates();
       settingsUnlocked = false;
       applySettingsGateUi();
       window.addEventListener('pagehide', () => { void lockSettings(); });
