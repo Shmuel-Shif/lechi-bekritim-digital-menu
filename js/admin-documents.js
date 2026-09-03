@@ -95,6 +95,8 @@
   let newTrap = null;
   let deleteTrap = null;
   let deleteResolver = null;
+  let deleteStep = 'confirm';
+  let deleteCodeBusy = false;
   let docsPane = 'list';
   let activeSupplier = '';
   let scanSupplier = '';
@@ -104,6 +106,7 @@
   let selectedYm = '';
   let incomeByYm = {};
   let incomeBusyYm = '';
+  let pdfBusy = false;
   const openMonths = new Set();
 
   function getConfig() {
@@ -302,7 +305,36 @@
     }
   }
 
+  function resetDeleteModal() {
+    deleteStep = 'confirm';
+    deleteCodeBusy = false;
+    const wrap = document.getElementById('docs-delete-code-wrap');
+    const hint = document.getElementById('docs-delete-code-hint');
+    const input = document.getElementById('docs-delete-code');
+    const err = document.getElementById('docs-delete-error');
+    const yes = document.getElementById('docs-delete-yes');
+    if (wrap) wrap.hidden = true;
+    if (hint) hint.hidden = true;
+    if (input) input.value = '';
+    if (err) {
+      err.hidden = true;
+      err.textContent = '';
+    }
+    if (yes) {
+      yes.disabled = false;
+      yes.textContent = 'מחק';
+    }
+  }
+
+  function setDeleteCodeError(message) {
+    const err = document.getElementById('docs-delete-error');
+    if (!err) return;
+    err.textContent = message || '';
+    err.hidden = !message;
+  }
+
   function closeDeleteModal(ok) {
+    resetDeleteModal();
     releaseTrap(deleteTrap);
     deleteTrap = null;
     closeModal(deleteModal);
@@ -315,6 +347,7 @@
   function askDeleteConfirm(row) {
     const label = formatDateFull(row?.document_date);
     const amount = formatMoney(row?.amount_total);
+    resetDeleteModal();
     if (deleteTextEl) {
       deleteTextEl.textContent = label
         ? `אתה בטוח? למחוק את החשבונית מ-${label} (${amount})? הקובץ יימחק לצמיתות.`
@@ -323,11 +356,66 @@
     openModal(deleteModal);
     releaseTrap(deleteTrap);
     deleteTrap = activateTrap(deleteModal);
-    window.setTimeout(() => document.getElementById('docs-delete-cancel')?.focus(), 50);
+    window.setTimeout(() => document.getElementById('docs-delete-yes')?.focus(), 50);
     return new Promise((resolve) => {
       if (typeof deleteResolver === 'function') deleteResolver(false);
       deleteResolver = resolve;
     });
+  }
+
+  async function confirmDeleteClick() {
+    if (deleteCodeBusy) return;
+    if (deleteStep !== 'code') {
+      deleteStep = 'code';
+      const wrap = document.getElementById('docs-delete-code-wrap');
+      const hint = document.getElementById('docs-delete-code-hint');
+      const input = document.getElementById('docs-delete-code');
+      const yes = document.getElementById('docs-delete-yes');
+      if (wrap) wrap.hidden = false;
+      if (hint) hint.hidden = false;
+      if (yes) yes.textContent = 'אישור מחיקה';
+      setDeleteCodeError('');
+      window.setTimeout(() => {
+        input?.focus();
+        if (typeof input?.select === 'function') input.select();
+      }, 40);
+      return;
+    }
+    const input = document.getElementById('docs-delete-code');
+    const code = String(input?.value || '');
+    if (!code.trim()) {
+      setDeleteCodeError('הזינו קוד גישה');
+      input?.focus();
+      return;
+    }
+    const sb = getClient();
+    if (!sb) {
+      setDeleteCodeError('Supabase לא מחובר');
+      return;
+    }
+    deleteCodeBusy = true;
+    const yes = document.getElementById('docs-delete-yes');
+    if (yes) yes.disabled = true;
+    setDeleteCodeError('');
+    try {
+      const { data, error } = await sb.rpc('documents_vault_verify', { p_code: code });
+      if (input) input.value = '';
+      if (error) throw error;
+      const res = data || {};
+      if (!res.ok) {
+        if (res.error === 'invalid_code') setDeleteCodeError('קוד שגוי');
+        else if (res.error === 'code_not_set') setDeleteCodeError('הקוד עדיין לא הוגדר');
+        else if (res.error === 'not_authenticated') setDeleteCodeError('יש להתחבר לאדמין');
+        else setDeleteCodeError(res.error || 'שגיאה');
+        return;
+      }
+      closeDeleteModal(true);
+    } catch (err) {
+      setDeleteCodeError(err?.message || 'אימות הקוד נכשל');
+    } finally {
+      deleteCodeBusy = false;
+      if (yes && deleteStep === 'code' && deleteModal && !deleteModal.hidden) yes.disabled = false;
+    }
   }
 
   function revokePreviewUrl() {
@@ -432,6 +520,7 @@
   function setScanStep(step) {
     if (previewStep) previewStep.hidden = step !== 'preview';
     if (formStep) formStep.hidden = step !== 'form';
+    scanOverlay?.querySelector('.docs-scan-modal__panel')?.classList.toggle('is-form', step === 'form');
   }
 
   function resetForm() {
@@ -455,6 +544,29 @@
 
   function monthOf(row) {
     return String(row?.document_date || '').slice(0, 7);
+  }
+
+  function monthDocuments(ym) {
+    const key = String(ym || '');
+    return activeRows()
+      .filter((row) => monthOf(row) === key)
+      .sort((a, b) => {
+        const rank = supplierRank(a.supplier_name) - supplierRank(b.supplier_name);
+        if (rank) return rank;
+        const names = supplierKey(a.supplier_name).localeCompare(supplierKey(b.supplier_name), 'he');
+        if (names) return names;
+        const dates = String(a.document_date || '').localeCompare(String(b.document_date || ''));
+        if (dates) return dates;
+        return String(a.created_at || '').localeCompare(String(b.created_at || ''));
+      });
+  }
+
+  function setPdfButtonState(busy, label) {
+    const btn = document.getElementById('docs-month-pdf');
+    if (!btn) return;
+    btn.disabled = Boolean(busy);
+    btn.setAttribute('aria-busy', busy ? 'true' : 'false');
+    btn.textContent = label || 'הפק PDF לחודש';
   }
 
   function sumAmounts(rows) {
@@ -753,6 +865,55 @@
     showToast('הקובץ ירד');
   }
 
+  async function downloadMonthPdf() {
+    if (pdfBusy) return;
+    const ym = activeYm();
+    const rows = monthDocuments(ym);
+    if (!rows.length) {
+      showError('אין מסמכים בחודש שנבחר');
+      return;
+    }
+    const api = global.LechaimDocsMonthlyPdf;
+    if (typeof api?.buildMonthlyDocumentsPdf !== 'function' || typeof api?.downloadPdf !== 'function') {
+      showError('יצירת ה-PDF לא זמינה');
+      return;
+    }
+    const label = monthLabel(ym);
+    pdfBusy = true;
+    showError('');
+    setPdfButtonState(true, `מכין PDF… 0/${rows.length}`);
+    try {
+      const bytes = await api.buildMonthlyDocumentsPdf({
+        count: rows.length,
+        onProgress: (done, total) => {
+          setPdfButtonState(true, `מכין PDF… ${done}/${total}`);
+        },
+        getItem: async (index) => {
+          const row = rows[index];
+          setPdfButtonState(true, `טוען ${index + 1}/${rows.length}`);
+          const url = await signedUrl(row.storage_path);
+          const res = await fetch(url);
+          if (!res.ok) {
+            throw new Error(
+              `לא ניתן לטעון את החשבונית של ${row.supplier_name || 'ספק'} מתאריך ${formatDateFull(row.document_date)}`
+            );
+          }
+          return {
+            mime: row.mime_type || '',
+            bytes: new Uint8Array(await res.arrayBuffer()),
+          };
+        },
+      });
+      api.downloadPdf(`מסמכים_${label.replace(/\s+/g, '_')}.pdf`, bytes);
+      showToast('ה-PDF ירד');
+    } catch (err) {
+      showError(err?.message || 'יצירת ה-PDF נכשלה');
+    } finally {
+      pdfBusy = false;
+      setPdfButtonState(false, 'הפק PDF לחודש');
+    }
+  }
+
   function renderAll() {
     if (!selectedYm) selectedYm = currentYm();
     renderMonthNav();
@@ -802,7 +963,7 @@
   function goToForm() {
     if (formTitleEl) formTitleEl.textContent = editingId ? 'עריכה' : (scanSupplier || activeSupplier || 'חשבונית');
     const hint = document.getElementById('docs-form-supplier');
-    if (hint) hint.textContent = scanSupplier || activeSupplier || '';
+    if (hint) hint.hidden = true;
     setScanStep('form');
     window.setTimeout(() => document.getElementById('docs-field-total')?.focus(), 80);
   }
@@ -1007,6 +1168,15 @@
       return;
     }
     try {
+      const path = String(row?.storage_path || '').trim();
+      const bucket = String(row?.storage_bucket || BUCKET).trim() || BUCKET;
+      if (path) {
+        const { error: storageError } = await sb.storage.from(bucket).remove([path]);
+        if (storageError) {
+          const msg = String(storageError.message || storageError.error || '');
+          if (!/not found|not_found|does not exist/i.test(msg)) throw storageError;
+        }
+      }
       const { data, error } = await sb.rpc('delete_business_document', { p_id: id });
       if (error) throw error;
       if (data && data.ok === false) {
@@ -1017,7 +1187,12 @@
       closeViewModal();
       showToast('נמחק');
     } catch (err) {
-      showError(err?.message || 'המחיקה נכשלה');
+      const msg = String(err?.message || '');
+      if (/Direct deletion from storage/i.test(msg)) {
+        showError('המחיקה דורשת עדכון SQL — הריצו supabase-business-documents-delete-fix.sql ב-Supabase.');
+      } else {
+        showError(msg || 'המחיקה נכשלה');
+      }
     }
   }
 
@@ -1342,6 +1517,10 @@
         downloadMonthExcel();
         return;
       }
+      if (event.target.closest('#docs-month-pdf')) {
+        downloadMonthPdf().catch(() => {});
+        return;
+      }
       const folder = event.target.closest('[data-docs-folder]')?.getAttribute('data-docs-folder');
       if (folder) {
         openFolder(folder);
@@ -1431,7 +1610,14 @@
     document.getElementById('docs-new-cancel')?.addEventListener('click', closeNewModal);
     document.getElementById('docs-new-backdrop')?.addEventListener('click', closeNewModal);
 
-    document.getElementById('docs-delete-yes')?.addEventListener('click', () => closeDeleteModal(true));
+    document.getElementById('docs-delete-yes')?.addEventListener('click', () => {
+      confirmDeleteClick().catch(() => {});
+    });
+    document.getElementById('docs-delete-code')?.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      confirmDeleteClick().catch(() => {});
+    });
     document.getElementById('docs-delete-cancel')?.addEventListener('click', () => closeDeleteModal(false));
     document.getElementById('docs-delete-backdrop')?.addEventListener('click', () => closeDeleteModal(false));
 

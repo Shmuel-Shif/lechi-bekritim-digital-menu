@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=116">
+  <link rel="stylesheet" href="css/admin.css?v=118">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
 <body>
@@ -772,6 +772,7 @@
               <h1 class="docs-app__title">חשבוניות</h1>
               <div class="docs-app__head-actions">
                 <button type="button" class="docs-app__summary" data-docs-open-report>סיכום</button>
+                <button type="button" class="docs-app__summary" id="docs-month-pdf">הפק PDF לחודש</button>
                 <button type="button" class="docs-app__lock" data-docs-lock aria-label="נעילה">נעילה</button>
               </div>
             </header>
@@ -1073,6 +1074,12 @@
       <div class="admin-modal__panel docs-sheet" role="dialog" aria-modal="true" aria-labelledby="docs-delete-title">
         <h2 class="docs-scan-title" id="docs-delete-title">מחיקת חשבונית</h2>
         <p class="docs-delete-text" id="docs-delete-text">אתה בטוח? החשבונית תימחק לצמיתות.</p>
+        <label class="docs-mini-field" id="docs-delete-code-wrap" hidden>
+          <span>קוד גישה</span>
+          <input type="password" id="docs-delete-code" maxlength="64" dir="ltr" autocomplete="off" spellcheck="false">
+        </label>
+        <p class="docs-vault-hint" id="docs-delete-code-hint" hidden>אותו קוד כמו כניסה למסמכים</p>
+        <p class="admin-error" id="docs-delete-error" role="alert" hidden></p>
         <div class="docs-view-actions">
           <button type="button" class="admin-btn admin-btn--danger" id="docs-delete-yes">מחק</button>
           <button type="button" class="admin-btn admin-btn--ghost" id="docs-delete-cancel">ביטול</button>
@@ -1796,11 +1803,12 @@
   <script src="js/staff-hours-xlsx.js?v=4" defer></script>
   <script src="js/admin-staff-hours.js?v=14" defer></script>
   <script src="js/docs-monthly-xlsx.js?v=1" defer></script>
-  <script src="js/admin-documents.js?v=8" defer></script>
+  <script src="js/docs-monthly-pdf.js?v=1" defer></script>
+  <script src="js/admin-documents.js?v=11" defer></script>
   <script src="js/admin-settings.js?v=7" defer></script>
   <script src="js/stock-catalog.js?v=6" defer></script>
   <script src="js/admin-stock.js?v=2" defer></script>
-  <script src="js/admin.js?v=71" defer></script>
+  <script src="js/admin.js?v=72" defer></script>
   <script src="js/admin-push.js?v=1" defer></script>
   <script src="js/admin-pwa.js?v=2" defer></script>
 </body>

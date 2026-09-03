@@ -460,6 +460,36 @@ revoke all on function public.admin_push_from_kitchen_alert() from public, anon,
 revoke all on function public.admin_push_from_reservation() from public, anon, authenticated;
 revoke all on function public.admin_push_skip_kitchen_item(public.order_items) from public, anon, authenticated;
 
+create or replace function public.admin_push_from_support_ticket()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.status is distinct from 'new' then
+    return new;
+  end if;
+
+  perform public.enqueue_admin_push(jsonb_build_object(
+    'type', 'support_ticket_new',
+    'ticketId', new.id
+  ));
+
+  return new;
+end;
+$$;
+
+drop trigger if exists support_tickets_admin_push on public.support_tickets;
+create trigger support_tickets_admin_push
+after insert
+on public.support_tickets
+for each row
+when (new.status = 'new')
+execute function public.admin_push_from_support_ticket();
+
+revoke all on function public.admin_push_from_support_ticket() from public, anon, authenticated;
+
 -- One-time after you have PUSH_WEBHOOK_SECRET (same value as the Edge Function secret):
 --
 -- insert into public.admin_push_config (id, webhook_secret)

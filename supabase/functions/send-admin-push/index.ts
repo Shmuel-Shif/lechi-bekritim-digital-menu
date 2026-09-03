@@ -97,6 +97,9 @@ function buildMessage(payload: Record<string, unknown>) {
     const when = [reservationDate, arrivalTime].filter(Boolean).join(" ");
     body = ["הזמנת מקום חדשה", who, seats, when].filter(Boolean).join(" · ");
     tab = "reservations";
+  } else if (type === "support_ticket_new") {
+    body = "פנייה חדשה לשירות הלקוחות";
+    tab = "support";
   }
 
   const params = new URLSearchParams({ tab, type });
@@ -107,7 +110,7 @@ function buildMessage(payload: Record<string, unknown>) {
   return {
     title: "לחיים אדמין",
     body,
-    tag: `lechaim-${type}-${payload.alertId || payload.reservationId || productName || tableNumber || sessionId || orderId || "x"}`,
+    tag: `lechaim-${type}-${payload.ticketId || payload.alertId || payload.reservationId || productName || tableNumber || sessionId || orderId || "x"}`,
     tab,
     table: tableNumber,
     sessionId,
@@ -148,6 +151,7 @@ Deno.serve(async (req) => {
     "kitchen_all_ready",
     "kitchen_alert",
     "reservation_pending",
+    "support_ticket_new",
   ].includes(type)) {
     return json({ error: "unknown_type", skipped: true });
   }

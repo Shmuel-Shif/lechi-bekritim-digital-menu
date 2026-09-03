@@ -313,7 +313,7 @@ alter table public.business_documents force row level security;
 
 revoke all on table public.business_documents from public, anon, authenticated;
 grant select, insert, update on table public.business_documents to authenticated;
--- Delete only via delete_business_document RPC (row + storage object together).
+-- Delete row via delete_business_document RPC. File via Storage API.
 
 drop policy if exists "business_documents_auth_select" on public.business_documents;
 create policy "business_documents_auth_select"
@@ -344,17 +344,16 @@ drop policy if exists "business_documents_auth_delete" on public.business_docume
 -- No direct DELETE policy. RPC only.
 
 -- -----------------------------------------------------------------------------
--- 3) Atomic delete: storage object + row in one transaction
+-- 3) Vault-gated delete of the business_documents row.
+-- Storage file is removed by the client via Storage API (not DELETE on storage.objects).
 -- -----------------------------------------------------------------------------
 create or replace function public.delete_business_document(p_id uuid)
 returns jsonb
 language plpgsql
 security definer
-set search_path = public, storage
+set search_path = public
 as $$
 declare
-  v_bucket text;
-  v_path text;
   v_deleted int;
 begin
   if p_id is null then
@@ -369,26 +368,12 @@ begin
     return jsonb_build_object('ok', false, 'error', 'not_unlocked');
   end if;
 
-  select d.storage_bucket, d.storage_path
-    into v_bucket, v_path
-  from public.business_documents d
-  where d.id = p_id
-  for update;
-
-  if v_path is null then
-    return jsonb_build_object('ok', false, 'error', 'not_found');
-  end if;
-
-  delete from storage.objects
-  where bucket_id = v_bucket
-    and name = v_path;
-
   delete from public.business_documents
   where id = p_id;
 
   get diagnostics v_deleted = row_count;
   if v_deleted < 1 then
-    raise exception 'delete_failed';
+    return jsonb_build_object('ok', false, 'error', 'not_found');
   end if;
 
   return jsonb_build_object('ok', true);
@@ -399,7 +384,7 @@ revoke all on function public.delete_business_document(uuid) from public, anon;
 grant execute on function public.delete_business_document(uuid) to authenticated;
 
 comment on function public.delete_business_document(uuid) is
-  'Vault-gated delete of a business document row and its Storage object in one transaction.';
+  'Vault-gated delete of a business document row. Client removes the Storage object via Storage API.';
 
 -- -----------------------------------------------------------------------------
 -- 4) Private Storage bucket + RLS
