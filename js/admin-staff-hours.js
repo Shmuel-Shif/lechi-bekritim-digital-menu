@@ -482,9 +482,24 @@
     return Number.isFinite(n) && n > 0;
   }
 
-  function splitDayHours(actual) {
+  function weekdayIndex(ymd) {
+    const m = String(ymd || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return null;
+    const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0));
+    return d.getUTCDay();
+  }
+
+  function isWeekendOutsideFrame(ymd) {
+    const dow = weekdayIndex(ymd);
+    return dow === 5 || dow === 6;
+  }
+
+  function splitDayHours(actual, ymd) {
     const hours = round2(actual);
     if (hours <= 0) return { actual: 0, inFrame: 0, overtime: 0 };
+    if (isWeekendOutsideFrame(ymd)) {
+      return { actual: hours, inFrame: 0, overtime: hours };
+    }
     const inFrame = round2(Math.min(hours, DAY_FRAME_HOURS));
     const overtime = round2(Math.max(hours - DAY_FRAME_HOURS, 0));
     return { actual: hours, inFrame, overtime };
@@ -554,8 +569,8 @@
         let overtime = 0;
         let payInFrame = 0;
         let payOvertime = 0;
-        row.dayHours.forEach((day) => {
-          const split = splitDayHours(day.hours);
+        row.dayHours.forEach((day, ymd) => {
+          const split = splitDayHours(day.hours, ymd);
           hours += split.actual;
           inFrame += split.inFrame;
           overtime += split.overtime;
@@ -662,20 +677,19 @@
       agg.get(row.id)
     )));
     const seen = new Set(rows.map((row) => row.id));
-    (employees || []).forEach((emp) => {
-      if (!emp?.id || seen.has(emp.id)) return;
-      const bucket = agg.get(emp.id);
-      if (!bucket || (bucket.cash + bucket.bank) <= 0) return;
+    function pushPaidOnlyRow(id, emp, bucket) {
+      if (!id || seen.has(id) || !bucket || (bucket.cash + bucket.bank) <= 0) return;
+      seen.add(id);
       rows.push(Object.assign({
-        id: emp.id,
-        name: emp.name_en || '—',
-        position: String(emp.position || '').trim(),
+        id,
+        name: emp?.name_en || '—',
+        position: String(emp?.position || '').trim(),
         days: 0,
         hours: 0,
         inFrame: 0,
         overtime: 0,
-        rate: hasHourlyRate(emp.hourly_rate) ? Number(emp.hourly_rate) : null,
-        rateMissing: !hasHourlyRate(emp.hourly_rate),
+        rate: hasHourlyRate(emp?.hourly_rate) ? Number(emp.hourly_rate) : null,
+        rateMissing: !hasHourlyRate(emp?.hourly_rate),
         payInFrame: 0,
         payOvertime: 0,
         pay: 0,
@@ -683,6 +697,15 @@
         hasOpen: false,
         openCount: 0,
       }, salaryPaymentFields(0, false, bucket)));
+    }
+
+    (employees || []).forEach((emp) => {
+      if (!emp?.id) return;
+      pushPaidOnlyRow(emp.id, emp, agg.get(emp.id));
+    });
+    agg.forEach((bucket, id) => {
+      const emp = (employees || []).find((row) => row.id === id) || null;
+      pushPaidOnlyRow(id, emp, bucket);
     });
     rows.sort((a, b) => a.name.localeCompare(b.name, 'en'));
 
@@ -864,6 +887,18 @@
       if (settingsCodeInput) settingsCodeInput.value = '';
     } finally {
       busy = false;
+    }
+  }
+
+  async function settingsUnlockStillOpen() {
+    const sb = getClient();
+    if (!sb) return false;
+    try {
+      const { data, error } = await sb.rpc('staff_settings_is_unlocked');
+      if (error) return false;
+      return Boolean(data);
+    } catch (_) {
+      return false;
     }
   }
 
@@ -1670,6 +1705,16 @@
     }
     try {
       await loadEmployees();
+      if (!employeesCache.length) {
+        const stillOpen = await settingsUnlockStillOpen();
+        if (!stillOpen) {
+          settingsUnlocked = false;
+          applySettingsGateUi();
+          showError('פג תוקף קוד ההגדרות. הזינו שוב את הקוד ואז לחצו «הצג».');
+          openSettingsModal();
+          return;
+        }
+      }
       fillEmployeeSelects();
       await loadShiftsForRange(months.fromYmd, months.toYmd);
       await loadSalaryPaymentsForRange(months.fromYmd, months.toYmd);
@@ -1679,6 +1724,9 @@
         employeesCache
       );
       renderSalaryPaid();
+      if (!employeesCache.length && salaryPaymentsCache.length) {
+        showError('התשלומים נטענו, אבל רשימת העובדים לא. נעלו ופתחו שוב את הגדרות העובדים.');
+      }
     } catch (err) {
       console.error('[staff-hours] salary', err);
       salaryPaymentsCache = [];

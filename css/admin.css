@@ -173,6 +173,11 @@ body::before {
   color: var(--color-text-muted);
 }
 
+.admin-code-input {
+  -webkit-text-security: disc;
+  text-security: disc;
+}
+
 .admin-phone-row {
   display: grid;
   grid-template-columns: minmax(7.2rem, 0.42fr) 1fr;

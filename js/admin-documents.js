@@ -690,6 +690,25 @@
     }
   }
 
+  async function insertBusinessDocument(sb, row) {
+    const { data, error } = await sb.rpc('save_business_document', { p_row: row });
+    if (error) {
+      if (/save_business_document|Could not find the function|schema cache/i.test(String(error.message || ''))) {
+        const fallback = await sb.from('business_documents').insert(row).select('*').single();
+        if (fallback.error) throw fallback.error;
+        return fallback.data;
+      }
+      throw error;
+    }
+    const res = data || {};
+    if (!res.ok) {
+      const err = new Error(res.error || 'save_failed');
+      err.code = res.error;
+      throw err;
+    }
+    return res.row;
+  }
+
   async function persistSupplier(name) {
     const key = supplierKey(name);
     if (!key) return;
@@ -1595,8 +1614,7 @@
           ocr_raw: null,
           created_by: userId,
         };
-        const { data, error } = await sb.from('business_documents').insert(row).select('*').single();
-        if (error) throw error;
+        const data = await insertBusinessDocument(sb, row);
         upsertCache(data);
         await persistSupplier(MANUAL_PAYMENT_SUPPLIER).catch(() => {});
         openFolder(MANUAL_PAYMENT_SUPPLIER);
@@ -1641,10 +1659,12 @@
         ocr_raw: null,
         created_by: userId,
       };
-      const { data, error } = await sb.from('business_documents').insert(row).select('*').single();
-      if (error) {
+      let data;
+      try {
+        data = await insertBusinessDocument(sb, row);
+      } catch (insErr) {
         try { await sb.storage.from(BUCKET).remove([path]); } catch (_) { /* keep going */ }
-        throw error;
+        throw insErr;
       }
       upsertCache(data);
       rememberSupplier(supplier);
@@ -1656,8 +1676,10 @@
       console.error('[documents] save', err);
       if (isMissingManualPaymentSupport(err) || isMissingSuppliersTable(err)) {
         showFormError(formErrorEl, 'יש להריץ את supabase-business-documents-suppliers-and-manual.sql ב-SQL Editor של Supabase');
+      } else if (err?.code === 'not_unlocked' || err?.code === 'not_authenticated') {
+        showFormError(formErrorEl, 'אין הרשאה לשמור. נעלו ופתחו שוב את כספת המסמכים.');
       } else if (isRlsSaveError(err)) {
-        showFormError(formErrorEl, 'אין הרשאה לשמור. נעלו ופתחו שוב את כספת המסמכים. אם זה חוזר — הריצו supabase-business-documents-insert-fix.sql');
+        showFormError(formErrorEl, 'אין הרשאה לשמור. הריצו supabase-business-documents-insert-fix.sql ואז נעלו ופתחו שוב את הכספת.');
       } else {
         showFormError(formErrorEl, err?.message || 'השמירה נכשלה');
       }

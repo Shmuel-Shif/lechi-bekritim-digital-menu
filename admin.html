@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=125">
+  <link rel="stylesheet" href="css/admin.css?v=126">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
 <body>
@@ -891,7 +891,7 @@
             <h2 class="staff-panel__title">Enter personal code</h2>
             <label class="admin-field">
               <span>Employee code</span>
-              <input type="password" id="staff-clock-pin" inputmode="numeric" autocomplete="one-time-code" maxlength="12" dir="ltr">
+              <input type="tel" class="admin-code-input" id="staff-clock-pin" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" maxlength="12" dir="ltr">
             </label>
             <div class="staff-clock-card__actions">
               <button type="button" class="admin-btn admin-btn--primary" id="staff-clock-in">Clock in</button>
@@ -922,7 +922,7 @@
             </label>
             <label class="admin-field staff-field--inline">
               <span>קוד עובד</span>
-              <input type="password" id="staff-shifts-pin" inputmode="numeric" autocomplete="one-time-code" maxlength="12" dir="ltr">
+              <input type="tel" class="admin-code-input" id="staff-shifts-pin" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" maxlength="12" dir="ltr">
             </label>
             <button type="button" class="admin-btn admin-btn--primary" id="staff-shifts-load">הצג</button>
             <button type="button" class="admin-btn admin-btn--print" id="staff-shifts-print" hidden>הדפס</button>
@@ -942,7 +942,7 @@
             </label>
             <label class="admin-field staff-field--inline">
               <span>קוד עובד</span>
-              <input type="password" id="staff-summary-pin" inputmode="numeric" autocomplete="one-time-code" maxlength="12" dir="ltr">
+              <input type="tel" class="admin-code-input" id="staff-summary-pin" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" maxlength="12" dir="ltr">
             </label>
             <button type="button" class="admin-btn admin-btn--primary" id="staff-summary-load">הצג</button>
             <button type="button" class="admin-btn admin-btn--print" id="staff-summary-print" hidden>הדפס</button>
@@ -957,7 +957,7 @@
             <h2 class="staff-panel__title">סיכום עובדים</h2>
             <button type="button" class="admin-btn admin-btn--primary" id="staff-payroll-xlsx" hidden>הורד קובץ למנהלים</button>
           </div>
-          <p class="staff-panel__hint">בחרו חודש לפי שעון העסק. מוצג כל החודש. במסגרת: עד 5 שעות ליום. מחוץ למסגרת: מה שמעבר ל־5 שעות באותו יום. הקובץ מיועד לשליחה ידנית למנהלים בוואטסאפ.</p>
+          <p class="staff-panel__hint">בחרו חודש לפי שעון העסק. מוצג כל החודש. במסגרת: ראשון–חמישי, עד 5 שעות ליום. מחוץ למסגרת: מה שמעבר ל־5 שעות בימים אלה, וכל שעות שישי ושבת. הקובץ מיועד לשליחה ידנית למנהלים בוואטסאפ.</p>
           <div class="staff-shifts-filters">
             <label class="admin-field staff-field--inline">
               <span>חודש</span>
@@ -1017,7 +1017,7 @@
         <form id="staff-settings-form" class="reservation-form" novalidate>
           <label class="admin-field">
             <span>קוד גישה</span>
-            <input type="password" id="staff-settings-access-code" maxlength="64" dir="ltr" autocomplete="off" spellcheck="false">
+            <input type="tel" class="admin-code-input" id="staff-settings-access-code" inputmode="numeric" pattern="[0-9]*" maxlength="64" dir="ltr" autocomplete="one-time-code" spellcheck="false">
           </label>
           <p class="admin-error" id="staff-settings-form-error" role="alert" hidden></p>
           <div class="reservation-modal__actions">
@@ -1036,7 +1036,7 @@
         <form id="docs-vault-form" class="reservation-form" novalidate>
           <label class="admin-field">
             <span>קוד גישה</span>
-            <input type="password" id="docs-vault-code" maxlength="64" dir="ltr" autocomplete="off" spellcheck="false">
+            <input type="tel" class="admin-code-input" id="docs-vault-code" inputmode="numeric" pattern="[0-9]*" maxlength="64" dir="ltr" autocomplete="one-time-code" spellcheck="false">
           </label>
           <p class="admin-error" id="docs-vault-form-error" role="alert" hidden></p>
           <div class="reservation-modal__actions">
@@ -1055,7 +1055,7 @@
         <form id="till-totals-form" class="reservation-form" novalidate>
           <label class="admin-field">
             <span>קוד גישה</span>
-            <input type="password" id="till-totals-code" maxlength="64" dir="ltr" autocomplete="off" spellcheck="false">
+            <input type="tel" class="admin-code-input" id="till-totals-code" inputmode="numeric" pattern="[0-9]*" maxlength="64" dir="ltr" autocomplete="one-time-code" spellcheck="false">
           </label>
           <p class="admin-error" id="till-totals-form-error" role="alert" hidden></p>
           <div class="reservation-modal__actions">
@@ -1090,7 +1090,7 @@
           </div>
           <label class="admin-field" id="till-edit-code-wrap" hidden>
             <span>קוד גישה</span>
-            <input type="password" id="till-edit-code" maxlength="64" dir="ltr" autocomplete="off" spellcheck="false">
+            <input type="tel" class="admin-code-input" id="till-edit-code" inputmode="numeric" pattern="[0-9]*" maxlength="64" dir="ltr" autocomplete="one-time-code" spellcheck="false">
           </label>
           <p class="admin-error" id="till-edit-report-error" role="alert" hidden></p>
           <div class="reservation-modal__actions">
@@ -1169,7 +1169,7 @@
         <p class="docs-delete-text" id="docs-delete-text">אתה בטוח? החשבונית תימחק לצמיתות.</p>
         <label class="docs-mini-field" id="docs-delete-code-wrap" hidden>
           <span>קוד גישה</span>
-          <input type="password" id="docs-delete-code" maxlength="64" dir="ltr" autocomplete="off" spellcheck="false">
+          <input type="tel" class="admin-code-input" id="docs-delete-code" inputmode="numeric" pattern="[0-9]*" maxlength="64" dir="ltr" autocomplete="one-time-code" spellcheck="false">
         </label>
         <p class="docs-vault-hint" id="docs-delete-code-hint" hidden>אותו קוד כמו כניסה למסמכים</p>
         <p class="admin-error" id="docs-delete-error" role="alert" hidden></p>
@@ -1226,7 +1226,7 @@
           </label>
           <label class="admin-field">
             <span id="staff-employee-pin-label">קוד אישי *</span>
-            <input type="password" id="staff-employee-pin" inputmode="numeric" maxlength="12" dir="ltr" autocomplete="new-password">
+            <input type="tel" class="admin-code-input" id="staff-employee-pin" inputmode="numeric" pattern="[0-9]*" maxlength="12" dir="ltr" autocomplete="one-time-code">
           </label>
           <label class="admin-field">
             <span>מספר חשבון בנק</span>
@@ -1777,7 +1777,7 @@
               <p class="admin-payment-credit__q">סגירת ההזמנה ללא רישום כמכירה</p>
               <label class="admin-payment-split__field">
                 <span>קוד גישה</span>
-                <input type="password" id="admin-payment-void-code" maxlength="64" dir="ltr" autocomplete="off" spellcheck="false">
+                <input type="tel" class="admin-code-input" id="admin-payment-void-code" inputmode="numeric" pattern="[0-9]*" maxlength="64" dir="ltr" autocomplete="one-time-code" spellcheck="false">
               </label>
               <p class="admin-error" id="admin-payment-void-error" role="alert" hidden></p>
               <button type="button" class="admin-btn admin-btn--primary" id="admin-payment-void-confirm">סגירה ללא תשלום</button>
@@ -1894,10 +1894,10 @@
   <script src="js/admin-coupons.js" defer></script>
   <script src="js/admin-till.js?v=9" defer></script>
   <script src="js/staff-hours-xlsx.js?v=4" defer></script>
-  <script src="js/admin-staff-hours.js?v=17" defer></script>
+  <script src="js/admin-staff-hours.js?v=19" defer></script>
   <script src="js/docs-monthly-xlsx.js?v=1" defer></script>
   <script src="js/docs-monthly-pdf.js?v=1" defer></script>
-  <script src="js/admin-documents.js?v=14" defer></script>
+  <script src="js/admin-documents.js?v=15" defer></script>
   <script src="js/admin-settings.js?v=7" defer></script>
   <script src="js/stock-catalog.js?v=6" defer></script>
   <script src="js/admin-stock.js?v=2" defer></script>
