@@ -1,10 +1,11 @@
 -- =============================================================================
--- LECHAIM — Fix document insert (RLS + vault-gated save RPC)
+-- LECHAIM — Fix document insert/update (RLS + vault-gated save RPC)
 -- Run in: Supabase → SQL Editor → Run
 -- Safe to re-run.
 --
--- Symptom: "new row violates row-level security policy" when saving
--- a cash/credit payment or an invoice.
+-- Symptoms:
+--   "new row violates row-level security policy"
+--   "Cannot coerce the result to a single JSON object" on Edit/Save
 -- Does NOT change vault code, till, orders, or print.
 -- =============================================================================
 
@@ -76,76 +77,98 @@ using (
   and public.documents_vault_is_unlocked()
 );
 
+drop function if exists public.save_business_document(jsonb);
+
 create or replace function public.save_business_document(p_row jsonb)
-returns jsonb
+returns json
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
+  v_id uuid;
   v_saved public.business_documents;
 begin
   if auth.uid() is null then
-    return jsonb_build_object('ok', false, 'error', 'not_authenticated');
+    return json_build_object('ok', false, 'error', 'not_authenticated');
   end if;
 
   if not public.documents_vault_is_unlocked() then
-    return jsonb_build_object('ok', false, 'error', 'not_unlocked');
+    return json_build_object('ok', false, 'error', 'not_unlocked');
   end if;
 
   if p_row is null then
-    return jsonb_build_object('ok', false, 'error', 'invalid_row');
+    return json_build_object('ok', false, 'error', 'invalid_row');
   end if;
 
-  insert into public.business_documents (
-    id,
-    storage_bucket,
-    storage_path,
-    original_filename,
-    mime_type,
-    file_size_bytes,
-    document_type,
-    category,
-    supplier_name,
-    document_number,
-    document_date,
-    currency,
-    amount_before_vat,
-    vat_amount,
-    amount_total,
-    notes,
-    status,
-    ocr_status,
-    ocr_raw,
-    created_by
-  ) values (
-    coalesce(nullif(p_row->>'id', '')::uuid, gen_random_uuid()),
-    coalesce(nullif(p_row->>'storage_bucket', ''), 'business-documents'),
-    nullif(p_row->>'storage_path', ''),
-    coalesce(p_row->>'original_filename', ''),
-    coalesce(p_row->>'mime_type', ''),
-    nullif(p_row->>'file_size_bytes', '')::integer,
-    coalesce(nullif(p_row->>'document_type', ''), 'supplier_invoice'),
-    coalesce(p_row->>'category', ''),
-    coalesce(p_row->>'supplier_name', ''),
-    coalesce(p_row->>'document_number', ''),
-    nullif(p_row->>'document_date', '')::date,
-    coalesce(nullif(p_row->>'currency', ''), 'EUR'),
-    nullif(p_row->>'amount_before_vat', '')::numeric,
-    nullif(p_row->>'vat_amount', '')::numeric,
-    nullif(p_row->>'amount_total', '')::numeric,
-    coalesce(p_row->>'notes', ''),
-    coalesce(nullif(p_row->>'status', ''), 'saved'),
-    coalesce(nullif(p_row->>'ocr_status', ''), 'none'),
-    case
-      when p_row->'ocr_raw' is null or p_row->>'ocr_raw' in ('', 'null') then null
-      else p_row->'ocr_raw'
-    end,
-    auth.uid()
-  )
-  returning * into v_saved;
+  v_id := coalesce(nullif(p_row->>'id', '')::uuid, gen_random_uuid());
 
-  return jsonb_build_object('ok', true, 'row', to_jsonb(v_saved));
+  if exists (select 1 from public.business_documents d where d.id = v_id) then
+    update public.business_documents
+    set
+      document_date = coalesce(nullif(p_row->>'document_date', '')::date, document_date),
+      amount_total = coalesce(nullif(p_row->>'amount_total', '')::numeric, amount_total),
+      supplier_name = coalesce(p_row->>'supplier_name', supplier_name),
+      notes = coalesce(p_row->>'notes', notes),
+      category = coalesce(p_row->>'category', category),
+      status = coalesce(nullif(p_row->>'status', ''), status)
+    where id = v_id
+    returning * into v_saved;
+  else
+    insert into public.business_documents (
+      id,
+      storage_bucket,
+      storage_path,
+      original_filename,
+      mime_type,
+      file_size_bytes,
+      document_type,
+      category,
+      supplier_name,
+      document_number,
+      document_date,
+      currency,
+      amount_before_vat,
+      vat_amount,
+      amount_total,
+      notes,
+      status,
+      ocr_status,
+      ocr_raw,
+      created_by
+    ) values (
+      v_id,
+      coalesce(nullif(p_row->>'storage_bucket', ''), 'business-documents'),
+      nullif(p_row->>'storage_path', ''),
+      coalesce(p_row->>'original_filename', ''),
+      coalesce(p_row->>'mime_type', ''),
+      nullif(p_row->>'file_size_bytes', '')::integer,
+      coalesce(nullif(p_row->>'document_type', ''), 'supplier_invoice'),
+      coalesce(p_row->>'category', ''),
+      coalesce(p_row->>'supplier_name', ''),
+      coalesce(p_row->>'document_number', ''),
+      nullif(p_row->>'document_date', '')::date,
+      coalesce(nullif(p_row->>'currency', ''), 'EUR'),
+      nullif(p_row->>'amount_before_vat', '')::numeric,
+      nullif(p_row->>'vat_amount', '')::numeric,
+      nullif(p_row->>'amount_total', '')::numeric,
+      coalesce(p_row->>'notes', ''),
+      coalesce(nullif(p_row->>'status', ''), 'saved'),
+      coalesce(nullif(p_row->>'ocr_status', ''), 'none'),
+      case
+        when p_row->'ocr_raw' is null or p_row->>'ocr_raw' in ('', 'null') then null
+        else p_row->'ocr_raw'
+      end,
+      auth.uid()
+    )
+    returning * into v_saved;
+  end if;
+
+  if v_saved.id is null then
+    return json_build_object('ok', false, 'error', 'save_failed');
+  end if;
+
+  return json_build_object('ok', true, 'row', to_json(v_saved));
 end;
 $$;
 

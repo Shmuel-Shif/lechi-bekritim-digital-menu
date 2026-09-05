@@ -81,7 +81,8 @@
   const settingsFormError = document.getElementById('staff-settings-form-error');
   const settingsCancel = document.getElementById('staff-settings-cancel');
   const settingsSubtitleEl = document.getElementById('staff-hours-subtitle');
-  const DAY_FRAME_HOURS = 5;
+  const DAY_FRAME_HOURS = 8;
+  const KATAREINA_FRAME_HOURS = 5;
 
   let client = null;
   let started = false;
@@ -494,15 +495,55 @@
     return dow === 5 || dow === 6;
   }
 
-  function splitDayHours(actual, ymd) {
+  function isKatareina(employee) {
+    const name = String(employee?.name_en || employee?.name || '').trim().toLowerCase();
+    return name === 'katareina';
+  }
+
+  function dayFrameHoursFor(employee) {
+    return isKatareina(employee) ? KATAREINA_FRAME_HOURS : DAY_FRAME_HOURS;
+  }
+
+  /**
+   * Frame is a monthly quota only — not a 14:00–22:00 punch window.
+   * Sun–Thu work day = 8h (Katareina 5h). Fri/Sat = 0 frame hours.
+   * overtime = max(0, actual − frame). Clock punches are not rewritten.
+   */
+  function splitMonthHours(dayHours, employee) {
+    let actual = 0;
+    let frameDays = 0;
+    let clockPay = 0;
+    (dayHours || new Map()).forEach((day, ymd) => {
+      const hours = round2(day?.hours);
+      if (hours <= 0) return;
+      actual = round2(actual + hours);
+      clockPay = round2(clockPay + (Number(day.pay) || 0));
+      if (!isWeekendOutsideFrame(ymd)) frameDays += 1;
+    });
+    const inFrame = frameDays * dayFrameHoursFor(employee);
+    const overtime = round2(Math.max(0, actual - inFrame));
+    return { actual, inFrame, overtime, frameDays, clockPay };
+  }
+
+  function payFromFrame(actual, inFrame, rate) {
+    if (!hasHourlyRate(rate) || actual <= 0) {
+      return { payInFrame: 0, payOvertime: 0, pay: 0 };
+    }
+    const r = Number(rate);
+    const pay = round2(actual * r);
+    const payInFrame = round2(Math.min(inFrame, actual) * r);
+    const payOvertime = round2(pay - payInFrame);
+    return { payInFrame, payOvertime, pay };
+  }
+
+  function splitDayHours(actual, ymd, employee) {
     const hours = round2(actual);
     if (hours <= 0) return { actual: 0, inFrame: 0, overtime: 0 };
     if (isWeekendOutsideFrame(ymd)) {
       return { actual: hours, inFrame: 0, overtime: hours };
     }
-    const inFrame = round2(Math.min(hours, DAY_FRAME_HOURS));
-    const overtime = round2(Math.max(hours - DAY_FRAME_HOURS, 0));
-    return { actual: hours, inFrame, overtime };
+    const cap = dayFrameHoursFor(employee);
+    return { actual: hours, inFrame: cap, overtime: round2(Math.max(0, hours - cap)) };
   }
 
   function rateForShift(shift, employee) {
@@ -564,41 +605,29 @@
 
     const rows = Array.from(byEmp.values())
       .map((row) => {
-        let hours = 0;
-        let inFrame = 0;
-        let overtime = 0;
-        let payInFrame = 0;
-        let payOvertime = 0;
-        row.dayHours.forEach((day, ymd) => {
-          const split = splitDayHours(day.hours, ymd);
-          hours += split.actual;
-          inFrame += split.inFrame;
-          overtime += split.overtime;
-          const dayPay = round2(day.pay);
-          if (split.actual > 0 && dayPay > 0) {
-            const inPay = round2(dayPay * (split.inFrame / split.actual));
-            payInFrame += inPay;
-            payOvertime += round2(dayPay - inPay);
-          }
-        });
+        const split = splitMonthHours(row.dayHours, row.employee);
         const empRate = hasHourlyRate(row.employee.hourly_rate)
           ? Number(row.employee.hourly_rate)
           : null;
-        const pay = round2(payInFrame + payOvertime);
+        const clockRate = split.actual > 0 && split.clockPay > 0
+          ? split.clockPay / split.actual
+          : null;
+        const rate = empRate != null ? empRate : (hasHourlyRate(clockRate) ? clockRate : null);
+        const money = payFromFrame(split.actual, split.inFrame, rate);
         return {
           id: row.employee.id,
           name: row.employee.name_en || '—',
           position: String(row.employee.position || '').trim(),
           days: row.dayHours.size,
-          hours: round2(hours),
-          inFrame: round2(inFrame),
-          overtime: round2(overtime),
+          hours: split.actual,
+          inFrame: split.inFrame,
+          overtime: split.overtime,
           rate: empRate,
           rateMissing: empRate == null,
-          payInFrame: round2(payInFrame),
-          payOvertime: round2(payOvertime),
-          pay,
-          payMissing: row.dayHours.size > 0 && pay === 0 && row.missingRate,
+          payInFrame: money.payInFrame,
+          payOvertime: money.payOvertime,
+          pay: money.pay,
+          payMissing: row.dayHours.size > 0 && money.pay === 0 && row.missingRate,
           hasOpen: row.openShifts.length > 0,
           openCount: row.openShifts.length,
         };
@@ -736,6 +765,8 @@
     buildPayrollSummary,
     applySalaryPayments,
     splitDayHours,
+    splitMonthHours,
+    payFromFrame,
     monthRange,
     ymdInclusiveRange,
     athensParts,

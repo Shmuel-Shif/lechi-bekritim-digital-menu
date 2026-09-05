@@ -681,6 +681,15 @@
     return /row-level security|violates row-level|42501|PGRST301/i.test(msg);
   }
 
+  function isSingleCoerceError(err) {
+    const msg = String(err?.message || err?.code || '');
+    return /PGRST116|Cannot coerce the result to a single JSON object|JSON object requested/i.test(msg);
+  }
+
+  function saveFailedError() {
+    return new Error('השמירה לא נקלטה. הריצו supabase-business-documents-insert-fix.sql ואז נעלו ופתחו שוב את כספת המסמכים.');
+  }
+
   async function currentAuthUserId(sb) {
     try {
       const { data } = await sb.auth.getUser();
@@ -690,12 +699,27 @@
     }
   }
 
-  async function insertBusinessDocument(sb, row) {
+  async function insertBusinessDocument(sb, row, isUpdate) {
     const { data, error } = await sb.rpc('save_business_document', { p_row: row });
     if (error) {
-      if (/save_business_document|Could not find the function|schema cache/i.test(String(error.message || ''))) {
-        const fallback = await sb.from('business_documents').insert(row).select('*').single();
-        if (fallback.error) throw fallback.error;
+      const missingFn = /save_business_document|Could not find the function|schema cache/i.test(String(error.message || ''));
+      if (missingFn || isSingleCoerceError(error)) {
+        const query = isUpdate
+          ? sb.from('business_documents').update({
+            document_date: row.document_date,
+            amount_total: row.amount_total,
+            supplier_name: row.supplier_name,
+            notes: row.notes,
+            category: row.category,
+            status: row.status || 'saved',
+          }).eq('id', row.id)
+          : sb.from('business_documents').insert(row);
+        const fallback = await query.select('*').maybeSingle();
+        if (fallback.error) {
+          if (isSingleCoerceError(fallback.error)) throw saveFailedError();
+          throw fallback.error;
+        }
+        if (!fallback.data) throw saveFailedError();
         return fallback.data;
       }
       throw error;
@@ -706,6 +730,7 @@
       err.code = res.error;
       throw err;
     }
+    if (!res.row) throw saveFailedError();
     return res.row;
   }
 
@@ -1570,20 +1595,15 @@
       }
       if (editingId) {
         const existing = cache.find((item) => item.id === editingId);
-        const { data, error } = await sb
-          .from('business_documents')
-          .update({
-            document_date: simple.date,
-            amount_total: simple.total,
-            supplier_name: supplier,
-            notes: manual ? simple.notes : (existing?.notes || ''),
-            category: manual ? simple.method : (existing?.category || ''),
-            status: 'saved',
-          })
-          .eq('id', editingId)
-          .select('*')
-          .single();
-        if (error) throw error;
+        const data = await insertBusinessDocument(sb, {
+          id: editingId,
+          document_date: simple.date,
+          amount_total: simple.total,
+          supplier_name: supplier,
+          notes: manual ? simple.notes : (existing?.notes || ''),
+          category: manual ? simple.method : (existing?.category || ''),
+          status: 'saved',
+        }, true);
         upsertCache(data);
         renderAll();
         closeScanOverlay();
@@ -1678,7 +1698,7 @@
         showFormError(formErrorEl, 'יש להריץ את supabase-business-documents-suppliers-and-manual.sql ב-SQL Editor של Supabase');
       } else if (err?.code === 'not_unlocked' || err?.code === 'not_authenticated') {
         showFormError(formErrorEl, 'אין הרשאה לשמור. נעלו ופתחו שוב את כספת המסמכים.');
-      } else if (isRlsSaveError(err)) {
+      } else if (isRlsSaveError(err) || isSingleCoerceError(err)) {
         showFormError(formErrorEl, 'אין הרשאה לשמור. הריצו supabase-business-documents-insert-fix.sql ואז נעלו ופתחו שוב את הכספת.');
       } else {
         showFormError(formErrorEl, err?.message || 'השמירה נכשלה');
