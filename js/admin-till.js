@@ -216,20 +216,21 @@
       || roundMoney(report.tip) > 0;
   }
 
-  /** Saved edit is what the card shows. A 0/0/0 row never hides live closes. */
+  /**
+   * Card shows the higher of live closes and a saved edit.
+   * A new cash close (e.g. €77) always appears; a saved €142 cannot freeze the day.
+   */
   function displayedSales(live, report) {
-    if (hasSavedReport(report)) {
-      return {
-        cash: roundMoney(report.cash),
-        credit: roundMoney(report.credit),
-        tip: roundMoney(report.tip),
-        source: 'edited',
-      };
+    const cash = roundMoney(live?.cash);
+    const credit = roundMoney(live?.credit);
+    const tip = roundMoney(live?.tip);
+    if (!hasSavedReport(report)) {
+      return { cash, credit, tip, source: 'live' };
     }
     return {
-      cash: roundMoney(live?.cash),
-      credit: roundMoney(live?.credit),
-      tip: roundMoney(live?.tip),
+      cash: Math.max(cash, roundMoney(report.cash)),
+      credit: Math.max(credit, roundMoney(report.credit)),
+      tip: Math.max(tip, roundMoney(report.tip)),
       source: 'live',
     };
   }
