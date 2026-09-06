@@ -209,18 +209,27 @@
     return roundMoney(roundMoney(cash) + roundMoney(credit) + roundMoney(tip));
   }
 
-  /** Live closes always win. An edit may raise a line, never hide a live total. */
+  function hasSavedReport(report) {
+    if (!report) return false;
+    return roundMoney(report.cash) > 0
+      || roundMoney(report.credit) > 0
+      || roundMoney(report.tip) > 0;
+  }
+
+  /** Saved edit is what the card shows. A 0/0/0 row never hides live closes. */
   function displayedSales(live, report) {
-    const cash = roundMoney(live?.cash);
-    const credit = roundMoney(live?.credit);
-    const tip = roundMoney(live?.tip);
-    if (!report) {
-      return { cash, credit, tip, source: 'live' };
+    if (hasSavedReport(report)) {
+      return {
+        cash: roundMoney(report.cash),
+        credit: roundMoney(report.credit),
+        tip: roundMoney(report.tip),
+        source: 'edited',
+      };
     }
     return {
-      cash: Math.max(cash, roundMoney(report.cash)),
-      credit: Math.max(credit, roundMoney(report.credit)),
-      tip: Math.max(tip, roundMoney(report.tip)),
+      cash: roundMoney(live?.cash),
+      credit: roundMoney(live?.credit),
+      tip: roundMoney(live?.tip),
       source: 'live',
     };
   }
@@ -632,7 +641,8 @@
     if (editCashInput) editCashInput.value = String(shown.cash);
     if (editCreditInput) editCreditInput.value = String(shown.credit);
     if (editTipInput) editTipInput.value = String(shown.tip);
-    hideEditCode();
+    if (editCodeInput) editCodeInput.value = '';
+    if (editCodeWrap) editCodeWrap.hidden = false;
     showEditReportError('');
     updateEditInclusive();
     if (!editReportModal) return;
@@ -671,11 +681,7 @@
       showEditReportError('הזינו סכומים תקינים');
       return;
     }
-    if (editCodeWrap?.hidden) {
-      showEditReportError('');
-      revealEditCode();
-      return;
-    }
+    if (editCodeWrap) editCodeWrap.hidden = false;
     const code = editCodeInput?.value || '';
     if (!String(code).trim()) {
       showEditReportError('הזינו קוד גישה');
