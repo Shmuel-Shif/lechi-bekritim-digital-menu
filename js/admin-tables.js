@@ -1420,8 +1420,7 @@
       const tip = roundMoney(net - sale);
       remaining = roundMoney(remaining - sale);
       if (line.method === 'credit') {
-        paidCredit = roundMoney(paidCredit + sale);
-        paidTipCredit = roundMoney(paidTipCredit + tip);
+        paidCredit = roundMoney(paidCredit + net);
       } else {
         paidCash = roundMoney(paidCash + sale);
         paidTipCash = roundMoney(paidTipCash + tip);
@@ -1799,8 +1798,8 @@
       ? 'credit'
       : 'cash';
     const tipCash = tip > 0 && via === 'cash' ? tip : 0;
-    const tipCredit = tip > 0 && via === 'credit' ? tip : 0;
-    closePaymentModal(buildPaymentResult('split', total, cash, credit, tip, tipCash, tipCredit));
+    const creditPaid = via === 'credit' ? roundMoney(credit + tip) : credit;
+    closePaymentModal(buildPaymentResult('split', total, cash, creditPaid, tipCash, tipCash, 0));
   }
 
   function showPaymentCreditPanel() {
@@ -1816,7 +1815,7 @@
   function confirmPaymentCredit() {
     const total = roundMoney(pendingPaymentTotal);
     const tip = parseTenderedAmount(document.getElementById('admin-payment-credit-tip')?.value);
-    closePaymentModal(buildPaymentResult('credit', total, 0, total, tip, 0, tip));
+    closePaymentModal(buildPaymentResult('credit', total, 0, roundMoney(total + tip), 0, 0, 0));
   }
 
   function showPaymentVoidPanel() {
