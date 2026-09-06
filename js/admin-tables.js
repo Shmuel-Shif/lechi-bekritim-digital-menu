@@ -1143,6 +1143,7 @@
   }
 
   function setPaymentLedger(heroLabel, heroAmount, rows) {
+    showPaymentLedgerHome();
     const labelEl = document.getElementById('admin-payment-ledger-label');
     const amountEl = document.getElementById('admin-payment-amount');
     const rowsEl = document.getElementById('admin-payment-ledger-rows');
@@ -1153,6 +1154,53 @@
       const cls = row.warn ? ' class="is-warn"' : '';
       return `<div${cls}><dt>${escapeHtml(row.label)}</dt><dd>${escapeHtml(row.value)}</dd></div>`;
     }).join('');
+  }
+
+  function showPaymentLedgerHome() {
+    const home = document.getElementById('admin-payment-ledger-home');
+    const register = document.getElementById('admin-payment-cash-register');
+    if (home) home.hidden = false;
+    if (register) register.hidden = true;
+  }
+
+  function showPaymentCashRegister() {
+    const home = document.getElementById('admin-payment-ledger-home');
+    const register = document.getElementById('admin-payment-cash-register');
+    if (home) home.hidden = true;
+    if (register) register.hidden = false;
+  }
+
+  function setText(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  }
+
+  function setHidden(id, hidden) {
+    const el = document.getElementById(id);
+    if (el) el.hidden = hidden;
+  }
+
+  /**
+   * Cash-path display only. Do not feed paid_cash / paid_tip / close-table.
+   * change = given − bill − tip
+   * tipFromTill = tip (operational cue)
+   * leftInTill = bill
+   */
+  function cashRegisterView(bill, given, tip, hasGiven) {
+    const sale = roundMoney(bill);
+    const tendered = roundMoney(given);
+    const tipAmt = roundMoney(tip);
+    const change = roundMoney(tendered - sale - tipAmt);
+    return {
+      bill: sale,
+      given: tendered,
+      tip: tipAmt,
+      change,
+      tipFromTill: tipAmt,
+      leftInTill: sale,
+      ok: Boolean(hasGiven) && change >= 0,
+      missing: hasGiven && change < 0 ? roundMoney(-change) : 0,
+    };
   }
 
   function syncPaymentHomeChrome() {
@@ -1211,21 +1259,24 @@
     const givenRaw = String(input?.value ?? '').trim();
     const given = parseTenderedAmount(givenRaw);
     const tip = parseTenderedAmount(document.getElementById('admin-payment-cash-tip')?.value);
-    const due = roundMoney(bill + tip);
     const hasInput = givenRaw !== '';
-    const change = roundMoney(given - due);
-    const ok = hasInput && change >= 0;
-    const rows = [];
-    if (tip > 0) rows.push({ label: 'טיפ', value: formatMoneyEuro(tip) });
-    if (hasInput) rows.push({ label: 'הלקוח נתן', value: formatMoneyEuro(given) });
-    if (hasInput && ok) rows.push({ label: 'עודף', value: formatMoneyEuro(change) });
-    if (hasInput && !ok) {
-      rows.push({ label: 'חסר', value: formatMoneyEuro(roundMoney(-change)), warn: true });
-    }
-    setPaymentLedger('סה״כ לתשלום', bill, rows);
+    const view = cashRegisterView(bill, given, tip, hasInput);
+    showPaymentCashRegister();
+    setText('admin-payment-reg-bill', formatMoneyEuro(view.bill));
+    setText('admin-payment-reg-given', formatMoneyEuro(view.given));
+    setText('admin-payment-reg-tip', formatMoneyEuro(view.tip));
+    setText('admin-payment-reg-missing', formatMoneyEuro(view.missing));
+    setText('admin-payment-reg-change', formatMoneyEuro(view.change));
+    setText('admin-payment-reg-tip-out', formatMoneyEuro(view.tipFromTill));
+    setText('admin-payment-reg-till-sale', formatMoneyEuro(view.leftInTill));
+    setHidden('admin-payment-reg-given-row', !hasInput);
+    setHidden('admin-payment-reg-tip-row', view.tip <= 0);
+    setHidden('admin-payment-reg-missing-row', !hasInput || view.ok);
+    setHidden('admin-payment-reg-actions', !view.ok);
+    setHidden('admin-payment-reg-tip-out-row', !view.ok || view.tip <= 0);
     if (confirmBtn) {
       confirmBtn.hidden = false;
-      confirmBtn.disabled = !ok;
+      confirmBtn.disabled = !view.ok;
     }
   }
 

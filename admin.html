@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=126">
+  <link rel="stylesheet" href="css/admin.css?v=127">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
 <body>
@@ -1691,9 +1691,50 @@
         </header>
         <div class="admin-payment-pos">
           <section class="admin-payment-pos__ledger" aria-live="polite">
-            <p class="admin-payment-pos__ledger-label" id="admin-payment-ledger-label">סה״כ לתשלום</p>
-            <p class="admin-payment-pos__ledger-amount" id="admin-payment-amount"></p>
-            <dl class="admin-payment-pos__rows" id="admin-payment-ledger-rows"></dl>
+            <div id="admin-payment-ledger-home">
+              <p class="admin-payment-pos__ledger-label" id="admin-payment-ledger-label">סה״כ לתשלום</p>
+              <p class="admin-payment-pos__ledger-amount" id="admin-payment-amount"></p>
+              <dl class="admin-payment-pos__rows" id="admin-payment-ledger-rows"></dl>
+            </div>
+            <div class="admin-payment-register" id="admin-payment-cash-register" hidden>
+              <div class="admin-payment-register__shell" aria-hidden="true">
+                <span class="admin-payment-register__brand">LECHAIM</span>
+                <span class="admin-payment-register__bezel"></span>
+              </div>
+              <div class="admin-payment-register__screen">
+                <div class="admin-payment-register__line">
+                  <span>חשבון</span>
+                  <strong id="admin-payment-reg-bill">€0.00</strong>
+                </div>
+                <div class="admin-payment-register__line" id="admin-payment-reg-given-row" hidden>
+                  <span>ניתן</span>
+                  <strong id="admin-payment-reg-given">€0.00</strong>
+                </div>
+                <div class="admin-payment-register__line" id="admin-payment-reg-tip-row" hidden>
+                  <span>טיפ</span>
+                  <strong id="admin-payment-reg-tip">€0.00</strong>
+                </div>
+                <div class="admin-payment-register__line is-warn" id="admin-payment-reg-missing-row" hidden>
+                  <span>חסר</span>
+                  <strong id="admin-payment-reg-missing">€0.00</strong>
+                </div>
+                <div class="admin-payment-register__actions" id="admin-payment-reg-actions" hidden>
+                  <div class="admin-payment-register__hero">
+                    <span>עודף ללקוח</span>
+                    <strong id="admin-payment-reg-change">€0.00</strong>
+                  </div>
+                  <div class="admin-payment-register__hero" id="admin-payment-reg-tip-out-row" hidden>
+                    <span>להוציא מהקופה עבור הטיפ</span>
+                    <strong id="admin-payment-reg-tip-out">€0.00</strong>
+                  </div>
+                  <div class="admin-payment-register__hero">
+                    <span>נשאר בקופה מהמכירה</span>
+                    <strong id="admin-payment-reg-till-sale">€0.00</strong>
+                  </div>
+                </div>
+              </div>
+              <div class="admin-payment-register__drawer" aria-hidden="true"></div>
+            </div>
           </section>
           <section class="admin-payment-pos__pad">
             <div class="admin-payment-modal__choices" id="admin-payment-choices">
@@ -1882,7 +1923,7 @@
   <script src="js/a11y-focus-trap.js" defer></script>
   <script src="js/kitchen-progress.js?v=2" defer></script>
   <script src="js/kitchen-dish-groups.js?v=1" defer></script>
-  <script src="js/admin-tables.js?v=96" defer></script>
+  <script src="js/admin-tables.js?v=97" defer></script>
   <script src="js/admin-shabbat.js?v=8" defer></script>
   <script src="js/place-reservations.js?v=9" defer></script>
   <script src="js/admin-reservations.js?v=7" defer></script>
