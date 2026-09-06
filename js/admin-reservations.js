@@ -190,6 +190,22 @@
     ].join('\n');
   }
 
+  function buildRejectedWhatsAppText(record) {
+    const name = String(record?.customer_name || '').trim() || 'אורחים';
+    const date = formatDateDisplay(record?.reservation_date);
+    const time = formatTime(record?.arrival_time);
+    const when = time && time !== '—' ? `${date} בשעה ${time}` : date;
+    return [
+      `היי ${name},`,
+      '',
+      `לצערי הזמנת המקום שלכם לתאריך ${when} נדחתה.`,
+      '',
+      'נשמח שתיצרו קשר לתיאום מועד אחר.',
+      '',
+      'מסעדת לחיים בכרתים.',
+    ].join('\n');
+  }
+
   function buildGenericWhatsAppText(record) {
     const name = String(record?.customer_name || '').trim() || 'אורחים';
     const nameEn = String(record?.customer_name || '').trim() || 'guests';
@@ -247,9 +263,11 @@
     const blank = opts.blank === true;
     const text = blank
       ? ''
-      : (record?.status === 'confirmed'
-        ? buildConfirmedWhatsAppText(record)
-        : buildGenericWhatsAppText(record));
+      : opts.reject
+        ? buildRejectedWhatsAppText(record)
+        : (record?.status === 'confirmed'
+          ? buildConfirmedWhatsAppText(record)
+          : buildGenericWhatsAppText(record));
     const textEnc = text ? encodeURIComponent(text) : '';
     const textQuery = textEnc ? `&text=${textEnc}` : '';
 
@@ -1051,7 +1069,7 @@
       if (nextStatus === 'cancelled') {
         const record = findPlaceRecord(id);
         if (record && String(record.status || 'pending') === 'pending') {
-          openWhatsAppWeb(record, { blank: true });
+          openWhatsAppWeb(record, { reject: true });
         }
       }
       await global.LechaimPlaceReservations.setStatus(id, nextStatus);
