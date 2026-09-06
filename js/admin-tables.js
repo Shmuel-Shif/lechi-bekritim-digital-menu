@@ -104,6 +104,9 @@
   let pendingBillCoupon = null;
   let paymentResolver = null;
   let pendingPaymentTotal = 0;
+  let dinerSplitLines = [];
+  let dinerDraftMethod = 'cash';
+  let dinerDraftOpen = true;
   let paymentBusy = false;
   let boardFilter = 'tables'; /* 'tables' | 'pickup' | 'delivery' | 'butcher' */
 
@@ -1135,11 +1138,18 @@
     if (input) input.value = '';
   }
 
+  function hidePaymentDinersPanel() {
+    const panel = document.getElementById('admin-payment-diners-panel');
+    if (panel) panel.hidden = true;
+    resetDinerSplitState();
+  }
+
   function hidePaymentExtraPanels() {
     hidePaymentSplitPanel();
     hidePaymentCashPanel();
     hidePaymentCreditPanel();
     hidePaymentVoidPanel();
+    hidePaymentDinersPanel();
   }
 
   function setPaymentLedger(heroLabel, heroAmount, rows) {
@@ -1227,6 +1237,7 @@
       isPaymentCashPanelOpen()
       || (document.getElementById('admin-payment-credit-panel') && !document.getElementById('admin-payment-credit-panel').hidden)
       || (document.getElementById('admin-payment-split-panel') && !document.getElementById('admin-payment-split-panel').hidden)
+      || (document.getElementById('admin-payment-diners-panel') && !document.getElementById('admin-payment-diners-panel').hidden)
       || (document.getElementById('admin-payment-void-panel') && !document.getElementById('admin-payment-void-panel').hidden)
     );
   }
@@ -1374,6 +1385,262 @@
       paidTipCash: tip,
       paidTipCredit: 0,
     };
+  }
+
+  /**
+   * One diner: net = given − returned (cash) or charged (credit).
+   * Change/return never enters paid_*.
+   */
+  function dinerNetLine(method, givenOrCharged, returned = 0) {
+    const isCredit = method === 'credit';
+    const given = roundMoney(givenOrCharged);
+    const change = isCredit ? 0 : roundMoney(returned);
+    if (given <= 0) return null;
+    const net = roundMoney(given - change);
+    if (net <= 0) return null;
+    return {
+      method: isCredit ? 'credit' : 'cash',
+      given,
+      change,
+      net,
+    };
+  }
+
+  function dinerSplitFold(bill, lines) {
+    let remaining = roundMoney(bill);
+    let paidCash = 0;
+    let paidCredit = 0;
+    let paidTipCash = 0;
+    let paidTipCredit = 0;
+    let paidNet = 0;
+    (lines || []).forEach((line) => {
+      const net = roundMoney(line.net);
+      paidNet = roundMoney(paidNet + net);
+      const sale = Math.min(net, remaining);
+      const tip = roundMoney(net - sale);
+      remaining = roundMoney(remaining - sale);
+      if (line.method === 'credit') {
+        paidCredit = roundMoney(paidCredit + sale);
+        paidTipCredit = roundMoney(paidTipCredit + tip);
+      } else {
+        paidCash = roundMoney(paidCash + sale);
+        paidTipCash = roundMoney(paidTipCash + tip);
+      }
+    });
+    const paidTip = roundMoney(paidTipCash + paidTipCredit);
+    let method = 'cash';
+    if (paidCash > 0 && paidCredit > 0) method = 'split';
+    else if (paidCredit > 0) method = 'credit';
+    return {
+      method,
+      paidTotal: roundMoney(bill),
+      paidCash,
+      paidCredit,
+      paidTip,
+      paidTipCash,
+      paidTipCredit,
+      remaining,
+      paidNet,
+    };
+  }
+
+  function resetDinerDraftFields() {
+    const givenInput = document.getElementById('admin-diner-given');
+    const returnInput = document.getElementById('admin-diner-return');
+    const charged = document.getElementById('admin-diner-charged');
+    if (givenInput) givenInput.value = '';
+    if (returnInput) returnInput.value = '0';
+    if (charged) charged.value = '';
+    document.querySelectorAll('#admin-diner-methods [data-diner-method]').forEach((btn) => {
+      btn.classList.toggle('is-on', btn.getAttribute('data-diner-method') === dinerDraftMethod);
+    });
+  }
+
+  function resetDinerSplitState() {
+    dinerSplitLines = [];
+    dinerDraftMethod = 'cash';
+    dinerDraftOpen = true;
+    resetDinerDraftFields();
+  }
+
+  function dinerLineLabel(line, index) {
+    if (line.method === 'credit') {
+      return {
+        title: `✓ סועד ${index + 1} · אשראי · ${formatMoneyEuro(line.net)}`,
+        meta: `חויב ${formatMoneyEuro(line.given)}`,
+      };
+    }
+    const bits = [`נתן ${formatMoneyEuro(line.given)}`];
+    bits.push(`החזר ${formatMoneyEuro(line.change)}`);
+    bits.push(`נטו ${formatMoneyEuro(line.net)}`);
+    return {
+      title: `✓ סועד ${index + 1} · ${bits.join(' · ')}`,
+      meta: '',
+    };
+  }
+
+  function dinerDraftLine() {
+    if (dinerDraftMethod === 'credit') {
+      const raw = String(document.getElementById('admin-diner-charged')?.value ?? '').trim();
+      if (raw === '') return null;
+      return dinerNetLine('credit', parseTenderedAmount(raw), 0);
+    }
+    const givenRaw = String(document.getElementById('admin-diner-given')?.value ?? '').trim();
+    if (givenRaw === '') return null;
+    const given = parseTenderedAmount(givenRaw);
+    const returned = parseTenderedAmount(document.getElementById('admin-diner-return')?.value);
+    if (roundMoney(returned - given) > 1e-9) return { invalid: 'return' };
+    return dinerNetLine('cash', given, returned);
+  }
+
+  function syncDinerSplitUi() {
+    const fold = dinerSplitFold(pendingPaymentTotal, dinerSplitLines);
+    const list = document.getElementById('admin-diner-list');
+    if (list) {
+      list.innerHTML = dinerSplitLines.map((line, index) => {
+        const label = dinerLineLabel(line, index);
+        const meta = label.meta
+          ? `<div class="admin-diner-line__meta">${escapeHtml(label.meta)}</div>`
+          : '';
+        return `<div class="admin-diner-line"><div class="admin-diner-line__title">${escapeHtml(label.title)}</div>${meta}</div>`;
+      }).join('');
+    }
+
+    const complete = fold.remaining === 0 && dinerSplitLines.length > 0;
+    const isCash = dinerDraftMethod === 'cash';
+    const showDraft = dinerDraftOpen && !complete;
+    setHidden('admin-diner-draft', !showDraft);
+    setHidden('admin-diner-add', complete || dinerDraftOpen || fold.remaining <= 0);
+    setHidden('admin-diner-done', !complete);
+    setHidden('admin-diner-cash-fields', !isCash);
+    setHidden('admin-diner-credit-fields', isCash);
+    setText('admin-diner-now', `סועד ${dinerSplitLines.length + 1}`);
+
+    const draft = dinerDraftLine();
+    const draftOk = Boolean(draft && draft.net > 0 && !draft.invalid);
+    const previewLines = draftOk ? dinerSplitLines.concat(draft) : dinerSplitLines;
+    const preview = dinerSplitFold(pendingPaymentTotal, previewLines);
+    const showMath = showDraft && (draftOk || (draft && draft.invalid));
+    setHidden('admin-diner-math', !showMath);
+    if (showMath) {
+      setText('admin-diner-net', formatMoneyEuro(draftOk ? draft.net : 0));
+      setText('admin-diner-left', formatMoneyEuro(preview.remaining));
+    }
+
+    const hint = document.getElementById('admin-diner-hint');
+    if (hint) {
+      hint.classList.toggle('is-short', Boolean(draft && draft.invalid));
+      hint.classList.toggle('is-ok', complete);
+      if (complete) hint.textContent = '';
+      else if (draft && draft.invalid === 'return') hint.textContent = 'ההחזר גדול מהסכום שניתן';
+      else hint.textContent = '';
+    }
+    if (complete) {
+      setText('admin-diner-done-paid', formatMoneyEuro(fold.paidNet));
+      setText('admin-diner-done-tip', formatMoneyEuro(fold.paidTip));
+    }
+
+    const rows = [
+      { label: 'שולם', value: formatMoneyEuro(preview.paidNet) },
+      { label: 'נשאר', value: formatMoneyEuro(preview.remaining), warn: preview.remaining !== 0 },
+    ];
+    if (preview.paidTip > 0 || complete) rows.push({ label: 'טיפ', value: formatMoneyEuro(preview.paidTip) });
+    setPaymentLedger('חשבון', fold.paidTotal, rows);
+
+    const finish = document.getElementById('admin-diner-finish');
+    if (finish) finish.disabled = !draftOk || fold.remaining <= 0;
+    const undo = document.getElementById('admin-diner-undo');
+    if (undo) undo.disabled = dinerSplitLines.length === 0;
+    const confirmBtn = document.getElementById('admin-diner-confirm');
+    if (confirmBtn) {
+      confirmBtn.hidden = !complete;
+      confirmBtn.disabled = !complete;
+    }
+  }
+
+  function setDinerDraftMethod(method) {
+    dinerDraftMethod = method === 'credit' ? 'credit' : 'cash';
+    document.querySelectorAll('#admin-diner-methods [data-diner-method]').forEach((btn) => {
+      btn.classList.toggle('is-on', btn.getAttribute('data-diner-method') === dinerDraftMethod);
+    });
+    syncDinerSplitUi();
+    if (dinerDraftMethod === 'credit') document.getElementById('admin-diner-charged')?.focus();
+    else document.getElementById('admin-diner-given')?.focus();
+  }
+
+  function finishCurrentDiner() {
+    const fold = dinerSplitFold(pendingPaymentTotal, dinerSplitLines);
+    if (fold.remaining <= 0) {
+      syncDinerSplitUi();
+      return;
+    }
+    const line = dinerDraftLine();
+    if (!line || line.invalid || line.net <= 0) {
+      syncDinerSplitUi();
+      return;
+    }
+    dinerSplitLines.push(line);
+    dinerDraftOpen = false;
+    resetDinerDraftFields();
+    syncDinerSplitUi();
+    document.getElementById('admin-diner-add')?.focus();
+  }
+
+  function openNextDiner() {
+    const fold = dinerSplitFold(pendingPaymentTotal, dinerSplitLines);
+    if (fold.remaining <= 0) {
+      syncDinerSplitUi();
+      return;
+    }
+    dinerDraftOpen = true;
+    resetDinerDraftFields();
+    syncDinerSplitUi();
+    if (dinerDraftMethod === 'credit') document.getElementById('admin-diner-charged')?.focus();
+    else document.getElementById('admin-diner-given')?.focus();
+  }
+
+  function undoLastDiner() {
+    dinerSplitLines.pop();
+    dinerDraftOpen = true;
+    resetDinerDraftFields();
+    syncDinerSplitUi();
+    if (dinerDraftMethod === 'credit') document.getElementById('admin-diner-charged')?.focus();
+    else document.getElementById('admin-diner-given')?.focus();
+  }
+
+  function abortDinerSplit() {
+    hidePaymentExtraPanels();
+    syncPaymentHomeChrome();
+    document.getElementById('admin-payment-cash')?.focus();
+  }
+
+  function confirmPaymentDiners() {
+    const fold = dinerSplitFold(pendingPaymentTotal, dinerSplitLines);
+    if (fold.remaining !== 0 || dinerSplitLines.length === 0) {
+      syncDinerSplitUi();
+      return;
+    }
+    closePaymentModal(buildPaymentResult(
+      fold.method,
+      fold.paidTotal,
+      fold.paidCash,
+      fold.paidCredit,
+      fold.paidTip,
+      fold.paidTipCash,
+      fold.paidTipCredit
+    ));
+  }
+
+  function showPaymentDinersPanel() {
+    hidePaymentExtraPanels();
+    const panel = document.getElementById('admin-payment-diners-panel');
+    if (!panel) return;
+    enterPaymentStep('חלוקה בין סועדים');
+    panel.hidden = false;
+    resetDinerDraftFields();
+    showPaymentLedgerHome();
+    syncDinerSplitUi();
+    document.getElementById('admin-diner-given')?.focus();
   }
 
   function confirmPaymentCash() {
@@ -4777,6 +5044,49 @@
     document.getElementById('admin-payment-split')?.addEventListener('click', () => {
       showPaymentSplitPanel();
     });
+    document.getElementById('admin-payment-diners')?.addEventListener('click', () => {
+      showPaymentDinersPanel();
+    });
+    document.getElementById('admin-diner-methods')?.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-diner-method]');
+      if (!btn) return;
+      setDinerDraftMethod(btn.getAttribute('data-diner-method'));
+    });
+    ['admin-diner-given', 'admin-diner-return', 'admin-diner-charged'].forEach((id) => {
+      document.getElementById(id)?.addEventListener('input', () => {
+        syncDinerSplitUi();
+      });
+    });
+    document.getElementById('admin-diner-given')?.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      document.getElementById('admin-diner-return')?.focus();
+    });
+    document.getElementById('admin-diner-return')?.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      finishCurrentDiner();
+    });
+    document.getElementById('admin-diner-charged')?.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      finishCurrentDiner();
+    });
+    document.getElementById('admin-diner-finish')?.addEventListener('click', () => {
+      finishCurrentDiner();
+    });
+    document.getElementById('admin-diner-add')?.addEventListener('click', () => {
+      openNextDiner();
+    });
+    document.getElementById('admin-diner-undo')?.addEventListener('click', () => {
+      undoLastDiner();
+    });
+    document.getElementById('admin-diner-abort')?.addEventListener('click', () => {
+      abortDinerSplit();
+    });
+    document.getElementById('admin-diner-confirm')?.addEventListener('click', () => {
+      confirmPaymentDiners();
+    });
     document.getElementById('admin-payment-void')?.addEventListener('click', () => {
       showPaymentVoidPanel();
     });
@@ -5029,6 +5339,8 @@
       roundMoney,
       cashTenderState,
       cashCloseAmounts,
+      dinerNetLine,
+      dinerSplitFold,
     },
   };
 

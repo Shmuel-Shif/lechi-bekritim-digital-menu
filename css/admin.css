@@ -5003,8 +5003,10 @@ body.admin-inventory-open {
   font-weight: 800;
 }
 
-.admin-payment-modal__choice--split {
-  grid-column: 1 / -1;
+.admin-payment-modal__choice--split,
+.admin-payment-modal__choice--diners {
+  min-height: 3.6rem;
+  font-size: 1.02rem;
 }
 
 .admin-payment-modal__choice--void {
@@ -5092,9 +5094,131 @@ body.admin-inventory-open {
 
 #admin-payment-tender-input,
 #admin-payment-cash-input,
-#admin-payment-credit-input {
+#admin-payment-credit-input,
+#admin-diner-given,
+#admin-diner-return,
+#admin-diner-charged {
   min-height: 3.4rem;
   font-size: 1.35rem;
+}
+
+.admin-diner-list {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.admin-diner-list:empty {
+  display: none;
+}
+
+.admin-diner-line {
+  display: grid;
+  gap: 0.12rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid rgba(21, 38, 64, 0.12);
+  text-align: right;
+  color: var(--color-navy, #152640);
+}
+
+.admin-diner-line__title {
+  font-size: 0.98rem;
+  font-weight: 800;
+}
+
+.admin-diner-line__meta {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--color-text-muted, #58677b);
+}
+
+.admin-diner-methods {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+}
+
+.admin-diner-methods button {
+  min-height: 3.1rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 12px;
+  border: 1.5px solid rgba(21, 38, 64, 0.22);
+  background: #fff;
+  color: var(--color-navy, #152640);
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.admin-diner-methods button.is-on {
+  background: #152640;
+  border-color: #152640;
+  color: #fff8ee;
+}
+
+.admin-diner-math {
+  display: grid;
+  gap: 0.28rem;
+  padding: 0.55rem 0.15rem 0.15rem;
+}
+
+.admin-diner-math > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--color-navy, #152640);
+}
+
+.admin-diner-math > div.is-warn {
+  color: #9b2c2c;
+}
+
+.admin-diner-now {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--color-navy, #152640);
+}
+
+.admin-diner-add {
+  min-height: 2.7rem;
+  width: 100%;
+  font-size: 1.02rem;
+  font-weight: 800;
+}
+
+.admin-diner-done {
+  display: grid;
+  gap: 0.28rem;
+  text-align: right;
+  color: var(--color-navy, #152640);
+}
+
+.admin-diner-done[hidden] {
+  display: none !important;
+}
+
+.admin-diner-done__title {
+  margin: 0 0 0.2rem;
+  font-size: 1.08rem;
+  font-weight: 800;
+}
+
+.admin-diner-done__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.admin-diner-toolbar {
+  display: grid;
+  gap: 0.45rem;
 }
 
 .admin-payment-split__hint.is-short {
