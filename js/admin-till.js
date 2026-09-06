@@ -39,9 +39,9 @@
   const editCreditInput = document.getElementById('till-edit-credit');
   const editTipInput = document.getElementById('till-edit-tip');
   const editInclusiveEl = document.getElementById('till-edit-inclusive');
-  const editCodeInput = document.getElementById('till-edit-code');
-  const editCodeWrap = document.getElementById('till-edit-code-wrap');
   const editReportError = document.getElementById('till-edit-report-error');
+
+  const EDIT_BASE_KEY = 'lechaim-till-edit-base';
 
   let cache = emptyCache('');
   let started = false;
@@ -61,6 +61,7 @@
       date: date || '',
       live: { cash: 0, credit: 0, tip: 0 },
       report: null,
+      base: null,
       opening: null,
       products: [],
       layersMissing: false,
@@ -216,16 +217,53 @@
       || roundMoney(report.tip) > 0;
   }
 
+  function readEditBase(date) {
+    try {
+      const raw = window.localStorage.getItem(`${EDIT_BASE_KEY}:${date}`);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return null;
+      return {
+        cash: roundMoney(parsed.cash),
+        credit: roundMoney(parsed.credit),
+        tip: roundMoney(parsed.tip),
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function writeEditBase(date, live) {
+    const base = {
+      cash: roundMoney(live?.cash),
+      credit: roundMoney(live?.credit),
+      tip: roundMoney(live?.tip),
+    };
+    try {
+      window.localStorage.setItem(`${EDIT_BASE_KEY}:${date}`, JSON.stringify(base));
+    } catch (_) { /* ignore quota */ }
+    return base;
+  }
+
   /**
-   * Card shows the higher of live closes and a saved edit.
-   * A new cash close (e.g. €77) always appears; a saved €142 cannot freeze the day.
+   * After save, the card shows the edited numbers.
+   * New closes after that save are added on top (live − snapshot).
+   * Without a snapshot, keep the higher of live vs edit so old rows do not hide sales.
    */
-  function displayedSales(live, report) {
+  function displayedSales(live, report, base) {
     const cash = roundMoney(live?.cash);
     const credit = roundMoney(live?.credit);
     const tip = roundMoney(live?.tip);
     if (!hasSavedReport(report)) {
       return { cash, credit, tip, source: 'live' };
+    }
+    if (base) {
+      return {
+        cash: roundMoney(roundMoney(report.cash) + Math.max(0, cash - roundMoney(base.cash))),
+        credit: roundMoney(roundMoney(report.credit) + Math.max(0, credit - roundMoney(base.credit))),
+        tip: roundMoney(roundMoney(report.tip) + Math.max(0, tip - roundMoney(base.tip))),
+        source: 'edited',
+      };
     }
     return {
       cash: Math.max(cash, roundMoney(report.cash)),
@@ -405,7 +443,7 @@
   }
 
   function renderSummary() {
-    const shown = displayedSales(cache.live, cache.report);
+    const shown = displayedSales(cache.live, cache.report, cache.base);
     const sales = roundMoney(shown.cash + shown.credit);
     if (dateLabelEl) dateLabelEl.textContent = formatDisplayDate(cache.date);
     if (totalEl) totalEl.textContent = formatMoney(sales);
@@ -419,7 +457,7 @@
   }
 
   function buildWhatsAppText() {
-    const shown = displayedSales(cache.live, cache.report);
+    const shown = displayedSales(cache.live, cache.report, cache.base);
     const sales = roundMoney(shown.cash + shown.credit);
     return [
       formatDisplayDate(cache.date),
@@ -572,6 +610,7 @@
         date,
         live: sums,
         report: layers.report,
+        base: readEditBase(date),
         opening: layers.opening,
         products: beforeGoLive ? [] : products,
         layersMissing: layers.missing,
@@ -624,26 +663,14 @@
     editInclusiveEl.textContent = formatMoney(inclusiveTotal(cash, credit, tip));
   }
 
-  function hideEditCode() {
-    if (editCodeInput) editCodeInput.value = '';
-    if (editCodeWrap) editCodeWrap.hidden = true;
-  }
-
-  function revealEditCode() {
-    if (editCodeWrap) editCodeWrap.hidden = false;
-    window.setTimeout(() => editCodeInput?.focus(), 50);
-  }
-
   function openEditReportModal() {
-    const shown = displayedSales(cache.live, cache.report);
+    const shown = displayedSales(cache.live, cache.report, cache.base);
     if (editReportDateEl) {
       editReportDateEl.textContent = formatDisplayDate(dateInput?.value || cache.date || todayLocalYmd());
     }
     if (editCashInput) editCashInput.value = String(shown.cash);
     if (editCreditInput) editCreditInput.value = String(shown.credit);
     if (editTipInput) editTipInput.value = String(shown.tip);
-    if (editCodeInput) editCodeInput.value = '';
-    if (editCodeWrap) editCodeWrap.hidden = false;
     showEditReportError('');
     updateEditInclusive();
     if (!editReportModal) return;
@@ -654,22 +681,11 @@
   }
 
   function closeEditReportModal() {
-    hideEditCode();
     if (!editReportModal) return;
     editReportModal.hidden = true;
     editReportModal.setAttribute('aria-hidden', 'true');
     const open = document.querySelector('.admin-modal:not([hidden])');
     if (!open) document.body.classList.remove('admin-modal-open');
-  }
-
-  async function verifyStaffSettingsCode(code) {
-    const sb = getSb() || OrdersApi()?.getClient?.();
-    if (!sb) {
-      return { ok: false, error: 'not_connected' };
-    }
-    const { data, error } = await sb.rpc('staff_settings_verify_code', { p_code: code });
-    if (error) throw error;
-    return data || {};
   }
 
   async function submitEditReport(event) {
@@ -682,12 +698,6 @@
       showEditReportError('הזינו סכומים תקינים');
       return;
     }
-    if (editCodeWrap) editCodeWrap.hidden = false;
-    const code = editCodeInput?.value || '';
-    if (!String(code).trim()) {
-      showEditReportError('הזינו קוד גישה');
-      return;
-    }
     const api = OrdersApi();
     const date = dateInput?.value || cache.date || todayLocalYmd();
     if (typeof api?.upsertTillDayReport !== 'function') {
@@ -697,30 +707,18 @@
     editReportBusy = true;
     showEditReportError('');
     try {
-      const verified = await verifyStaffSettingsCode(code);
-      if (editCodeInput) editCodeInput.value = '';
-      if (!verified.ok) {
-        if (verified.error === 'invalid_code') showEditReportError('קוד שגוי');
-        else if (verified.error === 'code_not_set') showEditReportError('קוד הגישה עדיין לא הוגדר ב-Supabase');
-        else if (verified.error === 'not_authenticated') showEditReportError('יש להתחבר לאדמין');
-        else if (verified.error === 'not_connected') showEditReportError('Supabase לא מחובר');
-        else showEditReportError(verified.error || 'שגיאה');
-        return;
-      }
       const row = await api.upsertTillDayReport(date, { cash, credit, tip });
       cache.report = {
         cash: roundMoney(row?.cash ?? cash),
         credit: roundMoney(row?.credit ?? credit),
         tip: roundMoney(row?.tip ?? tip),
       };
+      cache.base = writeEditBase(date, cache.live);
       renderSummary();
       closeEditReportModal();
     } catch (err) {
       console.error('[admin-till] edit report save', err);
-      const msg = String(err?.message || '');
-      if (/staff_settings_verify_code|function/i.test(msg)) {
-        showEditReportError('יש להריץ את supabase-till-tip-and-void-gate.sql ב-Supabase');
-      } else if (isLayersMissingError(err)) {
+      if (isLayersMissingError(err)) {
         showEditReportError('חסרות טבלאות קופה יומית — הריצו supabase-till-day-layers.sql');
       } else {
         showEditReportError('לא ניתן לשמור את הדוח');
