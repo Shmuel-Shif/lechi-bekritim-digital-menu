@@ -6292,6 +6292,9 @@
           );
           if (!open || !Number.isFinite(dineInTable) || remoteTable !== dineInTable) {
             mappedOk = false;
+          } else if (typeof api.isReusableDineInSessionToday === 'function'
+            && !api.isReusableDineInSessionToday(remote)) {
+            mappedOk = false;
           }
         } catch (err) {
           console.warn('[dual-write] mapped dine-in session check failed', err);

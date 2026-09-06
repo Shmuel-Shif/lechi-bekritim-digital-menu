@@ -419,10 +419,6 @@
               <p class="admin-till-card__date" id="admin-till-date-label">—</p>
               <button type="button" class="admin-till-card__edit" id="admin-till-edit-report">עריכה</button>
             </div>
-            <div class="admin-till-card__source-row" id="admin-till-source-row" hidden>
-              <p class="admin-till-card__source" id="admin-till-source">דוח ערוך — לא המכירות החיות</p>
-              <button type="button" class="admin-till-card__edit" id="admin-till-clear-report">חזור למכירות</button>
-            </div>
             <div class="admin-till-card__row admin-till-card__row--total">
               <span class="admin-till-card__label">סה״כ מכירות</span>
               <strong class="admin-till-card__value" id="admin-till-total">€0</strong>
@@ -1074,6 +1070,7 @@
       <div class="admin-modal__panel reservation-modal__panel" role="dialog" aria-modal="true" aria-labelledby="till-edit-report-title">
         <h2 class="reservation-modal__title" id="till-edit-report-title">עריכת דוח מכירות</h2>
         <p class="docs-vault-hint" id="till-edit-report-date">—</p>
+        <p class="docs-vault-hint">המכירות החיות תמיד מוצגות. העריכה יכולה להוסיף סכום — לא להסתיר סגירות.</p>
         <form id="till-edit-report-form" class="reservation-form" novalidate>
           <label class="admin-field">
             <span>מזומן</span>
@@ -1096,7 +1093,6 @@
             <input type="tel" class="admin-code-input" id="till-edit-code" inputmode="numeric" pattern="[0-9]*" maxlength="64" dir="ltr" autocomplete="one-time-code" spellcheck="false">
           </label>
           <p class="admin-error" id="till-edit-report-error" role="alert" hidden></p>
-          <button type="button" class="admin-btn admin-btn--ghost" id="till-edit-report-clear" hidden>חזור למכירות החיות</button>
           <div class="reservation-modal__actions">
             <button type="submit" class="admin-btn admin-btn--primary">שמירה</button>
             <button type="button" class="admin-btn admin-btn--ghost" id="till-edit-report-cancel">ביטול</button>
@@ -1914,7 +1910,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
   <script src="js/order-types.js" defer></script>
-  <script src="js/supabase-order-service.js?v=33" defer></script>
+  <script src="js/supabase-order-service.js?v=34" defer></script>
   <script src="js/menu-data.js?v=103" defer></script>
   <script src="js/opening-hours.js?v=12" defer></script>
   <script src="js/app-settings.js?v=6" defer></script>
@@ -1937,7 +1933,7 @@
   <script src="js/admin-kitchen-board.js?v=34" defer></script>
   <script src="js/admin-history.js?v=2" defer></script>
   <script src="js/admin-coupons.js" defer></script>
-  <script src="js/admin-till.js?v=10" defer></script>
+  <script src="js/admin-till.js?v=12" defer></script>
   <script src="js/staff-hours-xlsx.js?v=4" defer></script>
   <script src="js/admin-staff-hours.js?v=22" defer></script>
   <script src="js/docs-monthly-xlsx.js?v=1" defer></script>

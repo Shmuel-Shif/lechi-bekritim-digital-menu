@@ -193,6 +193,62 @@
     return (Date.now() - created) > SHARED_DRAFT_TTL_MS;
   }
 
+  function padLocalYmd(n) {
+    return String(n).padStart(2, '0');
+  }
+
+  /** Local calendar day of the restaurant device (same convention as the till). */
+  function localBusinessYmd(value) {
+    const d = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    return `${d.getFullYear()}-${padLocalYmd(d.getMonth() + 1)}-${padLocalYmd(d.getDate())}`;
+  }
+
+  function isSameLocalBusinessDay(iso) {
+    const created = localBusinessYmd(iso);
+    return Boolean(created) && created === localBusinessYmd(new Date());
+  }
+
+  function isOpenDineInRow(row) {
+    if (!row || String(row.order_type || '') !== 'dine_in') return false;
+    return TABLE_SESSION_STATUSES.includes(String(row.status || ''));
+  }
+
+  /**
+   * Same-day open dine-in only. Yesterday's leftover must not be reused
+   * by a new guest today.
+   */
+  function isReusableDineInSessionToday(row) {
+    return isOpenDineInRow(row) && isSameLocalBusinessDay(row.created_at);
+  }
+
+  /**
+   * Park a previous-day open dine-in session so a new one can start.
+   * Sets status=closed + closed_at only. Does not write payment_method or paid_*.
+   * Not a sale — till / sold-products skip rows without cash/credit/split.
+   */
+  async function parkPreviousDayOpenDineInSession(session) {
+    if (!session?.session_id || !isOpenDineInRow(session)) return null;
+    if (isSameLocalBusinessDay(session.created_at)) return null;
+    const sb = getClient();
+    const { data, error } = await sb
+      .from(TABLE_SESSIONS)
+      .update({
+        status: 'closed',
+        closed_at: new Date().toISOString(),
+      })
+      .eq('session_id', session.session_id)
+      .eq('order_type', 'dine_in')
+      .in('status', TABLE_SESSION_STATUSES)
+      .select('session_id, status, closed_at, payment_method, paid_cash, paid_credit, paid_tip')
+      .maybeSingle();
+    if (error) {
+      console.warn('[LechaimSupabaseOrders] parkPreviousDayOpenDineInSession', error);
+      return null;
+    }
+    return data || null;
+  }
+
   function toNumberOrNull(value) {
     if (value == null || value === '') return null;
     const n = Number(value);
@@ -377,6 +433,9 @@
       if (orderType === 'dine_in' && isUniqueViolation(error) && row.table_number != null) {
         const existing = await findDineInSessionForTable(row.table_number);
         if (existing) return existing;
+        /* Previous-day leftover was parked — retry insert for today's session. */
+        lastError = error;
+        continue;
       }
 
       /* Unique public_order_no race — retry with a fresh number */
@@ -1009,12 +1068,14 @@
     const sb = getClient();
     const { data, error } = await sb
       .from(TABLE_SESSIONS)
-      .select('session_id, order_type, table_number, status')
+      .select('session_id, order_type, table_number, status, created_at')
       .in('status', OPEN_SESSION_STATUSES)
       .order('updated_at', { ascending: false });
 
     throwIfError(error, 'getOpenSessions');
-    return data || [];
+    return (data || []).filter((row) => (
+      String(row.order_type || '') !== 'dine_in' || isSameLocalBusinessDay(row.created_at)
+    ));
   }
 
   /**
@@ -2715,6 +2776,10 @@
     }
 
     const orderType = normalizeOrderType(session.order_type) || String(session.order_type || '');
+    if (orderType === 'dine_in' && !isSameLocalBusinessDay(session.created_at)) {
+      throw new Error('לא ניתן לשחזר הזמנה מיום קודם. פתחו שולחן חדש ללקוח של היום.');
+    }
+
     if (orderType === 'dine_in' && session.table_number != null) {
       const sb = getClient();
       const { data: openRow, error: openErr } = await sb
@@ -3304,10 +3369,17 @@
         .order('updated_at', { ascending: false })
         .limit(1);
       throwIfError(retry.error, 'findDineInSessionForTable');
-      return retry.data?.[0] || null;
+      return resolveReusableDineInSession(retry.data?.[0] || null);
     }
     throwIfError(error, 'findDineInSessionForTable');
-    return data?.[0] || null;
+    return resolveReusableDineInSession(data?.[0] || null);
+  }
+
+  async function resolveReusableDineInSession(row) {
+    if (!row) return null;
+    if (isReusableDineInSessionToday(row)) return row;
+    await parkPreviousDayOpenDineInSession(row);
+    return null;
   }
 
   async function closeStaleSharedDraft(sessionId) {
@@ -3543,6 +3615,8 @@
     setSessionInitialOrderDone,
     markInitialOrderDone,
     findDineInSessionForTable,
+    isReusableDineInSessionToday,
+    isSameLocalBusinessDay,
     ensureSharedDraftSession,
     markReservationQuestionAnswered,
     promoteDraftSession,
