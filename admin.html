@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=127">
+  <link rel="stylesheet" href="css/admin.css?v=128">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
 <body>
@@ -419,7 +419,10 @@
               <p class="admin-till-card__date" id="admin-till-date-label">—</p>
               <button type="button" class="admin-till-card__edit" id="admin-till-edit-report">עריכה</button>
             </div>
-            <p class="admin-till-card__source" id="admin-till-source" hidden>דוח ערוך</p>
+            <div class="admin-till-card__source-row" id="admin-till-source-row" hidden>
+              <p class="admin-till-card__source" id="admin-till-source">דוח ערוך — לא המכירות החיות</p>
+              <button type="button" class="admin-till-card__edit" id="admin-till-clear-report">חזור למכירות</button>
+            </div>
             <div class="admin-till-card__row admin-till-card__row--total">
               <span class="admin-till-card__label">סה״כ מכירות</span>
               <strong class="admin-till-card__value" id="admin-till-total">€0</strong>
@@ -1093,6 +1096,7 @@
             <input type="tel" class="admin-code-input" id="till-edit-code" inputmode="numeric" pattern="[0-9]*" maxlength="64" dir="ltr" autocomplete="one-time-code" spellcheck="false">
           </label>
           <p class="admin-error" id="till-edit-report-error" role="alert" hidden></p>
+          <button type="button" class="admin-btn admin-btn--ghost" id="till-edit-report-clear" hidden>חזור למכירות החיות</button>
           <div class="reservation-modal__actions">
             <button type="submit" class="admin-btn admin-btn--primary">שמירה</button>
             <button type="button" class="admin-btn admin-btn--ghost" id="till-edit-report-cancel">ביטול</button>
@@ -1910,7 +1914,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
   <script src="js/order-types.js" defer></script>
-  <script src="js/supabase-order-service.js?v=32" defer></script>
+  <script src="js/supabase-order-service.js?v=33" defer></script>
   <script src="js/menu-data.js?v=103" defer></script>
   <script src="js/opening-hours.js?v=12" defer></script>
   <script src="js/app-settings.js?v=6" defer></script>
@@ -1933,7 +1937,7 @@
   <script src="js/admin-kitchen-board.js?v=34" defer></script>
   <script src="js/admin-history.js?v=2" defer></script>
   <script src="js/admin-coupons.js" defer></script>
-  <script src="js/admin-till.js?v=9" defer></script>
+  <script src="js/admin-till.js?v=10" defer></script>
   <script src="js/staff-hours-xlsx.js?v=4" defer></script>
   <script src="js/admin-staff-hours.js?v=22" defer></script>
   <script src="js/docs-monthly-xlsx.js?v=1" defer></script>

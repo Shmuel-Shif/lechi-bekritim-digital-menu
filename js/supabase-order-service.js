@@ -2508,6 +2508,21 @@
   }
 
   /**
+   * Remove the edited daily sales overlay so the card shows live closes again.
+   * Does not touch order_sessions or paid_*.
+   * @param {string} dateStr YYYY-MM-DD
+   */
+  async function deleteTillDayReport(dateStr) {
+    const sb = getClient();
+    const day = assertTillBusinessDate(dateStr, 'deleteTillDayReport');
+    const { error } = await sb
+      .from(TILL_DAY_REPORTS)
+      .delete()
+      .eq('business_date', day);
+    throwTillLayerError(error, 'deleteTillDayReport', TILL_DAY_REPORTS);
+  }
+
+  /**
    * Closed dine-in sessions for one table (newest first), with nested orders + items.
    * @param {number} tableNumber
    * @param {{ limit?: number }} [options]
@@ -3497,6 +3512,7 @@
     upsertTillDayOpening,
     getTillDayReport,
     upsertTillDayReport,
+    deleteTillDayReport,
     getDineInCloseAt,
     startDineInCloseCountdown,
     clearDineInCloseCountdown,

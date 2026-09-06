@@ -4449,6 +4449,18 @@ body.admin-inventory-open {
   color: var(--color-text-muted, #58677b);
 }
 
+.admin-till-card__source-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 0.75rem;
+}
+
+.admin-till-card__source-row[hidden] {
+  display: none !important;
+}
+
 .admin-till-card__source {
   margin: 0;
   font-size: 0.78rem;

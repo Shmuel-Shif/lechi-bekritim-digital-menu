@@ -32,6 +32,8 @@
   const openingInput = document.getElementById('admin-till-opening-input');
   const openingSaveBtn = document.getElementById('admin-till-opening-save');
   const sourceEl = document.getElementById('admin-till-source');
+  const sourceRowEl = document.getElementById('admin-till-source-row');
+  const clearReportBtn = document.getElementById('admin-till-clear-report');
   const editReportBtn = document.getElementById('admin-till-edit-report');
   const editReportModal = document.getElementById('till-edit-report-modal');
   const editReportForm = document.getElementById('till-edit-report-form');
@@ -43,6 +45,7 @@
   const editCodeInput = document.getElementById('till-edit-code');
   const editCodeWrap = document.getElementById('till-edit-code-wrap');
   const editReportError = document.getElementById('till-edit-report-error');
+  const editClearBtn = document.getElementById('till-edit-report-clear');
 
   let cache = emptyCache('');
   let started = false;
@@ -210,8 +213,16 @@
     return roundMoney(roundMoney(cash) + roundMoney(credit) + roundMoney(tip));
   }
 
+  /** A 0/0/0 edited row must not hide live closes (e.g. €142 cash). */
+  function isActiveEditedReport(report) {
+    if (!report) return false;
+    return roundMoney(report.cash) > 0
+      || roundMoney(report.credit) > 0
+      || roundMoney(report.tip) > 0;
+  }
+
   function displayedSales(live, report) {
-    if (report) {
+    if (isActiveEditedReport(report)) {
       return {
         cash: roundMoney(report.cash),
         credit: roundMoney(report.credit),
@@ -404,11 +415,13 @@
     if (cashEl) cashEl.textContent = formatMoney(shown.cash);
     if (creditEl) creditEl.textContent = formatMoney(shown.credit);
     if (tipEl) tipEl.textContent = formatMoney(shown.tip);
+    const edited = shown.source === 'edited';
+    if (sourceRowEl) sourceRowEl.hidden = !edited;
     if (sourceEl) {
-      const edited = shown.source === 'edited';
       sourceEl.hidden = !edited;
-      sourceEl.textContent = edited ? 'דוח ערוך' : '';
+      sourceEl.textContent = edited ? 'דוח ערוך — לא המכירות החיות' : '';
     }
+    if (editClearBtn) editClearBtn.hidden = !isActiveEditedReport(cache.report);
     if (openingInput && document.activeElement !== openingInput) {
       openingInput.value = cache.opening == null ? '' : String(cache.opening);
     }
@@ -630,6 +643,7 @@
     if (editCreditInput) editCreditInput.value = String(shown.credit);
     if (editTipInput) editTipInput.value = String(shown.tip);
     if (editCodeInput) editCodeInput.value = '';
+    if (editClearBtn) editClearBtn.hidden = !isActiveEditedReport(cache.report);
     hideEditCode();
     showEditReportError('');
     updateEditInclusive();
@@ -763,6 +777,75 @@
     }
   }
 
+  function requestClearEditedReport() {
+    if (!isActiveEditedReport(cache.report)) return;
+    if (editReportModal?.hidden) openEditReportModal();
+    if (editClearBtn) editClearBtn.hidden = false;
+    showEditReportError('');
+    if (editCodeWrap?.hidden) {
+      revealEditCode();
+      showEditReportError('הזינו קוד גישה כדי לחזור למכירות החיות');
+      return;
+    }
+    void submitClearEditedReport();
+  }
+
+  async function submitClearEditedReport() {
+    if (editReportBusy) return;
+    if (!isActiveEditedReport(cache.report)) {
+      closeEditReportModal();
+      return;
+    }
+    if (editCodeWrap?.hidden) {
+      revealEditCode();
+      showEditReportError('הזינו קוד גישה כדי לחזור למכירות החיות');
+      return;
+    }
+    const code = editCodeInput?.value || '';
+    if (!String(code).trim()) {
+      showEditReportError('הזינו קוד גישה');
+      return;
+    }
+    const api = OrdersApi();
+    const date = dateInput?.value || cache.date || todayLocalYmd();
+    if (typeof api?.deleteTillDayReport !== 'function') {
+      showEditReportError('חסרות טבלאות קופה יומית — הריצו supabase-till-day-layers.sql');
+      return;
+    }
+    editReportBusy = true;
+    showEditReportError('');
+    try {
+      const verified = await verifyStaffSettingsCode(code);
+      if (editCodeInput) editCodeInput.value = '';
+      if (!verified.ok) {
+        if (verified.error === 'invalid_code') showEditReportError('קוד שגוי');
+        else if (verified.error === 'code_not_set') showEditReportError('קוד הגישה עדיין לא הוגדר ב-Supabase');
+        else if (verified.error === 'not_authenticated') showEditReportError('יש להתחבר לאדמין');
+        else if (verified.error === 'not_connected') showEditReportError('Supabase לא מחובר');
+        else showEditReportError(verified.error || 'שגיאה');
+        return;
+      }
+      await api.deleteTillDayReport(date);
+      cache.report = null;
+      renderSummary();
+      closeEditReportModal();
+    } catch (err) {
+      console.error('[admin-till] clear edited report', err);
+      const msg = String(err?.message || '');
+      if (/staff_settings_verify_code|function/i.test(msg)) {
+        showEditReportError('יש להריץ את supabase-till-tip-and-void-gate.sql ב-Supabase');
+      } else if (isLayersMissingError(err)) {
+        showEditReportError('חסרות טבלאות קופה יומית — הריצו supabase-till-day-layers.sql');
+      } else if (err?.code === '42501' || /permission denied|42501/i.test(msg)) {
+        showEditReportError('חסרה הרשאת מחיקה — הריצו שוב supabase-till-day-layers.sql');
+      } else {
+        showEditReportError('לא ניתן לחזור למכירות החיות');
+      }
+    } finally {
+      editReportBusy = false;
+    }
+  }
+
   function start() {
     if (!dateInput && !cashEl) return;
     if (started) return;
@@ -798,6 +881,8 @@
       submitOpening(event).catch(() => {});
     });
     editReportBtn?.addEventListener('click', openEditReportModal);
+    clearReportBtn?.addEventListener('click', requestClearEditedReport);
+    editClearBtn?.addEventListener('click', requestClearEditedReport);
     editReportForm?.addEventListener('submit', (event) => {
       submitEditReport(event).catch(() => {});
     });
@@ -823,6 +908,7 @@
       sessionTipCreditAmount,
       buildSummary,
       displayedSales,
+      isActiveEditedReport,
       inclusiveTotal,
       roundMoney,
     },

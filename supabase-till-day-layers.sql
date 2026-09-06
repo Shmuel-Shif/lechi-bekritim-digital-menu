@@ -93,7 +93,7 @@ revoke all on table public.till_day_openings from public, anon, authenticated;
 revoke all on table public.till_day_reports from public, anon, authenticated;
 
 grant select, insert, update on table public.till_day_openings to authenticated;
-grant select, insert, update on table public.till_day_reports to authenticated;
+grant select, insert, update, delete on table public.till_day_reports to authenticated;
 
 drop policy if exists "till_day_openings_auth_select" on public.till_day_openings;
 create policy "till_day_openings_auth_select"
@@ -138,5 +138,12 @@ for update
 to authenticated
 using (auth.uid() is not null)
 with check (auth.uid() is not null);
+
+drop policy if exists "till_day_reports_auth_delete" on public.till_day_reports;
+create policy "till_day_reports_auth_delete"
+on public.till_day_reports
+for delete
+to authenticated
+using (auth.uid() is not null);
 
 notify pgrst, 'reload schema';
