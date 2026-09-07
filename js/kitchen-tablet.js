@@ -195,6 +195,11 @@
     return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
 
+  function chatMessageTime(row) {
+    const t = new Date(row?.created_at || 0).getTime();
+    return Number.isFinite(t) ? t : 0;
+  }
+
   function getSeenAt() {
     try {
       return Number(localStorage.getItem(SEEN_KEY) || 0);
@@ -208,8 +213,12 @@
   }
 
   function markChatSeen() {
+    const latest = thread.reduce((max, row) => {
+      if (row.sender !== 'admin' || row.alert_id) return max;
+      return Math.max(max, chatMessageTime(row));
+    }, 0);
     try {
-      localStorage.setItem(SEEN_KEY, String(Date.now()));
+      if (latest > 0) localStorage.setItem(SEEN_KEY, String(Math.max(getSeenAt(), latest)));
     } catch (_) { /* ignore */ }
     updateChatBadge();
   }
@@ -225,7 +234,7 @@
     const seen = getSeenAt();
     const unread = thread.filter((row) => {
       if (row.sender !== 'admin' || row.alert_id) return false;
-      return new Date(row.created_at || 0).getTime() > seen;
+      return chatMessageTime(row) > seen;
     }).length;
     chatBadge.textContent = String(unread);
     chatBadge.hidden = unread <= 0;
@@ -636,6 +645,7 @@
       const rows = await api.listChat();
       thread = (rows || []).filter((row) => !row.alert_id);
       renderChat();
+      if (isChatOpen()) markChatSeen();
     } catch (_) {
       renderChat();
     }

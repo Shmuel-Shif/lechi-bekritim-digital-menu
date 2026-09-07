@@ -78,6 +78,11 @@
     } catch (_) { /* ignore */ }
   }
 
+  function chatMessageTime(row) {
+    const t = new Date(row?.created_at || 0).getTime();
+    return Number.isFinite(t) ? t : 0;
+  }
+
   function getChatSeenAt() {
     try {
       return Number(localStorage.getItem(CHAT_SEEN_KEY) || 0);
@@ -87,12 +92,23 @@
   }
 
   function unreadChatCount() {
-    if (chatModal && !chatModal.hidden) return 0;
+    if (isChatOpen()) return 0;
     const seen = getChatSeenAt();
     return chat.filter((row) => {
       if (row.sender !== 'kitchen' || row.alert_id) return false;
-      return new Date(row.created_at || 0).getTime() > seen;
+      return chatMessageTime(row) > seen;
     }).length;
+  }
+
+  function markChatSeen() {
+    const latest = chat.reduce((max, row) => {
+      if (row.sender !== 'kitchen' || row.alert_id) return max;
+      return Math.max(max, chatMessageTime(row));
+    }, 0);
+    try {
+      if (latest > 0) localStorage.setItem(CHAT_SEEN_KEY, String(Math.max(getChatSeenAt(), latest)));
+    } catch (_) { /* ignore */ }
+    updateChatBadge();
   }
 
   function setBadge() {
@@ -262,13 +278,6 @@
     return Boolean(chatModal && !chatModal.hidden);
   }
 
-  function markChatSeen() {
-    try {
-      localStorage.setItem(CHAT_SEEN_KEY, String(Date.now()));
-    } catch (_) { /* ignore */ }
-    updateChatBadge();
-  }
-
   function updateChatBadge() {
     const unread = unreadChatCount();
     if (chatBadge) {
@@ -299,6 +308,7 @@
     try {
       chat = (await api.listChat()).filter((row) => !row.alert_id);
       renderChat();
+      if (isChatOpen()) markChatSeen();
     } catch (err) {
       console.warn('[admin-kitchen] chat list failed', err);
       if (chatLog) {
@@ -360,9 +370,12 @@
     if (chat.some((item) => item.id === row.id)) return;
     chat.push(row);
     renderChat();
-    if (row.sender === 'kitchen' && !row.alert_id && !isChatOpen()) {
-      playKitchenChime();
-      notifyChat(row);
+    if (row.sender === 'kitchen' && !row.alert_id) {
+      if (isChatOpen()) markChatSeen();
+      else {
+        playKitchenChime();
+        notifyChat(row);
+      }
     }
   }
 
