@@ -187,9 +187,14 @@
       if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
       const now = audioCtx.currentTime;
       const pulses = [
-        { freq: 880, at: 0, dur: 0.16 },
-        { freq: 988, at: 0.2, dur: 0.16 },
-        { freq: 1175, at: 0.4, dur: 0.22 },
+        { freq: 880, at: 0, dur: 0.32 },
+        { freq: 1175, at: 0.38, dur: 0.32 },
+        { freq: 880, at: 0.76, dur: 0.32 },
+        { freq: 1175, at: 1.14, dur: 0.32 },
+        { freq: 880, at: 1.52, dur: 0.32 },
+        { freq: 1175, at: 1.9, dur: 0.32 },
+        { freq: 988, at: 2.28, dur: 0.45 },
+        { freq: 1319, at: 2.78, dur: 0.55 },
       ];
       pulses.forEach((tone) => {
         const osc = audioCtx.createOscillator();
