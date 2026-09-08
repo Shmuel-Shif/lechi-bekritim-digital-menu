@@ -5663,16 +5663,21 @@
         }
         orderReceiptMeta.textContent = bits.join(' · ');
       } else if (isTakeaway) {
-        const pickup = ctx.pickupType === 'TIME' && ctx.pickupTime
+        const isDelivery = normalizeFulfillmentType(ctx.fulfillmentType) === 'delivery';
+        const when = ctx.pickupType === 'TIME' && ctx.pickupTime
           ? (
             ctx.pickupDate
-              ? `${t('receiptButcherPickupDate').replace('{date}', formatButcherPickupDateDisplay(ctx.pickupDate))} · ${t('receiptButcherPickupTime').replace('{time}', String(ctx.pickupTime))}`
-              : t('receiptPickupAt').replace('{time}', String(ctx.pickupTime))
+              ? `${t(isDelivery ? 'receiptDeliveryDate' : 'receiptButcherPickupDate').replace(
+                '{date}',
+                formatButcherPickupDateDisplay(ctx.pickupDate)
+              )} · ${t(isDelivery ? 'receiptDeliveryTime' : 'receiptButcherPickupTime').replace('{time}', String(ctx.pickupTime))}`
+              : t(isDelivery ? 'receiptDeliveryAt' : 'receiptPickupAt').replace('{time}', String(ctx.pickupTime))
           )
-          : t('receiptPickupAsap');
-        const bits = [t('receiptTakeaway')];
+          : t(isDelivery ? 'receiptDeliveryAsap' : 'receiptPickupAsap');
+        const bits = [t(isDelivery ? 'receiptDelivery' : 'receiptTakeaway')];
         if (ctx.customerName) bits.push(ctx.customerName);
-        bits.push(pickup);
+        if (isDelivery && ctx.customerAddress) bits.push(String(ctx.customerAddress));
+        bits.push(when);
         orderReceiptMeta.textContent = bits.join(' · ');
       } else {
         orderReceiptMeta.textContent = t('receiptTable').replace(

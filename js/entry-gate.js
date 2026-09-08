@@ -162,6 +162,8 @@
       pickupClosedTitle: 'Not available right now.',
       pickupClosedText: 'Takeaway orders can be placed Sunday–Thursday.\nBetween 14:00 – 21:00.',
       pickupClosedBrowse: 'View the menu',
+      deliveryClosedTitle: 'Not available right now.',
+      deliveryClosedText: 'Delivery orders can be placed Sunday–Thursday.\nBetween 14:00 – 21:00.',
       dineInClosedTitle: 'Not available right now.',
       dineInClosedText: 'Dine-in orders can be placed Sunday–Thursday.\nBetween 14:00 – 21:00.',
       dineInClosedBrowse: 'View the menu',
@@ -302,6 +304,8 @@
       pickupClosedTitle: 'לא זמין כרגע.',
       pickupClosedText: 'ניתן לבצע הזמנות לאיסוף עצמי בימי א - ה\nבין השעות 14:00 - 21:00.',
       pickupClosedBrowse: 'לצפייה בתפריט',
+      deliveryClosedTitle: 'לא זמין כרגע.',
+      deliveryClosedText: 'ניתן לבצע הזמנות למשלוח בימי א - ה\nבין השעות 14:00 - 21:00.',
       dineInClosedTitle: 'לא זמין כרגע.',
       dineInClosedText: 'ניתן לבצע הזמנות לישיבה במקום בימי א - ה\nבין השעות 14:00 - 21:00.',
       dineInClosedBrowse: 'לצפייה בתפריט',
@@ -577,18 +581,15 @@
       const closedTitle = stepPickupClosed.querySelector('[data-entry-i18n="pickupClosedTitle"]');
       const closedText = stepPickupClosed.querySelector('[data-entry-i18n="pickupClosedText"]');
       const closedBrowse = stepPickupClosed.querySelector('[data-entry-i18n="pickupClosedBrowse"]');
-      const isDineInClosed = state.orderType === 'dine-in';
-      const titleKey = isDineInClosed ? 'dineInClosedTitle' : 'pickupClosedTitle';
-      const textKey = isDineInClosed ? 'dineInClosedText' : 'pickupClosedText';
-      const browseKey = isDineInClosed ? 'dineInClosedBrowse' : 'pickupClosedBrowse';
-      if (closedTitle) closedTitle.textContent = t(titleKey);
+      const keys = closedStepKeys(state.orderType);
+      if (closedTitle) closedTitle.textContent = t(keys.title);
       if (closedText) {
-        const text = t(textKey);
+        const text = t(keys.text);
         closedText.innerHTML = String(text).includes('\n')
           ? String(text).split('\n').map((line) => line.replace(/</g, '&lt;')).join('<br>')
           : text;
       }
-      if (closedBrowse) closedBrowse.textContent = t(browseKey);
+      if (closedBrowse) closedBrowse.textContent = t(keys.browse);
     }
 
     if (promptEl) {
@@ -602,7 +603,7 @@
       if (!promptEl.hidden) {
         promptEl.classList.toggle('is-table-prompt', Boolean(stepTable && !stepTable.hidden));
         if (stepPickupClosed && !stepPickupClosed.hidden) {
-          promptEl.textContent = state.orderType === 'dine-in' ? t('dineIn') : t('takeAway');
+          promptEl.textContent = closedPromptLabel(state.orderType);
         } else if (stepPlaceRes && !stepPlaceRes.hidden) {
           promptEl.textContent = t('promptPlaceRes');
         } else if (stepPickup && !stepPickup.hidden) {
@@ -1111,11 +1112,25 @@
     return hour >= DINE_IN_OPEN_HOUR && hour < DINE_IN_CLOSE_HOUR;
   }
 
+  function closedStepKeys(orderType) {
+    if (orderType === 'dine-in') {
+      return { title: 'dineInClosedTitle', text: 'dineInClosedText', browse: 'dineInClosedBrowse' };
+    }
+    if (orderType === 'delivery') {
+      return { title: 'deliveryClosedTitle', text: 'deliveryClosedText', browse: 'pickupClosedBrowse' };
+    }
+    return { title: 'pickupClosedTitle', text: 'pickupClosedText', browse: 'pickupClosedBrowse' };
+  }
+
+  function closedPromptLabel(orderType) {
+    if (orderType === 'dine-in') return t('dineIn');
+    if (orderType === 'delivery') return t('deliveryOrder');
+    return t('takeAway');
+  }
+
   function showOrderingClosedStep(orderType) {
     state.orderType = orderType;
-    if (promptEl) {
-      promptEl.textContent = orderType === 'dine-in' ? t('dineIn') : t('takeAway');
-    }
+    if (promptEl) promptEl.textContent = closedPromptLabel(orderType);
     showStep(stepPickupClosed);
     pickupClosedBrowse?.focus();
   }
@@ -2130,8 +2145,14 @@
       if (!isDineInOrderingOpen()) showOrderingClosedStep('dine-in');
       return;
     }
-    if (onPickup || state.orderType === 'takeaway') {
-      if (!isTakeawayDayOpen()) showOrderingClosedStep('takeaway');
+    if (onPickup || state.orderType === 'takeaway' || state.orderType === 'delivery') {
+      if (!isTakeawayDayOpen()) {
+        const session = Session?.getSession?.();
+        const delivery = state.orderType === 'delivery'
+          || sessionFulfillmentType(session) === 'delivery'
+          || String(window.LechaimOrderContext?.fulfillmentType || '') === 'delivery';
+        showOrderingClosedStep(delivery ? 'delivery' : 'takeaway');
+      }
     }
   }
 
@@ -2188,7 +2209,7 @@
       return;
     }
     if (!isTakeawayDayOpen()) {
-      showOrderingClosedStep('takeaway');
+      showOrderingClosedStep('delivery');
       return;
     }
     const fee = Number(window.LechaimAppSettings?.getDeliveryFee?.())
@@ -3340,11 +3361,11 @@
         return;
       }
       if (type === 'delivery') {
-        state.orderType = 'takeaway';
         if (!isTakeawayDayOpen()) {
-          showOrderingClosedStep('takeaway');
+          showOrderingClosedStep('delivery');
           return;
         }
+        state.orderType = 'takeaway';
         /* Resume only a matching delivery session — pickup stays separate. */
         if (Session?.hasActiveTakeawaySession()) {
           (async () => {

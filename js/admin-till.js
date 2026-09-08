@@ -44,9 +44,11 @@
   const EDIT_BASE_KEY = 'lechaim-till-edit-base';
 
   let cache = emptyCache('');
+  let todayHold = null;
   let started = false;
   let refreshTimer = null;
   let loadSeq = 0;
+  const dashboardListeners = new Set();
   let selectedCategory = 'all';
   let searchQuery = '';
   let productCategoryById = new Map();
@@ -64,7 +66,73 @@
       base: null,
       opening: null,
       products: [],
+      rows: [],
       layersMissing: false,
+    };
+  }
+
+  function notifyDashboard() {
+    dashboardListeners.forEach((fn) => {
+      try { fn(); } catch (err) { console.warn('[admin-till] dashboard listener', err); }
+    });
+  }
+
+  function rememberTodayHold(next) {
+    if (!next?.date || next.date !== todayLocalYmd()) return;
+    todayHold = {
+      date: next.date,
+      rows: Array.isArray(next.rows) ? next.rows : [],
+      products: Array.isArray(next.products) ? next.products : [],
+      live: next.live || { cash: 0, credit: 0, tip: 0 },
+      report: next.report || null,
+      base: next.base || null,
+    };
+  }
+
+  function snapshotFromParts(date, rows, products, live, report, base) {
+    return {
+      date: date || '',
+      rows: Array.isArray(rows) ? rows : [],
+      products: Array.isArray(products) ? products : [],
+      shown: displayedSales(live, report, base),
+      live: live || { cash: 0, credit: 0, tip: 0 },
+    };
+  }
+
+  function getDashboardSnapshot() {
+    const current = snapshotFromParts(
+      cache.date,
+      cache.rows,
+      cache.products,
+      cache.live,
+      cache.report,
+      cache.base
+    );
+    const today = todayHold
+      ? snapshotFromParts(
+        todayHold.date,
+        todayHold.rows,
+        todayHold.products,
+        todayHold.live,
+        todayHold.report,
+        todayHold.base
+      )
+      : (cache.date === todayLocalYmd() ? current : null);
+    return {
+      date: current.date,
+      rows: current.rows,
+      products: current.products,
+      shown: current.shown,
+      live: current.live,
+      today,
+    };
+  }
+
+  function onDashboardChange(fn) {
+    if (typeof fn !== 'function') return function unsubscribe() {};
+    dashboardListeners.add(fn);
+    return function unsubscribe() {
+      dashboardListeners.delete(fn);
     };
   }
 
@@ -613,12 +681,15 @@
         base: readEditBase(date),
         opening: layers.opening,
         products: beforeGoLive ? [] : products,
+        rows: beforeGoLive ? [] : (Array.isArray(rows) ? rows : []),
         layersMissing: layers.missing,
       };
+      rememberTodayHold(cache);
       showError(layers.missing
         ? 'חסרות טבלאות קופה יומית — הריצו supabase-till-day-layers.sql'
         : '');
       renderSummary();
+      notifyDashboard();
     } catch (err) {
       if (seq !== loadSeq) return;
       console.error('[admin-till] load failed', err);
@@ -629,7 +700,9 @@
         showError('לא ניתן לטעון את המכירות');
       }
       cache = emptyCache(date);
+      rememberTodayHold(cache);
       renderSummary();
+      notifyDashboard();
     }
   }
 
@@ -811,6 +884,8 @@
     start,
     refresh: scheduleRefresh,
     lockTotals,
+    getDashboardSnapshot,
+    onDashboardChange,
     TillMath: {
       sessionPaidAmount,
       sessionCashAmount,

@@ -16,6 +16,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/admin.css?v=131">
+  <link rel="stylesheet" href="css/admin-dashboard.css?v=5">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
 <body>
@@ -106,12 +107,254 @@
             <button type="button" class="admin-tab" data-tab="documents">מסמכים</button>
             <button type="button" class="admin-tab" data-tab="stats">קופונים</button>
             <button type="button" class="admin-tab" data-tab="settings">הגדרות</button>
+            <button type="button" class="admin-tab" data-tab="dashboard">דשבורד</button>
           </div>
         </div>
       </nav>
 
       <p class="admin-error" id="admin-panel-error" role="alert" hidden></p>
       <p class="admin-toast" id="admin-toast" role="status" aria-live="polite" hidden></p>
+
+      <div class="admin-view dash" id="admin-view-dashboard" hidden>
+        <header class="dash-command">
+          <div class="dash-command__brand">
+            <img src="assets/logo/logo-image.png" alt="" class="dash-command__logo" width="56" height="56">
+            <div>
+              <p class="dash-command__kicker">לחיים · כרתים</p>
+              <h1 class="dash-command__title">מרכז הבקרה</h1>
+              <p class="dash-command__sub">ניטור חי של המסעדה</p>
+            </div>
+          </div>
+          <div class="dash-command__meta">
+            <span class="dash-live-badge dash-live-badge--core"><i></i> חי</span>
+            <div class="dash-clock" id="dash-clock">
+              <p class="dash-clock__time" id="dash-clock-time">—</p>
+              <p class="dash-clock__date" id="dash-clock-date">—</p>
+            </div>
+          </div>
+          <div class="dash-periods" id="dash-periods" role="group" aria-label="סינון תקופה">
+            <button type="button" class="dash-period is-active" data-dash-period="today"><span>היום</span></button>
+            <button type="button" class="dash-period" data-dash-period="yesterday"><span>אתמול</span></button>
+            <button type="button" class="dash-period" data-dash-period="week"><span>השבוע</span></button>
+            <button type="button" class="dash-period" data-dash-period="month"><span>החודש</span></button>
+          </div>
+        </header>
+        <p class="dash-banner" id="dash-banner" hidden></p>
+
+        <section class="dash-now" aria-label="מצב המסעדה עכשיו">
+          <header class="dash-now__head">
+            <p class="dash-now__eyebrow">סטטוס מסעדה</p>
+            <h2 class="dash-now__title">מצב המסעדה עכשיו</h2>
+            <span class="dash-live-badge"><i></i> חי</span>
+          </header>
+          <div class="dash-core" id="dash-core">
+            <div class="dash-orbit">
+              <button type="button" class="dash-sat dash-sat--tables" data-sat="tables">
+                <i></i><span>שולחנות</span><strong data-sat-value>0</strong>
+              </button>
+              <button type="button" class="dash-sat dash-sat--kitchen" data-sat="kitchen">
+                <i></i><span>מטבח</span><strong data-sat-value>0</strong>
+              </button>
+              <button type="button" class="dash-sat dash-sat--delivery" data-sat="delivery">
+                <i></i><span>משלוחים</span><strong data-sat-value>0</strong>
+              </button>
+              <button type="button" class="dash-sat dash-sat--pickup" data-sat="pickup">
+                <i></i><span>איסוף</span><strong data-sat-value>0</strong>
+              </button>
+            </div>
+            <div class="dash-gauge" id="dash-core-gauge"></div>
+          </div>
+        </section>
+
+        <section class="dash-rings" id="dash-rings" aria-label="טבעות בקרה"></section>
+        <section class="dash-kpis" id="dash-kpis" aria-label="מדדי ביצוע">
+          <article class="dash-kpi dash-kpi--sales" data-kpi="sales">
+            <span class="dash-kpi__icon" aria-hidden="true">💶</span>
+            <p class="dash-kpi__label">מכירות</p>
+            <p class="dash-kpi__value" data-kpi-value>—</p>
+            <p class="dash-kpi__delta" data-kpi-delta></p>
+            <svg class="dash-kpi__spark" data-kpi-spark viewBox="0 0 120 28" aria-hidden="true"></svg>
+            <p class="dash-kpi__hint">מזומן + אשראי</p>
+          </article>
+          <article class="dash-kpi dash-kpi--cash" data-kpi="cash">
+            <span class="dash-kpi__icon" aria-hidden="true">💵</span>
+            <p class="dash-kpi__label">מזומן</p>
+            <p class="dash-kpi__value" data-kpi-value>—</p>
+            <p class="dash-kpi__delta" data-kpi-delta></p>
+            <svg class="dash-kpi__spark" data-kpi-spark viewBox="0 0 120 28" aria-hidden="true"></svg>
+          </article>
+          <article class="dash-kpi dash-kpi--credit" data-kpi="credit">
+            <span class="dash-kpi__icon" aria-hidden="true">💳</span>
+            <p class="dash-kpi__label">אשראי</p>
+            <p class="dash-kpi__value" data-kpi-value>—</p>
+            <p class="dash-kpi__delta" data-kpi-delta></p>
+            <svg class="dash-kpi__spark" data-kpi-spark viewBox="0 0 120 28" aria-hidden="true"></svg>
+          </article>
+          <article class="dash-kpi dash-kpi--tips" data-kpi="tips">
+            <span class="dash-kpi__icon" aria-hidden="true">✨</span>
+            <p class="dash-kpi__label">טיפים</p>
+            <p class="dash-kpi__value" data-kpi-value>—</p>
+            <p class="dash-kpi__delta" data-kpi-delta></p>
+            <svg class="dash-kpi__spark" data-kpi-spark viewBox="0 0 120 28" aria-hidden="true"></svg>
+            <p class="dash-kpi__hint">לא נכלל במכירות</p>
+          </article>
+          <article class="dash-kpi dash-kpi--orders" data-kpi="orders">
+            <span class="dash-kpi__icon" aria-hidden="true">🧾</span>
+            <p class="dash-kpi__label">הזמנות</p>
+            <p class="dash-kpi__value" data-kpi-value>—</p>
+            <p class="dash-kpi__delta" data-kpi-delta></p>
+            <svg class="dash-kpi__spark" data-kpi-spark viewBox="0 0 120 28" aria-hidden="true"></svg>
+          </article>
+          <article class="dash-kpi dash-kpi--avg" data-kpi="avg">
+            <span class="dash-kpi__icon" aria-hidden="true">📈</span>
+            <p class="dash-kpi__label">ממוצע להזמנה</p>
+            <p class="dash-kpi__value" data-kpi-value>—</p>
+            <p class="dash-kpi__delta" data-kpi-delta></p>
+            <svg class="dash-kpi__spark" data-kpi-spark viewBox="0 0 120 28" aria-hidden="true"></svg>
+          </article>
+          <article class="dash-kpi dash-kpi--tables" data-kpi="tables">
+            <span class="dash-kpi__icon" aria-hidden="true">🟢</span>
+            <p class="dash-kpi__label">שולחנות פתוחים</p>
+            <p class="dash-kpi__value" data-kpi-value>—</p>
+            <p class="dash-kpi__delta" data-kpi-delta></p>
+            <svg class="dash-kpi__spark" data-kpi-spark viewBox="0 0 120 28" aria-hidden="true"></svg>
+          </article>
+          <article class="dash-kpi dash-kpi--active" data-kpi="active">
+            <span class="dash-kpi__icon" aria-hidden="true">🔥</span>
+            <p class="dash-kpi__label">הזמנות פעילות</p>
+            <p class="dash-kpi__value" data-kpi-value>—</p>
+            <p class="dash-kpi__delta" data-kpi-delta></p>
+            <svg class="dash-kpi__spark" data-kpi-spark viewBox="0 0 120 28" aria-hidden="true"></svg>
+          </article>
+        </section>
+        <section class="dash-panel dash-panel--hero">
+          <header class="dash-panel__head">
+            <div>
+              <p class="dash-panel__eyebrow">מגמה</p>
+              <h2 class="dash-panel__title" id="dash-trend-title">מכירות לפי שעה</h2>
+            </div>
+            <p class="dash-panel__meta" id="dash-trend-meta"></p>
+          </header>
+          <div class="dash-chart" id="dash-trend-chart"></div>
+          <p class="dash-legend-row" id="dash-trend-legend" hidden></p>
+        </section>
+
+        <section class="dash-ops" aria-label="ניטור תפעול">
+          <article class="dash-panel dash-ops__kitchen" id="dash-kitchen">
+            <header class="dash-panel__head">
+              <div>
+                <p class="dash-panel__eyebrow">ניטור</p>
+                <h2 class="dash-panel__title">מטבח</h2>
+              </div>
+            </header>
+            <div id="dash-kitchen-body"></div>
+          </article>
+          <article class="dash-panel dash-ops__tables" id="dash-tables">
+            <header class="dash-panel__head">
+              <div>
+                <p class="dash-panel__eyebrow">אולם</p>
+                <h2 class="dash-panel__title">פעילות שולחנות</h2>
+              </div>
+            </header>
+            <div id="dash-tables-body"></div>
+          </article>
+          <article class="dash-panel dash-ops__run dash-ops__delivery" id="dash-delivery">
+            <header class="dash-panel__head">
+              <div>
+                <p class="dash-panel__eyebrow">יוצא</p>
+                <h2 class="dash-panel__title">משלוחים</h2>
+              </div>
+            </header>
+            <div id="dash-delivery-body"></div>
+          </article>
+          <article class="dash-panel dash-ops__run dash-ops__pickup" id="dash-pickup">
+            <header class="dash-panel__head">
+              <div>
+                <p class="dash-panel__eyebrow">דלפק</p>
+                <h2 class="dash-panel__title">איסוף</h2>
+              </div>
+            </header>
+            <div id="dash-pickup-body"></div>
+          </article>
+        </section>
+        <section class="dash-bi" id="dash-bi">
+          <article class="dash-panel dash-week-only" id="dash-week-compare">
+            <header class="dash-panel__head">
+              <div>
+                <p class="dash-panel__eyebrow">השוואה</p>
+                <h2 class="dash-panel__title">השבוע מול שבוע קודם</h2>
+              </div>
+            </header>
+            <div id="dash-week-compare-body"></div>
+          </article>
+          <article class="dash-panel dash-range-only" id="dash-strong-days">
+            <header class="dash-panel__head">
+              <div>
+                <p class="dash-panel__eyebrow">דירוג</p>
+                <h2 class="dash-panel__title">ימים חזקים</h2>
+              </div>
+            </header>
+            <div id="dash-strong-days-body"></div>
+          </article>
+          <article class="dash-panel" id="dash-peak-hours">
+            <header class="dash-panel__head">
+              <div>
+                <p class="dash-panel__eyebrow">עומס</p>
+                <h2 class="dash-panel__title">שעות עומס</h2>
+              </div>
+            </header>
+            <div id="dash-peak-hours-body"></div>
+          </article>
+        </section>
+        <section class="dash-panel dash-week-only" id="dash-tips-panel">
+          <header class="dash-panel__head">
+            <div>
+              <p class="dash-panel__eyebrow">טיפים</p>
+              <h2 class="dash-panel__title">טיפים לפי יום</h2>
+            </div>
+          </header>
+          <div class="dash-chart" id="dash-tips-chart"></div>
+        </section>
+        <section class="dash-trio">
+          <article class="dash-panel">
+            <header class="dash-panel__head">
+              <div>
+                <p class="dash-panel__eyebrow">תמהיל</p>
+                <h2 class="dash-panel__title">מזומן מול אשראי</h2>
+              </div>
+            </header>
+            <div class="dash-chart dash-chart--donut" id="dash-mix-chart"></div>
+          </article>
+          <article class="dash-panel">
+            <header class="dash-panel__head">
+              <div>
+                <p class="dash-panel__eyebrow">פילוח</p>
+                <h2 class="dash-panel__title">סוגי הזמנות</h2>
+              </div>
+            </header>
+            <div class="dash-chart" id="dash-types-chart"></div>
+          </article>
+          <article class="dash-panel">
+            <header class="dash-panel__head">
+              <div>
+                <p class="dash-panel__eyebrow">קופה</p>
+                <h2 class="dash-panel__title">10 המוצרים המובילים</h2>
+              </div>
+            </header>
+            <div class="dash-chart dash-chart--bars" id="dash-top-chart"></div>
+          </article>
+        </section>
+        <section class="dash-panel dash-panel--workload">
+          <header class="dash-panel__head">
+            <div>
+              <p class="dash-panel__eyebrow">עומס</p>
+              <h2 class="dash-panel__title" id="dash-orders-title">הזמנות לפי שעה</h2>
+            </div>
+          </header>
+          <div class="dash-chart" id="dash-orders-chart"></div>
+        </section>
+        <div class="dash-tip" id="dash-tooltip" hidden role="tooltip"></div>
+      </div>
 
       <!-- Tables tab -->
       <div class="admin-view" id="admin-view-tables">
@@ -1951,10 +2194,10 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
   <script src="js/order-types.js" defer></script>
-  <script src="js/supabase-order-service.js?v=34" defer></script>
+  <script src="js/supabase-order-service.js?v=36" defer></script>
   <script src="js/menu-data.js?v=103" defer></script>
   <script src="js/opening-hours.js?v=12" defer></script>
-  <script src="js/app-settings.js?v=6" defer></script>
+  <script src="js/app-settings.js?v=7" defer></script>
   <script src="js/shabbat-menu-data.js" defer></script>
   <script src="js/inventory.js?v=46" defer></script>
   <script src="js/order-session.js?v=6" defer></script>
@@ -1964,7 +2207,7 @@
   <script src="js/a11y-focus-trap.js" defer></script>
   <script src="js/kitchen-progress.js?v=2" defer></script>
   <script src="js/kitchen-dish-groups.js?v=1" defer></script>
-  <script src="js/admin-tables.js?v=101" defer></script>
+  <script src="js/admin-tables.js?v=103" defer></script>
   <script src="js/admin-shabbat.js?v=8" defer></script>
   <script src="js/place-reservations.js?v=9" defer></script>
   <script src="js/admin-reservations.js?v=9" defer></script>
@@ -1974,7 +2217,8 @@
   <script src="js/admin-kitchen-board.js?v=34" defer></script>
   <script src="js/admin-history.js?v=2" defer></script>
   <script src="js/admin-coupons.js" defer></script>
-  <script src="js/admin-till.js?v=17" defer></script>
+  <script src="js/admin-till.js?v=18" defer></script>
+  <script src="js/admin-dashboard.js?v=5" defer></script>
   <script src="js/staff-hours-xlsx.js?v=4" defer></script>
   <script src="js/admin-staff-hours.js?v=22" defer></script>
   <script src="js/docs-monthly-xlsx.js?v=1" defer></script>
@@ -1983,7 +2227,7 @@
   <script src="js/admin-settings.js?v=7" defer></script>
   <script src="js/stock-catalog.js?v=6" defer></script>
   <script src="js/admin-stock.js?v=2" defer></script>
-  <script src="js/admin.js?v=72" defer></script>
+  <script src="js/admin.js?v=73" defer></script>
   <script src="js/admin-push.js?v=2" defer></script>
   <script src="js/admin-pwa.js?v=2" defer></script>
 </body>

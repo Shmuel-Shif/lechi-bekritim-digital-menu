@@ -71,6 +71,7 @@
   let boardCache = [];
   let takeawayCache = [];
   let butcherCache = [];
+  const liveListeners = new Set();
   let dataSource = 'local'; /* 'supabase' | 'local' */
   let hasSupabaseSnapshot = false;
   let unsubscribeRealtime = null;
@@ -2265,8 +2266,74 @@
     if (emptyAll) emptyAll.hidden = split.today.length + split.future.length > 0;
   }
 
+  function countOpenDishes(entries) {
+    let waiting = 0;
+    let ready = 0;
+    (entries || []).forEach((entry) => {
+      (entry?.order?.items || []).forEach((item) => {
+        if (item?.linkedToMainItemId) return;
+        const qty = Math.max(0, Number(item?.qty) || 0);
+        if (!qty) return;
+        if (String(item.kitchenStatus) === 'ready') ready += qty;
+        else waiting += qty;
+      });
+    });
+    return { waiting, ready };
+  }
+
+  function getLiveSnapshot() {
+    const board = boardCache || [];
+    const takeaway = takeawayCache || [];
+    const butcher = butcherCache || [];
+    const openTables = board.filter((row) => row && row.uiStatus && row.uiStatus !== 'free').length;
+    const takeawayCounts = splitTakeawayCounts(takeaway);
+    const dishes = countOpenDishes([...board, ...takeaway, ...butcher]);
+    let waiterCalls = 0;
+    board.forEach((row) => {
+      if (row?.order?.waiterCalled) waiterCalls += 1;
+    });
+    const tables = board.map((row) => {
+      const waiter = Boolean(row?.order?.waiterCalled);
+      const busy = Boolean(row && row.uiStatus && row.uiStatus !== 'free');
+      return {
+        tableNumber: row?.tableNumber,
+        status: waiter ? 'waiter' : (busy ? 'active' : 'free'),
+      };
+    });
+    return {
+      openTables,
+      tableTotal: board.length,
+      tables,
+      activeDeliveries: takeawayCounts.delivery,
+      activePickups: takeawayCounts.pickup,
+      butcherOrders: butcher.length,
+      waiterCalls,
+      waitingDishes: dishes.waiting,
+      readyDishes: dishes.ready,
+      kitchenActive: dishes.waiting + dishes.ready,
+      activeOrders: openTables + takeaway.length + butcher.length,
+    };
+  }
+
+  function notifyLiveListeners() {
+    liveListeners.forEach((fn) => {
+      try { fn(); } catch (err) { console.warn('[admin-tables] live listener', err); }
+    });
+  }
+
+  function onBoardChange(fn) {
+    if (typeof fn !== 'function') return function unsubscribe() {};
+    liveListeners.add(fn);
+    return function unsubscribe() {
+      liveListeners.delete(fn);
+    };
+  }
+
   function paintBoard(board, takeaway, butcher) {
-    if (!gridEl) return;
+    if (!gridEl) {
+      notifyLiveListeners();
+      return;
+    }
 
     const occupiedTables = (board || []).filter((row) => row && row.uiStatus && row.uiStatus !== 'free').length;
     const takeawayCounts = splitTakeawayCounts(takeaway);
@@ -2324,6 +2391,7 @@
     } else if (selectedKey && (!selected || !selected.order)) {
       closeDrawer();
     }
+    notifyLiveListeners();
   }
 
   async function refreshBoardData() {
@@ -5321,6 +5389,8 @@
     refresh: renderBoard,
     closeDrawer,
     setBoardFilter,
+    getLiveSnapshot,
+    onBoardChange,
     openFromPush,
     playNotifyChime: playOrderNotifyChime,
     playChatNotifyChime,

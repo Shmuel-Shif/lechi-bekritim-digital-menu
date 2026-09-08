@@ -2352,6 +2352,48 @@
   }
 
   /**
+   * Read-only slim close rows for a local date range (dashboard week/month).
+   * Does not load orders or order_items. Same closed-session universe as the till.
+   */
+  async function getClosedSessionsRange(startDateStr, endDateStr) {
+    const sb = getClient();
+    const startDay = String(startDateStr || '').trim();
+    const endDay = String(endDateStr || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(startDay) || !/^\d{4}-\d{2}-\d{2}$/.test(endDay)) {
+      throw new Error('[LechaimSupabaseOrders.getClosedSessionsRange] start/end YYYY-MM-DD required');
+    }
+    if (startDay > endDay) return [];
+
+    const start = new Date(`${startDay}T00:00:00`);
+    const end = new Date(`${endDay}T23:59:59.999`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      throw new Error('[LechaimSupabaseOrders.getClosedSessionsRange] invalid date');
+    }
+
+    const startIso = start.toISOString();
+    const endIso = end.toISOString();
+    const slimFull = 'closed_at, order_type, fulfillment_type, payment_method, paid_cash, paid_credit, paid_tip';
+    const slimBasic = 'closed_at, order_type, fulfillment_type, payment_method, paid_cash, paid_credit';
+
+    let { data, error } = await fetchAllClosedSessionsForDay(sb, {
+      columns: slimFull,
+      startIso,
+      endIso,
+    });
+
+    if (error && /paid_tip|paid_cash|paid_credit|column/i.test(String(error.message || ''))) {
+      ({ data, error } = await fetchAllClosedSessionsForDay(sb, {
+        columns: slimBasic,
+        startIso,
+        endIso,
+      }));
+    }
+
+    throwIfError(error, 'getClosedSessionsRange');
+    return data || [];
+  }
+
+  /**
    * Read-only: main dishes sold on a local calendar day.
    * Same universe as the till (closed + cash/credit/split). Does not change till math.
    * Child lines (parent_item_id set: sides, doneness, meal drinks) are excluded.
@@ -3579,6 +3621,7 @@
     getCouponUsageReport,
     getShabbatSessionsReport,
     getDailyTillReport,
+    getClosedSessionsRange,
     getDailySoldProducts,
     getTillDayOpening,
     upsertTillDayOpening,

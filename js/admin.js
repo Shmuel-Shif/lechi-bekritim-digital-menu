@@ -43,6 +43,7 @@
   const viewSettings = document.getElementById('admin-view-settings');
   const viewKitchen = document.getElementById('admin-view-kitchen');
   const viewDocuments = document.getElementById('admin-view-documents');
+  const viewDashboard = document.getElementById('admin-view-dashboard');
   const shopHoursBtn = document.getElementById('admin-shop-hours-btn');
   const kitchenBeepBtn = document.getElementById('admin-kitchen-beep-btn');
   const hugMeBtn = document.getElementById('admin-hug-me-btn');
@@ -176,6 +177,7 @@
     else if (tab === 'settings') currentTab = 'settings';
     else if (tab === 'kitchen') currentTab = 'kitchen';
     else if (tab === 'documents') currentTab = 'documents';
+    else if (tab === 'dashboard') currentTab = 'dashboard';
     else currentTab = 'tables';
 
     tabsEl?.querySelectorAll('.admin-tab').forEach((btn) => {
@@ -199,6 +201,7 @@
     if (viewSettings) viewSettings.hidden = currentTab !== 'settings';
     if (viewKitchen) viewKitchen.hidden = currentTab !== 'kitchen';
     if (viewDocuments) viewDocuments.hidden = currentTab !== 'documents';
+    if (viewDashboard) viewDashboard.hidden = currentTab !== 'dashboard';
 
     if (currentTab !== 'inventory') closeInventoryModal();
 
@@ -255,6 +258,12 @@
       window.LechaimAdminDocuments?.start?.();
     } else {
       window.LechaimAdminDocuments?.stop?.();
+    }
+
+    if (currentTab === 'dashboard') {
+      window.LechaimAdminDashboard?.start?.();
+    } else {
+      window.LechaimAdminDashboard?.stop?.();
     }
   }
 
@@ -1253,6 +1262,7 @@
       && tab !== 'settings'
       && tab !== 'kitchen'
       && tab !== 'documents'
+      && tab !== 'dashboard'
     ) return;
     setTab(tab);
     if (tab === 'inventory') {

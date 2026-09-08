@@ -255,10 +255,10 @@
   function closedHoursText(lang, kind) {
     const summary = hoursSummary(lang);
     if (lang === 'en') {
-      const who = kind === 'dine-in' ? 'Dine-in' : 'Takeaway';
+      const who = kind === 'dine-in' ? 'Dine-in' : kind === 'delivery' ? 'Delivery' : 'Takeaway';
       return `${who} orders follow restaurant hours:\n${summary}.`;
     }
-    const who = kind === 'dine-in' ? 'לישיבה במקום' : 'לאיסוף עצמי';
+    const who = kind === 'dine-in' ? 'לישיבה במקום' : kind === 'delivery' ? 'למשלוח' : 'לאיסוף עצמי';
     return `ניתן לבצע הזמנות ${who} בשעות הפעילות:\n${summary}.`;
   }
 
@@ -325,6 +325,8 @@
         return deliveryHint(L);
       case 'pickupClosedText':
         return closedHoursText(L, 'takeaway');
+      case 'deliveryClosedText':
+        return closedHoursText(L, 'delivery');
       case 'dineInClosedText':
         return closedHoursText(L, 'dine-in');
       case 'placeResTimeRequired':
