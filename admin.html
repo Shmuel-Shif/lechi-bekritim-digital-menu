@@ -16,7 +16,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/admin.css?v=131">
-  <link rel="stylesheet" href="css/admin-dashboard.css?v=5">
+  <link rel="stylesheet" href="css/admin-dashboard.css?v=6">
+  <link rel="stylesheet" href="css/admin-reminders.css?v=1">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
 <body>
@@ -116,6 +117,16 @@
       <p class="admin-toast" id="admin-toast" role="status" aria-live="polite" hidden></p>
 
       <div class="admin-view dash" id="admin-view-dashboard" hidden>
+        <div class="dash-hud" aria-hidden="true">
+          <span class="dash-hud__br dash-hud__br--tl"></span>
+          <span class="dash-hud__br dash-hud__br--tr"></span>
+          <span class="dash-hud__br dash-hud__br--bl"></span>
+          <span class="dash-hud__br dash-hud__br--br"></span>
+          <span class="dash-hud__coord dash-hud__coord--tl">SYS.01</span>
+          <span class="dash-hud__coord dash-hud__coord--tr">OPS.LIVE</span>
+          <span class="dash-hud__coord dash-hud__coord--bl">GRID.α</span>
+          <span class="dash-hud__coord dash-hud__coord--br">3000</span>
+        </div>
         <header class="dash-command">
           <div class="dash-command__brand">
             <img src="assets/logo/logo-image.png" alt="" class="dash-command__logo" width="56" height="56">
@@ -126,7 +137,7 @@
             </div>
           </div>
           <div class="dash-command__meta">
-            <span class="dash-live-badge dash-live-badge--core"><i></i> חי</span>
+            <span class="dash-live-badge dash-live-badge--core"><i></i> חי<span class="dash-live-halo" aria-hidden="true"></span></span>
             <div class="dash-clock" id="dash-clock">
               <p class="dash-clock__time" id="dash-clock-time">—</p>
               <p class="dash-clock__date" id="dash-clock-date">—</p>
@@ -145,7 +156,7 @@
           <header class="dash-now__head">
             <p class="dash-now__eyebrow">סטטוס מסעדה</p>
             <h2 class="dash-now__title">מצב המסעדה עכשיו</h2>
-            <span class="dash-live-badge"><i></i> חי</span>
+            <span class="dash-live-badge"><i></i> חי<span class="dash-live-halo" aria-hidden="true"></span></span>
           </header>
           <div class="dash-core" id="dash-core">
             <div class="dash-orbit">
@@ -166,7 +177,7 @@
           </div>
         </section>
 
-        <section class="dash-rings" id="dash-rings" aria-label="טבעות בקרה"></section>
+        <section class="dash-rings dash-wall" id="dash-rings" aria-label="קיר נתונים מעגלי"></section>
         <section class="dash-kpis" id="dash-kpis" aria-label="מדדי ביצוע">
           <article class="dash-kpi dash-kpi--sales" data-kpi="sales">
             <span class="dash-kpi__icon" aria-hidden="true">💶</span>
@@ -2189,6 +2200,31 @@
     </section>
   </div>
 
+  <div class="admin-reminder" id="admin-reminder" hidden aria-hidden="true">
+    <div class="admin-reminder__veil" aria-hidden="true"></div>
+    <div class="admin-reminder__card" role="alertdialog" aria-modal="true" aria-labelledby="admin-reminder-title" aria-describedby="admin-reminder-copy">
+      <div class="admin-reminder__ring" id="admin-reminder-ring" aria-hidden="true">
+        <svg viewBox="0 0 80 80">
+          <circle class="admin-reminder__ring-track" cx="40" cy="40" r="34"></circle>
+          <circle class="admin-reminder__ring-prog" cx="40" cy="40" r="34"></circle>
+        </svg>
+        <span class="admin-reminder__bell">🔔</span>
+      </div>
+      <p class="admin-reminder__kicker">LECHAIM CONTROL CENTER</p>
+      <h2 class="admin-reminder__title" id="admin-reminder-title">CHECK-IN</h2>
+      <p class="admin-reminder__copy" id="admin-reminder-copy">הגיע הזמן לבצע CHECK-IN</p>
+      <p class="admin-reminder__next">הצפצוף הבא בעוד 15 שניות</p>
+      <form class="admin-reminder__form" id="admin-reminder-form" autocomplete="off">
+        <label class="admin-reminder__field">
+          <span>קוד גישה</span>
+          <input type="tel" class="admin-code-input" id="admin-reminder-code" inputmode="numeric" pattern="[0-9]*" maxlength="64" dir="ltr" autocomplete="one-time-code" spellcheck="false">
+        </label>
+        <p class="admin-error" id="admin-reminder-error" role="alert" hidden></p>
+        <button type="submit" class="admin-btn admin-btn--primary" id="admin-reminder-confirm">אישור</button>
+      </form>
+    </div>
+  </div>
+
   <div class="admin-notify-stack" id="admin-notify-stack" aria-live="polite"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
@@ -2218,7 +2254,7 @@
   <script src="js/admin-history.js?v=2" defer></script>
   <script src="js/admin-coupons.js" defer></script>
   <script src="js/admin-till.js?v=18" defer></script>
-  <script src="js/admin-dashboard.js?v=5" defer></script>
+  <script src="js/admin-dashboard.js?v=6" defer></script>
   <script src="js/staff-hours-xlsx.js?v=4" defer></script>
   <script src="js/admin-staff-hours.js?v=22" defer></script>
   <script src="js/docs-monthly-xlsx.js?v=1" defer></script>
@@ -2227,8 +2263,9 @@
   <script src="js/admin-settings.js?v=7" defer></script>
   <script src="js/stock-catalog.js?v=6" defer></script>
   <script src="js/admin-stock.js?v=2" defer></script>
-  <script src="js/admin.js?v=73" defer></script>
-  <script src="js/admin-push.js?v=2" defer></script>
+  <script src="js/admin.js?v=74" defer></script>
+  <script src="js/admin-push.js?v=3" defer></script>
+  <script src="js/admin-reminders.js?v=1" defer></script>
   <script src="js/admin-pwa.js?v=2" defer></script>
 </body>
 </html>

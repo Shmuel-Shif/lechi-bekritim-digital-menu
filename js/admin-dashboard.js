@@ -36,11 +36,11 @@
   const pickupBody = document.getElementById('dash-pickup-body');
 
   const TYPE_META = {
-    table: { label: 'שולחן', color: '#2d6a9f' },
-    delivery: { label: 'משלוח', color: '#c45a2d' },
-    pickup: { label: 'איסוף', color: '#2f7d6d' },
-    butcher: { label: 'חנות בשר', color: '#8b3a3a' },
-    shabbat: { label: 'הזמנות שבת', color: '#6b4ea0' },
+    table: { label: 'שולחן', color: '#3dd68c' },
+    delivery: { label: 'משלוח', color: '#ff6b4a' },
+    pickup: { label: 'איסוף', color: '#2ee6d6' },
+    butcher: { label: 'חנות בשר', color: '#c45a2d' },
+    shabbat: { label: 'הזמנות שבת', color: '#b07cff' },
   };
 
   const LIVE_CARDS = [
@@ -599,6 +599,28 @@
     svg.innerHTML = `<polyline fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" points="${pts}"></polyline>`;
   }
 
+  function ringTicks(cx, cy, r, count) {
+    let out = '';
+    for (let i = 0; i < count; i += 1) {
+      const a = (i / count) * Math.PI * 2 - Math.PI / 2;
+      const inner = r - (i % 6 === 0 ? 6 : 3);
+      out += `<line class="dash-tick${i % 6 === 0 ? ' is-major' : ''}" x1="${(cx + Math.cos(a) * inner).toFixed(1)}" y1="${(cy + Math.sin(a) * inner).toFixed(1)}" x2="${(cx + Math.cos(a) * r).toFixed(1)}" y2="${(cy + Math.sin(a) * r).toFixed(1)}"></line>`;
+    }
+    return out;
+  }
+
+  function orbitDots(cx, cy, r) {
+    return `<g class="dash-orbit-dots">
+      <circle cx="${cx}" cy="${(cy - r).toFixed(1)}" r="2.3"></circle>
+      <circle cx="${(cx + r * 0.86).toFixed(1)}" cy="${(cy + r * 0.5).toFixed(1)}" r="1.6"></circle>
+      <circle cx="${(cx - r * 0.86).toFixed(1)}" cy="${(cy + r * 0.5).toFixed(1)}" r="1.6"></circle>
+    </g>`;
+  }
+
+  function idleCaption(on) {
+    return on ? '<em class="dash-idle">ממתין לפעילות</em>' : '';
+  }
+
   function setSat(key, value, hot) {
     const node = root?.querySelector(`[data-sat="${key}"]`);
     if (!node) return;
@@ -634,49 +656,63 @@
       innerArcEl.style.setProperty('--arc', innerArc.toFixed(2));
       innerArcEl.style.setProperty('--gap', (innerCirc - innerArc).toFixed(2));
       svg.classList.toggle('is-live', busy);
+      svg.classList.toggle('is-idle', !busy);
+      const labelEl = coreGaugeEl.querySelector('.dash-gauge-label');
+      const idleEl = coreGaugeEl.querySelector('.dash-gauge-idle');
+      if (labelEl) labelEl.textContent = busy ? 'פעילות' : 'ממתין';
+      if (idleEl) idleEl.textContent = busy ? 'הזמנות פעילות' : 'ממתין לפעילות';
       coreGaugeEl.classList.toggle('is-live', busy);
     } else {
       coreGaugeEl.classList.toggle('is-live', busy);
-      coreGaugeEl.innerHTML = `<svg class="dash-gauge-svg${busy ? ' is-live' : ''}" viewBox="0 0 240 240" role="img" aria-label="הזמנות פעילות">
+      coreGaugeEl.innerHTML = `<svg class="dash-gauge-svg${busy ? ' is-live' : ' is-idle'}" viewBox="0 0 240 240" role="img" aria-label="הזמנות פעילות">
         <defs>
           <linearGradient id="ccGauge" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stop-color="#3ee0c2"/>
-            <stop offset="100%" stop-color="#c4a06a"/>
+            <stop offset="100%" stop-color="#e2b657"/>
           </linearGradient>
           <linearGradient id="ccLive" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stop-color="#3dd68c"/>
             <stop offset="100%" stop-color="#4da3ff"/>
           </linearGradient>
         </defs>
+        ${ringTicks(120, 120, 118, 48)}
         <circle class="dash-gauge-spin" cx="120" cy="120" r="112"></circle>
         <circle class="dash-gauge-live-track" cx="120" cy="120" r="${liveR}"></circle>
         <circle class="dash-gauge-live" cx="120" cy="120" r="${liveR}" style="--arc:${liveArc.toFixed(2)}; --gap:${(liveCirc - liveArc).toFixed(2)}"></circle>
         <circle class="dash-gauge-track" cx="120" cy="120" r="${innerR}"></circle>
         <circle class="dash-gauge-arc" cx="120" cy="120" r="${innerR}" style="--arc:${innerArc.toFixed(2)}; --gap:${(innerCirc - innerArc).toFixed(2)}"></circle>
-        <text class="dash-gauge-kicker" x="120" y="96">חי</text>
-        <text class="dash-gauge-label" x="120" y="118">פעילות</text>
-        <text class="dash-gauge-value" x="120" y="154">${escapeHtml(formatCount(active))}</text>
+        ${orbitDots(120, 120, 112)}
+        <text class="dash-gauge-kicker" x="120" y="88">חי</text>
+        <text class="dash-gauge-label" x="120" y="110">${busy ? 'פעילות' : 'ממתין'}</text>
+        <text class="dash-gauge-value" x="120" y="146">${escapeHtml(formatCount(active))}</text>
+        <text class="dash-gauge-idle" x="120" y="168">${busy ? 'הזמנות פעילות' : 'ממתין לפעילות'}</text>
       </svg>`;
     }
     setSat('tables', open, open > 0);
     setSat('kitchen', live.kitchenActive || ((live.waitingDishes || 0) + (live.readyDishes || 0)), (live.kitchenActive || 0) > 0);
     setSat('delivery', live.activeDeliveries, live.activeDeliveries > 0);
     setSat('pickup', live.activePickups, live.activePickups > 0);
+    coreGaugeEl.setAttribute('data-tip', `פעילות · ${formatCount(active)}${busy ? '' : ' · ממתין לפעילות'}`);
   }
 
   function ringMarkup(item) {
     const r = 54;
     const circ = 2 * Math.PI * r;
     const pct = Math.max(0, Math.min(1, Number(item.pct) || 0));
-    const arc = pct * circ;
-    return `<article class="dash-ring dash-ring--${escapeHtml(item.key || 'mod')}">
+    const arc = Math.max(pct * circ, pct > 0 ? 0 : 0.12 * circ);
+    const idle = !(Number(item.raw) > 0);
+    const tip = item.tip || `${item.label}: ${item.display}`;
+    return `<article class="dash-ring dash-ring--${escapeHtml(item.key || 'mod')}${idle ? ' is-idle' : ''}" data-tip="${escapeHtml(tip)}">
       <svg viewBox="0 0 140 140" aria-hidden="true">
+        ${ringTicks(70, 70, 68, 36)}
         <circle class="dash-ring-spin" cx="70" cy="70" r="64"></circle>
         <circle class="dash-ring-track" cx="70" cy="70" r="${r}"></circle>
         <circle class="dash-ring-arc" cx="70" cy="70" r="${r}" stroke="${item.color}" style="--arc:${arc.toFixed(2)}; --gap:${(circ - arc).toFixed(2)}"></circle>
+        ${orbitDots(70, 70, 64)}
       </svg>
       <h3>${escapeHtml(item.label)}</h3>
       <strong>${escapeHtml(item.display)}</strong>
+      ${idleCaption(idle)}
     </article>`;
   }
 
@@ -684,62 +720,95 @@
     if (!ringsEl) return;
     const sales = Number(summary?.sales) || 0;
     const cash = Number(summary?.cash) || 0;
+    const credit = Number(summary?.credit) || 0;
     const orders = Number(summary?.orders) || 0;
     const prevOrders = Number(compare?.orders) || 0;
     const kitchen = Number(live.kitchenActive) || ((Number(live.waitingDishes) || 0) + (Number(live.readyDishes) || 0));
     const ready = Number(live.readyDishes) || 0;
     const tableTotal = Number(live.tableTotal) || 0;
     const open = Number(live.openTables) || 0;
-    if (!rebuild && ringsEl.children.length === 5) {
-      const displays = [
-        formatMoney(sales),
-        formatCount(orders),
-        tableTotal ? `${formatCount(open)}/${formatCount(tableTotal)}` : formatCount(open),
-        formatCount(kitchen),
-        formatCount(live.activeDeliveries),
-      ];
-      ringsEl.querySelectorAll('.dash-ring strong').forEach((el, i) => {
-        if (displays[i] != null) el.textContent = displays[i];
-      });
-      return;
-    }
-    ringsEl.innerHTML = [
-      ringMarkup({
+    const delivery = Number(live.activeDeliveries) || 0;
+    const pickup = Number(live.activePickups) || 0;
+    const items = [
+      {
         key: 'sales',
         label: 'מכירות',
         display: formatMoney(sales),
+        raw: sales,
         pct: sales > 0 ? cash / sales : 0,
-        color: '#c4a06a',
-      }),
-      ringMarkup({
+        color: '#e2b657',
+        tip: `מכירות · ${formatMoney(sales)} · מזומן ${formatMoney(cash)} · אשראי ${formatMoney(credit)}`,
+      },
+      {
         key: 'orders',
         label: 'הזמנות',
         display: formatCount(orders),
+        raw: orders,
         pct: prevOrders > 0 ? Math.min(1, orders / Math.max(orders, prevOrders)) : (orders > 0 ? 1 : 0),
-        color: '#9b7dff',
-      }),
-      ringMarkup({
+        color: '#b07cff',
+        tip: `הזמנות · ${formatCount(orders)}`,
+      },
+      {
         key: 'tables',
         label: 'שולחנות',
         display: tableTotal ? `${formatCount(open)}/${formatCount(tableTotal)}` : formatCount(open),
+        raw: open,
         pct: tableTotal > 0 ? open / tableTotal : 0,
         color: '#3dd68c',
-      }),
-      ringMarkup({
+        tip: `שולחנות · ${formatCount(open)}/${formatCount(tableTotal)}`,
+      },
+      {
         key: 'kitchen',
         label: 'מטבח',
         display: formatCount(kitchen),
+        raw: kitchen,
         pct: kitchen > 0 ? ready / kitchen : 0,
-        color: '#ff8a4c',
-      }),
-      ringMarkup({
+        color: '#3ee0c2',
+        tip: `מטבח · ${formatCount(kitchen)} · מוכן ${formatCount(ready)}`,
+      },
+      {
         key: 'delivery',
         label: 'משלוחים',
-        display: formatCount(live.activeDeliveries),
-        pct: (Number(live.activeDeliveries) || 0) > 0 ? 1 : 0,
-        color: '#4da3ff',
-      }),
-    ].join('');
+        display: formatCount(delivery),
+        raw: delivery,
+        pct: delivery > 0 ? 1 : 0,
+        color: '#ff6b4a',
+        tip: `משלוחים · ${formatCount(delivery)}`,
+      },
+      {
+        key: 'pickup',
+        label: 'איסוף',
+        display: formatCount(pickup),
+        raw: pickup,
+        pct: pickup > 0 ? 1 : 0,
+        color: '#2ee6d6',
+        tip: `איסוף · ${formatCount(pickup)}`,
+      },
+    ];
+    if (!rebuild && ringsEl.children.length === 6) {
+      ringsEl.querySelectorAll('.dash-ring').forEach((el, i) => {
+        const item = items[i];
+        if (!item) return;
+        const strong = el.querySelector('strong');
+        const arcEl = el.querySelector('.dash-ring-arc');
+        const r = 54;
+        const circ = 2 * Math.PI * r;
+        const pct = Math.max(0, Math.min(1, Number(item.pct) || 0));
+        const arc = Math.max(pct * circ, pct > 0 ? 0 : 0.12 * circ);
+        if (strong) strong.textContent = item.display;
+        if (arcEl) {
+          arcEl.style.setProperty('--arc', arc.toFixed(2));
+          arcEl.style.setProperty('--gap', (circ - arc).toFixed(2));
+        }
+        el.classList.toggle('is-idle', !(Number(item.raw) > 0));
+        el.setAttribute('data-tip', item.tip);
+        const idle = el.querySelector('.dash-idle');
+        if (!(Number(item.raw) > 0) && !idle) el.insertAdjacentHTML('beforeend', idleCaption(true));
+        if (Number(item.raw) > 0 && idle) idle.remove();
+      });
+      return;
+    }
+    ringsEl.innerHTML = items.map(ringMarkup).join('');
   }
 
   function kitchenOrb(label, value, pct, kind, hot, warn) {
@@ -747,7 +816,7 @@
     const circ = 2 * Math.PI * r;
     const p = Math.max(0, Math.min(1, Number(pct) || 0));
     const arc = p * circ;
-    return `<div class="dash-orb dash-orb--${kind}${hot ? ' is-hot' : ''}${warn ? ' is-warn' : ''}">
+    return `<div class="dash-orb dash-orb--${kind}${hot ? ' is-hot' : ''}${warn ? ' is-warn' : ''}${value <= 0 ? ' is-idle' : ''}" data-tip="${escapeHtml(`${label} · ${formatCount(value)}`)}">
       <svg viewBox="0 0 64 64" aria-hidden="true">
         <circle class="dash-orb-track" cx="32" cy="32" r="${r}"></circle>
         <circle class="dash-orb-arc" cx="32" cy="32" r="${r}" style="--arc:${arc.toFixed(2)}; --gap:${(circ - arc).toFixed(2)}"></circle>
@@ -774,14 +843,29 @@
   function renderTableActivity(live) {
     if (!tablesBody) return;
     const tables = Array.isArray(live.tables) ? live.tables : [];
+    const total = Number(live.tableTotal) || tables.length;
+    const open = Number(live.openTables) || 0;
+    const r = 28;
+    const circ = 2 * Math.PI * r;
+    const pct = total > 0 ? open / total : 0;
+    const arc = Math.max(pct * circ, 0.12 * circ);
+    const occ = `<div class="dash-occ${open > 0 ? '' : ' is-idle'}" data-tip="${escapeHtml(`תפוסה · ${formatCount(open)}/${formatCount(total)}`)}">
+      <svg viewBox="0 0 72 72" aria-hidden="true">
+        ${ringTicks(36, 36, 34, 24)}
+        <circle class="dash-ring-track" cx="36" cy="36" r="${r}"></circle>
+        <circle class="dash-ring-arc" cx="36" cy="36" r="${r}" stroke="#3dd68c" style="--arc:${arc.toFixed(2)}; --gap:${(circ - arc).toFixed(2)}"></circle>
+      </svg>
+      <span>תפוסה</span>
+      <strong>${escapeHtml(total ? `${formatCount(open)}/${formatCount(total)}` : formatCount(open))}</strong>
+    </div>`;
     if (!tables.length) {
-      tablesBody.innerHTML = emptyChart('אין שולחנות בלוח', 'ברגע שהלוח החי יטען תופיע פעילות השולחנות');
+      tablesBody.innerHTML = `${occ}${emptyChart('אין שולחנות בלוח', 'ברגע שהלוח החי יטען תופיע פעילות השולחנות')}`;
       return;
     }
-    tablesBody.innerHTML = `<div class="dash-table-grid">${tables.map((row) => {
+    tablesBody.innerHTML = `${occ}<div class="dash-table-grid">${tables.map((row) => {
       const status = row.status === 'waiter' ? 'waiter' : (row.status === 'active' ? 'active' : 'free');
       const num = row.tableNumber == null ? '' : String(row.tableNumber);
-      return `<span class="dash-node dash-node--${status}" data-status="${status}" title="${escapeHtml(num)}">${escapeHtml(num)}</span>`;
+      return `<span class="dash-node dash-node--${status}" data-status="${status}" data-tip="${escapeHtml(`שולחן ${num} · ${status === 'waiter' ? 'קריאת מלצר' : status === 'active' ? 'פעיל' : 'פנוי'}`)}" title="${escapeHtml(num)}">${escapeHtml(num)}</span>`;
     }).join('')}</div>
     <p class="dash-table-legend">
       <i class="dash-node--free"></i> פנוי
@@ -790,15 +874,32 @@
     </p>`;
   }
 
+  function meterMarkup(kind, value, label, sub) {
+    const n = Number(value) || 0;
+    const r = 42;
+    const circ = 2 * Math.PI * r;
+    const pct = n > 0 ? 1 : 0.12;
+    const arc = pct * circ;
+    const color = kind === 'delivery' ? '#ff6b4a' : '#2ee6d6';
+    return `<div class="dash-meter dash-meter--${kind}${n > 0 ? ' is-hot' : ' is-idle'}" data-tip="${escapeHtml(`${label} · ${formatCount(n)}`)}">
+      <svg viewBox="0 0 110 110" aria-hidden="true">
+        ${ringTicks(55, 55, 52, 28)}
+        <circle class="dash-ring-spin" cx="55" cy="55" r="50"></circle>
+        <circle class="dash-ring-track" cx="55" cy="55" r="${r}"></circle>
+        <circle class="dash-ring-arc" cx="55" cy="55" r="${r}" stroke="${color}" style="--arc:${arc.toFixed(2)}; --gap:${(circ - arc).toFixed(2)}"></circle>
+        ${orbitDots(55, 55, 50)}
+      </svg>
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(formatCount(n))}</strong>
+      <em>${n > 0 ? escapeHtml(sub) : 'ממתין לפעילות'}</em>
+    </div>`;
+  }
+
   function renderFulfillment(live) {
     const d = Number(live.activeDeliveries) || 0;
     const p = Number(live.activePickups) || 0;
-    if (deliveryBody) {
-      deliveryBody.innerHTML = `<div class="dash-run${d > 0 ? ' is-hot' : ''}"><span>ערוץ חי</span><strong>${escapeHtml(formatCount(d))}</strong><em>משלוחים פעילים</em></div>`;
-    }
-    if (pickupBody) {
-      pickupBody.innerHTML = `<div class="dash-run${p > 0 ? ' is-hot' : ''}"><span>ערוץ חי</span><strong>${escapeHtml(formatCount(p))}</strong><em>איסופים פעילים</em></div>`;
-    }
+    if (deliveryBody) deliveryBody.innerHTML = meterMarkup('delivery', d, 'משלוחים', 'ערוץ חי');
+    if (pickupBody) pickupBody.innerHTML = meterMarkup('pickup', p, 'איסוף', 'ערוץ חי');
   }
 
   function renderLiveLayer(live, summary, compare, rebuild) {
@@ -835,10 +936,16 @@
   }
 
   function bindHits(el, handler) {
+    const svg = el.querySelector('.dash-svg');
     el.querySelectorAll('.dash-hit').forEach((hit) => {
       hit.addEventListener('pointerenter', (event) => handler(hit, event));
       hit.addEventListener('pointermove', (event) => handler(hit, event));
-      hit.addEventListener('pointerleave', hideTooltip);
+      hit.addEventListener('pointerleave', () => {
+        hideTooltip();
+        svg?.classList.remove('is-hover');
+        svg?.querySelector('.dash-guide')?.classList.remove('is-on');
+        svg?.querySelectorAll('.is-focus').forEach((node) => node.classList.remove('is-focus'));
+      });
     });
   }
 
@@ -943,6 +1050,7 @@
       </defs>
       ${grids}
       ${avgY}
+      <line class="dash-guide" x1="${pad.left}" x2="${pad.left}" y1="${pad.top}" y2="${pad.top + innerH}"></line>
       <g style="--dash-accent:${accent}; --dash-compare:${compareAccent}; --dash-fill:url(#${gid})">${series}</g>
       ${xLabels}
       ${hits}
@@ -956,6 +1064,19 @@
       const i = Number(hit.getAttribute('data-i'));
       const point = points[i];
       if (!point) return;
+      const svg = el.querySelector('.dash-svg');
+      const guide = svg?.querySelector('.dash-guide');
+      if (svg) svg.classList.add('is-hover');
+      if (guide) {
+        guide.setAttribute('x1', String(point.x));
+        guide.setAttribute('x2', String(point.x));
+        guide.classList.add('is-on');
+      }
+      svg?.querySelectorAll('[data-i]').forEach((node) => {
+        const match = node.getAttribute('data-i') === String(i)
+          && (node.classList.contains('dash-dot') || node.classList.contains('dash-bar'));
+        node.classList.toggle('is-focus', match);
+      });
       const extra = point.compare == null
         ? ''
         : `<em>${escapeHtml(options.compareLabel || 'תקופה קודמת')} ${escapeHtml(axisLabel(point.compare, kind))}</em>`;
@@ -969,28 +1090,38 @@
   function renderDonut(el, cash, credit) {
     if (!el) return;
     const total = roundMoney((Number(cash) || 0) + (Number(credit) || 0));
-    if (total <= 0) {
-      el.innerHTML = emptyChart('אין תמהיל עדיין', 'ברגע שתהיה מכירה יופיע כאן מזומן מול אשראי');
-      return;
-    }
     const parts = [
-      { label: 'מזומן', value: Number(cash) || 0, color: '#2f7d6d' },
-      { label: 'אשראי', value: Number(credit) || 0, color: '#2d6a9f' },
-    ].filter((part) => part.value > 0);
+      { label: 'מזומן', value: Number(cash) || 0, color: '#ff8a4c' },
+      { label: 'אשראי', value: Number(credit) || 0, color: '#4da3ff' },
+    ];
     const r = 68;
     const c = 2 * Math.PI * r;
+    if (total <= 0) {
+      el.innerHTML = `<div class="dash-donut is-idle">
+        <svg class="dash-svg dash-svg--donut" viewBox="0 0 180 180" role="img" aria-label="מזומן מול אשראי">
+          ${ringTicks(90, 90, 86, 36)}
+          <circle class="dash-donut-track" cx="90" cy="90" r="${r}"></circle>
+          <circle class="dash-ring-spin" cx="90" cy="90" r="80"></circle>
+          <text x="90" y="86" class="dash-donut-total">${escapeHtml(formatMoney(0))}</text>
+          <text x="90" y="108" class="dash-donut-cap">ממתין לפעילות</text>
+        </svg>
+      </div>`;
+      return;
+    }
+    const shown = parts.filter((part) => part.value > 0);
     let offset = 0;
-    const rings = parts.map((part) => {
+    const rings = shown.map((part, i) => {
       const len = (part.value / total) * c;
-      const dash = `<circle class="dash-donut-seg" cx="90" cy="90" r="${r}" stroke="${part.color}" stroke-dasharray="${len.toFixed(2)} ${(c - len).toFixed(2)}" stroke-dashoffset="${(-offset).toFixed(2)}"></circle>`;
+      const dash = `<circle class="dash-donut-seg" data-i="${i}" data-tip="${escapeHtml(`${part.label} · ${formatMoney(part.value)} · ${Math.round((part.value / total) * 100)}%`)}" cx="90" cy="90" r="${r}" stroke="${part.color}" stroke-dasharray="${len.toFixed(2)} ${(c - len).toFixed(2)}" stroke-dashoffset="${(-offset).toFixed(2)}"></circle>`;
       offset += len;
       return dash;
     }).join('');
-    const legend = parts.map((part) => (
-      `<li><i style="background:${part.color}"></i><span>${escapeHtml(part.label)}</span><strong>${escapeHtml(formatMoney(part.value))}</strong><em>${Math.round((part.value / total) * 100)}%</em></li>`
+    const legend = shown.map((part) => (
+      `<li data-tip="${escapeHtml(`${part.label} · ${formatMoney(part.value)}`)}"><i style="background:${part.color}"></i><span>${escapeHtml(part.label)}</span><strong>${escapeHtml(formatMoney(part.value))}</strong><em>${Math.round((part.value / total) * 100)}%</em></li>`
     )).join('');
     el.innerHTML = `<div class="dash-donut">
       <svg class="dash-svg dash-svg--donut" viewBox="0 0 180 180" role="img" aria-label="מזומן מול אשראי">
+        ${ringTicks(90, 90, 86, 36)}
         <circle class="dash-donut-track" cx="90" cy="90" r="${r}"></circle>
         ${rings}
         <text x="90" y="86" class="dash-donut-total">${escapeHtml(formatMoney(total))}</text>
@@ -1003,17 +1134,39 @@
   function renderTypeBars(el, buckets) {
     if (!el) return;
     if (!buckets.length) {
-      el.innerHTML = emptyChart('אין פילוח עדיין', 'סוגי ההזמנות יופיעו לפי הסגירות בפועל');
+      el.innerHTML = `<div class="dash-donut is-idle">
+        <svg class="dash-svg dash-svg--donut dash-svg--pie" viewBox="0 0 180 180" role="img" aria-label="סוגי הזמנות">
+          ${ringTicks(90, 90, 86, 28)}
+          <circle class="dash-donut-track" cx="90" cy="90" r="58"></circle>
+          <text x="90" y="86" class="dash-donut-total">0</text>
+          <text x="90" y="108" class="dash-donut-cap">ממתין לפעילות</text>
+        </svg>
+      </div>`;
       return;
     }
-    const max = Math.max(1, ...buckets.map((row) => row.value));
-    el.innerHTML = `<ul class="dash-hlist dash-hlist--pct">${buckets.map((row) => `
-      <li>
-        <span class="dash-hlist__name">${escapeHtml(row.label)}</span>
-        <span class="dash-hlist__track"><i style="width:${Math.max(8, (row.value / max) * 100)}%;background:${row.color}"></i></span>
-        <strong>${escapeHtml(formatCount(row.value))}</strong>
-        <em>${escapeHtml(String(row.pct))}%</em>
-      </li>`).join('')}</ul>`;
+    const total = buckets.reduce((sum, row) => sum + (Number(row.value) || 0), 0) || 1;
+    const r = 58;
+    const c = 2 * Math.PI * r;
+    let offset = 0;
+    const rings = buckets.map((row, i) => {
+      const len = (row.value / total) * c;
+      const dash = `<circle class="dash-donut-seg" data-i="${i}" data-tip="${escapeHtml(`${row.label} · ${formatCount(row.value)} · ${row.pct}%`)}" cx="90" cy="90" r="${r}" stroke="${row.color}" stroke-dasharray="${len.toFixed(2)} ${(c - len).toFixed(2)}" stroke-dashoffset="${(-offset).toFixed(2)}"></circle>`;
+      offset += len;
+      return dash;
+    }).join('');
+    const legend = buckets.map((row) => (
+      `<li data-tip="${escapeHtml(`${row.label} · ${formatCount(row.value)}`)}"><i style="background:${row.color}"></i><span>${escapeHtml(row.label)}</span><strong>${escapeHtml(formatCount(row.value))}</strong><em>${escapeHtml(String(row.pct))}%</em></li>`
+    )).join('');
+    el.innerHTML = `<div class="dash-donut dash-donut--types">
+      <svg class="dash-svg dash-svg--donut dash-svg--pie" viewBox="0 0 180 180" role="img" aria-label="סוגי הזמנות">
+        ${ringTicks(90, 90, 86, 28)}
+        <circle class="dash-donut-track" cx="90" cy="90" r="${r}"></circle>
+        ${rings}
+        <text x="90" y="86" class="dash-donut-total">${escapeHtml(formatCount(total))}</text>
+        <text x="90" y="108" class="dash-donut-cap">הזמנות</text>
+      </svg>
+      <ul class="dash-legend">${legend}</ul>
+    </div>`;
   }
 
   function renderTop(el, products, allowed) {
@@ -1107,14 +1260,14 @@
       active: spark.orders,
     };
     const colors = {
-      sales: '#c4a06a',
-      cash: '#3dd68c',
+      sales: '#e2b657',
+      cash: '#ff8a4c',
       credit: '#4da3ff',
-      tips: '#ff8a4c',
-      orders: '#9b7dff',
+      tips: '#b07cff',
+      orders: '#b07cff',
       avg: '#3ee0c2',
       tables: '#3dd68c',
-      active: '#ff5d6c',
+      active: '#ff6b4a',
     };
     Object.keys(sparkByKey).forEach((key) => {
       paintSpark(root?.querySelector(`[data-kpi="${key}"] [data-kpi-spark]`), sparkByKey[key], colors[key]);
@@ -1609,7 +1762,41 @@
     });
     document.addEventListener('pointerdown', (event) => {
       if (!tooltipEl || tooltipEl.hidden) return;
-      if (event.target.closest('.dash-chart, .dash-heat')) return;
+      if (event.target.closest('.dash-chart, .dash-heat, .dash-ring, .dash-kpi, .dash-orb, .dash-node, .dash-meter, .dash-occ, .dash-sat, .dash-donut')) return;
+      hideTooltip();
+    });
+    root.addEventListener('pointerover', (event) => {
+      const host = event.target.closest('[data-tip], .dash-kpi, .dash-sat');
+      if (!host || !root.contains(host)) return;
+      const tip = host.getAttribute('data-tip')
+        || (host.classList.contains('dash-kpi')
+          ? `${host.querySelector('.dash-kpi__label')?.textContent || ''} · ${host.querySelector('[data-kpi-value]')?.textContent || ''}`
+          : (host.classList.contains('dash-sat')
+            ? `${host.querySelector('span')?.textContent || ''} · ${host.querySelector('[data-sat-value]')?.textContent || ''}`
+            : ''));
+      if (!tip) return;
+      const parts = String(tip).split(' · ');
+      showTooltip(
+        `<strong>${escapeHtml(parts[0] || '')}</strong>${parts.slice(1).map((bit) => `<span>${escapeHtml(bit)}</span>`).join('')}`,
+        event
+      );
+    });
+    root.addEventListener('pointermove', (event) => {
+      if (!tooltipEl || tooltipEl.hidden) return;
+      if (!event.target.closest('[data-tip], .dash-kpi, .dash-sat, .dash-chart, .dash-heat')) return;
+      const box = tooltipEl.getBoundingClientRect();
+      let left = event.clientX - box.width / 2;
+      let top = event.clientY - box.height - 16;
+      left = Math.max(14, Math.min(left, window.innerWidth - box.width - 14));
+      top = Math.max(14, top);
+      tooltipEl.style.left = `${left}px`;
+      tooltipEl.style.top = `${top}px`;
+    });
+    root.addEventListener('pointerout', (event) => {
+      const host = event.target.closest('[data-tip], .dash-kpi, .dash-sat');
+      if (!host) return;
+      if (host.contains(event.relatedTarget)) return;
+      if (event.relatedTarget && root.contains(event.relatedTarget) && event.relatedTarget.closest('[data-tip], .dash-kpi, .dash-sat, .dash-hit')) return;
       hideTooltip();
     });
   }

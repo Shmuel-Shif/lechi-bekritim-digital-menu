@@ -188,5 +188,42 @@
     refreshUi();
   }
 
-  global.LechaimAdminPush = { onLoggedIn, refreshUi };
+  async function showLocalNotification(title, body, tag) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return false;
+    const payload = {
+      title: String(title || 'לחיים אדמין'),
+      body: String(body || ''),
+      url: './admin.html',
+      tag: String(tag || 'lechaim-admin-reminder'),
+      kind: 'reminder',
+    };
+    try {
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.ready;
+        await reg.showNotification(payload.title, {
+          body: payload.body,
+          icon: './assets/pwa/admin-icon-192.png',
+          badge: './assets/pwa/admin-icon-192.png',
+          lang: 'he',
+          dir: 'rtl',
+          tag: payload.tag,
+          renotify: false,
+          data: payload,
+        });
+        return true;
+      }
+      new Notification(payload.title, {
+        body: payload.body,
+        tag: payload.tag,
+        lang: 'he',
+        dir: 'rtl',
+      });
+      return true;
+    } catch (err) {
+      console.warn('[admin-push] local notification failed', err);
+      return false;
+    }
+  }
+
+  global.LechaimAdminPush = { onLoggedIn, refreshUi, showLocalNotification };
 })(window);

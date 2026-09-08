@@ -1,0 +1,211 @@
+/* LECHAIM CONTROL CENTER — local CHECK-IN / CHECK-OUT reminder overlay */
+
+.admin-reminder[hidden] {
+  display: none !important;
+}
+
+.admin-reminder {
+  position: fixed;
+  inset: 0;
+  z-index: 16000;
+  display: grid;
+  place-items: center;
+  padding: max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom));
+}
+
+.admin-reminder__veil {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(62, 224, 194, 0.16), transparent 55%),
+    rgba(5, 7, 13, 0.78);
+  backdrop-filter: blur(10px);
+  pointer-events: auto;
+}
+
+.admin-reminder.is-checkout .admin-reminder__veil {
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(255, 93, 108, 0.2), transparent 55%),
+    rgba(5, 7, 13, 0.78);
+}
+
+.admin-reminder__card {
+  position: relative;
+  width: min(100%, 420px);
+  padding: 1.7rem 1.35rem 1.4rem;
+  border-radius: 22px;
+  color: #e7eef8;
+  text-align: center;
+  background:
+    linear-gradient(180deg, rgba(18, 28, 48, 0.96) 0%, rgba(8, 12, 22, 0.98) 100%);
+  border: 1px solid rgba(62, 224, 194, 0.38);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    0 0 36px rgba(62, 224, 194, 0.28),
+    0 24px 60px rgba(0, 0, 0, 0.45);
+  animation: reminder-pulse 1.8s ease-in-out infinite;
+}
+
+.admin-reminder.is-checkout .admin-reminder__card {
+  border-color: rgba(255, 138, 76, 0.55);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    0 0 36px rgba(255, 93, 108, 0.32),
+    0 24px 60px rgba(0, 0, 0, 0.45);
+}
+
+.admin-reminder__ring {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  margin: 0 auto 0.85rem;
+}
+
+.admin-reminder__ring svg {
+  width: 88px;
+  height: 88px;
+  transform: rotate(-90deg);
+}
+
+.admin-reminder__ring-track,
+.admin-reminder__ring-prog {
+  fill: none;
+  stroke-width: 4;
+}
+
+.admin-reminder__ring-track {
+  stroke: rgba(231, 238, 248, 0.12);
+}
+
+.admin-reminder__ring-prog {
+  stroke: #3ee0c2;
+  stroke-linecap: round;
+  stroke-dasharray: 213.6;
+  stroke-dashoffset: 0;
+  filter: drop-shadow(0 0 6px rgba(62, 224, 194, 0.8));
+}
+
+.admin-reminder.is-checkout .admin-reminder__ring-prog {
+  stroke: #ff8a4c;
+  filter: drop-shadow(0 0 6px rgba(255, 138, 76, 0.85));
+}
+
+.admin-reminder__ring.is-running .admin-reminder__ring-prog {
+  animation: reminder-tick 15s linear forwards;
+}
+
+.admin-reminder__bell {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 1.7rem;
+  animation: reminder-bell 1.2s ease-in-out infinite;
+}
+
+.admin-reminder__kicker {
+  margin: 0 0 0.35rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  color: #8ea0b8;
+  font-family: var(--font-body);
+}
+
+.admin-reminder__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 2.05rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #3ee0c2;
+  text-shadow: 0 0 18px rgba(62, 224, 194, 0.45);
+}
+
+.admin-reminder.is-checkout .admin-reminder__title {
+  color: #ff8a4c;
+  text-shadow: 0 0 18px rgba(255, 138, 76, 0.5);
+}
+
+.admin-reminder__copy {
+  margin: 0.55rem 0 0.35rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #f3ede3;
+}
+
+.admin-reminder__next {
+  margin: 0 0 1.1rem;
+  font-size: 0.78rem;
+  color: #8ea0b8;
+}
+
+.admin-reminder__form {
+  display: grid;
+  gap: 0.7rem;
+  text-align: start;
+}
+
+.admin-reminder__field {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  color: #9aabc2;
+}
+
+.admin-reminder__field .admin-code-input {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 12px;
+  border: 1px solid rgba(196, 160, 106, 0.35);
+  background: rgba(5, 7, 13, 0.72);
+  color: #f3ede3;
+  font-size: 1.15rem;
+  letter-spacing: 0.18em;
+  text-align: center;
+}
+
+.admin-reminder__field .admin-code-input:focus {
+  outline: 2px solid #c4a06a;
+  outline-offset: 1px;
+}
+
+.admin-reminder .admin-error {
+  margin: 0;
+  color: #ff5d6c;
+  font-size: 0.88rem;
+  text-align: center;
+}
+
+.admin-reminder .admin-btn--primary {
+  min-height: 48px;
+  width: 100%;
+}
+
+body.admin-reminder-open {
+  overflow: hidden;
+}
+
+@keyframes reminder-pulse {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-2px) scale(1.012); }
+}
+
+@keyframes reminder-bell {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-12deg); }
+  75% { transform: rotate(12deg); }
+}
+
+@keyframes reminder-tick {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: 213.6; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-reminder__card,
+  .admin-reminder__bell,
+  .admin-reminder__ring.is-running .admin-reminder__ring-prog {
+    animation: none;
+  }
+}

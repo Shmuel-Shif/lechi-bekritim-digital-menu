@@ -987,6 +987,7 @@
 
   function consumePushPayload(payload) {
     const data = payload && typeof payload === 'object' ? payload : {};
+    if (data.kind === 'reminder' || String(data.tag || '').indexOf('lechaim-admin-reminder') === 0) return;
     const tab = String(data.tab || 'tables');
     setTab(tab);
     if (tab === 'kitchen' || tab === 'reservations' || tab === 'shabbat' || tab === 'support') return;
@@ -1069,6 +1070,7 @@
       }
 
       window.LechaimAdminPush?.onLoggedIn?.();
+      window.LechaimAdminReminders?.start?.();
     } catch (err) {
       console.error('[admin] panel load error', err);
       showError(panelError, err?.message || String(err));
@@ -1077,6 +1079,7 @@
   }
 
   function showLogin(message) {
+    window.LechaimAdminReminders?.stop?.();
     setView('login');
     showError(loginError, message || '');
     if (passwordInput) passwordInput.value = '';
