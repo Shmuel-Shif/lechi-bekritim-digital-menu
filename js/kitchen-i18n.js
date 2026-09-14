@@ -36,6 +36,7 @@
     'hummus-egg': 'Χούμους με αυγό',
     'hummus-meat': 'Χούμους με κρέας',
     'fries-classic': 'Πατάτες',
+    'schnitzel-fingers': 'Δαχτυλάκια σνίτσελ',
     'starter-rice': 'Ρύζι',
     'starter-green-beans': 'Φασολάκια',
     'starter-puree': 'Πουρές',

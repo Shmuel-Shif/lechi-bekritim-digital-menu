@@ -720,6 +720,10 @@ const DISH_I18N = {
       name: 'Classic Fries',
       desc: 'Crispy potato fries.',
     },
+    'schnitzel-fingers': {
+      name: 'Schnitzel Fingers',
+      desc: 'Crispy schnitzel fingers, recommended for the table center.',
+    },
     schnitzel: {
       name: "Chef's Schnitzel",
       desc: 'Crispy chicken breast in golden breadcrumb coating.',
@@ -928,6 +932,14 @@ const MENU_DATA = {
           description: 'מנת תפוחי אדמה פריכים.',
           price: 10,
           image: dishImage('fries'),
+        },
+        {
+          id: 'schnitzel-fingers',
+          name: 'אצבעות שניצלונים',
+          printName: 'Shnitzelonim',
+          description: 'אצבעות שניצל קריספיים מומלץ למרכז שולחן',
+          price: 17,
+          image: dishImage('shnezelonim'),
         },
         {
           id: 'starter-rice',
