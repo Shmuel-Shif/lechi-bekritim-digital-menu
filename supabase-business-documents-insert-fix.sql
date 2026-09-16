@@ -108,9 +108,18 @@ begin
     set
       document_date = coalesce(nullif(p_row->>'document_date', '')::date, document_date),
       amount_total = coalesce(nullif(p_row->>'amount_total', '')::numeric, amount_total),
+      amount_before_vat = case
+        when p_row ? 'amount_before_vat' then nullif(p_row->>'amount_before_vat', '')::numeric
+        else amount_before_vat
+      end,
+      vat_amount = case
+        when p_row ? 'vat_amount' then nullif(p_row->>'vat_amount', '')::numeric
+        else vat_amount
+      end,
       supplier_name = coalesce(p_row->>'supplier_name', supplier_name),
       notes = coalesce(p_row->>'notes', notes),
       category = coalesce(p_row->>'category', category),
+      currency = coalesce(nullif(p_row->>'currency', ''), currency),
       status = coalesce(nullif(p_row->>'status', ''), status)
     where id = v_id
     returning * into v_saved;

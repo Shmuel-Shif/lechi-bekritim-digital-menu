@@ -8434,6 +8434,18 @@ body.admin-inventory-open {
   color: #fff;
 }
 
+.docs-pay-private-hint {
+  margin: 0.55rem 0 0;
+  color: #6b7a8d;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+#docs-currency-fields {
+  margin: 0.15rem 0 0.55rem;
+}
+
 .docs-mini-form {
   display: grid;
   gap: 0.85rem;

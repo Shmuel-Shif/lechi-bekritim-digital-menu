@@ -139,10 +139,11 @@
     const cashExpenses = money(payload?.cashExpenses);
     const creditExpenses = money(payload?.creditExpenses);
     const bankExpenses = money(payload?.bankExpenses);
+    const privateExpenses = money(payload?.privateExpenses);
     const otherExpenses = money(
       payload?.otherExpenses != null
         ? payload.otherExpenses
-        : (expense - cashExpenses - creditExpenses - bankExpenses)
+        : (expense - cashExpenses - creditExpenses - bankExpenses - privateExpenses)
     );
     const result = money(payload?.result != null ? payload.result : (sales - expense));
     const rows = Array.isArray(payload?.suppliers) ? payload.suppliers : [];
@@ -233,16 +234,17 @@
     xmlRows.push(`<row r="11">${sCell(sst, 'A11', 'הוצאות מזומן')}${numCell('B11', cashExpenses, 3)}</row>`);
     xmlRows.push(`<row r="12">${sCell(sst, 'A12', 'הוצאות אשראי')}${numCell('B12', creditExpenses, 3)}</row>`);
     xmlRows.push(`<row r="13">${sCell(sst, 'A13', 'הוצאות בנקאיות')}${numCell('B13', bankExpenses, 3)}</row>`);
-    xmlRows.push(`<row r="14">${sCell(sst, 'A14', 'הוצאות ללא אמצעי תשלום')}${numCell('B14', otherExpenses, 3)}</row>`);
-    xmlRows.push('<row r="15"/>');
-    xmlRows.push(`<row r="16">${sCell(sst, 'A16', 'ספק', 2)}${sCell(sst, 'B16', 'סה״כ', 2)}</row>`);
+    xmlRows.push(`<row r="14">${sCell(sst, 'A14', 'רכישה פרטית / מחוץ לכספי העסק')}${numCell('B14', privateExpenses, 3)}</row>`);
+    xmlRows.push(`<row r="15">${sCell(sst, 'A15', 'הוצאות ללא אמצעי תשלום')}${numCell('B15', otherExpenses, 3)}</row>`);
+    xmlRows.push('<row r="16"/>');
+    xmlRows.push(`<row r="17">${sCell(sst, 'A17', 'ספק', 2)}${sCell(sst, 'B17', 'סה״כ', 2)}</row>`);
 
     rows.forEach((row, idx) => {
-      const r = 17 + idx;
+      const r = 18 + idx;
       xmlRows.push(`<row r="${r}">${sCell(sst, `A${r}`, row.name || '—')}${numCell(`B${r}`, row.sum, 3)}</row>`);
     });
 
-    const lastRow = Math.max(16, 16 + rows.length);
+    const lastRow = Math.max(17, 17 + rows.length);
     const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <dimension ref="A1:B${lastRow}"/>

@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=140">
+  <link rel="stylesheet" href="css/admin.css?v=143">
   <link rel="stylesheet" href="css/admin-dashboard.css?v=6">
   <link rel="stylesheet" href="css/admin-reminders.css?v=1">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
@@ -1057,6 +1057,7 @@
               <p class="docs-folder__sum" id="docs-folder-sum">€0</p>
               <button type="button" class="docs-scan-main" data-docs-scan>סרוק חשבונית</button>
               <button type="button" class="docs-pick-file" data-docs-pick-file>בחר קובץ</button>
+              <button type="button" class="docs-pick-file" id="docs-add-no-invoice" hidden>בלי חשבונית</button>
               <button type="button" class="docs-scan-main" id="docs-add-payment" hidden>תשלום חדש</button>
               <p class="docs-app__empty" id="docs-folder-empty">אין חשבוניות עדיין — סרקו את הראשונה</p>
               <div id="docs-folder-months"></div>
@@ -1139,6 +1140,10 @@
                 <div class="docs-fin__exp-line">
                   <span>הוצאות בנקאיות</span>
                   <strong id="docs-fin-exp-bank">€0</strong>
+                </div>
+                <div class="docs-fin__exp-line">
+                  <span>רכישה פרטית / מחוץ לכספי העסק</span>
+                  <strong id="docs-fin-exp-private">€0</strong>
                 </div>
                 <div class="docs-fin__exp-line">
                   <span>הוצאות ללא אמצעי תשלום</span>
@@ -1466,9 +1471,18 @@
                 <button type="button" class="admin-btn admin-btn--soft" data-docs-pay="bank">העברה בנקאית</button>
               </div>
             </div>
+            <div id="docs-currency-fields" hidden>
+              <span class="docs-pay-label">מטבע</span>
+              <div class="docs-pay-methods" role="group" aria-label="מטבע">
+                <button type="button" class="admin-btn admin-btn--soft is-on" data-docs-currency="EUR">€ יורו</button>
+                <button type="button" class="admin-btn admin-btn--soft" data-docs-currency="ILS">₪ שקל</button>
+                <button type="button" class="admin-btn admin-btn--soft" data-docs-currency="USD">$ דולר</button>
+              </div>
+              <p class="docs-pay-private-hint" id="docs-pay-private-hint" hidden>הוצאה זו נכללת בסך ההוצאות (€) אך אינה נחשבת כהוצאה מכספי העסק. סכומים שאינם ביורו נשמרים בתיקייה ולא נכנסים לסיכום ביורו.</p>
+            </div>
             <div id="docs-manual-fields" hidden>
               <label class="docs-mini-field">
-                <span>על מה יצא התשלום</span>
+                <span id="docs-field-notes-label">על מה יצא התשלום</span>
                 <input type="text" id="docs-field-notes" maxlength="2000" autocomplete="off">
               </label>
             </div>
@@ -1532,6 +1546,10 @@
           <label class="docs-mini-field">
             <span>שם הספק</span>
             <input type="text" id="docs-new-name" maxlength="120" autocomplete="off">
+          </label>
+          <label class="docs-mini-field">
+            <span>פרטים (אופציונלי)</span>
+            <input type="text" id="docs-new-notes" maxlength="2000" autocomplete="off" placeholder="למשל: ספק חדש מחו״ל">
           </label>
           <p class="admin-error" id="docs-new-form-error" role="alert" hidden></p>
           <button type="submit" class="docs-save-btn">המשך</button>
@@ -2341,9 +2359,9 @@
   <script src="js/admin-dashboard.js?v=6" defer></script>
   <script src="js/staff-hours-xlsx.js?v=4" defer></script>
   <script src="js/admin-staff-hours.js?v=22" defer></script>
-  <script src="js/docs-monthly-xlsx.js?v=4" defer></script>
+  <script src="js/docs-monthly-xlsx.js?v=6" defer></script>
   <script src="js/docs-monthly-pdf.js?v=1" defer></script>
-  <script src="js/admin-documents.js?v=28" defer></script>
+  <script src="js/admin-documents.js?v=31" defer></script>
   <script src="js/admin-settings.js?v=7" defer></script>
   <script src="js/stock-catalog.js?v=6" defer></script>
   <script src="js/admin-stock.js?v=2" defer></script>
