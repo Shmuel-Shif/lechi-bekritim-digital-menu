@@ -2706,15 +2706,16 @@
 
   function parentHasRequiredPicks(parentLine) {
     if (!parentLine) return true;
+    const need = Math.max(1, Number(parentLine.qty) || 1);
     if (isHamburgerMeal(parentLine.itemId)) {
-      return countSidesForMainOfKind(parentLine.lineId, 'doneness') > 0
-        && countSidesForMainOfKind(parentLine.lineId, 'drink') > 0;
+      return countSidesForMainOfKind(parentLine.lineId, 'doneness') >= need
+        && countSidesForMainOfKind(parentLine.lineId, 'drink') >= need;
     }
     if (isEntrecoteSteak(parentLine.itemId)) {
-      return countSidesForMainOfKind(parentLine.lineId, 'doneness') > 0;
+      return countSidesForMainOfKind(parentLine.lineId, 'doneness') >= need;
     }
     if (isRequiredPickParent(parentLine.itemId)) {
-      return countSidesForMain(parentLine.lineId) > 0;
+      return countSidesForMain(parentLine.lineId) >= need;
     }
     return true;
   }
@@ -2748,8 +2749,14 @@
 
   function canAddSideToMain(mainLineId, addQty = 1, sideItemId = null) {
     if (!mainLineId) return false;
+    const parent = findCartLine(mainLineId);
+    if (!parent) return false;
     if (sideItemId) {
-      return countSidesForMainOfKind(mainLineId, optionKind(sideItemId)) + addQty <= 1;
+      const kind = optionKind(sideItemId);
+      const maxPerKind = (isRequiredPickParent(parent.itemId) || isDonenessParent(parent.itemId))
+        ? Math.max(1, Number(parent.qty) || 1)
+        : 1;
+      return countSidesForMainOfKind(mainLineId, kind) + addQty <= maxPerKind;
     }
     return countSidesForMain(mainLineId) + addQty <= MAX_SIDES_PER_MAIN;
   }
@@ -7378,11 +7385,14 @@
       line.qty = newQty;
     } else {
       line.qty = newQty;
-      if (isLimonana(line.itemId)) {
+      // Keep linked drinks / doneness / sides in lockstep with parent qty.
+      // Without this, "2× burger + Coke Zero" can store drink qty=1 → bar prints 1 cola
+      // and kitchen peel leaves the drink on only one burger line.
+      if (!line.linkedToMainLineId) {
         getSideLinesForMain(lineId).forEach((side) => {
           side.qty = newQty;
         });
-    }
+      }
     }
     clampPackThawCount(line);
 
