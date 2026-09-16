@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=131">
+  <link rel="stylesheet" href="css/admin.css?v=140">
   <link rel="stylesheet" href="css/admin-dashboard.css?v=6">
   <link rel="stylesheet" href="css/admin-reminders.css?v=1">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
@@ -1053,7 +1053,7 @@
             </header>
             <div id="docs-folder-active">
               <h2 class="docs-folder__title" id="docs-folder-title"></h2>
-              <p class="docs-folder__sum-label">סה״כ החודש</p>
+              <p class="docs-folder__sum-label" id="docs-folder-sum-label">סה״כ החודש</p>
               <p class="docs-folder__sum" id="docs-folder-sum">€0</p>
               <button type="button" class="docs-scan-main" data-docs-scan>סרוק חשבונית</button>
               <button type="button" class="docs-pick-file" data-docs-pick-file>בחר קובץ</button>
@@ -1066,27 +1066,90 @@
           <section class="docs-app__pane docs-app__pane--report" id="docs-month-report" hidden>
             <header class="docs-app__head">
               <button type="button" class="docs-back" data-docs-back>← חזרה</button>
-              <h1 class="docs-app__title">סיכום חודשי</h1>
+              <h1 class="docs-app__title">סיכום כספי</h1>
               <button type="button" class="docs-app__lock" data-docs-lock aria-label="נעילה">נעילה</button>
             </header>
-            <nav class="docs-month-nav" aria-label="בחירת חודש">
-              <button type="button" class="docs-month-nav__btn" id="docs-month-prev-report" aria-label="חודש קודם">‹</button>
-              <strong id="docs-month-label-report">—</strong>
-              <button type="button" class="docs-month-nav__btn" id="docs-month-next-report" aria-label="חודש הבא">›</button>
-            </nav>
-            <div class="docs-month-report__body">
-              <div class="docs-month-report__stats">
-                <article class="docs-month-report__stat">
-                  <span class="docs-month-report__label">סה״כ הכנסות</span>
-                  <strong class="docs-month-report__value" id="docs-income-sum">€0</strong>
+            <div class="docs-month-report__body docs-fin">
+              <form id="docs-period-form" class="docs-fin-period" novalidate>
+                <div class="docs-fin-period__modes" role="group" aria-label="סוג תקופה">
+                  <button type="button" class="admin-btn admin-btn--soft is-on" data-docs-period-mode="month">חודשים</button>
+                  <button type="button" class="admin-btn admin-btn--soft" data-docs-period-mode="date">תאריכים</button>
+                </div>
+                <div class="docs-fin-period__fields" id="docs-period-month-fields">
+                  <label class="docs-fin-period__field">
+                    <span>מחודש</span>
+                    <input type="month" id="docs-period-from-month" dir="ltr">
+                  </label>
+                  <label class="docs-fin-period__field">
+                    <span>עד חודש</span>
+                    <input type="month" id="docs-period-to-month" dir="ltr">
+                  </label>
+                </div>
+                <div class="docs-fin-period__fields" id="docs-period-date-fields" hidden>
+                  <label class="docs-fin-period__field">
+                    <span>מתאריך</span>
+                    <input type="date" id="docs-period-from-date" dir="ltr">
+                  </label>
+                  <label class="docs-fin-period__field">
+                    <span>עד תאריך</span>
+                    <input type="date" id="docs-period-to-date" dir="ltr">
+                  </label>
+                </div>
+                <button type="submit" class="admin-btn admin-btn--primary" id="docs-period-apply">הצג</button>
+                <p class="admin-error" id="docs-period-error" role="alert" hidden></p>
+              </form>
+              <p class="docs-fin-period__applied" id="docs-period-applied"></p>
+              <div class="docs-fin__kpis">
+                <article class="docs-fin__kpi">
+                  <span class="docs-fin__label">סה״כ מכירות</span>
+                  <strong class="docs-fin__value" id="docs-fin-sales">€0</strong>
                 </article>
-                <article class="docs-month-report__stat">
-                  <span class="docs-month-report__label">סה״כ הוצאות</span>
-                  <strong class="docs-month-report__value" id="docs-expense-sum">€0</strong>
+                <article class="docs-fin__kpi">
+                  <span class="docs-fin__label">מזומן</span>
+                  <strong class="docs-fin__value" id="docs-fin-cash">€0</strong>
+                </article>
+                <article class="docs-fin__kpi">
+                  <span class="docs-fin__label">אשראי</span>
+                  <strong class="docs-fin__value" id="docs-fin-credit">€0</strong>
+                </article>
+                <article class="docs-fin__kpi docs-fin__kpi--tip">
+                  <span class="docs-fin__label">טיפים</span>
+                  <strong class="docs-fin__value" id="docs-fin-tips">€0</strong>
+                </article>
+                <article class="docs-fin__kpi">
+                  <span class="docs-fin__label">סה״כ הוצאות</span>
+                  <strong class="docs-fin__value" id="docs-fin-expenses">€0</strong>
                 </article>
               </div>
-              <h2 class="docs-month-report__title">פירוט הוצאות</h2>
-              <div id="docs-expense-break"></div>
+
+              <div class="docs-fin__result">
+                <span class="docs-fin__result-label">מכירות פחות הוצאות</span>
+                <strong class="docs-fin__result-value" id="docs-fin-result">€0</strong>
+              </div>
+
+              <section class="docs-fin__exp" aria-label="פירוט הוצאות">
+                <div class="docs-fin__exp-line">
+                  <span>הוצאות מזומן</span>
+                  <strong id="docs-fin-exp-cash">€0</strong>
+                </div>
+                <div class="docs-fin__exp-line">
+                  <span>הוצאות אשראי</span>
+                  <strong id="docs-fin-exp-credit">€0</strong>
+                </div>
+                <div class="docs-fin__exp-line">
+                  <span>הוצאות בנקאיות</span>
+                  <strong id="docs-fin-exp-bank">€0</strong>
+                </div>
+                <div class="docs-fin__exp-line">
+                  <span>הוצאות ללא אמצעי תשלום</span>
+                  <strong id="docs-fin-exp-other">€0</strong>
+                </div>
+              </section>
+
+              <details class="docs-fin__suppliers">
+                <summary>פירוט לפי ספקים</summary>
+                <div id="docs-expense-break"></div>
+              </details>
               <button type="button" class="docs-xlsx-btn" id="docs-xlsx">הורד דוח Excel</button>
             </div>
           </section>
@@ -1371,22 +1434,43 @@
               <span>תאריך</span>
               <input type="date" id="docs-field-date" dir="ltr">
             </label>
-            <label class="docs-mini-field docs-mini-field--amount">
+            <label class="docs-mini-field docs-mini-field--amount" id="docs-total-field">
               <span>סכום סופי</span>
               <span class="docs-amount-wrap">
                 <span class="docs-amount-prefix" aria-hidden="true">€</span>
                 <input type="number" id="docs-field-total" min="0" step="0.01" inputmode="decimal" dir="ltr" placeholder="0.00">
               </span>
             </label>
+            <div id="docs-z-fields" hidden>
+              <label class="docs-mini-field docs-mini-field--amount">
+                <span>סכום במזומן</span>
+                <span class="docs-amount-wrap">
+                  <span class="docs-amount-prefix" aria-hidden="true">€</span>
+                  <input type="number" id="docs-field-cash" min="0" step="0.01" inputmode="decimal" dir="ltr" placeholder="0.00">
+                </span>
+              </label>
+              <label class="docs-mini-field docs-mini-field--amount">
+                <span>סכום באשראי</span>
+                <span class="docs-amount-wrap">
+                  <span class="docs-amount-prefix" aria-hidden="true">€</span>
+                  <input type="number" id="docs-field-credit" min="0" step="0.01" inputmode="decimal" dir="ltr" placeholder="0.00">
+                </span>
+              </label>
+              <p class="docs-z-total" id="docs-z-total">סה״כ כללי €0</p>
+            </div>
+            <div id="docs-pay-fields" hidden>
+              <span class="docs-pay-label">אמצעי תשלום</span>
+              <div class="docs-pay-methods" role="group" aria-label="אמצעי תשלום">
+                <button type="button" class="admin-btn admin-btn--soft" data-docs-pay="cash">מזומן</button>
+                <button type="button" class="admin-btn admin-btn--soft" data-docs-pay="credit">אשראי</button>
+                <button type="button" class="admin-btn admin-btn--soft" data-docs-pay="bank">העברה בנקאית</button>
+              </div>
+            </div>
             <div id="docs-manual-fields" hidden>
               <label class="docs-mini-field">
                 <span>על מה יצא התשלום</span>
                 <input type="text" id="docs-field-notes" maxlength="2000" autocomplete="off">
               </label>
-              <div class="docs-pay-methods" role="group" aria-label="מזומן או אשראי">
-                <button type="button" class="admin-btn admin-btn--soft" data-docs-pay="cash">מזומן</button>
-                <button type="button" class="admin-btn admin-btn--soft" data-docs-pay="credit">אשראי</button>
-              </div>
             </div>
             <p class="admin-error" id="docs-form-error" role="alert" hidden></p>
             <button type="submit" class="docs-save-btn">שמור</button>
@@ -2257,9 +2341,9 @@
   <script src="js/admin-dashboard.js?v=6" defer></script>
   <script src="js/staff-hours-xlsx.js?v=4" defer></script>
   <script src="js/admin-staff-hours.js?v=22" defer></script>
-  <script src="js/docs-monthly-xlsx.js?v=1" defer></script>
+  <script src="js/docs-monthly-xlsx.js?v=4" defer></script>
   <script src="js/docs-monthly-pdf.js?v=1" defer></script>
-  <script src="js/admin-documents.js?v=16" defer></script>
+  <script src="js/admin-documents.js?v=28" defer></script>
   <script src="js/admin-settings.js?v=7" defer></script>
   <script src="js/stock-catalog.js?v=6" defer></script>
   <script src="js/admin-stock.js?v=2" defer></script>

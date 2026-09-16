@@ -8013,12 +8013,83 @@ body.admin-inventory-open {
   font-weight: 700;
 }
 
-.docs-folder__sum {
-  margin: 0.1rem 1rem 0.7rem;
-  color: #122033;
-  font-size: 1.45rem;
-  font-weight: 800;
+.docs-folder__sum.is-z {
+  display: grid;
+  gap: 0.28rem;
+  font-size: 1.02rem;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.docs-folder__sum.is-z em {
+  font-style: normal;
+  color: #5c6b80;
+}
+
+.docs-folder__sum.is-z strong {
+  font-size: 1.22rem;
   letter-spacing: -0.03em;
+}
+
+.docs-month__total.is-z {
+  display: grid;
+  gap: 0.08rem;
+  width: 100%;
+  font-size: 0.82rem;
+}
+
+.docs-month__total.is-z span {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.docs-month__total.is-z em {
+  font-style: normal;
+}
+
+.docs-month__total.is-z strong {
+  color: #122033;
+}
+
+.docs-inv--z {
+  align-items: flex-start;
+}
+
+.docs-inv__z {
+  display: grid;
+  gap: 0.12rem;
+  margin-inline-start: auto;
+  text-align: end;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #5c6b80;
+}
+
+.docs-inv__z strong {
+  font-size: 1.05rem;
+  color: #122033;
+}
+
+#docs-z-fields {
+  display: grid;
+  gap: 0.7rem;
+}
+
+#docs-z-fields[hidden],
+#docs-total-field[hidden] {
+  display: none !important;
+}
+
+.docs-z-total {
+  margin: 0.15rem 0 0;
+  padding: 0.7rem 0.85rem;
+  border-radius: 14px;
+  background: #1e3354;
+  color: #f7f1e8;
+  font-size: 1.12rem;
+  font-weight: 800;
+  text-align: center;
 }
 
 .docs-scan-main {
@@ -8106,9 +8177,41 @@ body.admin-inventory-open {
   cursor: pointer;
 }
 
-.docs-inv:active {
-  background: #efe8dc;
-  transform: scale(0.985);
+.docs-inv--static {
+  cursor: default;
+}
+
+.docs-inv--static:active {
+  background: #faf7f2;
+  transform: none;
+}
+
+.docs-inv--salary .docs-inv__amount {
+  margin-inline-start: 0;
+}
+
+.docs-inv__main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.12rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.docs-inv__who {
+  font-size: 1.02rem;
+  color: #1e3354;
+}
+
+.docs-inv__meta {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #7a8494;
 }
 
 .docs-inv__date {
@@ -8117,6 +8220,7 @@ body.admin-inventory-open {
 
 .docs-inv__amount {
   margin-inline-start: auto;
+  flex-shrink: 0;
   font-size: 1.12rem;
 }
 
@@ -8302,6 +8406,18 @@ body.admin-inventory-open {
   color: #1e3354;
 }
 
+#docs-pay-fields {
+  margin: 0.15rem 0 0.55rem;
+}
+
+.docs-pay-label {
+  display: block;
+  margin: 0 0 0.4rem;
+  color: #6b7a8d;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
 .docs-pay-methods {
   display: flex;
   flex-wrap: wrap;
@@ -8427,7 +8543,80 @@ body.admin-inventory-open {
 }
 
 .docs-month-report__body {
-  padding: 0.75rem 1rem 1rem;
+  padding: 0.9rem 1.05rem 1.25rem;
+}
+
+.docs-fin-period {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.65rem 0.75rem;
+  margin: 0 0 0.55rem;
+  padding: 0.85rem 0.9rem;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(21, 38, 64, 0.05);
+}
+
+.docs-fin-period__modes {
+  display: flex;
+  gap: 0.4rem;
+  width: 100%;
+}
+
+.docs-fin-period__modes .admin-btn {
+  flex: 1;
+}
+
+.docs-fin-period__modes .admin-btn.is-on {
+  background: #1e3354;
+  color: #f7f1e8;
+}
+
+.docs-fin-period__fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  flex: 1 1 16rem;
+}
+
+.docs-fin-period__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 9.5rem;
+  flex: 1;
+  color: #6b7a8d;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.docs-fin-period__field input {
+  min-height: 2.45rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid #e4dccf;
+  border-radius: 12px;
+  background: #faf7f2;
+  color: #1e3354;
+  font: inherit;
+  font-weight: 700;
+}
+
+.docs-fin-period #docs-period-apply {
+  min-height: 2.45rem;
+  padding: 0 1.15rem;
+}
+
+.docs-fin-period__applied {
+  margin: 0 0 0.85rem;
+  color: #3d4f66;
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.docs-fin-period .admin-error {
+  width: 100%;
+  margin: 0;
 }
 
 .docs-app__pane--report {
@@ -8467,9 +8656,132 @@ body.admin-inventory-open {
 }
 
 .docs-month-report__title {
-  margin: 0 0 0.45rem;
+  margin: 0.85rem 0 0.45rem;
   font-size: 0.92rem;
   color: #3d4f66;
+}
+
+.docs-fin__kpis {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.7rem;
+  margin: 0 0 0.9rem;
+}
+
+.docs-fin__kpi {
+  padding: 0.95rem 1rem;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(21, 38, 64, 0.05);
+}
+
+.docs-fin__kpi:nth-child(5) {
+  grid-column: 1 / -1;
+}
+
+.docs-fin__kpi--tip {
+  background: #f8f3e8;
+}
+
+.docs-fin__label {
+  display: block;
+  color: #6b7a8d;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.docs-fin__value {
+  display: block;
+  margin-top: 0.28rem;
+  font-size: 1.55rem;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: #1e3354;
+}
+
+.docs-fin__result {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  margin: 0 0 1.1rem;
+  padding: 1.05rem 1.15rem;
+  border-radius: 16px;
+  background: #1e3354;
+  color: #f7f1e8;
+}
+
+.docs-fin__result-label {
+  font-size: 1.02rem;
+  font-weight: 800;
+}
+
+.docs-fin__result-value {
+  font-size: 1.7rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.docs-fin__exp {
+  margin: 0 0 0.85rem;
+  padding: 0.2rem 1.05rem;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(21, 38, 64, 0.05);
+}
+
+.docs-fin__exp-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.7rem 0;
+  color: #3d4f66;
+  font-size: 0.95rem;
+}
+
+.docs-fin__exp-line + .docs-fin__exp-line {
+  border-top: 1px solid #f3eee6;
+}
+
+.docs-fin__suppliers {
+  margin: 0 0 0.85rem;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(21, 38, 64, 0.05);
+}
+
+.docs-fin__suppliers > summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.95rem 1.05rem;
+  list-style: none;
+  cursor: pointer;
+  font-weight: 800;
+  color: #1e3354;
+}
+
+.docs-fin__suppliers > summary::-webkit-details-marker {
+  display: none;
+}
+
+.docs-fin__suppliers > summary::after {
+  content: '‹';
+  color: #8a7d6a;
+  font-size: 1.15rem;
+  line-height: 1;
+  transform: rotate(-90deg);
+}
+
+.docs-fin__suppliers[open] > summary::after {
+  transform: rotate(90deg);
+}
+
+.docs-fin__suppliers #docs-expense-break {
+  padding: 0 1.05rem 0.55rem;
 }
 
 .docs-break__row {
@@ -8478,6 +8790,10 @@ body.admin-inventory-open {
   gap: 0.5rem;
   padding: 0.4rem 0;
   border-bottom: 1px solid #efe8dc;
+}
+
+.docs-break__row:last-child {
+  border-bottom: 0;
 }
 
 .docs-break__swatch {
@@ -8497,6 +8813,30 @@ body.admin-inventory-open {
 .docs-break__meta {
   font-weight: 700;
   color: #1e3354;
+}
+
+@media (min-width: 720px) {
+  .docs-fin__kpis {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .docs-fin__kpi:nth-child(5) {
+    grid-column: auto;
+  }
+
+  .docs-fin__value {
+    font-size: 1.45rem;
+  }
+
+  .docs-fin__result-value {
+    font-size: 1.85rem;
+  }
+}
+
+@media (min-width: 1100px) {
+  .docs-fin__value {
+    font-size: 1.7rem;
+  }
 }
 
 .docs-xlsx-btn {

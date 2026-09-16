@@ -21,8 +21,12 @@
     'ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני',
     'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר',
   ];
-  const MANUAL_PAYMENT_SUPPLIER = 'תשלום מזומן/אשראי';
+  const MANUAL_PAYMENT_SUPPLIER = 'תשלום ללא קבלה';
+  const MANUAL_PAYMENT_SUPPLIER_OLD = 'תשלום מזומן/אשראי';
+  const GENERAL_INVOICE_SUPPLIER = 'חשבוניות כלליות';
+  const SMALL_INVOICE_SUPPLIER_OLD = 'חשבוניות קטנות';
   const Z_REPORT_SUPPLIER = 'דוח Z';
+  const SALARY_SUPPLIER = 'משכורות';
   const DEFAULT_SUPPLIERS = [
     'ירקות',
     'דה מארט',
@@ -31,8 +35,8 @@
     'לחם',
     'ביצים',
     'חד פעמי',
-    'חשבוניות קטנות',
-    'חשבוניות כלליות',
+    GENERAL_INVOICE_SUPPLIER,
+    SALARY_SUPPLIER,
     Z_REPORT_SUPPLIER,
     MANUAL_PAYMENT_SUPPLIER,
   ];
@@ -44,8 +48,8 @@
     'לחם': '#c4892d',
     'ביצים': '#d4a017',
     'חד פעמי': '#6b7c8a',
-    'חשבוניות קטנות': '#8a5a8c',
-    'חשבוניות כלליות': '#c45a3d',
+    [GENERAL_INVOICE_SUPPLIER]: '#c45a3d',
+    [SALARY_SUPPLIER]: '#7a4a3a',
     [Z_REPORT_SUPPLIER]: '#1e3354',
     [MANUAL_PAYMENT_SUPPLIER]: '#5a6b4e',
   };
@@ -111,8 +115,18 @@
   let newThenScan = false;
   let moveDocId = null;
   let selectedYm = '';
+  let reportMode = 'month';
+  let reportFromYmd = '';
+  let reportToYmd = '';
   let incomeByYm = {};
   let incomeBusyYm = '';
+  let dayReportsByYm = {};
+  let dayReportsBusyYm = '';
+  let dayReportsByRange = {};
+  let dayReportsBusyKey = '';
+  let salaryPayments = [];
+  let salaryLoaded = false;
+  let salaryBusy = false;
   let pdfBusy = false;
   const openMonths = new Set();
 
@@ -192,7 +206,7 @@
   }
 
   function supplierColor(name) {
-    const key = supplierKey(name);
+    const key = canonicalSupplier(name);
     if (SUPPLIER_COLORS[key]) return SUPPLIER_COLORS[key];
     let h = 0;
     for (let i = 0; i < key.length; i += 1) h = (h * 31 + key.charCodeAt(i)) >>> 0;
@@ -229,12 +243,31 @@
     return String(name || '').trim();
   }
 
+  function canonicalSupplier(name) {
+    const key = supplierKey(name);
+    if (key === MANUAL_PAYMENT_SUPPLIER_OLD) return MANUAL_PAYMENT_SUPPLIER;
+    if (key === SMALL_INVOICE_SUPPLIER_OLD) return GENERAL_INVOICE_SUPPLIER;
+    return key;
+  }
+
   function isManualPaymentSupplier(name) {
-    return supplierKey(name) === MANUAL_PAYMENT_SUPPLIER;
+    return canonicalSupplier(name) === MANUAL_PAYMENT_SUPPLIER;
+  }
+
+  function isGeneralInvoiceSupplier(name) {
+    return canonicalSupplier(name) === GENERAL_INVOICE_SUPPLIER;
   }
 
   function isZReportSupplier(name) {
     return supplierKey(name) === Z_REPORT_SUPPLIER;
+  }
+
+  function isSalarySupplier(name) {
+    return supplierKey(name) === SALARY_SUPPLIER;
+  }
+
+  function isReservedSupplier(name) {
+    return isManualPaymentSupplier(name) || isZReportSupplier(name) || isSalarySupplier(name);
   }
 
   function isInvoiceExportRow(row) {
@@ -250,7 +283,16 @@
   function payMethodLabel(value) {
     if (value === 'cash') return 'מזומן';
     if (value === 'credit') return 'אשראי';
+    if (value === 'bank') return 'העברה בנקאית';
     return '';
+  }
+
+  function isPayMethod(value) {
+    return value === 'cash' || value === 'credit' || value === 'bank';
+  }
+
+  function normalizePayMethod(value) {
+    return isPayMethod(value) ? value : '';
   }
 
   function showError(message) {
@@ -564,6 +606,11 @@
     if (dateEl) dateEl.value = todayYmd();
     const totalEl = document.getElementById('docs-field-total');
     if (totalEl) totalEl.value = '';
+    const cashEl = document.getElementById('docs-field-cash');
+    if (cashEl) cashEl.value = '';
+    const creditEl = document.getElementById('docs-field-credit');
+    if (creditEl) creditEl.value = '';
+    syncZTotal();
     const notesEl = document.getElementById('docs-field-notes');
     if (notesEl) notesEl.value = '';
     pendingPayMethod = '';
@@ -577,6 +624,16 @@
     scanOverlay?.querySelector('.docs-scan-modal__panel')?.classList.toggle('is-manual', Boolean(on));
   }
 
+  function setPayFieldsVisible(on) {
+    const wrap = document.getElementById('docs-pay-fields');
+    if (wrap) wrap.hidden = !on;
+  }
+
+  function setPayBankVisible(on) {
+    const btn = document.querySelector('[data-docs-pay="bank"]');
+    if (btn) btn.hidden = !on;
+  }
+
   function setPayMethodHighlight(method) {
     document.querySelectorAll('[data-docs-pay]').forEach((btn) => {
       btn.classList.toggle('is-on', btn.getAttribute('data-docs-pay') === method);
@@ -588,8 +645,9 @@
   }
 
   function rowsForSupplier(name) {
-    const key = supplierKey(name);
-    return activeRows().filter((row) => supplierKey(row.supplier_name) === key);
+    const key = canonicalSupplier(name);
+    if (isSalarySupplier(key)) return salaryDocRows();
+    return activeRows().filter((row) => canonicalSupplier(row.supplier_name) === key && !isSalarySupplier(row.supplier_name));
   }
 
   function monthOf(row) {
@@ -619,12 +677,105 @@
     btn.textContent = label || idleLabel || 'הפק PDF לחודש';
   }
 
+  function roundMoney(amount) {
+    return Math.round((Number(amount) || 0) * 100) / 100;
+  }
+
+  function encodeZSplit(cash, credit) {
+    return `z:${roundMoney(cash)}|${roundMoney(credit)}`;
+  }
+
+  function parseZCategory(category) {
+    const m = String(category || '').match(/^z:(\d+(?:\.\d+)?)\|(\d+(?:\.\d+)?)$/);
+    if (!m) return null;
+    return { cash: Number(m[1]), credit: Number(m[2]) };
+  }
+
+  function zAmounts(row) {
+    const parsed = parseZCategory(row?.category);
+    if (parsed) {
+      return {
+        cash: roundMoney(parsed.cash),
+        credit: roundMoney(parsed.credit),
+        total: roundMoney(parsed.cash + parsed.credit),
+        hasSplit: true,
+      };
+    }
+    const rawCash = row?.amount_before_vat;
+    const rawCredit = row?.vat_amount;
+    const hasCash = rawCash != null && Number.isFinite(Number(rawCash));
+    const hasCredit = rawCredit != null && Number.isFinite(Number(rawCredit));
+    if (hasCash || hasCredit) {
+      const cash = hasCash ? Number(rawCash) : 0;
+      const credit = hasCredit ? Number(rawCredit) : 0;
+      return {
+        cash: roundMoney(cash),
+        credit: roundMoney(credit),
+        total: roundMoney(cash + credit),
+        hasSplit: true,
+      };
+    }
+    return {
+      cash: 0,
+      credit: 0,
+      total: roundMoney(row?.amount_total),
+      hasSplit: false,
+    };
+  }
+
+  function sumZAmounts(rows) {
+    return (rows || []).reduce((acc, row) => {
+      const split = zAmounts(row);
+      acc.cash = roundMoney(acc.cash + (split.hasSplit ? split.cash : 0));
+      acc.credit = roundMoney(acc.credit + (split.hasSplit ? split.credit : 0));
+      acc.total = roundMoney(acc.total + split.total);
+      return acc;
+    }, { cash: 0, credit: 0, total: 0 });
+  }
+
+  function zSumHtml(split) {
+    return `
+      <span><em>סה״כ מזומן</em><strong>${escapeHtml(formatMoney(split.cash))}</strong></span>
+      <span><em>סה״כ אשראי</em><strong>${escapeHtml(formatMoney(split.credit))}</strong></span>
+      <span><em>סה״כ כללי</em><strong>${escapeHtml(formatMoney(split.total))}</strong></span>
+    `;
+  }
+
+  function readMoneyField(id) {
+    const raw = String(document.getElementById(id)?.value || '').trim();
+    if (!raw) return 0;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0) return null;
+    return roundMoney(n);
+  }
+
+  function syncZTotal() {
+    const el = document.getElementById('docs-z-total');
+    if (!el) return;
+    const cash = readMoneyField('docs-field-cash');
+    const credit = readMoneyField('docs-field-credit');
+    if (cash == null || credit == null) {
+      el.textContent = 'סה״כ כללי —';
+      return;
+    }
+    el.textContent = `סה״כ כללי ${formatMoney(cash + credit)}`;
+  }
+
+  function setZFormVisible(on) {
+    const zWrap = document.getElementById('docs-z-fields');
+    const totalField = document.getElementById('docs-total-field');
+    if (zWrap) zWrap.hidden = !on;
+    if (totalField) totalField.hidden = Boolean(on);
+    scanOverlay?.querySelector('.docs-scan-modal__panel')?.classList.toggle('is-z', Boolean(on));
+    if (on) syncZTotal();
+  }
+
   function sumAmounts(rows) {
-    return rows.reduce((sum, row) => sum + (Number(row.amount_total) || 0), 0);
+    return (rows || []).reduce((sum, row) => sum + (Number(row.amount_total) || 0), 0);
   }
 
   function supplierRank(name) {
-    const idx = DEFAULT_SUPPLIERS.indexOf(supplierKey(name));
+    const idx = DEFAULT_SUPPLIERS.indexOf(canonicalSupplier(name));
     return idx >= 0 ? idx : DEFAULT_SUPPLIERS.length;
   }
 
@@ -634,17 +785,26 @@
       map.set(name, { name, rows: [] });
     });
     activeRows().forEach((row) => {
-      const name = supplierKey(row.supplier_name);
+      if (isSalarySupplier(row.supplier_name)) return;
+      const name = canonicalSupplier(row.supplier_name);
       if (!name) return;
       if (!map.has(name)) map.set(name, { name, rows: [] });
       map.get(name).rows.push(row);
     });
     pendingSuppliers.forEach((name) => {
-      const key = supplierKey(name);
+      const key = canonicalSupplier(name);
       if (key && !map.has(key)) map.set(key, { name: key, rows: [] });
     });
     const ym = activeYm();
     return [...map.values()].map((item) => {
+      if (isSalarySupplier(item.name)) {
+        const monthRows = salaryDocRows().filter((row) => monthOf(row) === ym);
+        return {
+          name: item.name,
+          monthCount: monthRows.length,
+          monthSum: sumAmounts(monthRows),
+        };
+      }
       const monthRows = item.rows.filter((row) => monthOf(row) === ym);
       return {
         name: item.name,
@@ -659,7 +819,7 @@
   }
 
   function rememberSupplier(name) {
-    const key = supplierKey(name);
+    const key = canonicalSupplier(name);
     if (!key) return;
     if (!pendingSuppliers.includes(key)) pendingSuppliers.push(key);
   }
@@ -708,6 +868,8 @@
           ? sb.from('business_documents').update({
             document_date: row.document_date,
             amount_total: row.amount_total,
+            amount_before_vat: row.amount_before_vat,
+            vat_amount: row.vat_amount,
             supplier_name: row.supplier_name,
             notes: row.notes,
             category: row.category,
@@ -735,7 +897,7 @@
   }
 
   async function persistSupplier(name) {
-    const key = supplierKey(name);
+    const key = canonicalSupplier(name);
     if (!key) return;
     rememberSupplier(key);
     const sb = getClient();
@@ -764,7 +926,7 @@
   }
 
   function openFolder(name) {
-    activeSupplier = supplierKey(name);
+    activeSupplier = canonicalSupplier(name);
     if (!activeSupplier) return;
     rememberSupplier(activeSupplier);
     docsPane = 'folder';
@@ -772,6 +934,7 @@
     openMonths.add(activeYm());
     applyLayout();
     renderAll();
+    if (isSalarySupplier(activeSupplier)) loadSalaryPayments(true).catch(() => {});
     document.getElementById('docs-app-folder')?.scrollTo?.(0, 0);
   }
 
@@ -784,9 +947,12 @@
 
   function openReport() {
     docsPane = 'report';
+    ensureReportRange();
     applyLayout();
     renderAll();
-    loadMonthIncome(activeYm()).catch(() => {});
+    syncPeriodInputs();
+    loadRangeDayReports(reportFromYmd, reportToYmd).catch(() => {});
+    loadSalaryPayments(true).catch(() => {});
   }
 
   function renderSuppliers() {
@@ -800,7 +966,7 @@
         <span class="docs-chat__body">
           <strong class="docs-chat__name">${escapeHtml(item.name)}</strong>
           <span class="docs-chat__sum">${escapeHtml(formatMoney(item.monthSum))} החודש</span>
-          <span class="docs-chat__count">${item.monthCount} ${isManualPaymentSupplier(item.name) ? 'תשלומים' : 'חשבוניות'}</span>
+          <span class="docs-chat__count">${item.monthCount} ${isManualPaymentSupplier(item.name) || isSalarySupplier(item.name) ? 'תשלומים' : (isZReportSupplier(item.name) ? 'דוחות' : 'חשבוניות')}</span>
         </span>
       </button>
     `;
@@ -810,6 +976,7 @@
   function renderFolder() {
     const titleEl = document.getElementById('docs-folder-title');
     const sumEl = document.getElementById('docs-folder-sum');
+    const sumLabel = document.getElementById('docs-folder-sum-label');
     const monthsEl = document.getElementById('docs-folder-months');
     const emptyEl = document.getElementById('docs-folder-empty');
     const idleEl = document.getElementById('docs-folder-idle');
@@ -819,7 +986,11 @@
     if (activeEl) activeEl.hidden = !name;
     if (!name) {
       if (titleEl) titleEl.textContent = '';
-      if (sumEl) sumEl.textContent = '€0';
+      if (sumEl) {
+        sumEl.classList.remove('is-z');
+        sumEl.textContent = '€0';
+      }
+      if (sumLabel) sumLabel.textContent = 'סה״כ החודש';
       if (monthsEl) monthsEl.innerHTML = '';
       return;
     }
@@ -832,7 +1003,6 @@
       .sort((a, b) => String(b.document_date || '').localeCompare(String(a.document_date || '')));
     const ym = activeYm();
     const monthRows = rows.filter((row) => monthOf(row) === ym);
-    if (sumEl) sumEl.textContent = formatMoney(sumAmounts(monthRows));
     const scanBtn = document.querySelector('#docs-folder-active [data-docs-scan]');
     const fileBtn = document.querySelector('#docs-folder-active [data-docs-pick-file]');
     const payBtn = document.getElementById('docs-add-payment');
@@ -840,15 +1010,27 @@
     const zPdfBtn = document.getElementById('docs-folder-z-pdf');
     const manual = isManualPaymentSupplier(name);
     const zReport = isZReportSupplier(name);
-    if (scanBtn) scanBtn.hidden = manual;
-    if (fileBtn) fileBtn.hidden = manual;
+    const salary = isSalarySupplier(name);
+    if (sumEl) {
+      sumEl.classList.toggle('is-z', zReport);
+      if (zReport) sumEl.innerHTML = zSumHtml(sumZAmounts(monthRows));
+      else sumEl.textContent = formatMoney(sumAmounts(monthRows));
+    }
+    if (sumLabel) sumLabel.textContent = salary ? 'משכורות ששולמו בשעות עובדים' : 'סה״כ החודש';
+    if (scanBtn) {
+      scanBtn.hidden = manual || salary;
+      scanBtn.textContent = zReport ? 'סרוק דוח Z' : 'סרוק חשבונית';
+    }
+    if (fileBtn) fileBtn.hidden = manual || salary;
     if (payBtn) payBtn.hidden = !manual;
     if (copyPayBtn) copyPayBtn.hidden = !manual;
     if (zPdfBtn) zPdfBtn.hidden = !zReport;
     if (emptyEl) {
-      emptyEl.textContent = manual
-        ? 'אין תשלומים עדיין — הוסיפו את הראשון'
-        : 'אין חשבוניות עדיין — סרקו את הראשונה';
+      emptyEl.textContent = salary
+        ? 'אין משכורות ששולמו — רושמים אותן בשעות עובדים (בנק/מזומן)'
+        : (manual
+          ? 'אין תשלומים עדיין — הוסיפו את הראשון'
+          : (zReport ? 'אין דוחות Z עדיין — סרקו את הראשון' : 'אין חשבוניות עדיין — סרקו את הראשונה'));
     }
     const groups = new Map();
     if (rows.length) groups.set(ym, []);
@@ -863,22 +1045,55 @@
     monthsEl.innerHTML = keys.map((key) => {
       const open = openMonths.has(key);
       const items = groups.get(key) || [];
+      const monthSplit = zReport ? sumZAmounts(items) : null;
+      const monthTotal = zReport
+        ? `<span class="docs-month__total is-z">${zSumHtml(monthSplit)}</span>`
+        : `<span class="docs-month__total">סה״כ ${escapeHtml(formatMoney(sumAmounts(items)))}</span>`;
       return `
         <section class="docs-month${open ? ' is-open' : ''}" data-docs-month="${escapeHtml(key)}">
           <button type="button" class="docs-month__head" data-docs-month-toggle="${escapeHtml(key)}">
             <strong class="docs-month__name">${escapeHtml(key === 'unknown' ? 'ללא תאריך' : monthLabel(key))}</strong>
-            <span class="docs-month__total">סה״כ ${escapeHtml(formatMoney(sumAmounts(items)))}</span>
+            ${monthTotal}
           </button>
           <div class="docs-month__body">
-            ${items.length ? items.map((row) => `
-              <button type="button" class="docs-inv" data-docs-open="${escapeHtml(row.id)}">
-                <span class="docs-inv__date">${escapeHtml(formatDate(row.document_date))}</span>
+            ${items.length ? items.map((row) => {
+              const split = zReport ? zAmounts(row) : null;
+              if (salary) {
+                const who = String(row.notes || '').trim() || 'עובד';
+                const pay = row.category === 'bank' ? 'בנק' : 'מזומן';
+                return `
+              <button type="button" class="docs-inv docs-inv--salary" data-docs-open="${escapeHtml(row.id)}">
+                <span class="docs-inv__main">
+                  <strong class="docs-inv__who">${escapeHtml(who)}</strong>
+                  <span class="docs-inv__meta">${escapeHtml(pay)} · ${escapeHtml(formatDate(row.document_date))}</span>
+                </span>
                 <strong class="docs-inv__amount">${escapeHtml(formatMoney(row.amount_total))}</strong>
-                ${row.notes ? `<span class="docs-inv__note">${escapeHtml(row.notes)}</span>` : ''}
-                ${payMethodLabel(row.category) ? `<span class="docs-inv__note">${escapeHtml(payMethodLabel(row.category))}</span>` : ''}
                 <span class="docs-inv__chev" aria-hidden="true">‹</span>
-              </button>
-            `).join('') : `<p class="docs-month__empty">${manual ? 'אין תשלומים בחודש זה' : 'אין חשבוניות בחודש זה'}</p>`}
+              </button>`;
+              }
+              const amountHtml = zReport
+                ? (split.hasSplit
+                  ? `<span class="docs-inv__z">
+                    <span>מזומן ${escapeHtml(formatMoney(split.cash))}</span>
+                    <span>אשראי ${escapeHtml(formatMoney(split.credit))}</span>
+                    <strong>סה״כ ${escapeHtml(formatMoney(split.total))}</strong>
+                  </span>`
+                  : `<strong class="docs-inv__amount">${escapeHtml(formatMoney(split.total))}</strong>`)
+                : `<strong class="docs-inv__amount">${escapeHtml(formatMoney(row.amount_total))}</strong>`;
+              const method = !zReport ? payMethodLabel(row.category) : '';
+              const note = !zReport ? String(row.notes || '').trim() : '';
+              const meta = [method, note].filter(Boolean).join(' · ');
+              const metaHtml = meta ? `<span class="docs-inv__meta">${escapeHtml(meta)}</span>` : '';
+              return `
+              <button type="button" class="docs-inv${zReport ? ' docs-inv--z' : ''}" data-docs-open="${escapeHtml(row.id)}">
+                <span class="docs-inv__main">
+                  <span class="docs-inv__date">${escapeHtml(formatDate(row.document_date))}</span>
+                  ${metaHtml}
+                </span>
+                ${amountHtml}
+                <span class="docs-inv__chev" aria-hidden="true">‹</span>
+              </button>`;
+            }).join('') : `<p class="docs-month__empty">${salary ? 'אין משכורות ששולמו בחודש זה' : (manual ? 'אין תשלומים בחודש זה' : (zReport ? 'אין דוחות Z בחודש זה' : 'אין חשבוניות בחודש זה'))}</p>`}
           </div>
         </section>
       `;
@@ -907,6 +1122,261 @@
     const start = new Date(Date.UTC(y, mo - 1, 1) - 12 * 3600000);
     const end = new Date(Date.UTC(y, mo - 1, last, 23, 59, 59, 999) + 12 * 3600000);
     return { start: start.toISOString(), end: end.toISOString() };
+  }
+
+  function monthYmdBounds(ym) {
+    const m = String(ym || '').match(/^(\d{4})-(\d{2})$/);
+    if (!m) return null;
+    const last = new Date(Date.UTC(Number(m[1]), Number(m[2]), 0)).getUTCDate();
+    return {
+      start: `${m[1]}-${m[2]}-01`,
+      end: `${m[1]}-${m[2]}-${String(last).padStart(2, '0')}`,
+    };
+  }
+
+  function ymOfYmd(ymd) {
+    return String(ymd || '').slice(0, 7);
+  }
+
+  function reportRangeKey(fromYmd, toYmd) {
+    return `${fromYmd || reportFromYmd}_${toYmd || reportToYmd}`;
+  }
+
+  function inReportRange(ymd) {
+    const d = String(ymd || '').slice(0, 10);
+    if (!reportFromYmd || !reportToYmd || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
+    return d >= reportFromYmd && d <= reportToYmd;
+  }
+
+  function periodLabel() {
+    if (!reportFromYmd || !reportToYmd) return '';
+    const fromYm = ymOfYmd(reportFromYmd);
+    const toYm = ymOfYmd(reportToYmd);
+    const fromBounds = monthYmdBounds(fromYm);
+    const toBounds = monthYmdBounds(toYm);
+    const fullMonths = fromBounds && toBounds
+      && reportFromYmd === fromBounds.start
+      && reportToYmd === toBounds.end;
+    if (fullMonths) {
+      return fromYm === toYm ? monthLabel(fromYm) : `${monthLabel(fromYm)} – ${monthLabel(toYm)}`;
+    }
+    return `${formatDateFull(reportFromYmd)} – ${formatDateFull(reportToYmd)}`;
+  }
+
+  function setReportRange(fromYmd, toYmd) {
+    reportFromYmd = fromYmd;
+    reportToYmd = toYmd;
+  }
+
+  function defaultReportRange() {
+    const bounds = monthYmdBounds(activeYm() || currentYm());
+    if (!bounds) return;
+    setReportRange(bounds.start, bounds.end);
+  }
+
+  function ensureReportRange() {
+    if (!reportFromYmd || !reportToYmd) defaultReportRange();
+  }
+
+  function syncPeriodInputs() {
+    ensureReportRange();
+    const today = todayYmd();
+    const thisYm = currentYm();
+    const fromMonth = document.getElementById('docs-period-from-month');
+    const toMonth = document.getElementById('docs-period-to-month');
+    const fromDate = document.getElementById('docs-period-from-date');
+    const toDate = document.getElementById('docs-period-to-date');
+    if (fromMonth) {
+      fromMonth.value = ymOfYmd(reportFromYmd);
+      fromMonth.max = thisYm;
+    }
+    if (toMonth) {
+      toMonth.value = ymOfYmd(reportToYmd);
+      toMonth.max = thisYm;
+    }
+    if (fromDate) {
+      fromDate.value = reportFromYmd;
+      fromDate.max = today;
+    }
+    if (toDate) {
+      toDate.value = reportToYmd;
+      toDate.max = today;
+    }
+    const monthFields = document.getElementById('docs-period-month-fields');
+    const dateFields = document.getElementById('docs-period-date-fields');
+    if (monthFields) monthFields.hidden = reportMode !== 'month';
+    if (dateFields) dateFields.hidden = reportMode !== 'date';
+    document.querySelectorAll('[data-docs-period-mode]').forEach((btn) => {
+      btn.classList.toggle('is-on', btn.getAttribute('data-docs-period-mode') === reportMode);
+    });
+    const applied = document.getElementById('docs-period-applied');
+    if (applied) applied.textContent = periodLabel();
+  }
+
+  function showPeriodError(message) {
+    const el = document.getElementById('docs-period-error');
+    if (!el) return;
+    el.hidden = !message;
+    el.textContent = message || '';
+  }
+
+  function applyReportPeriod(event) {
+    if (event) event.preventDefault();
+    showPeriodError('');
+    let from = '';
+    let to = '';
+    if (reportMode === 'month') {
+      const fromYm = String(document.getElementById('docs-period-from-month')?.value || '').trim();
+      const toYm = String(document.getElementById('docs-period-to-month')?.value || '').trim();
+      const fromBounds = monthYmdBounds(fromYm);
+      const toBounds = monthYmdBounds(toYm);
+      if (!fromBounds || !toBounds) {
+        showPeriodError('בחרו חודש התחלה וחודש סיום');
+        return;
+      }
+      from = fromBounds.start;
+      to = toBounds.end;
+    } else {
+      from = String(document.getElementById('docs-period-from-date')?.value || '').trim();
+      to = String(document.getElementById('docs-period-to-date')?.value || '').trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+        showPeriodError('בחרו תאריך התחלה ותאריך סיום');
+        return;
+      }
+    }
+    const today = todayYmd();
+    if (to > today) to = today;
+    if (from > today) from = today;
+    if (from > to) {
+      showPeriodError('תאריך ההתחלה אחרי תאריך הסיום');
+      return;
+    }
+    setReportRange(from, to);
+    syncPeriodInputs();
+    renderReport();
+    loadRangeDayReports(from, to).catch(() => {});
+  }
+
+  function setReportMode(mode) {
+    reportMode = mode === 'date' ? 'date' : 'month';
+    syncPeriodInputs();
+  }
+
+  function emptyDayReportTotals() {
+    return { cash: 0, credit: 0, tip: 0, total: 0, days: 0, loaded: true };
+  }
+
+  function sumDayReports(rows) {
+    return (rows || []).reduce((acc, row) => {
+      const cash = Number(row.cash) || 0;
+      const credit = Number(row.credit) || 0;
+      const tip = Number(row.tip) || 0;
+      acc.cash = roundMoney(acc.cash + cash);
+      acc.credit = roundMoney(acc.credit + credit);
+      acc.tip = roundMoney(acc.tip + tip);
+      acc.total = roundMoney(acc.total + cash + credit);
+      acc.days += 1;
+      return acc;
+    }, { cash: 0, credit: 0, tip: 0, total: 0, days: 0, loaded: true });
+  }
+
+  function monthZRows(ym) {
+    return monthDocuments(ym).filter((row) => isZReportSupplier(row.supplier_name));
+  }
+
+  function monthExpenseRows(ym) {
+    return monthDocuments(ym)
+      .filter((row) => !isZReportSupplier(row.supplier_name) && !isSalarySupplier(row.supplier_name))
+      .concat(salaryDocRows().filter((row) => monthOf(row) === ym));
+  }
+
+  function periodDocuments() {
+    ensureReportRange();
+    return activeRows().filter((row) => inReportRange(row.document_date));
+  }
+
+  function periodZRows() {
+    return periodDocuments().filter((row) => isZReportSupplier(row.supplier_name));
+  }
+
+  function periodExpenseRows() {
+    return periodDocuments()
+      .filter((row) => !isZReportSupplier(row.supplier_name) && !isSalarySupplier(row.supplier_name))
+      .concat(salaryDocRows().filter((row) => inReportRange(row.document_date)));
+  }
+
+  function salaryEmployeeName(row) {
+    return String(row?.employee_name || '').trim() || 'עובד';
+  }
+
+  function salaryDocRows() {
+    return (salaryPayments || []).map((row) => ({
+      id: `salary:${row.id}`,
+      supplier_name: SALARY_SUPPLIER,
+      document_date: row.paid_on,
+      amount_total: Number(row.amount) || 0,
+      category: row.method === 'bank' ? 'bank' : 'cash',
+      notes: salaryEmployeeName(row),
+      document_type: 'salary_payment',
+      source: 'salary',
+      storage_path: null,
+      status: 'saved',
+      created_at: row.created_at || row.paid_on,
+    }));
+  }
+
+  async function loadSalaryPayments(force) {
+    if (!unlocked || salaryBusy) return;
+    if (!force && salaryLoaded) return;
+    const sb = getClient();
+    if (!sb) {
+      salaryPayments = [];
+      salaryLoaded = true;
+      return;
+    }
+    salaryBusy = true;
+    try {
+      const { data, error } = await sb.rpc('documents_salary_payments');
+      if (error) throw error;
+      salaryPayments = (Array.isArray(data) ? data : []).map((row) => ({
+        id: row.id,
+        paid_on: row.paid_on,
+        amount: row.amount,
+        method: row.method,
+        created_at: row.created_at,
+        employee_name: String(row.employee_name || '').trim(),
+      }));
+      salaryLoaded = true;
+    } catch (err) {
+      console.error('[documents] salary', err);
+      const msg = String(err?.message || '');
+      if (/documents_salary_payments|Could not find the function|schema cache/i.test(msg)) {
+        showError('להצגת שמות העובדים במשכורות הריצו supabase-documents-salary-payments.sql ב-Supabase');
+        try {
+          const plain = await sb
+            .from('staff_salary_payments')
+            .select('id, paid_on, amount, method, created_at')
+            .order('paid_on', { ascending: false })
+            .order('created_at', { ascending: false });
+          if (!plain.error) {
+            salaryPayments = (Array.isArray(plain.data) ? plain.data : []).map((row) => ({
+              ...row,
+              employee_name: '',
+            }));
+          }
+        } catch (_) { /* keep empty */ }
+      } else {
+        salaryPayments = [];
+      }
+      salaryLoaded = true;
+    } finally {
+      salaryBusy = false;
+    }
+    renderAll();
+  }
+
+  function sumPayCategory(rows, category) {
+    return roundMoney(sumAmounts((rows || []).filter((row) => row.category === category)));
   }
 
   async function loadMonthIncome(ym) {
@@ -957,37 +1427,137 @@
     if (activeYm() === ym) renderReport();
   }
 
+  async function loadMonthDayReports(ym, force) {
+    if (!ym || dayReportsBusyYm === ym) return;
+    if (!force && dayReportsByYm[ym] != null) return;
+    const sb = getClient();
+    const bounds = monthYmdBounds(ym);
+    if (!sb || !bounds) {
+      dayReportsByYm[ym] = emptyDayReportTotals();
+      return;
+    }
+    dayReportsBusyYm = ym;
+    try {
+      const { data, error } = await sb
+        .from('till_day_reports')
+        .select('business_date, cash, credit, tip')
+        .gte('business_date', bounds.start)
+        .lte('business_date', bounds.end)
+        .order('business_date', { ascending: true });
+      if (error) throw error;
+      dayReportsByYm[ym] = sumDayReports(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('[documents] till_day_reports', err);
+      dayReportsByYm[ym] = emptyDayReportTotals();
+    } finally {
+      if (dayReportsBusyYm === ym) dayReportsBusyYm = '';
+    }
+  }
+
+  async function loadRangeDayReports(fromYmd, toYmd, force) {
+    const from = fromYmd || reportFromYmd;
+    const to = toYmd || reportToYmd;
+    const key = reportRangeKey(from, to);
+    if (!from || !to || from > to || dayReportsBusyKey === key) return;
+    if (!force && dayReportsByRange[key] != null) {
+      if (reportRangeKey() === key) renderReport();
+      return;
+    }
+    const sb = getClient();
+    if (!sb) {
+      dayReportsByRange[key] = emptyDayReportTotals();
+      if (reportRangeKey() === key) renderReport();
+      return;
+    }
+    dayReportsBusyKey = key;
+    try {
+      const { data, error } = await sb
+        .from('till_day_reports')
+        .select('business_date, cash, credit, tip')
+        .gte('business_date', from)
+        .lte('business_date', to)
+        .order('business_date', { ascending: true });
+      if (error) throw error;
+      dayReportsByRange[key] = sumDayReports(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('[documents] till_day_reports range', err);
+      dayReportsByRange[key] = emptyDayReportTotals();
+    } finally {
+      if (dayReportsBusyKey === key) dayReportsBusyKey = '';
+    }
+    if (reportRangeKey() === key) renderReport();
+  }
+
   function expenseBreakdown() {
-    const ym = activeYm();
-    return buildSuppliers().map((item) => ({
-      name: item.name,
-      sum: item.monthSum,
-      count: item.monthCount,
-    })).filter((item, idx) => idx < DEFAULT_SUPPLIERS.length || item.sum > 0 || item.count > 0);
+    const map = new Map();
+    DEFAULT_SUPPLIERS.forEach((name) => {
+      if (!isZReportSupplier(name)) map.set(name, { name, sum: 0, count: 0 });
+    });
+    periodExpenseRows().forEach((row) => {
+      const name = canonicalSupplier(row.supplier_name);
+      if (!name || isZReportSupplier(name)) return;
+      if (!map.has(name)) map.set(name, { name, sum: 0, count: 0 });
+      const item = map.get(name);
+      item.sum += Number(row.amount_total) || 0;
+      item.count += 1;
+    });
+    return [...map.values()]
+      .map((item) => ({ name: item.name, sum: roundMoney(item.sum), count: item.count }))
+      .filter((item) => DEFAULT_SUPPLIERS.includes(item.name) || item.sum > 0 || item.count > 0)
+      .sort((a, b) => {
+        const rank = supplierRank(a.name) - supplierRank(b.name);
+        if (rank) return rank;
+        return a.name.localeCompare(b.name, 'he');
+      });
   }
 
   function renderMonthNav() {
     const ym = activeYm();
     const labelEl = document.getElementById('docs-month-label');
-    const labelReportEl = document.getElementById('docs-month-label-report');
     const nextBtn = document.getElementById('docs-month-next');
-    const nextReportBtn = document.getElementById('docs-month-next-report');
     if (labelEl) labelEl.textContent = monthLabel(ym);
-    if (labelReportEl) labelReportEl.textContent = monthLabel(ym);
     if (nextBtn) nextBtn.disabled = ym >= currentYm();
-    if (nextReportBtn) nextReportBtn.disabled = ym >= currentYm();
   }
 
   function renderReport() {
-    const ym = activeYm();
-    const incomeEl = document.getElementById('docs-income-sum');
-    const expenseEl = document.getElementById('docs-expense-sum');
-    const listEl = document.getElementById('docs-expense-break');
+    ensureReportRange();
+    const zSplit = sumZAmounts(periodZRows());
+    const expenseRows = periodExpenseRows();
+    const cashExpenses = sumPayCategory(expenseRows, 'cash');
+    const creditExpenses = sumPayCategory(expenseRows, 'credit');
+    const bankExpenses = sumPayCategory(expenseRows, 'bank');
+    const expenseTotal = roundMoney(sumAmounts(expenseRows));
+    const otherExpenses = roundMoney(expenseTotal - cashExpenses - creditExpenses - bankExpenses);
+    const daily = dayReportsByRange[reportRangeKey()];
+    const dailyLoaded = Boolean(daily?.loaded);
+    const tips = dailyLoaded ? daily.tip : 0;
+    const result = roundMoney(zSplit.total - expenseTotal);
     const breakdown = expenseBreakdown();
-    const expense = breakdown.reduce((sum, item) => sum + item.sum, 0);
-    const income = incomeByYm[ym];
-    if (incomeEl) incomeEl.textContent = income == null ? '…' : formatMoney(income);
-    if (expenseEl) expenseEl.textContent = formatMoney(expense);
+    const applied = document.getElementById('docs-period-applied');
+    if (applied) applied.textContent = periodLabel();
+
+    const salesEl = document.getElementById('docs-fin-sales');
+    const cashEl = document.getElementById('docs-fin-cash');
+    const creditEl = document.getElementById('docs-fin-credit');
+    const tipsEl = document.getElementById('docs-fin-tips');
+    const expensesEl = document.getElementById('docs-fin-expenses');
+    const resultEl = document.getElementById('docs-fin-result');
+    const expCashEl = document.getElementById('docs-fin-exp-cash');
+    const expCreditEl = document.getElementById('docs-fin-exp-credit');
+    const expBankEl = document.getElementById('docs-fin-exp-bank');
+    const expOtherEl = document.getElementById('docs-fin-exp-other');
+    const listEl = document.getElementById('docs-expense-break');
+
+    if (salesEl) salesEl.textContent = formatMoney(zSplit.total);
+    if (cashEl) cashEl.textContent = formatMoney(zSplit.cash);
+    if (creditEl) creditEl.textContent = formatMoney(zSplit.credit);
+    if (tipsEl) tipsEl.textContent = dailyLoaded ? formatMoney(tips) : '…';
+    if (expensesEl) expensesEl.textContent = formatMoney(expenseTotal);
+    if (resultEl) resultEl.textContent = formatMoney(result);
+    if (expCashEl) expCashEl.textContent = formatMoney(cashExpenses);
+    if (expCreditEl) expCreditEl.textContent = formatMoney(creditExpenses);
+    if (expBankEl) expBankEl.textContent = formatMoney(bankExpenses);
+    if (expOtherEl) expOtherEl.textContent = formatMoney(otherExpenses);
     if (listEl) {
       listEl.innerHTML = breakdown.map((item) => `
         <div class="docs-break__row" ${colorStyle(item.name)}>
@@ -1006,31 +1576,52 @@
     openMonths.clear();
     openMonths.add(selectedYm);
     renderAll();
-    loadMonthIncome(selectedYm).catch(() => {});
   }
 
-  function downloadMonthExcel() {
-    const ym = activeYm();
-    const income = incomeByYm[ym];
-    if (income == null) {
-      showError('ממתינים לסכום ההכנסות');
-      return;
+  async function downloadMonthExcel() {
+    try {
+      ensureReportRange();
+      const key = reportRangeKey();
+      if (dayReportsByRange[key] == null) {
+        await loadRangeDayReports(reportFromYmd, reportToYmd);
+      }
+      const api = global.LechaimDocsMonthlyXlsx;
+      if (typeof api?.downloadMonthlyReportXlsx !== 'function') {
+        showError('יצירת הקובץ לא זמינה');
+        return;
+      }
+      const zSplit = sumZAmounts(periodZRows());
+      const expenseRows = periodExpenseRows();
+      const cashExpenses = sumPayCategory(expenseRows, 'cash');
+      const creditExpenses = sumPayCategory(expenseRows, 'credit');
+      const bankExpenses = sumPayCategory(expenseRows, 'bank');
+      const expense = roundMoney(sumAmounts(expenseRows));
+      const otherExpenses = roundMoney(expense - cashExpenses - creditExpenses - bankExpenses);
+      const daily = dayReportsByRange[key] || emptyDayReportTotals();
+      const breakdown = expenseBreakdown();
+      const label = periodLabel() || `${reportFromYmd}_${reportToYmd}`;
+      const fileStamp = reportFromYmd === reportToYmd
+        ? reportFromYmd
+        : `${reportFromYmd}_${reportToYmd}`;
+      api.downloadMonthlyReportXlsx(`lechaim-finance-${fileStamp}.xlsx`, {
+        title: `סיכום כספי - ${label}`,
+        sales: zSplit.total,
+        cash: zSplit.cash,
+        credit: zSplit.credit,
+        tips: daily.tip,
+        expense,
+        cashExpenses,
+        creditExpenses,
+        bankExpenses,
+        otherExpenses,
+        result: roundMoney(zSplit.total - expense),
+        suppliers: breakdown.map((item) => ({ name: item.name, sum: item.sum })),
+      });
+      showToast('הקובץ ירד');
+    } catch (err) {
+      console.error('[documents] xlsx', err);
+      showError(err?.message || 'יצירת האקסל נכשלה');
     }
-    const api = global.LechaimDocsMonthlyXlsx;
-    if (typeof api?.downloadMonthlyReportXlsx !== 'function') {
-      showError('יצירת הקובץ לא זמינה');
-      return;
-    }
-    const breakdown = expenseBreakdown();
-    const expense = breakdown.reduce((sum, item) => sum + item.sum, 0);
-    const label = monthLabel(ym);
-    api.downloadMonthlyReportXlsx(`דוח_חודשי_${label.replace(/\s+/g, '_')}.xlsx`, {
-      title: `דוח חודשי - ${label}`,
-      income,
-      expense,
-      suppliers: breakdown.map((item) => ({ name: item.name, sum: item.sum })),
-    });
-    showToast('הקובץ ירד');
   }
 
   async function downloadDocumentsPdf(rows, filename, emptyMessage, buttonId, idleLabel) {
@@ -1124,11 +1715,13 @@
     if (!rows.length) return '';
     let cash = 0;
     let credit = 0;
-    const lines = [`תשלום מזומן/אשראי — ${monthLabel(ym)}`, ''];
+    let bank = 0;
+    const lines = [`תשלום ללא קבלה — ${monthLabel(ym)}`, ''];
     rows.forEach((row) => {
       const amount = Number(row.amount_total) || 0;
       if (row.category === 'cash') cash += amount;
       if (row.category === 'credit') credit += amount;
+      if (row.category === 'bank') bank += amount;
       const method = payMethodLabel(row.category) || 'תשלום';
       const note = String(row.notes || '').trim();
       lines.push(
@@ -1141,7 +1734,8 @@
       '',
       `סה״כ מזומן ${formatMoney(cash)}`,
       `סה״כ אשראי ${formatMoney(credit)}`,
-      `סה״כ ${formatMoney(cash + credit)}`
+      `סה״כ העברה בנקאית ${formatMoney(bank)}`,
+      `סה״כ ${formatMoney(cash + credit + bank)}`
     );
     return lines.join('\n');
   }
@@ -1171,12 +1765,12 @@
   async function copyManualPaymentsText() {
     const text = buildManualPaymentsText(activeYm());
     if (!text) {
-      showError('אין תשלומי מזומן/אשראי בחודש שנבחר');
+      showError('אין תשלומים ללא קבלה בחודש שנבחר');
       return;
     }
     showError('');
     const ok = await copyText(text);
-    if (ok) showToast('תשלומי מזומן/אשראי הועתקו');
+    if (ok) showToast('תשלומים ללא קבלה הועתקו');
     else showError('לא ניתן להעתיק את הטקסט');
   }
 
@@ -1187,7 +1781,6 @@
     renderFolder();
     renderReport();
     applyLayout();
-    loadMonthIncome(activeYm()).catch(() => {});
   }
 
   function closeScanOverlay() {
@@ -1196,6 +1789,8 @@
     editingId = null;
     pendingPayMethod = '';
     setManualFormVisible(false);
+    setPayFieldsVisible(false);
+    setPayBankVisible(true);
     if (cameraInput) cameraInput.value = '';
     if (fileInput) fileInput.value = '';
     if (previewFrame) previewFrame.innerHTML = '';
@@ -1229,21 +1824,28 @@
   }
 
   function goToForm() {
-    const supplier = scanSupplier || activeSupplier || '';
+    const supplier = canonicalSupplier(scanSupplier || activeSupplier || '');
     const manual = isManualPaymentSupplier(supplier);
+    const general = isGeneralInvoiceSupplier(supplier);
+    const zReport = isZReportSupplier(supplier);
     if (formTitleEl) {
       formTitleEl.textContent = editingId
         ? 'עריכה'
-        : (manual ? 'תשלום מזומן/אשראי' : (supplier || 'חשבונית'));
+        : (manual ? MANUAL_PAYMENT_SUPPLIER : (zReport ? 'דוח Z' : (supplier || 'חשבונית')));
     }
     const hint = document.getElementById('docs-form-supplier');
     if (hint) hint.hidden = true;
-    setManualFormVisible(manual);
+    setManualFormVisible(manual || general);
+    setPayFieldsVisible(!zReport);
+    setPayBankVisible(!zReport && !general);
+    setZFormVisible(zReport && !manual);
     setScanStep('form');
     window.setTimeout(() => (
-      manual
+      (manual || general)
         ? document.getElementById('docs-field-notes')?.focus()
-        : document.getElementById('docs-field-total')?.focus()
+        : (zReport
+          ? document.getElementById('docs-field-cash')?.focus()
+          : document.getElementById('docs-field-total')?.focus())
     ), 80);
   }
 
@@ -1278,6 +1880,14 @@
     releaseTrap(viewTrap);
     viewTrap = null;
     if (viewFrameEl) viewFrameEl.innerHTML = '';
+    const editBtn = document.getElementById('docs-view-edit');
+    const deleteBtn = document.getElementById('docs-view-delete');
+    const downloadBtn = document.getElementById('docs-view-download');
+    const moveBtn = document.getElementById('docs-view-move');
+    if (editBtn) editBtn.hidden = false;
+    if (deleteBtn) deleteBtn.hidden = false;
+    if (downloadBtn) downloadBtn.hidden = false;
+    if (moveBtn) moveBtn.hidden = false;
     closeModal(viewModal);
   }
 
@@ -1296,7 +1906,10 @@
   }
 
   function openPickModal() {
-    const suppliers = buildSuppliers().filter((item) => !isManualPaymentSupplier(item.name));
+    const suppliers = buildSuppliers().filter((item) => (
+      !isManualPaymentSupplier(item.name)
+      && !isSalarySupplier(item.name)
+    ));
     if (pickListEl) {
       pickListEl.innerHTML = suppliers.map((item) => `
         <button type="button" class="docs-pick-item" data-docs-pick-supplier="${escapeHtml(item.name)}" ${colorStyle(item.name)}>
@@ -1320,13 +1933,17 @@
   }
 
   function beginScanFor(name) {
-    const key = supplierKey(name);
+    const key = canonicalSupplier(name);
     if (!key) {
       showError('בחרו ספק תחילה');
       return;
     }
     scanSupplier = key;
     rememberSupplier(key);
+    if (isSalarySupplier(key)) {
+      showError('משכורות מגיעות מתשלומים שנרשמו בשעות עובדים');
+      return;
+    }
     if (isManualPaymentSupplier(key)) {
       openManualPaymentForm();
       return;
@@ -1381,33 +1998,56 @@
     return url;
   }
 
+  function findRow(id) {
+    return cache.find((item) => item.id === id)
+      || salaryDocRows().find((item) => item.id === id)
+      || null;
+  }
+
   async function openDocument(id) {
-    const row = cache.find((item) => item.id === id);
+    const row = findRow(id);
     if (!row) return;
     showError('');
     const downloadBtn = document.getElementById('docs-view-download');
     const moveBtn = document.getElementById('docs-view-move');
+    const editBtn = document.getElementById('docs-view-edit');
+    const deleteBtn = document.getElementById('docs-view-delete');
+    const salary = row.source === 'salary' || isSalarySupplier(row.supplier_name);
     try {
-      if (viewTitleEl) viewTitleEl.textContent = row.supplier_name || 'חשבונית';
+      const folder = canonicalSupplier(row.supplier_name);
+      if (viewTitleEl) viewTitleEl.textContent = salary ? (row.notes || 'משכורת') : (folder || 'חשבונית');
       if (viewMetaEl) {
-        viewMetaEl.textContent = [
-          row.supplier_name,
-          formatDateFull(row.document_date),
-          formatMoney(row.amount_total),
-          payMethodLabel(row.category),
-          row.notes || '',
-        ].filter(Boolean).join(' · ');
+        viewMetaEl.textContent = salary
+          ? [
+            row.notes || 'עובד',
+            formatDateFull(row.document_date),
+            formatMoney(row.amount_total),
+            row.category === 'bank' ? 'בנק' : 'מזומן',
+          ].filter(Boolean).join(' · ')
+          : [
+            folder,
+            formatDateFull(row.document_date),
+            formatMoney(row.amount_total),
+            isZReportSupplier(row.supplier_name)
+              ? `מזומן ${formatMoney(zAmounts(row).cash)} · אשראי ${formatMoney(zAmounts(row).credit)}`
+              : payMethodLabel(row.category),
+            row.notes || '',
+          ].filter(Boolean).join(' · ');
       }
-      if (downloadBtn) downloadBtn.hidden = !hasDocumentFile(row);
-      if (moveBtn) moveBtn.hidden = isManualPaymentSupplier(row.supplier_name);
+      if (downloadBtn) downloadBtn.hidden = salary || !hasDocumentFile(row);
+      if (moveBtn) moveBtn.hidden = salary || isManualPaymentSupplier(row.supplier_name);
+      if (editBtn) editBtn.hidden = salary;
+      if (deleteBtn) deleteBtn.hidden = salary;
       if (viewFrameEl) {
         viewFrameEl.innerHTML = '';
-        if (!hasDocumentFile(row)) {
+        if (salary || !hasDocumentFile(row)) {
           const box = document.createElement('p');
           box.className = 'docs-view-note';
-          box.textContent = row.notes
-            ? `${payMethodLabel(row.category) || 'תשלום'} · ${row.notes}`
-            : (payMethodLabel(row.category) || 'תשלום בלי תמונה');
+          box.textContent = salary
+            ? `${row.notes || 'עובד'} · ${row.category === 'bank' ? 'בנק' : 'מזומן'} · ${formatMoney(row.amount_total)}`
+            : (row.notes
+              ? `${payMethodLabel(row.category) || 'תשלום'} · ${row.notes}`
+              : (payMethodLabel(row.category) || 'תשלום בלי תמונה'));
           viewFrameEl.appendChild(box);
         } else {
           const url = await signedUrl(row.storage_path);
@@ -1453,11 +2093,11 @@
   }
 
   function editDocument(id) {
-    const row = cache.find((item) => item.id === id);
-    if (!row) return;
+    const row = findRow(id);
+    if (!row || row.source === 'salary' || isSalarySupplier(row.supplier_name)) return;
     editingId = id;
     pendingFile = null;
-    scanSupplier = supplierKey(row.supplier_name);
+    scanSupplier = canonicalSupplier(row.supplier_name);
     revokePreviewUrl();
     resetForm();
     const dateEl = document.getElementById('docs-field-date');
@@ -1466,14 +2106,31 @@
     if (dateEl) dateEl.value = row.document_date || todayYmd();
     if (totalEl) totalEl.value = row.amount_total ?? '';
     if (notesEl) notesEl.value = row.notes || '';
-    pendingPayMethod = row.category === 'credit' ? 'credit' : (row.category === 'cash' ? 'cash' : '');
+    const cashEl = document.getElementById('docs-field-cash');
+    const creditEl = document.getElementById('docs-field-credit');
+    if (isZReportSupplier(row.supplier_name)) {
+      const split = zAmounts(row);
+      if (cashEl) cashEl.value = split.hasSplit || split.total ? String(split.cash) : '';
+      if (creditEl) creditEl.value = split.hasSplit || split.total ? String(split.credit) : '';
+      if (!split.hasSplit && split.total && cashEl && creditEl) {
+        cashEl.value = '';
+        creditEl.value = '';
+        if (totalEl) totalEl.value = split.total;
+      }
+      syncZTotal();
+    } else {
+      if (cashEl) cashEl.value = '';
+      if (creditEl) creditEl.value = '';
+    }
+    pendingPayMethod = normalizePayMethod(row.category);
     setPayMethodHighlight(pendingPayMethod);
     goToForm();
     openScanOverlay();
   }
 
   async function deleteDocument(id) {
-    const row = cache.find((item) => item.id === id);
+    const row = findRow(id);
+    if (!row || row.source === 'salary' || isSalarySupplier(row.supplier_name)) return;
     const ok = await askDeleteConfirm(row);
     if (!ok) return;
     const sb = getClient();
@@ -1513,14 +2170,18 @@
   async function moveDocument(id, newSupplier) {
     const row = cache.find((item) => item.id === id);
     if (!row) return;
-    const target = supplierKey(newSupplier);
+    const target = canonicalSupplier(newSupplier);
     if (!target) return;
-    if (supplierKey(row.supplier_name) === target) {
+    if (canonicalSupplier(row.supplier_name) === target) {
       showToast('כבר באותו ספק');
       return;
     }
+    if (isSalarySupplier(row.supplier_name) || isSalarySupplier(target)) {
+      showError('משכורות מגיעות משעות עובדים ולא ניתנות להעברה');
+      return;
+    }
     if (isManualPaymentSupplier(row.supplier_name) || isManualPaymentSupplier(target)) {
-      showError('תשלום מזומן/אשראי נשאר בתיקייה שלו');
+      showError('תשלום ללא קבלה נשאר בתיקייה שלו');
       return;
     }
     const sb = getClient();
@@ -1550,7 +2211,9 @@
       date: date || null,
       total: raw && Number.isFinite(total) ? total : null,
       notes,
-      method: pendingPayMethod === 'credit' ? 'credit' : (pendingPayMethod === 'cash' ? 'cash' : ''),
+      method: normalizePayMethod(pendingPayMethod),
+      cash: readMoneyField('docs-field-cash'),
+      credit: readMoneyField('docs-field-credit'),
     };
   }
 
@@ -1558,26 +2221,42 @@
     event.preventDefault();
     if (busy) return;
     const simple = readSimpleForm();
-    const supplier = supplierKey(scanSupplier || activeSupplier);
+    const supplier = canonicalSupplier(scanSupplier || activeSupplier);
     if (!supplier) {
       showFormError(formErrorEl, 'חסר ספק');
+      return;
+    }
+    if (isSalarySupplier(supplier)) {
+      showFormError(formErrorEl, 'משכורות מגיעות משעות עובדים');
       return;
     }
     if (!simple.date) {
       showFormError(formErrorEl, 'בחרו תאריך');
       return;
     }
-    if (simple.total == null || simple.total < 0) {
+    const manual = isManualPaymentSupplier(supplier);
+    const general = isGeneralInvoiceSupplier(supplier);
+    const zReport = isZReportSupplier(supplier);
+    if (zReport) {
+      if (simple.cash == null || simple.credit == null) {
+        showFormError(formErrorEl, 'הזינו סכום במזומן ובאשראי');
+        return;
+      }
+      simple.total = roundMoney(simple.cash + simple.credit);
+    } else if (simple.total == null || simple.total < 0) {
       showFormError(formErrorEl, 'הזינו סכום סופי');
       return;
     }
-    const manual = isManualPaymentSupplier(supplier);
-    if (manual && !simple.notes) {
+    if ((manual || general) && !simple.notes) {
       showFormError(formErrorEl, 'כתבו על מה יצא התשלום');
       return;
     }
-    if (manual && !simple.method) {
+    if (general && simple.method !== 'cash' && simple.method !== 'credit') {
       showFormError(formErrorEl, 'בחרו מזומן או אשראי');
+      return;
+    }
+    if (!zReport && !simple.method) {
+      showFormError(formErrorEl, 'בחרו מזומן, אשראי או העברה בנקאית');
       return;
     }
     const sb = getClient();
@@ -1595,13 +2274,16 @@
       }
       if (editingId) {
         const existing = cache.find((item) => item.id === editingId);
+        const zSplit = zReport ? encodeZSplit(simple.cash, simple.credit) : '';
         const data = await insertBusinessDocument(sb, {
           id: editingId,
           document_date: simple.date,
           amount_total: simple.total,
+          amount_before_vat: zReport ? simple.cash : existing?.amount_before_vat,
+          vat_amount: zReport ? simple.credit : existing?.vat_amount,
           supplier_name: supplier,
-          notes: manual ? simple.notes : (existing?.notes || ''),
-          category: manual ? simple.method : (existing?.category || ''),
+          notes: (manual || general) ? simple.notes : (existing?.notes || ''),
+          category: zReport ? zSplit : simple.method,
           status: 'saved',
         }, true);
         upsertCache(data);
@@ -1665,15 +2347,15 @@
         mime_type: mime,
         file_size_bytes: prepared.size,
         document_type: 'supplier_invoice',
-        category: '',
+        category: zReport ? encodeZSplit(simple.cash, simple.credit) : simple.method,
         supplier_name: supplier,
         document_number: '',
         document_date: simple.date,
         currency: 'EUR',
-        amount_before_vat: null,
-        vat_amount: null,
+        amount_before_vat: zReport ? simple.cash : null,
+        vat_amount: zReport ? simple.credit : null,
         amount_total: simple.total,
-        notes: '',
+        notes: general ? simple.notes : '',
         status: 'saved',
         ocr_status: 'none',
         ocr_raw: null,
@@ -1763,6 +2445,11 @@
     selectedYm = '';
     incomeByYm = {};
     incomeBusyYm = '';
+    dayReportsByYm = {};
+    dayReportsBusyYm = '';
+    salaryPayments = [];
+    salaryLoaded = false;
+    salaryBusy = false;
     closeScanOverlay();
     closeViewModal();
     closeVaultModal();
@@ -1820,6 +2507,7 @@
       if (appEl) appEl.hidden = false;
       await loadCatalogSuppliers();
       await loadRows();
+      await loadSalaryPayments(true);
       startRealtime();
     } catch (err) {
       console.error('[documents] unlock', err);
@@ -1834,6 +2522,10 @@
     const name = supplierKey(newNameInput?.value);
     if (!name) {
       showFormError(newFormError, 'הזינו שם ספק');
+      return;
+    }
+    if (isReservedSupplier(name) || DEFAULT_SUPPLIERS.includes(canonicalSupplier(name))) {
+      showFormError(newFormError, 'השם הזה כבר שמור במערכת');
       return;
     }
     const thenScan = newThenScan;
@@ -1897,7 +2589,7 @@
         return;
       }
       if (event.target.closest('#docs-xlsx')) {
-        downloadMonthExcel();
+        downloadMonthExcel().catch(() => {});
         return;
       }
       if (event.target.closest('#docs-month-pdf')) {
@@ -1950,6 +2642,8 @@
     formEl?.addEventListener('submit', (event) => {
       saveDocument(event).catch(() => {});
     });
+    document.getElementById('docs-field-cash')?.addEventListener('input', syncZTotal);
+    document.getElementById('docs-field-credit')?.addEventListener('input', syncZTotal);
 
     document.getElementById('docs-view-close')?.addEventListener('click', closeViewModal);
     document.getElementById('docs-view-backdrop')?.addEventListener('click', closeViewModal);
@@ -2000,6 +2694,14 @@
     newForm?.addEventListener('submit', (event) => {
       submitNewSupplier(event).catch(() => {});
     });
+    document.getElementById('docs-period-form')?.addEventListener('submit', (event) => {
+      applyReportPeriod(event);
+    });
+    document.querySelectorAll('[data-docs-period-mode]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        setReportMode(btn.getAttribute('data-docs-period-mode') || 'month');
+      });
+    });
     document.getElementById('docs-add-payment')?.addEventListener('click', () => {
       openManualPaymentForm();
     });
@@ -2047,6 +2749,7 @@
     try {
       await loadCatalogSuppliers();
       await loadRows();
+      await loadSalaryPayments(true);
       startRealtime();
     } catch (err) {
       showError(err?.message || 'טעינת המסמכים נכשלה');

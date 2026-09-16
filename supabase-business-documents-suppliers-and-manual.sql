@@ -21,6 +21,14 @@ create table if not exists public.business_document_suppliers (
 comment on table public.business_document_suppliers is
   'Supplier folders in documents. Names persist even before the first invoice.';
 
+update public.business_documents
+set supplier_name = 'חשבוניות כלליות'
+where trim(supplier_name) = 'חשבוניות קטנות';
+
+update public.business_documents
+set supplier_name = 'תשלום ללא קבלה'
+where trim(supplier_name) = 'תשלום מזומן/אשראי';
+
 insert into public.business_document_suppliers (name)
 values
   ('ירקות'),
@@ -30,10 +38,9 @@ values
   ('לחם'),
   ('ביצים'),
   ('חד פעמי'),
-  ('חשבוניות קטנות'),
   ('חשבוניות כלליות'),
   ('דוח Z'),
-  ('תשלום מזומן/אשראי')
+  ('תשלום ללא קבלה')
 on conflict (name) do nothing;
 
 insert into public.business_document_suppliers (name)
@@ -41,6 +48,9 @@ select distinct trim(d.supplier_name)
 from public.business_documents d
 where length(trim(d.supplier_name)) > 0
 on conflict (name) do nothing;
+
+delete from public.business_document_suppliers
+where name in ('חשבוניות קטנות', 'תשלום מזומן/אשראי');
 
 alter table public.business_document_suppliers enable row level security;
 alter table public.business_document_suppliers force row level security;
