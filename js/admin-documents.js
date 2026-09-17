@@ -297,7 +297,7 @@
   function payMethodLabel(value) {
     if (value === 'cash') return 'מזומן';
     if (value === 'credit') return 'אשראי';
-    if (value === 'bank') return 'העברה בנקאית';
+    if (value === 'bank') return 'בנק';
     if (value === 'private') return 'רכישה פרטית';
     return '';
   }
@@ -339,6 +339,16 @@
 
   function isEurExpenseRow(row) {
     return isEuroCurrency(rowCurrency(row));
+  }
+
+  function isPrivateExpenseRow(row) {
+    return isPrivateExpenseSupplier(row?.supplier_name)
+      || String(row?.category || '') === 'private';
+  }
+
+  function normalizeBusinessPayMethod(value) {
+    if (value === 'cash' || value === 'credit' || value === 'bank') return value;
+    return '';
   }
 
   function normalizePayMethod(value) {
@@ -708,7 +718,6 @@
 
   function syncPayMethodUi(method) {
     setPayMethodHighlight(method);
-    setPrivatePayHint(false);
   }
 
   function setPayMethodHighlight(method) {
@@ -1185,7 +1194,7 @@
                     ? formatMoneyCurrency(row.amount_total, rowCurrency(row))
                     : formatMoney(row.amount_total)
                 )}</strong>`;
-              const method = !zReport && !privateExp ? payMethodLabel(row.category) : '';
+              const method = !zReport ? payMethodLabel(row.category) : '';
               const note = !zReport ? String(row.notes || '').trim() : '';
               const meta = [method, note].filter(Boolean).join(' · ');
               const metaHtml = meta ? `<span class="docs-inv__meta">${escapeHtml(meta)}</span>` : '';
@@ -1490,7 +1499,17 @@
 
   function sumPayCategoryEur(rows, category) {
     return roundMoney(sumAmounts(
-      (rows || []).filter((row) => row.category === category && isEurExpenseRow(row))
+      (rows || []).filter((row) =>
+        row.category === category
+        && isEurExpenseRow(row)
+        && !isPrivateExpenseRow(row)
+      )
+    ));
+  }
+
+  function sumPrivateExpensesEur(rows) {
+    return roundMoney(sumAmounts(
+      (rows || []).filter((row) => isPrivateExpenseRow(row) && isEurExpenseRow(row))
     ));
   }
 
@@ -1654,7 +1673,8 @@
     const cashExpenses = sumPayCategoryEur(expenseRows, 'cash');
     const creditExpenses = sumPayCategoryEur(expenseRows, 'credit');
     const bankExpenses = sumPayCategoryEur(expenseRows, 'bank');
-    const privateExpenses = sumPayCategoryEur(expenseRows, 'private');
+    const privateRows = expenseRows.filter(isPrivateExpenseRow);
+    const privateExpenses = sumPrivateExpensesEur(expenseRows);
     const expenseTotal = roundMoney(sumEurAmounts(expenseRows));
     const otherExpenses = roundMoney(
       expenseTotal - cashExpenses - creditExpenses - bankExpenses - privateExpenses
@@ -1689,7 +1709,7 @@
     if (expCashEl) expCashEl.textContent = formatMoney(cashExpenses);
     if (expCreditEl) expCreditEl.textContent = formatMoney(creditExpenses);
     if (expBankEl) expBankEl.textContent = formatMoney(bankExpenses);
-    if (expPrivateEl) expPrivateEl.textContent = formatMoney(privateExpenses);
+    if (expPrivateEl) expPrivateEl.textContent = privateFolderSumText(privateRows);
     if (expOtherEl) expOtherEl.textContent = formatMoney(otherExpenses);
     if (listEl) {
       listEl.innerHTML = breakdown.map((item) => `
@@ -1728,7 +1748,7 @@
       const cashExpenses = sumPayCategoryEur(expenseRows, 'cash');
       const creditExpenses = sumPayCategoryEur(expenseRows, 'credit');
       const bankExpenses = sumPayCategoryEur(expenseRows, 'bank');
-      const privateExpenses = sumPayCategoryEur(expenseRows, 'private');
+      const privateExpenses = sumPrivateExpensesEur(expenseRows);
       const expense = roundMoney(sumEurAmounts(expenseRows));
       const otherExpenses = roundMoney(
         expense - cashExpenses - creditExpenses - bankExpenses - privateExpenses
@@ -1972,7 +1992,6 @@
     const general = isGeneralInvoiceSupplier(supplier);
     const zReport = isZReportSupplier(supplier);
     const textOnly = noInvoiceMode || manual || (privateExp && !pendingFile && !editingId);
-    if (privateExp) pendingPayMethod = 'private';
     if (formTitleEl) {
       formTitleEl.textContent = editingId
         ? 'עריכה'
@@ -1997,10 +2016,14 @@
       || textOnly
       || Boolean(pendingSupplierNotes)
     );
-    setPayFieldsVisible(!zReport && !privateExp);
-    setPayBankVisible(!zReport && !general && !privateExp);
+    setPayFieldsVisible(!zReport);
+    setPayBankVisible(!zReport);
     setCurrencyFieldsVisible(privateExp);
     setCurrencyHighlight(pendingCurrency || 'EUR');
+    if (privateExp && !normalizeBusinessPayMethod(pendingPayMethod)) {
+      pendingPayMethod = 'cash';
+    }
+    syncPayMethodUi(pendingPayMethod);
     setPrivatePayHint(privateExp);
     setZFormVisible(zReport && !manual && !textOnly && !privateExp);
     setScanStep('form');
@@ -2039,7 +2062,7 @@
     noInvoiceMode = true;
     revokePreviewUrl();
     resetForm();
-    pendingPayMethod = 'private';
+    pendingPayMethod = 'cash';
     pendingCurrency = 'EUR';
     goToForm();
     openScanOverlay();
@@ -2161,7 +2184,9 @@
       return;
     }
     noInvoiceMode = false;
-    if (isPrivateExpenseSupplier(key)) pendingPayMethod = 'private';
+    if (isPrivateExpenseSupplier(key) && !normalizeBusinessPayMethod(pendingPayMethod)) {
+      pendingPayMethod = 'cash';
+    }
     cameraInput?.click();
   }
 
@@ -2244,7 +2269,7 @@
             isZReportSupplier(row.supplier_name)
               ? `מזומן ${formatMoney(zAmounts(row).cash)} · אשראי ${formatMoney(zAmounts(row).credit)}`
               : (isPrivateExpenseSupplier(row.supplier_name)
-                ? formatMoneyCurrency(row.amount_total, rowCurrency(row))
+                ? `${formatMoneyCurrency(row.amount_total, rowCurrency(row))}${payMethodLabel(row.category) ? ` · ${payMethodLabel(row.category)}` : ''}`
                 : `${formatMoney(row.amount_total)}${payMethodLabel(row.category) ? ` · ${payMethodLabel(row.category)}` : ''}`),
             row.notes || '',
           ].filter(Boolean).join(' · ');
@@ -2263,6 +2288,7 @@
           } else if (isPrivateExpenseSupplier(row.supplier_name)) {
             box.textContent = [
               formatMoneyCurrency(row.amount_total, rowCurrency(row)),
+              payMethodLabel(row.category),
               row.notes || 'רכישה פרטית בלי חשבונית',
             ].filter(Boolean).join(' · ');
           } else {
@@ -2345,8 +2371,11 @@
       if (cashEl) cashEl.value = '';
       if (creditEl) creditEl.value = '';
     }
-    pendingPayMethod = normalizePayMethod(row.category);
-    if (isPrivateExpenseSupplier(row.supplier_name)) pendingPayMethod = 'private';
+    pendingPayMethod = normalizeBusinessPayMethod(row.category)
+      || (normalizePayMethod(row.category) === 'private' ? 'cash' : normalizePayMethod(row.category));
+    if (isPrivateExpenseSupplier(row.supplier_name) && !normalizeBusinessPayMethod(pendingPayMethod)) {
+      pendingPayMethod = 'cash';
+    }
     pendingCurrency = rowCurrency(row);
     syncPayMethodUi(pendingPayMethod);
     setCurrencyHighlight(pendingCurrency);
@@ -2441,7 +2470,7 @@
       date: date || null,
       total: raw && Number.isFinite(total) ? total : null,
       notes,
-      method: normalizePayMethod(pendingPayMethod),
+      method: normalizeBusinessPayMethod(pendingPayMethod) || normalizePayMethod(pendingPayMethod),
       currency: normalizeCurrency(pendingCurrency),
       cash: readMoneyField('docs-field-cash'),
       credit: readMoneyField('docs-field-credit'),
@@ -2473,7 +2502,6 @@
     const textOnly = noInvoiceMode
       || (existingEdit ? !hasDocumentFile(existingEdit) : false)
       || (privateExp && !pendingFile && !editingId);
-    if (privateExp) simple.method = 'private';
     if (zReport) {
       if (simple.cash == null || simple.credit == null) {
         showFormError(formErrorEl, 'הזינו סכום במזומן ובאשראי');
@@ -2488,15 +2516,15 @@
       showFormError(formErrorEl, 'כתבו על מה יצא התשלום');
       return;
     }
-    if (general && simple.method !== 'cash' && simple.method !== 'credit') {
-      showFormError(formErrorEl, 'בחרו מזומן או אשראי');
+    if (!zReport && !normalizeBusinessPayMethod(simple.method)) {
+      showFormError(formErrorEl, 'בחרו מזומן, אשראי או בנק');
       return;
     }
-    if (!zReport && !privateExp && !simple.method) {
-      showFormError(formErrorEl, 'בחרו מזומן, אשראי או העברה בנקאית');
-      return;
-    }
+    simple.method = normalizeBusinessPayMethod(simple.method);
     const saveCurrency = privateExp ? simple.currency : 'EUR';
+    const saveCategory = zReport
+      ? encodeZSplit(simple.cash, simple.credit)
+      : simple.method;
     const sb = getClient();
     if (!sb) {
       showFormError(formErrorEl, 'Supabase לא מחובר');
@@ -2512,7 +2540,6 @@
       }
       if (editingId) {
         const existing = cache.find((item) => item.id === editingId);
-        const zSplit = zReport ? encodeZSplit(simple.cash, simple.credit) : '';
         const notesValue = zReport
           ? (existing?.notes || '')
           : ((manual || general || privateExp || textOnly)
@@ -2526,7 +2553,7 @@
           vat_amount: zReport ? simple.credit : existing?.vat_amount,
           supplier_name: supplier,
           notes: notesValue,
-          category: zReport ? zSplit : (privateExp ? 'private' : simple.method),
+          category: saveCategory,
           currency: privateExp ? saveCurrency : (existing?.currency || 'EUR'),
           status: 'saved',
         }, true);
@@ -2547,7 +2574,7 @@
           mime_type: '',
           file_size_bytes: null,
           document_type: 'manual_payment',
-          category: privateExp ? 'private' : simple.method,
+          category: saveCategory,
           supplier_name: supplier,
           document_number: '',
           document_date: simple.date,
@@ -2594,7 +2621,7 @@
         mime_type: mime,
         file_size_bytes: prepared.size,
         document_type: 'supplier_invoice',
-        category: zReport ? encodeZSplit(simple.cash, simple.credit) : (privateExp ? 'private' : simple.method),
+        category: saveCategory,
         supplier_name: supplier,
         document_number: '',
         document_date: simple.date,
