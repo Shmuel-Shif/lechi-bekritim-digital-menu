@@ -657,11 +657,18 @@
             <label class="admin-till-search">
               <span class="visually-hidden">חיפוש מוצר</span>
               <input
-                type="search"
+                type="text"
                 id="admin-till-product-search"
+                name="lechaim-till-product-filter"
                 placeholder="🔍 חפש מוצר..."
                 autocomplete="off"
+                autocapitalize="off"
+                autocorrect="off"
                 spellcheck="false"
+                inputmode="search"
+                data-lpignore="true"
+                data-1p-ignore="true"
+                readonly
               >
             </label>
             <div class="admin-till-cats" id="admin-till-cats" role="tablist" aria-label="סינון לפי קטגוריה"></div>
@@ -739,6 +746,76 @@
               <div class="settings-card__actions">
                 <button type="button" class="admin-btn admin-btn--primary" id="settings-push-enable">הפעל התראות</button>
                 <button type="button" class="admin-btn admin-btn--ghost" id="settings-push-disable" hidden>כבה התראות במכשיר זה</button>
+              </div>
+            </article>
+              </section>
+
+              <section class="settings-item" data-settings-key="reminders">
+                <button type="button" class="settings-index__row" data-settings-open="reminders" aria-expanded="false">
+                  <span class="settings-index__copy">
+                    <span class="settings-index__title">התראת CHECK-IN / CHECK-OUT</span>
+                    <span class="settings-index__hint">תזכורת ב־14:00 וב־22:00 במכשיר הזה</span>
+                  </span>
+                  <span class="settings-status" id="settings-reminders-status" data-open="1">פעיל</span>
+                  <span class="settings-index__chevron" aria-hidden="true"></span>
+                </button>
+            <article class="settings-card" id="settings-card-reminders" hidden>
+              <header class="settings-card__head">
+                <h2 class="settings-card__title">התראת CHECK-IN / CHECK-OUT</h2>
+              </header>
+              <p class="settings-card__hint">כשפעיל — בשעה 14:00 ו־22:00 מופיעה התראה עם צפצוף עד שמזינים קוד גישה. הכיבוי חל על המכשיר הזה בלבד.</p>
+              <div class="settings-card__actions">
+                <button type="button" class="admin-btn admin-btn--primary" id="settings-reminders-enable">הפעל התראה</button>
+                <button type="button" class="admin-btn admin-btn--ghost" id="settings-reminders-disable">כבה התראה</button>
+              </div>
+            </article>
+              </section>
+
+              <section class="settings-item" data-settings-key="access-code">
+                <button type="button" class="settings-index__row" data-settings-open="access-code" aria-expanded="false">
+                  <span class="settings-index__copy">
+                    <span class="settings-index__title">קוד גישה</span>
+                    <span class="settings-index__hint">מסמכים, מכירות, עובדים וביטול תשלום</span>
+                  </span>
+                  <span class="settings-status" id="settings-access-code-status" data-open="0">כבוי</span>
+                  <span class="settings-index__chevron" aria-hidden="true"></span>
+                </button>
+            <article class="settings-card" id="settings-card-access-code" hidden>
+              <header class="settings-card__head">
+                <h2 class="settings-card__title">קוד גישה</h2>
+              </header>
+              <p class="settings-card__hint" id="settings-access-code-hint">מפעילים או מבטלים את אותו קוד קבוע — בלי להחליף אותו. בפעם הראשונה בלבד מגדירים קוד. אחר כך מזינים את אותו קוד כדי להפעיל או לבטל.</p>
+              <div class="settings-card__fields">
+                <!-- decoy fields — stop browsers stuffing login email/password here -->
+                <input type="text" tabindex="-1" aria-hidden="true" autocomplete="username"
+                  style="position:absolute;left:-10000px;width:1px;height:1px;opacity:0" value="">
+                <input type="password" tabindex="-1" aria-hidden="true" autocomplete="current-password"
+                  style="position:absolute;left:-10000px;width:1px;height:1px;opacity:0" value="">
+                <label class="admin-field" id="settings-access-code-field-wrap">
+                  <span id="settings-access-code-field-label">קוד גישה</span>
+                  <input
+                    type="text"
+                    id="settings-access-code-input"
+                    class="admin-code-input"
+                    name="lechaim-admin-access-gate"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                    maxlength="64"
+                    dir="ltr"
+                    autocomplete="new-password"
+                    autocapitalize="off"
+                    autocorrect="off"
+                    spellcheck="false"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
+                    readonly
+                  >
+                </label>
+              </div>
+              <p class="admin-error" id="settings-access-code-error" role="alert" hidden></p>
+              <div class="settings-card__actions">
+                <button type="button" class="admin-btn admin-btn--primary" id="settings-access-code-enable">הפעל קוד גישה</button>
+                <button type="button" class="admin-btn admin-btn--ghost" id="settings-access-code-disable" hidden>בטל קוד גישה</button>
               </div>
             </article>
               </section>
@@ -1353,7 +1430,7 @@
       <button type="button" class="admin-modal__backdrop" id="docs-vault-backdrop" aria-label="סגור"></button>
       <div class="admin-modal__panel reservation-modal__panel" role="dialog" aria-modal="true" aria-labelledby="docs-vault-modal-title">
         <h2 class="reservation-modal__title" id="docs-vault-modal-title">כניסה למסמכים</h2>
-        <p class="docs-vault-hint">כספת נפרדת ממשכורות. הקוד לא נשמר במכשיר.</p>
+        <p class="docs-vault-hint">כספת מסמכים וסיכום מכירות. אותו קוד כמו בהגדרות ← קוד גישה.</p>
         <form id="docs-vault-form" class="reservation-form" novalidate>
           <label class="admin-field">
             <span>קוד גישה</span>
@@ -1372,7 +1449,7 @@
       <button type="button" class="admin-modal__backdrop" id="till-totals-backdrop" aria-label="סגור"></button>
       <div class="admin-modal__panel reservation-modal__panel" role="dialog" aria-modal="true" aria-labelledby="till-totals-modal-title">
         <h2 class="reservation-modal__title" id="till-totals-modal-title">סיכום מכירות</h2>
-        <p class="docs-vault-hint">אותו קוד כמו מסמכים.</p>
+        <p class="docs-vault-hint">אותו קוד גישה כמו מסמכים והגדרות.</p>
         <form id="till-totals-form" class="reservation-form" novalidate>
           <label class="admin-field">
             <span>קוד גישה</span>
@@ -2355,19 +2432,19 @@
   <script src="js/admin-kitchen-board.js?v=34" defer></script>
   <script src="js/admin-history.js?v=2" defer></script>
   <script src="js/admin-coupons.js" defer></script>
-  <script src="js/admin-till.js?v=18" defer></script>
+  <script src="js/admin-till.js?v=21" defer></script>
   <script src="js/admin-dashboard.js?v=6" defer></script>
   <script src="js/staff-hours-xlsx.js?v=4" defer></script>
-  <script src="js/admin-staff-hours.js?v=22" defer></script>
+  <script src="js/admin-staff-hours.js?v=23" defer></script>
   <script src="js/docs-monthly-xlsx.js?v=6" defer></script>
   <script src="js/docs-monthly-pdf.js?v=1" defer></script>
-  <script src="js/admin-documents.js?v=32" defer></script>
-  <script src="js/admin-settings.js?v=7" defer></script>
+  <script src="js/admin-documents.js?v=33" defer></script>
+  <script src="js/admin-settings.js?v=12" defer></script>
   <script src="js/stock-catalog.js?v=6" defer></script>
   <script src="js/admin-stock.js?v=2" defer></script>
   <script src="js/admin.js?v=74" defer></script>
   <script src="js/admin-push.js?v=3" defer></script>
-  <script src="js/admin-reminders.js?v=2" defer></script>
+  <script src="js/admin-reminders.js?v=3" defer></script>
   <script src="js/admin-pwa.js?v=2" defer></script>
 </body>
 </html>

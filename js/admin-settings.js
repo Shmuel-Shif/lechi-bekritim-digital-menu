@@ -22,6 +22,15 @@
   const shabbatStatusEl = document.getElementById('settings-shabbat-status');
   const dineInOrderModeStatusEl = document.getElementById('settings-dine-in-order-mode-status');
   const dineInOrderModeChoicesEl = document.getElementById('settings-dine-in-order-mode-choices');
+  const remindersStatusEl = document.getElementById('settings-reminders-status');
+  const remindersEnableBtn = document.getElementById('settings-reminders-enable');
+  const remindersDisableBtn = document.getElementById('settings-reminders-disable');
+  const accessCodeStatusEl = document.getElementById('settings-access-code-status');
+  const accessCodeInput = document.getElementById('settings-access-code-input');
+  const accessCodeFieldLabel = document.getElementById('settings-access-code-field-label');
+  const accessCodeErrorEl = document.getElementById('settings-access-code-error');
+  const accessCodeEnableBtn = document.getElementById('settings-access-code-enable');
+  const accessCodeDisableBtn = document.getElementById('settings-access-code-disable');
 
   let started = false;
   let flagsUnsub = null;
@@ -31,6 +40,9 @@
   let shabbatEnabled = true;
   let dineInOrderMode = 'representative';
   let dineInOrderModeSaving = false;
+  let accessCodeConfigured = false;
+  let accessCodeHasSecret = false;
+  let accessCodeBusy = false;
 
   function showToast(message) {
     if (typeof global.LechaimAdminTables?.showSuccessModal === 'function') {
@@ -109,6 +121,191 @@
     } else {
       paintStatus(kitchenStatusEl, false, 'פתוח', 'סגור');
     }
+  }
+
+  function getClient() {
+    return global.LechaimInventory?.getClient?.()
+      || global.LechaimSupabaseOrders?.getClient?.()
+      || null;
+  }
+
+  function paintRemindersStatus() {
+    const on = global.LechaimAdminReminders?.isEnabled?.() !== false;
+    paintStatus(remindersStatusEl, on, 'פעיל', 'כבוי');
+    if (remindersEnableBtn) remindersEnableBtn.hidden = on;
+    if (remindersDisableBtn) remindersDisableBtn.hidden = !on;
+  }
+
+  function setAccessCodeError(message) {
+    if (!accessCodeErrorEl) return;
+    accessCodeErrorEl.hidden = !message;
+    accessCodeErrorEl.textContent = message || '';
+  }
+
+  function clearAccessCodeFields() {
+    if (accessCodeInput) {
+      accessCodeInput.value = '';
+      accessCodeInput.setAttribute('readonly', 'readonly');
+    }
+  }
+
+  function armAccessCodeAutofillGuard() {
+    if (!accessCodeInput || accessCodeInput.dataset.autofillGuard === '1') return;
+    accessCodeInput.dataset.autofillGuard = '1';
+    const unlock = () => accessCodeInput.removeAttribute('readonly');
+    accessCodeInput.addEventListener('focus', unlock);
+    accessCodeInput.addEventListener('pointerdown', unlock);
+    // Clear browser-stuffed password leftovers after paint.
+    window.setTimeout(() => {
+      if (!accessCodeInput) return;
+      accessCodeInput.value = '';
+      accessCodeInput.setAttribute('readonly', 'readonly');
+    }, 50);
+  }
+
+  function paintAccessCodeStatus() {
+    paintStatus(accessCodeStatusEl, accessCodeConfigured, 'פעיל', 'כבוי');
+    if (accessCodeEnableBtn) accessCodeEnableBtn.hidden = accessCodeConfigured;
+    if (accessCodeDisableBtn) accessCodeDisableBtn.hidden = !accessCodeConfigured;
+    if (accessCodeFieldLabel) {
+      if (accessCodeConfigured) {
+        accessCodeFieldLabel.textContent = 'קוד לביטול';
+      } else if (accessCodeHasSecret) {
+        accessCodeFieldLabel.textContent = 'הקוד הקיים (להפעלה)';
+      } else {
+        accessCodeFieldLabel.textContent = 'קוד חדש (פעם אחת)';
+      }
+    }
+  }
+
+  async function refreshAccessCodeStatus() {
+    const sb = getClient();
+    if (!sb) {
+      accessCodeConfigured = false;
+      accessCodeHasSecret = false;
+      paintAccessCodeStatus();
+      return;
+    }
+    try {
+      const enabledRes = await sb.rpc('admin_access_code_is_set');
+      if (enabledRes.error) throw enabledRes.error;
+      accessCodeConfigured = Boolean(enabledRes.data);
+
+      const secretRes = await sb.rpc('admin_access_code_has_secret');
+      if (secretRes.error) {
+        const fallback = await sb.rpc('staff_settings_code_is_set');
+        accessCodeHasSecret = Boolean(fallback.data);
+      } else {
+        accessCodeHasSecret = Boolean(secretRes.data);
+      }
+    } catch (err) {
+      console.warn('[admin-settings] access code status', err);
+      accessCodeConfigured = false;
+      accessCodeHasSecret = false;
+    }
+    paintAccessCodeStatus();
+  }
+
+  function mapAccessCodeError(code) {
+    if (code === 'invalid_current_code') return 'קוד שגוי';
+    if (code === 'code_too_short') return 'הקוד חייב להיות לפחות 4 תווים';
+    if (code === 'code_too_long') return 'הקוד ארוך מדי';
+    if (code === 'not_authenticated') return 'יש להתחבר לאדמין';
+    if (code === 'invalid_code') return 'קוד שגוי';
+    return code || 'שגיאה';
+  }
+
+  async function enableAccessCode() {
+    if (accessCodeBusy || accessCodeConfigured) return;
+    const code = String(accessCodeInput?.value || '').trim();
+    setAccessCodeError('');
+    if (code.length < 4) {
+      setAccessCodeError('הקוד חייב להיות לפחות 4 תווים');
+      return;
+    }
+    const sb = getClient();
+    if (!sb) {
+      setAccessCodeError('Supabase לא מחובר');
+      return;
+    }
+    accessCodeBusy = true;
+    try {
+      const { data, error } = await sb.rpc('staff_settings_manage_set_code', {
+        p_new_code: code,
+        p_current_code: null,
+      });
+      if (error) throw error;
+      const res = data || {};
+      if (!res.ok) {
+        setAccessCodeError(mapAccessCodeError(res.error));
+        return;
+      }
+      clearAccessCodeFields();
+      accessCodeConfigured = true;
+      accessCodeHasSecret = true;
+      paintAccessCodeStatus();
+      showToast('קוד הגישה הופעל');
+    } catch (err) {
+      console.error('[admin-settings] access code enable', err);
+      const msg = String(err?.message || '');
+      if (/staff_settings_manage_set_code|Could not find the function/i.test(msg)) {
+        setAccessCodeError('הריצו supabase-staff-settings-access-code-manage.sql ב-Supabase');
+      } else {
+        setAccessCodeError(msg || 'ההפעלה נכשלה');
+      }
+    } finally {
+      accessCodeBusy = false;
+    }
+  }
+
+  async function disableAccessCode() {
+    if (accessCodeBusy || !accessCodeConfigured) return;
+    const code = String(accessCodeInput?.value || '').trim();
+    setAccessCodeError('');
+    if (!code) {
+      setAccessCodeError('הזינו את הקוד לביטול');
+      return;
+    }
+    const sb = getClient();
+    if (!sb) {
+      setAccessCodeError('Supabase לא מחובר');
+      return;
+    }
+    accessCodeBusy = true;
+    try {
+      const { data, error } = await sb.rpc('staff_settings_manage_clear_code', {
+        p_current_code: code,
+      });
+      if (error) throw error;
+      const res = data || {};
+      if (!res.ok) {
+        setAccessCodeError(mapAccessCodeError(res.error));
+        return;
+      }
+      clearAccessCodeFields();
+      accessCodeConfigured = false;
+      paintAccessCodeStatus();
+      showToast('קוד הגישה כובה (הקוד נשמר)');
+    } catch (err) {
+      console.error('[admin-settings] access code disable', err);
+      const msg = String(err?.message || '');
+      if (/DELETE requires a WHERE clause/i.test(msg)) {
+        setAccessCodeError('הריצו שוב supabase-staff-settings-access-code-manage.sql ב-Supabase');
+      } else if (/staff_settings_manage_clear_code|Could not find the function/i.test(msg)) {
+        setAccessCodeError('הריצו supabase-staff-settings-access-code-manage.sql ב-Supabase');
+      } else {
+        setAccessCodeError(msg || 'הביטול נכשל');
+      }
+    } finally {
+      accessCodeBusy = false;
+    }
+  }
+
+  function setRemindersEnabled(on) {
+    const api = global.LechaimAdminReminders;
+    if (typeof api?.setEnabled === 'function') api.setEnabled(on);
+    paintRemindersStatus();
+    showToast(on ? 'התראת CHECK-IN/OUT הופעלה' : 'התראת CHECK-IN/OUT כובתה');
   }
 
   function armKitchenTick() {
@@ -391,6 +588,14 @@
       saveDineInOrderMode(btn.getAttribute('data-dine-in-order-mode'))
         .catch((err) => console.error('[admin-settings] dine-in order mode', err));
     });
+    remindersEnableBtn?.addEventListener('click', () => setRemindersEnabled(true));
+    remindersDisableBtn?.addEventListener('click', () => setRemindersEnabled(false));
+    accessCodeEnableBtn?.addEventListener('click', () => {
+      enableAccessCode().catch((err) => console.error('[admin-settings] access enable', err));
+    });
+    accessCodeDisableBtn?.addEventListener('click', () => {
+      disableAccessCode().catch((err) => console.error('[admin-settings] access disable', err));
+    });
   }
 
   function start() {
@@ -398,6 +603,9 @@
     closeAll();
     fillFormFromSettings();
     refreshFlags();
+    paintRemindersStatus();
+    armAccessCodeAutofillGuard();
+    refreshAccessCodeStatus().catch(() => {});
     if (started) return;
     started = true;
     bind();

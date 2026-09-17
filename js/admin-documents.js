@@ -2754,11 +2754,7 @@
   async function submitVault(event) {
     event.preventDefault();
     if (busy) return;
-    const code = vaultCodeInput?.value || '';
-    if (!String(code).trim()) {
-      showFormError(vaultFormError, 'הזינו קוד גישה');
-      return;
-    }
+    const code = String(vaultCodeInput?.value || '').trim();
     const sb = getClient();
     if (!sb) {
       showFormError(vaultFormError, 'Supabase לא מחובר');
@@ -2772,11 +2768,18 @@
       if (error) throw error;
       const res = data || {};
       if (!res.ok) {
-        if (res.error === 'invalid_code') showFormError(vaultFormError, 'קוד שגוי');
-        else if (res.error === 'code_not_set') showFormError(vaultFormError, 'קוד המסמכים עדיין לא הוגדר ב-Supabase');
-        else if (res.error === 'not_authenticated') showFormError(vaultFormError, 'יש להתחבר לאדמין');
-        else showFormError(vaultFormError, res.error || 'שגיאה');
-        return;
+        if (!code) showFormError(vaultFormError, 'הזינו קוד גישה');
+        else if (res.error === 'invalid_code') showFormError(vaultFormError, 'קוד שגוי');
+        else if (res.error === 'code_not_set') {
+          /* open without code */
+        } else if (res.error === 'not_authenticated') {
+          showFormError(vaultFormError, 'יש להתחבר לאדמין');
+          return;
+        } else {
+          showFormError(vaultFormError, res.error || 'שגיאה');
+          return;
+        }
+        if (res.error !== 'code_not_set') return;
       }
       unlocked = true;
       selectedYm = currentYm();
@@ -3031,6 +3034,18 @@
     bindOnce();
     applyLayout();
     showError('');
+    if (!unlocked) {
+      const sb = getClient();
+      try {
+        const { data } = await sb?.rpc?.('documents_vault_is_unlocked');
+        if (data) {
+          unlocked = true;
+          selectedYm = currentYm();
+          const appEl = document.getElementById('docs-app');
+          if (appEl) appEl.hidden = false;
+        }
+      } catch (_) { /* keep locked */ }
+    }
     if (!unlocked) {
       openVaultModal();
       return;

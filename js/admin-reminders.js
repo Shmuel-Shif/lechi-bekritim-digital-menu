@@ -7,6 +7,7 @@
 
   const TZ = 'Europe/Athens';
   const STORAGE_KEY = 'lechaim-admin-reminders-v1';
+  const ENABLED_KEY = 'lechaim-admin-reminders-enabled-v1';
   const CHANNEL_NAME = 'lechaim-admin-reminders';
   const BEEP_MS = 15000;
   const MAX_WAIT_MS = 6 * 60 * 60 * 1000;
@@ -101,6 +102,36 @@
     const d = Number(ymd.slice(8, 10));
     const next = new Date(Date.UTC(y, m - 1, d + days));
     return `${next.getUTCFullYear()}-${pad(next.getUTCMonth() + 1)}-${pad(next.getUTCDate())}`;
+  }
+
+  function isEnabled() {
+    try {
+      const raw = localStorage.getItem(ENABLED_KEY);
+      if (raw == null) return true;
+      return raw === '1' || raw === 'true';
+    } catch (_) {
+      return true;
+    }
+  }
+
+  function setEnabled(on) {
+    const next = Boolean(on);
+    try {
+      localStorage.setItem(ENABLED_KEY, next ? '1' : '0');
+    } catch (_) { /* private mode */ }
+    try {
+      channel?.postMessage({ type: 'enabled', enabled: next });
+    } catch (_) { /* ignore */ }
+    if (!next) {
+      hideOverlay();
+      if (scheduleTimer) {
+        global.clearTimeout(scheduleTimer);
+        scheduleTimer = null;
+      }
+      return next;
+    }
+    if (started) evaluate();
+    return next;
   }
 
   function emptyState(ymd) {
@@ -309,6 +340,7 @@
   }
 
   function activateKind(kind, opts) {
+    if (!isEnabled()) return false;
     const options = opts || {};
     const state = loadState();
     const key = slotKey(kind);
@@ -342,7 +374,7 @@
       global.clearTimeout(scheduleTimer);
       scheduleTimer = null;
     }
-    if (!started) return;
+    if (!started || !isEnabled()) return;
     const now = new Date();
     const target = nextDecisionAt(now);
     let delay = target.getTime() - now.getTime();
@@ -357,6 +389,10 @@
 
   function evaluate() {
     if (!started) return;
+    if (!isEnabled()) {
+      hideOverlay();
+      return;
+    }
     const now = new Date();
     const due = dueKinds(now);
     const state = loadState();
@@ -410,10 +446,6 @@
       event.preventDefault();
       if (!activeKind || busy) return;
       const code = String(inputEl?.value || '').trim();
-      if (!code) {
-        setError('קוד שגוי');
-        return;
-      }
       busy = true;
       if (submitEl) submitEl.disabled = true;
       setError('');
@@ -458,7 +490,13 @@
     });
 
     global.addEventListener('storage', (event) => {
-      if (!started || event.key !== STORAGE_KEY) return;
+      if (!started) return;
+      if (event.key === ENABLED_KEY) {
+        if (!isEnabled()) hideOverlay();
+        evaluate();
+        return;
+      }
+      if (event.key !== STORAGE_KEY) return;
       const state = loadState();
       if (activeKind && state[slotKey(activeKind)] === 'done') {
         hideOverlay();
@@ -473,6 +511,12 @@
       channel.onmessage = (event) => {
         const msg = event.data || {};
         if (!started) return;
+        if (msg.type === 'enabled') {
+          if (!msg.enabled) hideOverlay();
+          evaluate();
+          return;
+        }
+        if (!isEnabled()) return;
         if (msg.type === 'dismissed') {
           const state = loadState();
           if (msg.kind && state[slotKey(msg.kind)] !== 'done') {
@@ -512,5 +556,5 @@
     hideOverlay();
   }
 
-  global.LechaimAdminReminders = { start, stop };
+  global.LechaimAdminReminders = { start, stop, isEnabled, setEnabled };
 })(window);

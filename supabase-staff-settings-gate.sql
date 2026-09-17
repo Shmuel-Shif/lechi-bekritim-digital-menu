@@ -78,7 +78,7 @@ begin
     set code_hash = excluded.code_hash,
         updated_at = now();
 
-  delete from public.staff_settings_unlocks;
+  delete from public.staff_settings_unlocks where user_id is not null;
 end;
 $$;
 

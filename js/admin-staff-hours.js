@@ -818,6 +818,46 @@
     window.setTimeout(() => settingsCodeInput?.focus(), 30);
   }
 
+  async function ensureSettingsUnlocked() {
+    if (settingsUnlocked) return true;
+    const sb = getClient();
+    if (!sb) {
+      openSettingsModal();
+      return false;
+    }
+    try {
+      const unlockedRes = await sb.rpc('staff_settings_is_unlocked');
+      if (!unlockedRes.error && unlockedRes.data) {
+        settingsUnlocked = true;
+        applySettingsGateUi();
+        await refreshAll();
+        return true;
+      }
+      const setRes = await sb.rpc('admin_access_code_is_set');
+      const codeOn = setRes.error
+        ? Boolean((await sb.rpc('staff_settings_code_is_set')).data)
+        : Boolean(setRes.data);
+      if (!codeOn) {
+        const unlockRes = await sb.rpc('staff_settings_unlock', { p_code: '' });
+        if (!unlockRes.error && unlockRes.data?.ok !== false) {
+          settingsUnlocked = true;
+          applySettingsGateUi();
+          await refreshAll();
+          return true;
+        }
+        // No code configured — open settings without a gate.
+        settingsUnlocked = true;
+        applySettingsGateUi();
+        await refreshAll();
+        return true;
+      }
+    } catch (err) {
+      console.warn('[staff-hours] ensure unlock', err);
+    }
+    openSettingsModal();
+    return false;
+  }
+
   function closeSettingsModal() {
     if (!settingsModal) return;
     settingsModal.hidden = true;
@@ -879,11 +919,7 @@
   async function submitSettingsUnlock(event) {
     event.preventDefault();
     if (busy) return;
-    const code = settingsCodeInput?.value || '';
-    if (!String(code).trim()) {
-      showFormError(settingsFormError, 'הזינו קוד גישה');
-      return;
-    }
+    const code = String(settingsCodeInput?.value || '').trim();
     const sb = getClient();
     if (!sb) {
       showFormError(settingsFormError, 'Supabase לא מחובר');
@@ -897,10 +933,15 @@
       if (error) throw error;
       const res = data || {};
       if (!res.ok) {
-        if (res.error === 'invalid_code') {
+        if (!code) showFormError(settingsFormError, 'הזינו קוד גישה');
+        else if (res.error === 'invalid_code') {
           showFormError(settingsFormError, 'קוד שגוי');
         } else if (res.error === 'code_not_set') {
-          showFormError(settingsFormError, 'קוד הגישה עדיין לא הוגדר ב-Supabase');
+          settingsUnlocked = true;
+          closeSettingsModal();
+          applySettingsGateUi();
+          await refreshAll();
+          return;
         } else if (res.error === 'not_authenticated') {
           showFormError(settingsFormError, 'יש להתחבר לאדמין');
         } else {
@@ -1742,7 +1783,7 @@
           settingsUnlocked = false;
           applySettingsGateUi();
           showError('פג תוקף קוד ההגדרות. הזינו שוב את הקוד ואז לחצו «הצג».');
-          openSettingsModal();
+          await ensureSettingsUnlocked();
           return;
         }
       }
@@ -2518,8 +2559,8 @@
       const btn = event.target.closest('[data-staff-panel]');
       if (!btn) return;
       if (btn.hasAttribute('data-staff-gated') && !settingsUnlocked) {
-        openSettingsModal();
-        return;
+        const ok = await ensureSettingsUnlocked();
+        if (!ok) return;
       }
       setPanel(btn.getAttribute('data-staff-panel'));
       await refreshAll();
@@ -2527,7 +2568,7 @@
 
     settingsLockBtn?.addEventListener('click', () => {
       if (settingsUnlocked) return;
-      openSettingsModal();
+      void ensureSettingsUnlocked();
     });
     settingsCloseBtn?.addEventListener('click', () => { void lockSettings(); });
     settingsCancel?.addEventListener('click', closeSettingsModal);

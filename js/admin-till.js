@@ -183,6 +183,37 @@
     window.setTimeout(() => totalsCodeInput?.focus(), 50);
   }
 
+  async function requestTotalsUnlock() {
+    if (totalsUnlocked) {
+      applyTotalsGate();
+      return;
+    }
+    await syncTotalsUnlockedFromServer();
+    if (totalsUnlocked) return;
+
+    const sb = getSb();
+    if (sb) {
+      try {
+        const setRes = await sb.rpc('admin_access_code_is_set');
+        const codeOn = setRes.error
+          ? Boolean((await sb.rpc('documents_vault_code_is_set')).data)
+          : Boolean(setRes.data);
+        if (!codeOn) {
+          const unlockRes = await sb.rpc('documents_vault_unlock', { p_code: '' });
+          if (!unlockRes.error && (unlockRes.data?.ok || unlockRes.data?.error === 'code_not_set')) {
+            totalsUnlocked = true;
+            applyTotalsGate();
+            return;
+          }
+          totalsUnlocked = true;
+          applyTotalsGate();
+          return;
+        }
+      } catch (_) { /* fall through to modal */ }
+    }
+    openTotalsModal();
+  }
+
   function closeTotalsModal() {
     if (totalsCodeInput) totalsCodeInput.value = '';
     if (!totalsModal) return;
@@ -201,11 +232,7 @@
   async function submitTotalsUnlock(event) {
     event.preventDefault();
     if (totalsBusy) return;
-    const code = totalsCodeInput?.value || '';
-    if (!String(code).trim()) {
-      showTotalsFormError('הזינו קוד גישה');
-      return;
-    }
+    const code = String(totalsCodeInput?.value || '').trim();
     const sb = getSb();
     if (!sb) {
       showTotalsFormError('Supabase לא מחובר');
@@ -219,9 +246,14 @@
       if (error) throw error;
       const res = data || {};
       if (!res.ok) {
-        if (res.error === 'invalid_code') showTotalsFormError('קוד שגוי');
-        else if (res.error === 'code_not_set') showTotalsFormError('הקוד עדיין לא הוגדר');
-        else if (res.error === 'not_authenticated') showTotalsFormError('יש להתחבר לאדמין');
+        if (!code) showTotalsFormError('הזינו קוד גישה');
+        else if (res.error === 'invalid_code') showTotalsFormError('קוד שגוי');
+        else if (res.error === 'code_not_set') {
+          totalsUnlocked = true;
+          applyTotalsGate();
+          closeTotalsModal();
+          return;
+        } else if (res.error === 'not_authenticated') showTotalsFormError('יש להתחבר לאדמין');
         else showTotalsFormError(res.error || 'שגיאה');
         return;
       }
@@ -233,6 +265,19 @@
     } finally {
       totalsBusy = false;
     }
+  }
+
+  async function syncTotalsUnlockedFromServer() {
+    const sb = getSb();
+    if (!sb) return;
+    try {
+      const { data, error } = await sb.rpc('documents_vault_is_unlocked');
+      if (error) throw error;
+      if (data) {
+        totalsUnlocked = true;
+        applyTotalsGate();
+      }
+    } catch (_) { /* keep locked UI */ }
   }
 
   function pad2(n) {
@@ -838,6 +883,30 @@
     if (started) return;
     started = true;
     if (dateInput && !dateInput.value) dateInput.value = todayLocalYmd();
+    if (searchInput) {
+      const unlockSearch = () => searchInput.removeAttribute('readonly');
+      searchInput.addEventListener('focus', unlockSearch);
+      searchInput.addEventListener('pointerdown', unlockSearch);
+      window.setTimeout(() => {
+        const v = String(searchInput.value || '').trim();
+        if (!v) return;
+        // Drop browser login autofill (email/username) from product search.
+        if (/@/.test(v) || /lechaim/i.test(v)) {
+          searchInput.value = '';
+          searchQuery = '';
+          renderProducts();
+        }
+      }, 0);
+      window.setTimeout(() => {
+        const v = String(searchInput.value || '').trim();
+        if (/@/.test(v) || /lechaim/i.test(v)) {
+          searchInput.value = '';
+          searchQuery = '';
+          renderProducts();
+        }
+        searchInput.setAttribute('readonly', 'readonly');
+      }, 120);
+    }
     dateInput?.addEventListener('change', () => { scheduleRefresh(); });
     todayBtn?.addEventListener('click', () => { setDateAndLoad(todayLocalYmd()); });
     yesterdayBtn?.addEventListener('click', () => { setDateAndLoad(yesterdayLocalYmd()); });
@@ -858,7 +927,9 @@
       event.preventDefault();
       void openTillWhatsApp();
     });
-    unlockTotalsBtn?.addEventListener('click', openTotalsModal);
+    unlockTotalsBtn?.addEventListener('click', () => {
+      void requestTotalsUnlock();
+    });
     totalsForm?.addEventListener('submit', (event) => {
       submitTotalsUnlock(event).catch(() => {});
     });
@@ -877,6 +948,7 @@
     document.getElementById('till-edit-report-cancel')?.addEventListener('click', closeEditReportModal);
     document.getElementById('till-edit-report-backdrop')?.addEventListener('click', closeEditReportModal);
     applyTotalsGate();
+    void syncTotalsUnlockedFromServer();
     void loadReport();
   }
 
