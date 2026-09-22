@@ -43,6 +43,7 @@
     bread: 'Ψωμάκια',
     'staik-antarkot': 'Αντρεκότ',
     asado: 'Ασάντο',
+    saviche: 'saviche',
     schnitzel: 'Σνίτσελ',
     'chicken-steak': 'Παργκίτ σχάρας',
     'whole-fish': 'Τσιπούρα ολόκληρη',

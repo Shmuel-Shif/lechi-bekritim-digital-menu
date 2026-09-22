@@ -740,6 +740,10 @@ const DISH_I18N = {
       name: 'Fall-off-the-bone Asado',
       desc: 'A dish for 2 people. Slow-cooked asado, 600g, until the meat is tender and falls off the bone, served with grilled vegetables, chimichurri and sweet potato cream.',
     },
+    saviche: {
+      name: 'Salmon Carpaccio',
+      desc: 'Fresh salmon slices on a bed of olive oil, cherry tomatoes, hot pepper and soy drops.',
+    },
     'whole-fish': {
       name: 'Whole Baked Sea Bream',
       desc: 'Fresh sea bream baked with herbs and olive oil.',
@@ -994,6 +998,14 @@ const MENU_DATA = {
           description: 'מנה ל־2 אנשים. אסאדו בבישול ארוך, במשקל 600 גרם, עד שהבשר רך ומתפרק מהעצם, מוגש עם ירקות על האש, צ\'ימיצ\'ורי וקרם בטטה.',
           price: 52,
           image: dishImage('asado'),
+        },
+        {
+          id: 'saviche',
+          name: 'קרפצ\'יו סלמון',
+          printName: 'saviche',
+          description: 'פרוסות סלמון טרי על מצע של שמן זית, עגבניות שרי, פלפל חריף וטיפות סויה.',
+          price: 20,
+          image: dishImage('saviche'),
         },
       ],
     },
