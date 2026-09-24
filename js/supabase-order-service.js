@@ -2955,6 +2955,8 @@
 
   const PLACE_RES_CAPACITY_DEFAULT = 30;
   const PLACE_RES_CAPACITY_MAX = 60;
+  const PLACE_RES_HOLD_DEFAULT = 60;
+  const PLACE_RES_HOLD_PRESETS = [30, 45, 60, 90, 120];
 
   function clampPlaceResCapacity(raw) {
     const n = Math.floor(Number(raw));
@@ -2962,25 +2964,47 @@
     return Math.min(PLACE_RES_CAPACITY_MAX, n);
   }
 
+  function clampPlaceResHoldMinutes(raw) {
+    const n = Math.floor(Number(raw));
+    if (!Number.isFinite(n) || n < 1) return PLACE_RES_HOLD_DEFAULT;
+    let best = PLACE_RES_HOLD_PRESETS[0];
+    let bestDist = Math.abs(n - best);
+    PLACE_RES_HOLD_PRESETS.forEach((p) => {
+      const d = Math.abs(n - p);
+      if (d < bestDist) {
+        best = p;
+        bestDist = d;
+      }
+    });
+    return best;
+  }
+
   /**
-   * @returns {Promise<{seats:number}>}
+   * @returns {Promise<{seats:number, holdMinutes:number}>}
    */
   async function getPlaceReservationCapacityState() {
     const sb = getClient();
     const { data, error } = await sb
       .from('restaurant_flags')
       .select('flag_key, flag_text')
-      .eq('flag_key', 'place_res_capacity')
-      .maybeSingle();
+      .in('flag_key', ['place_res_capacity', 'place_res_hold_minutes']);
     throwIfError(error, 'getPlaceReservationCapacityState');
 
-    const text = data?.flag_text == null ? '' : String(data.flag_text).trim();
-    return { seats: text ? clampPlaceResCapacity(text) : PLACE_RES_CAPACITY_DEFAULT };
+    let seats = PLACE_RES_CAPACITY_DEFAULT;
+    let holdMinutes = PLACE_RES_HOLD_DEFAULT;
+    (data || []).forEach((row) => {
+      const key = String(row?.flag_key || '');
+      const text = row?.flag_text == null ? '' : String(row.flag_text).trim();
+      if (!text) return;
+      if (key === 'place_res_capacity') seats = clampPlaceResCapacity(text);
+      if (key === 'place_res_hold_minutes') holdMinutes = clampPlaceResHoldMinutes(text);
+    });
+    return { seats, holdMinutes };
   }
 
   /**
-   * Set permanent diner capacity (until next manual change).
-   * @param {{seats:number}} opts
+   * Set permanent diner capacity + how long a booking holds seats.
+   * @param {{seats:number, holdMinutes?:number}} opts
    */
   async function setPlaceReservationCapacity(opts = {}) {
     const sb = getClient();
@@ -2991,6 +3015,9 @@
       );
     }
     const seats = clampPlaceResCapacity(opts.seats);
+    const holdMinutes = clampPlaceResHoldMinutes(
+      opts.holdMinutes == null ? PLACE_RES_HOLD_DEFAULT : opts.holdMinutes
+    );
     const now = new Date().toISOString();
 
     const { error: seatsErr } = await sb
@@ -3003,6 +3030,16 @@
       }, { onConflict: 'flag_key' });
     throwIfError(seatsErr, 'setPlaceReservationCapacity.seats');
 
+    const { error: holdErr } = await sb
+      .from('restaurant_flags')
+      .upsert({
+        flag_key: 'place_res_hold_minutes',
+        flag_value: true,
+        flag_text: String(holdMinutes),
+        updated_at: now,
+      }, { onConflict: 'flag_key' });
+    throwIfError(holdErr, 'setPlaceReservationCapacity.hold');
+
     /* Clear leftover edit-lock flag from earlier timer UI (if any) */
     await sb
       .from('restaurant_flags')
@@ -3013,7 +3050,7 @@
         updated_at: now,
       }, { onConflict: 'flag_key' });
 
-    return { seats };
+    return { seats, holdMinutes };
   }
 
   /**

@@ -824,16 +824,16 @@
                 <button type="button" class="settings-index__row" data-settings-open="capacity" aria-expanded="false">
                   <span class="settings-index__copy">
                     <span class="settings-index__title">תפוסת סועדים</span>
-                    <span class="settings-index__hint">מקסימום מקומות להזמנת מקום</span>
+                    <span class="settings-index__hint">מקומות + כמה זמן נשארים תפוסים</span>
                   </span>
-                  <span class="settings-status" id="settings-capacity-status" data-open="1">30</span>
+                  <span class="settings-status" id="settings-capacity-status" data-open="1">30 · שעה</span>
                   <span class="settings-index__chevron" aria-hidden="true"></span>
                 </button>
             <article class="settings-card" id="settings-card-capacity" hidden>
               <header class="settings-card__head">
                 <h2 class="settings-card__title">תפוסת סועדים</h2>
               </header>
-              <p class="settings-card__hint" id="settings-capacity-hint">מספר המקומות הקבוע במסעדה להזמנת מקום. כשהתפוסה בשעה מסוימת מגיעה למספר הזה — השעה ננעלת אוטומטית (מסומנת «מלא»), כמו היום. אפשר לשנות בכל רגע.</p>
+              <p class="settings-card__hint" id="settings-capacity-hint">מספר מקומות קבוע, וכמה זמן הזמנה תופסת מקומות. לדוגמה: 8 מקומות ומשך שעה — אם מזמינים 8 ל־19:30, גם 20:00 ו־20:30 יופיעו כ«מלא».</p>
               <div class="settings-card__fields">
                 <label class="admin-field">
                   <span>מספר מקומות</span>
@@ -847,6 +847,16 @@
                     dir="ltr"
                     value="30"
                   >
+                </label>
+                <label class="admin-field">
+                  <span>כמה זמן תפוס אחרי הגעה</span>
+                  <select id="settings-capacity-hold" dir="rtl">
+                    <option value="30">30 דקות</option>
+                    <option value="45">45 דקות</option>
+                    <option value="60" selected>שעה</option>
+                    <option value="90">שעה וחצי</option>
+                    <option value="120">שעתיים</option>
+                  </select>
                 </label>
               </div>
               <div class="settings-card__actions">
@@ -2444,7 +2454,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
   <script src="js/order-types.js" defer></script>
-  <script src="js/supabase-order-service.js?v=38" defer></script>
+  <script src="js/supabase-order-service.js?v=39" defer></script>
   <script src="js/menu-data.js?v=113" defer></script>
   <script src="js/opening-hours.js?v=12" defer></script>
   <script src="js/app-settings.js?v=7" defer></script>
@@ -2459,7 +2469,7 @@
   <script src="js/kitchen-dish-groups.js?v=1" defer></script>
   <script src="js/admin-tables.js?v=103" defer></script>
   <script src="js/admin-shabbat.js?v=8" defer></script>
-  <script src="js/place-reservations.js?v=11" defer></script>
+  <script src="js/place-reservations.js?v=12" defer></script>
   <script src="js/admin-reservations.js?v=10" defer></script>
   <script src="js/admin-support.js?v=9" defer></script>
   <script src="js/kitchen-alert-service.js?v=13" defer></script>
@@ -2474,7 +2484,7 @@
   <script src="js/docs-monthly-xlsx.js?v=6" defer></script>
   <script src="js/docs-monthly-pdf.js?v=1" defer></script>
   <script src="js/admin-documents.js?v=33" defer></script>
-  <script src="js/admin-settings.js?v=14" defer></script>
+  <script src="js/admin-settings.js?v=15" defer></script>
   <script src="js/stock-catalog.js?v=6" defer></script>
   <script src="js/admin-stock.js?v=2" defer></script>
   <script src="js/admin.js?v=74" defer></script>

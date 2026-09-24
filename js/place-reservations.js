@@ -3,7 +3,7 @@
  * Isolated from food orders / sessions / admin seat-hold `reservations` table.
  *
  * Capacity (enforced on create via RPC): seats from restaurant_flags.place_res_capacity
- * (default 30, permanent until admin changes it), AVG_SIT_MINUTES=45.
+ * (default 30), hold from place_res_hold_minutes (default 60).
  * Customer slots: half-hour 14:00–21:00.
  * Capacity holds: pending + confirmed + arrived (cancelled does not hold).
  * Admin meter "תפוסה מאושרת": confirmed + arrived only.
@@ -14,8 +14,10 @@
   const TABLE = 'place_reservation_requests';
   const DEFAULT_CAPACITY_SEATS = 30;
   const MAX_CAPACITY_SEATS = 60;
-  const AVG_SIT_MINUTES = 45;
+  const DEFAULT_HOLD_MINUTES = 60;
+  const HOLD_PRESETS = Object.freeze([30, 45, 60, 90, 120]);
   let capacitySeats = DEFAULT_CAPACITY_SEATS;
+  let holdMinutes = DEFAULT_HOLD_MINUTES;
   let capacityLoaded = false;
   let capacityFlagsUnsub = null;
   const capacityListeners = new Set();
@@ -26,25 +28,47 @@
     return Math.min(MAX_CAPACITY_SEATS, n);
   }
 
+  function clampHoldMinutes(raw) {
+    const n = Math.floor(Number(raw));
+    if (!Number.isFinite(n) || n < 1) return DEFAULT_HOLD_MINUTES;
+    let best = HOLD_PRESETS[0];
+    let bestDist = Math.abs(n - best);
+    HOLD_PRESETS.forEach((p) => {
+      const d = Math.abs(n - p);
+      if (d < bestDist) {
+        best = p;
+        bestDist = d;
+      }
+    });
+    return best;
+  }
+
   function getCapacitySeats() {
     return capacitySeats;
+  }
+
+  function getHoldMinutes() {
+    return holdMinutes;
   }
 
   function notifyCapacityListeners() {
     capacityListeners.forEach((fn) => {
       try {
-        fn({ seats: capacitySeats });
+        fn({ seats: capacitySeats, holdMinutes });
       } catch (_) { /* ignore */ }
     });
   }
 
-  function applyCapacityState(seats) {
+  function applyCapacityState(seats, holdMins) {
     const nextSeats = clampCapacitySeats(seats);
-    const changed = nextSeats !== capacitySeats;
+    const nextHold = holdMins == null ? holdMinutes : clampHoldMinutes(holdMins);
+    const changed = nextSeats !== capacitySeats || nextHold !== holdMinutes;
     capacitySeats = nextSeats;
+    holdMinutes = nextHold;
     capacityLoaded = true;
     if (global.LechaimPlaceReservations) {
       global.LechaimPlaceReservations.CAPACITY_SEATS = capacitySeats;
+      global.LechaimPlaceReservations.AVG_SIT_MINUTES = holdMinutes;
     }
     syncPartyInputsMax();
     if (changed) notifyCapacityListeners();
@@ -66,20 +90,23 @@
     if (typeof api?.getPlaceReservationCapacityState === 'function') {
       try {
         const state = await api.getPlaceReservationCapacityState();
-        applyCapacityState(state?.seats);
+        applyCapacityState(state?.seats, state?.holdMinutes);
         return;
       } catch (err) {
         console.warn('[place-reservations] capacity load failed', err);
       }
     }
-    if (!capacityLoaded) applyCapacityState(DEFAULT_CAPACITY_SEATS);
+    if (!capacityLoaded) applyCapacityState(DEFAULT_CAPACITY_SEATS, DEFAULT_HOLD_MINUTES);
   }
 
   function ensureCapacityWatch() {
     const api = global.LechaimSupabaseOrders;
     if (!capacityFlagsUnsub && typeof api?.subscribeRestaurantFlags === 'function') {
       capacityFlagsUnsub = api.subscribeRestaurantFlags((evt) => {
-        if (evt?.flagKey !== 'place_res_capacity') return;
+        if (
+          evt?.flagKey !== 'place_res_capacity'
+          && evt?.flagKey !== 'place_res_hold_minutes'
+        ) return;
         refreshCapacityFromFlags().catch(() => {});
       });
       refreshCapacityFromFlags().catch(() => {});
@@ -289,8 +316,9 @@
     return `${pad2(Math.floor(mins / 60))}:${pad2(mins % 60)}`;
   }
 
+  /** Closed intervals — hold=60 from 19:30 also blocks a 20:30 slot. */
   function windowsOverlap(startA, endA, startB, endB) {
-    return startA < endB && startB < endA;
+    return startA <= endB && startB <= endA;
   }
 
   /**
@@ -302,13 +330,14 @@
   function occupiedSeatsForWindow(occupancyRows, arrivalTime, excludeId) {
     const start = timeToMinutes(arrivalTime);
     if (start == null) return getCapacitySeats();
-    const end = start + AVG_SIT_MINUTES;
+    const hold = getHoldMinutes();
+    const end = start + hold;
     let sum = 0;
     (occupancyRows || []).forEach((row) => {
       if (excludeId && row.id && String(row.id) === String(excludeId)) return;
       const existingStart = timeToMinutes(row.arrival_time);
       if (existingStart == null) return;
-      const existingEnd = existingStart + AVG_SIT_MINUTES;
+      const existingEnd = existingStart + hold;
       if (windowsOverlap(start, end, existingStart, existingEnd)) {
         sum += Math.floor(Number(row.party_size)) || 0;
       }
@@ -322,13 +351,15 @@
   function peakOccupancy(occupancyRows) {
     const rows = occupancyRows || [];
     if (!rows.length) return 0;
+    const hold = getHoldMinutes();
     const events = [];
     rows.forEach((row) => {
       const start = timeToMinutes(row.arrival_time);
       if (start == null) return;
       const size = Math.floor(Number(row.party_size)) || 0;
       events.push({ t: start, d: size });
-      events.push({ t: start + AVG_SIT_MINUTES, d: -size });
+      /* Leave just after closed end so a slot starting at end still counts as occupied */
+      events.push({ t: start + hold + 1, d: -size });
     });
     events.sort((a, b) => (a.t - b.t) || (a.d - b.d));
     let cur = 0;
@@ -759,11 +790,14 @@
     DEFAULT_CAPACITY_SEATS,
     MAX_CAPACITY_SEATS,
     getCapacitySeats,
+    getHoldMinutes,
     applyCapacityState,
     refreshCapacityFromFlags,
     ensureCapacityWatch,
     onCapacityChange,
-    AVG_SIT_MINUTES,
+    AVG_SIT_MINUTES: holdMinutes,
+    HOLD_PRESETS,
+    DEFAULT_HOLD_MINUTES,
     OPEN_HOUR,
     LAST_SLOT_HOUR,
     LAST_SLOT_MINUTE,

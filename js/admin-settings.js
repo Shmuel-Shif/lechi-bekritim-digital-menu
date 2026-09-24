@@ -33,6 +33,7 @@
   const accessCodeDisableBtn = document.getElementById('settings-access-code-disable');
   const capacityStatusEl = document.getElementById('settings-capacity-status');
   const capacitySeatsInput = document.getElementById('settings-capacity-seats');
+  const capacityHoldSelect = document.getElementById('settings-capacity-hold');
   const capacitySaveBtn = document.getElementById('settings-capacity-save');
 
   let started = false;
@@ -40,6 +41,7 @@
   let kitchenTick = null;
   let dineInCloseAtMs = null;
   let capacitySeats = 30;
+  let capacityHoldMinutes = 60;
   let capacityBusy = false;
   let deliveriesClosed = false;
   let shabbatEnabled = true;
@@ -183,19 +185,32 @@
     }
   }
 
+  function holdMinutesLabel(mins) {
+    const n = Math.floor(Number(mins)) || 60;
+    if (n <= 30) return '30 דק׳';
+    if (n <= 45) return '45 דק׳';
+    if (n <= 60) return 'שעה';
+    if (n <= 90) return 'שעה וחצי';
+    return 'שעתיים';
+  }
+
   function paintCapacityStatus() {
     if (capacityStatusEl) {
       capacityStatusEl.dataset.open = '1';
-      capacityStatusEl.textContent = String(capacitySeats);
+      capacityStatusEl.textContent = `${capacitySeats} · ${holdMinutesLabel(capacityHoldMinutes)}`;
     }
     if (capacitySeatsInput && document.activeElement !== capacitySeatsInput) {
       capacitySeatsInput.value = String(capacitySeats);
+    }
+    if (capacityHoldSelect && document.activeElement !== capacityHoldSelect) {
+      capacityHoldSelect.value = String(capacityHoldMinutes);
     }
   }
 
   function applyCapacityStateFromApi(state) {
     capacitySeats = Math.floor(Number(state?.seats)) || 30;
-    global.LechaimPlaceReservations?.applyCapacityState?.(capacitySeats);
+    capacityHoldMinutes = Math.floor(Number(state?.holdMinutes)) || 60;
+    global.LechaimPlaceReservations?.applyCapacityState?.(capacitySeats, capacityHoldMinutes);
     paintCapacityStatus();
   }
 
@@ -203,6 +218,7 @@
     const api = global.LechaimSupabaseOrders;
     if (typeof api?.getPlaceReservationCapacityState !== 'function') {
       capacitySeats = global.LechaimPlaceReservations?.getCapacitySeats?.() || 30;
+      capacityHoldMinutes = global.LechaimPlaceReservations?.getHoldMinutes?.() || 60;
       paintCapacityStatus();
       return;
     }
@@ -222,6 +238,11 @@
       showError('מספר מקומות חייב להיות בין 1 ל־60');
       return;
     }
+    const holdMinutes = Math.floor(Number(capacityHoldSelect?.value));
+    if (![30, 45, 60, 90, 120].includes(holdMinutes)) {
+      showError('נא לבחור כמה זמן המקום נשאר תפוס');
+      return;
+    }
     const api = global.LechaimSupabaseOrders;
     if (typeof api?.setPlaceReservationCapacity !== 'function') {
       showError('שמירת תפוסה לא זמינה');
@@ -231,9 +252,9 @@
     if (capacitySaveBtn) capacitySaveBtn.disabled = true;
     showError('');
     try {
-      const state = await api.setPlaceReservationCapacity({ seats });
+      const state = await api.setPlaceReservationCapacity({ seats, holdMinutes });
       applyCapacityStateFromApi(state);
-      showToast(`תפוסה עודכנה ל־${state.seats}`);
+      showToast(`תפוסה ${state.seats} · ${holdMinutesLabel(state.holdMinutes)}`);
     } catch (err) {
       showError(err?.message || 'שמירת התפוסה נכשלה — הריצו supabase-place-reservation-capacity-setting.sql');
     } finally {
@@ -693,7 +714,10 @@
           dineInCloseAtMs = evt.flagValue && evt.flagText ? Date.parse(evt.flagText) : null;
           if (!Number.isFinite(dineInCloseAtMs)) dineInCloseAtMs = null;
           armKitchenTick();
-        } else if (evt?.flagKey === 'place_res_capacity') {
+        } else if (
+          evt?.flagKey === 'place_res_capacity'
+          || evt?.flagKey === 'place_res_hold_minutes'
+        ) {
           refreshCapacity().catch(() => {});
         } else if (
           evt?.flagKey === 'shop_force_open'

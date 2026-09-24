@@ -1,15 +1,15 @@
 -- =============================================================================
--- LECHAIM — Place-reservation capacity from restaurant_flags (admin settings)
+-- LECHAIM — Place-reservation capacity + hold duration from restaurant_flags
 -- Run in: Supabase → SQL Editor → Run
 -- Safe to re-run.
 --
 -- Flags:
---   place_res_capacity  flag_text = seats ("1"–"60"), default 30 (permanent until admin changes)
--- Slot lock behavior: when pending+confirmed+arrived seats for a 45-minute window
--- reach capacity, that arrival time shows as full (מלא) — same as today.
+--   place_res_capacity      flag_text = seats ("1"–"60"), default 30
+--   place_res_hold_minutes  flag_text = sit/hold minutes (30/45/60/90/120), default 60
+--
+-- Example: capacity 8, hold 60, full party at 19:30 → 20:00 and 20:30 are full.
 -- =============================================================================
 
--- Allow party sizes up to absolute max (capacity check uses flag, not this alone)
 alter table public.place_reservation_requests
   drop constraint if exists place_res_req_party_size;
 
@@ -57,7 +57,56 @@ $$;
 revoke all on function public.get_place_reservation_capacity() from public;
 grant execute on function public.get_place_reservation_capacity() to anon, authenticated;
 
--- Create RPC: 45-minute hold window, capacity from flag (fallback 30)
+create or replace function public.get_place_reservation_hold_minutes()
+returns integer
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_text text;
+  v_mins int;
+begin
+  select nullif(trim(coalesce(flag_text, '')), '')
+    into v_text
+  from public.restaurant_flags
+  where flag_key = 'place_res_hold_minutes'
+  limit 1;
+
+  if v_text is null then
+    return 60;
+  end if;
+
+  begin
+    v_mins := floor(v_text::numeric)::int;
+  exception when others then
+    return 60;
+  end;
+
+  if v_mins is null then
+    return 60;
+  end if;
+  /* Snap to allowed presets */
+  if v_mins <= 30 then
+    return 30;
+  elsif v_mins <= 45 then
+    return 45;
+  elsif v_mins <= 60 then
+    return 60;
+  elsif v_mins <= 90 then
+    return 90;
+  else
+    return 120;
+  end if;
+end;
+$$;
+
+revoke all on function public.get_place_reservation_hold_minutes() from public;
+grant execute on function public.get_place_reservation_hold_minutes() to anon, authenticated;
+
+-- Create RPC: hold window + capacity from flags
+-- Overlap uses closed intervals so hold=60 from 19:30 also blocks 20:30.
 create or replace function public.create_place_reservation_request(
   p_customer_name text,
   p_customer_phone text,
@@ -82,6 +131,7 @@ declare
   v_mm int;
   v_mins int;
   v_cap int := public.get_place_reservation_capacity();
+  v_hold int := public.get_place_reservation_hold_minutes();
   v_row public.place_reservation_requests;
 begin
   if length(v_name) = 0 then
@@ -112,7 +162,7 @@ begin
   end if;
 
   v_new_start := v_mins;
-  v_new_end := v_new_start + 45;
+  v_new_end := v_new_start + v_hold;
 
   select coalesce(sum(r.party_size), 0)::int
     into v_occupied
@@ -120,9 +170,9 @@ begin
   where r.reservation_date = p_reservation_date
     and r.status in ('pending', 'confirmed', 'arrived')
     and (extract(hour from r.arrival_time)::int * 60
-         + extract(minute from r.arrival_time)::int) < v_new_end
+         + extract(minute from r.arrival_time)::int) <= v_new_end
     and (extract(hour from r.arrival_time)::int * 60
-         + extract(minute from r.arrival_time)::int + 45) > v_new_start;
+         + extract(minute from r.arrival_time)::int + v_hold) >= v_new_start;
 
   if v_occupied + p_party_size > v_cap then
     raise exception 'CAPACITY_EXCEEDED';
@@ -154,7 +204,10 @@ $$;
 revoke all on function public.create_place_reservation_request(text, text, integer, date, time, text) from public;
 grant execute on function public.create_place_reservation_request(text, text, integer, date, time, text) to anon, authenticated;
 
--- Seed default capacity if missing (does not overwrite an existing value)
 insert into public.restaurant_flags (flag_key, flag_value, flag_text, updated_at)
 values ('place_res_capacity', true, '30', now())
+on conflict (flag_key) do nothing;
+
+insert into public.restaurant_flags (flag_key, flag_value, flag_text, updated_at)
+values ('place_res_hold_minutes', true, '60', now())
 on conflict (flag_key) do nothing;
