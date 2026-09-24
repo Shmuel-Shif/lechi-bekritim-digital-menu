@@ -2,7 +2,8 @@
  * LECHAIM — Place reservation requests (customer form + admin approve/arrive/cancel).
  * Isolated from food orders / sessions / admin seat-hold `reservations` table.
  *
- * Capacity (enforced on create via RPC): CAPACITY_SEATS=30, AVG_SIT_MINUTES=45.
+ * Capacity (enforced on create via RPC): seats from restaurant_flags.place_res_capacity
+ * (default 30), AVG_SIT_MINUTES=45. Admin can lock the value for a chosen duration.
  * Customer slots: half-hour 14:00–21:00.
  * Capacity holds: pending + confirmed + arrived (cancelled does not hold).
  * Admin meter "תפוסה מאושרת": confirmed + arrived only.
@@ -11,8 +12,117 @@
   'use strict';
 
   const TABLE = 'place_reservation_requests';
-  const CAPACITY_SEATS = 30;
+  const DEFAULT_CAPACITY_SEATS = 30;
+  const MAX_CAPACITY_SEATS = 60;
   const AVG_SIT_MINUTES = 45;
+  let capacitySeats = DEFAULT_CAPACITY_SEATS;
+  let capacityLockUntilMs = null;
+  let capacityLoaded = false;
+  let capacityFlagsUnsub = null;
+  const capacityListeners = new Set();
+
+  function clampCapacitySeats(raw) {
+    const n = Math.floor(Number(raw));
+    if (!Number.isFinite(n) || n < 1) return DEFAULT_CAPACITY_SEATS;
+    return Math.min(MAX_CAPACITY_SEATS, n);
+  }
+
+  function getCapacitySeats() {
+    return capacitySeats;
+  }
+
+  function getCapacityLockUntilMs() {
+    return capacityLockUntilMs;
+  }
+
+  function isCapacityLocked() {
+    return Number.isFinite(capacityLockUntilMs) && capacityLockUntilMs > Date.now();
+  }
+
+  function notifyCapacityListeners() {
+    capacityListeners.forEach((fn) => {
+      try {
+        fn({
+          seats: capacitySeats,
+          lockUntilMs: capacityLockUntilMs,
+          locked: isCapacityLocked(),
+        });
+      } catch (_) { /* ignore */ }
+    });
+  }
+
+  function applyCapacityState(seats, lockUntilMs) {
+    const nextSeats = clampCapacitySeats(seats);
+    const nextLock = Number.isFinite(lockUntilMs) && lockUntilMs > Date.now()
+      ? lockUntilMs
+      : null;
+    const changed = nextSeats !== capacitySeats || nextLock !== capacityLockUntilMs;
+    capacitySeats = nextSeats;
+    capacityLockUntilMs = nextLock;
+    capacityLoaded = true;
+    if (global.LechaimPlaceReservations) {
+      global.LechaimPlaceReservations.CAPACITY_SEATS = capacitySeats;
+    }
+    syncPartyInputsMax();
+    if (changed) notifyCapacityListeners();
+  }
+
+  function syncPartyInputsMax() {
+    const max = String(capacitySeats);
+    ['entry-place-res-party', 'entry-arrive-party'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.setAttribute('max', max);
+    });
+    document.querySelectorAll('[data-place-res-party-max]').forEach((el) => {
+      el.setAttribute('max', max);
+    });
+  }
+
+  function parseLockUntil(raw) {
+    const iso = String(raw || '').trim();
+    if (!iso) return null;
+    const t = Date.parse(iso);
+    return Number.isFinite(t) ? t : null;
+  }
+
+  async function refreshCapacityFromFlags() {
+    const api = global.LechaimSupabaseOrders;
+    if (typeof api?.getPlaceReservationCapacityState === 'function') {
+      try {
+        const state = await api.getPlaceReservationCapacityState();
+        applyCapacityState(state?.seats, parseLockUntil(state?.lockUntil));
+        return;
+      } catch (err) {
+        console.warn('[place-reservations] capacity load failed', err);
+      }
+    }
+    if (!capacityLoaded) applyCapacityState(DEFAULT_CAPACITY_SEATS, null);
+  }
+
+  function ensureCapacityWatch() {
+    const api = global.LechaimSupabaseOrders;
+    if (!capacityFlagsUnsub && typeof api?.subscribeRestaurantFlags === 'function') {
+      capacityFlagsUnsub = api.subscribeRestaurantFlags((evt) => {
+        if (
+          evt?.flagKey !== 'place_res_capacity'
+          && evt?.flagKey !== 'place_res_capacity_lock_until'
+        ) return;
+        refreshCapacityFromFlags().catch(() => {});
+      });
+      refreshCapacityFromFlags().catch(() => {});
+      return;
+    }
+    if (!capacityLoaded) {
+      refreshCapacityFromFlags().catch(() => {});
+    }
+  }
+
+  function onCapacityChange(fn) {
+    if (typeof fn !== 'function') return () => {};
+    capacityListeners.add(fn);
+    ensureCapacityWatch();
+    return () => capacityListeners.delete(fn);
+  }
   const Hours = () => global.LechaimOpeningHours || null;
   const OPEN_HOUR = Hours()?.OPEN_HOUR ?? 14;
   const LAST_SLOT_HOUR = Hours()?.PLACE_RES_LAST_SLOT_HOUR ?? 21;
@@ -218,7 +328,7 @@
    */
   function occupiedSeatsForWindow(occupancyRows, arrivalTime, excludeId) {
     const start = timeToMinutes(arrivalTime);
-    if (start == null) return CAPACITY_SEATS;
+    if (start == null) return getCapacitySeats();
     const end = start + AVG_SIT_MINUTES;
     let sum = 0;
     (occupancyRows || []).forEach((row) => {
@@ -293,7 +403,7 @@
     const occupancy = await getOccupancyForDate(dateStr);
     return buildArrivalSlots(dateStr).filter((slot) => {
       const occupied = occupiedSeatsForWindow(occupancy, slot);
-      return occupied + size > CAPACITY_SEATS;
+      return occupied + size > getCapacitySeats();
     });
   }
 
@@ -307,7 +417,7 @@
     if (msg.includes('TIME_INVALID')) return new Error(hoursRangeError());
     if (msg.includes('PHONE_INVALID')) return new Error('נא להזין טלפון תקין');
     if (msg.includes('PARTY_SIZE_INVALID')) {
-      return new Error(`נא להזין מספר סועדים (1–${CAPACITY_SEATS})`);
+      return new Error(`נא להזין מספר סועדים (1–${getCapacitySeats()})`);
     }
     if (msg.includes('NAME_REQUIRED')) return new Error('נא להזין שם מלא');
     if (msg.includes('DATE_WEEKEND')) return new Error('לא ניתן להזמין מקום בשישי ובשבת — המסעדה סגורה');
@@ -337,8 +447,9 @@
     if (!isValidPlaceResPhone(customer_phone)) {
       throw new Error('נא להזין טלפון תקין');
     }
-    if (!Number.isFinite(party_size) || party_size < 1 || party_size > CAPACITY_SEATS) {
-      throw new Error(`נא להזין מספר סועדים (1–${CAPACITY_SEATS})`);
+    ensureCapacityWatch();
+    if (!Number.isFinite(party_size) || party_size < 1 || party_size > getCapacitySeats()) {
+      throw new Error(`נא להזין מספר סועדים (1–${getCapacitySeats()})`);
     }
     if (!reservation_date) throw new Error('נא לבחור תאריך');
     if (isPlaceResWeekend(reservation_date)) {
@@ -383,8 +494,9 @@
     if (!isValidPlaceResPhone(customer_phone)) {
       throw new Error('נא להזין טלפון תקין');
     }
-    if (!Number.isFinite(party_size) || party_size < 1 || party_size > CAPACITY_SEATS) {
-      throw new Error(`נא להזין מספר סועדים (1–${CAPACITY_SEATS})`);
+    ensureCapacityWatch();
+    if (!Number.isFinite(party_size) || party_size < 1 || party_size > getCapacitySeats()) {
+      throw new Error(`נא להזין מספר סועדים (1–${getCapacitySeats()})`);
     }
     if (!reservation_date) throw new Error('נא לבחור תאריך');
     if (isPlaceResWeekend(reservation_date)) {
@@ -395,7 +507,7 @@
 
     const occupancy = await getOccupancyForDate(reservation_date);
     const others = occupiedSeatsForWindow(occupancy, arrivalNormalized);
-    if (others + party_size > CAPACITY_SEATS) {
+    if (others + party_size > getCapacitySeats()) {
       const e = new Error('CAPACITY_EXCEEDED');
       e.code = 'CAPACITY_EXCEEDED';
       throw e;
@@ -477,9 +589,10 @@
     const confirmed = occupancy.filter(
       (row) => row.status === 'confirmed' || row.status === 'arrived'
     );
+    ensureCapacityWatch();
     return {
       occupied: peakOccupancy(confirmed),
-      capacity: CAPACITY_SEATS,
+      capacity: getCapacitySeats(),
       rows: confirmed,
     };
   }
@@ -496,7 +609,7 @@
     const occupancy = await getOccupancyForDate(day);
     /* Other holds only — this pending row already counts toward capacity */
     const others = occupiedSeatsForWindow(occupancy, time, request.id);
-    return others + size <= CAPACITY_SEATS;
+    return others + size <= getCapacitySeats();
   }
 
   function formatTimeForCompare(value) {
@@ -579,7 +692,8 @@
     }
     /* Admin may use 15-min slots beyond the public half-hour list */
     if (timeToMinutes(arrival_time) == null) throw new Error('שעת הגעה לא תקינה');
-    if (!Number.isFinite(party_size) || party_size < 1 || party_size > CAPACITY_SEATS) {
+    ensureCapacityWatch();
+    if (!Number.isFinite(party_size) || party_size < 1 || party_size > getCapacitySeats()) {
       throw new Error('מספר סועדים לא תקין');
     }
 
@@ -594,7 +708,7 @@
     if (status === 'pending' || status === 'confirmed' || status === 'arrived') {
       const occupancy = await getOccupancyForDate(reservation_date);
       const others = occupiedSeatsForWindow(occupancy, arrival_time, String(id));
-      if (others + party_size > CAPACITY_SEATS) {
+      if (others + party_size > getCapacitySeats()) {
         const e = new Error('CAPACITY_EXCEEDED');
         e.code = 'CAPACITY_EXCEEDED';
         throw e;
@@ -668,10 +782,25 @@
     isValidPlaceResPhone,
     phoneCountryOptionsHtml,
     PHONE_COUNTRIES,
-    CAPACITY_SEATS,
+    CAPACITY_SEATS: capacitySeats,
+    DEFAULT_CAPACITY_SEATS,
+    MAX_CAPACITY_SEATS,
+    getCapacitySeats,
+    getCapacityLockUntilMs,
+    isCapacityLocked,
+    applyCapacityState,
+    refreshCapacityFromFlags,
+    ensureCapacityWatch,
+    onCapacityChange,
     AVG_SIT_MINUTES,
     OPEN_HOUR,
     LAST_SLOT_HOUR,
     LAST_SLOT_MINUTE,
   };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => ensureCapacityWatch());
+  } else {
+    ensureCapacityWatch();
+  }
 })(window);

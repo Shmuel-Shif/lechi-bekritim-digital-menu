@@ -2953,6 +2953,111 @@
     return Number.isFinite(t) ? new Date(t).toISOString() : null;
   }
 
+  const PLACE_RES_CAPACITY_DEFAULT = 30;
+  const PLACE_RES_CAPACITY_MAX = 60;
+
+  function clampPlaceResCapacity(raw) {
+    const n = Math.floor(Number(raw));
+    if (!Number.isFinite(n) || n < 1) return PLACE_RES_CAPACITY_DEFAULT;
+    return Math.min(PLACE_RES_CAPACITY_MAX, n);
+  }
+
+  /**
+   * @returns {Promise<{seats:number, lockUntil:string|null, locked:boolean}>}
+   */
+  async function getPlaceReservationCapacityState() {
+    const sb = getClient();
+    const { data, error } = await sb
+      .from('restaurant_flags')
+      .select('flag_key, flag_value, flag_text')
+      .in('flag_key', ['place_res_capacity', 'place_res_capacity_lock_until']);
+    throwIfError(error, 'getPlaceReservationCapacityState');
+
+    let seats = PLACE_RES_CAPACITY_DEFAULT;
+    let lockUntil = null;
+    (data || []).forEach((row) => {
+      const key = String(row?.flag_key || '');
+      const text = row?.flag_text == null ? '' : String(row.flag_text).trim();
+      if (key === 'place_res_capacity' && text) {
+        seats = clampPlaceResCapacity(text);
+      }
+      if (key === 'place_res_capacity_lock_until' && row?.flag_value && text) {
+        const t = Date.parse(text);
+        if (Number.isFinite(t) && t > Date.now()) {
+          lockUntil = new Date(t).toISOString();
+        }
+      }
+    });
+    return {
+      seats,
+      lockUntil,
+      locked: Boolean(lockUntil),
+    };
+  }
+
+  /**
+   * Set diner capacity and lock editing for `lockMinutes` (1–24*60).
+   * @param {{seats:number, lockMinutes:number}} opts
+   */
+  async function setPlaceReservationCapacity(opts = {}) {
+    const sb = getClient();
+    const { data: authData } = await sb.auth.getSession();
+    if (!authData?.session) {
+      throw new Error(
+        'setPlaceReservationCapacity: must be signed in as admin (RLS blocks anon write)'
+      );
+    }
+    const seats = clampPlaceResCapacity(opts.seats);
+    const lockMinutes = Math.max(1, Math.min(24 * 60, Math.floor(Number(opts.lockMinutes) || 60)));
+    const lockUntil = new Date(Date.now() + lockMinutes * 60 * 1000).toISOString();
+    const now = new Date().toISOString();
+
+    const { error: seatsErr } = await sb
+      .from('restaurant_flags')
+      .upsert({
+        flag_key: 'place_res_capacity',
+        flag_value: true,
+        flag_text: String(seats),
+        updated_at: now,
+      }, { onConflict: 'flag_key' });
+    throwIfError(seatsErr, 'setPlaceReservationCapacity.seats');
+
+    const { error: lockErr } = await sb
+      .from('restaurant_flags')
+      .upsert({
+        flag_key: 'place_res_capacity_lock_until',
+        flag_value: true,
+        flag_text: lockUntil,
+        updated_at: now,
+      }, { onConflict: 'flag_key' });
+    throwIfError(lockErr, 'setPlaceReservationCapacity.lock');
+
+    return { seats, lockUntil, locked: true, lockMinutes };
+  }
+
+  /**
+   * Clear capacity edit lock (keeps current seats).
+   */
+  async function clearPlaceReservationCapacityLock() {
+    const sb = getClient();
+    const { data: authData } = await sb.auth.getSession();
+    if (!authData?.session) {
+      throw new Error(
+        'clearPlaceReservationCapacityLock: must be signed in as admin (RLS blocks anon write)'
+      );
+    }
+    const { error } = await sb
+      .from('restaurant_flags')
+      .upsert({
+        flag_key: 'place_res_capacity_lock_until',
+        flag_value: false,
+        flag_text: null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'flag_key' });
+    throwIfError(error, 'clearPlaceReservationCapacityLock');
+    return getPlaceReservationCapacityState();
+  }
+
   /**
    * Start (or refresh) dine-in close countdown from now.
    * @param {number} [minutes=30]
@@ -3631,6 +3736,9 @@
     getDineInCloseAt,
     startDineInCloseCountdown,
     clearDineInCloseCountdown,
+    getPlaceReservationCapacityState,
+    setPlaceReservationCapacity,
+    clearPlaceReservationCapacityLock,
     getDineInOrdersClosed,
     setDineInOrdersClosed,
     getDeliveriesClosed,

@@ -986,7 +986,9 @@
       placeResPhone?.focus();
       return;
     }
-    const maxParty = window.LechaimPlaceReservations?.CAPACITY_SEATS || 30;
+    const maxParty = window.LechaimPlaceReservations?.getCapacitySeats?.()
+      || window.LechaimPlaceReservations?.CAPACITY_SEATS
+      || 30;
     if (!Number.isFinite(partySize) || partySize < 1 || partySize > maxParty) {
       showPlaceResError(t('placeResPartyRequired'));
       placeResParty?.focus();

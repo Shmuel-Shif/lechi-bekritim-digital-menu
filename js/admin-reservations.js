@@ -38,6 +38,7 @@
   let futureHoldsCache = [];
   /** Website place requests (today+), split in render by selected date */
   let requestsCache = [];
+  let capacityUnsub = null;
   let viewDate = '';
   let focusTrapRelease = null;
   let pollTimer = null;
@@ -424,7 +425,7 @@
       try {
         const occupancy = await api.getOccupancyForDate(dateStr);
         const size = Number.isFinite(partySize) && partySize >= 1 ? partySize : 1;
-        const cap = Number(api.CAPACITY_SEATS) || 30;
+        const cap = Number(api.getCapacitySeats?.() ?? api.CAPACITY_SEATS) || 30;
         unavailable = slots.filter((slot) => {
           const occupied = api.occupiedSeatsForWindow?.(occupancy, slot) || 0;
           return occupied + size > cap;
@@ -609,7 +610,10 @@
 
   function updateOccupancyMeter(occupied, capacity) {
     if (!occupancyValueEl) return;
-    const cap = capacity || global.LechaimPlaceReservations?.CAPACITY_SEATS || 30;
+    const cap = capacity
+      || global.LechaimPlaceReservations?.getCapacitySeats?.()
+      || global.LechaimPlaceReservations?.CAPACITY_SEATS
+      || 30;
     const val = Number.isFinite(occupied) ? occupied : 0;
     occupancyValueEl.textContent = `${val} / ${cap}`;
   }
@@ -1233,6 +1237,21 @@
     }
     startPolling();
     startRealtime();
+    if (!capacityUnsub && typeof global.LechaimPlaceReservations?.onCapacityChange === 'function') {
+      capacityUnsub = global.LechaimPlaceReservations.onCapacityChange((state) => {
+        if (partyInput && state?.seats) partyInput.setAttribute('max', String(state.seats));
+        if (!active) return;
+        const day = viewDate || todayDateStr();
+        global.LechaimPlaceReservations.getDailyOccupancy?.(day)
+          .then((daily) => updateOccupancyMeter(daily.occupied, daily.capacity))
+          .catch(() => {});
+      });
+    }
+    if (partyInput) {
+      const seats = global.LechaimPlaceReservations?.getCapacitySeats?.() || 30;
+      partyInput.setAttribute('max', String(seats));
+      partyInput.setAttribute('data-place-res-party-max', '');
+    }
   }
 
   function stop() {
@@ -1240,6 +1259,10 @@
     stopPolling();
     stopRealtime();
     closeModal();
+    if (typeof capacityUnsub === 'function') {
+      try { capacityUnsub(); } catch (_) { /* ignore */ }
+      capacityUnsub = null;
+    }
   }
 
   global.LechaimAdminReservations = {
