@@ -33,20 +33,13 @@
   const accessCodeDisableBtn = document.getElementById('settings-access-code-disable');
   const capacityStatusEl = document.getElementById('settings-capacity-status');
   const capacitySeatsInput = document.getElementById('settings-capacity-seats');
-  const capacityLockSelect = document.getElementById('settings-capacity-lock');
-  const capacityCustomWrap = document.getElementById('settings-capacity-custom-wrap');
-  const capacityCustomMinutes = document.getElementById('settings-capacity-custom-minutes');
-  const capacityLockHint = document.getElementById('settings-capacity-lock-hint');
   const capacitySaveBtn = document.getElementById('settings-capacity-save');
-  const capacityUnlockBtn = document.getElementById('settings-capacity-unlock');
 
   let started = false;
   let flagsUnsub = null;
   let kitchenTick = null;
-  let capacityTick = null;
   let dineInCloseAtMs = null;
   let capacitySeats = 30;
-  let capacityLockUntilMs = null;
   let capacityBusy = false;
   let deliveriesClosed = false;
   let shabbatEnabled = true;
@@ -190,98 +183,27 @@
     }
   }
 
-  function minutesUntilEndOfDay() {
-    const now = new Date();
-    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 0, 0);
-    const mins = Math.ceil((end.getTime() - now.getTime()) / 60000);
-    return Math.max(1, Math.min(24 * 60, mins));
-  }
-
-  function resolveCapacityLockMinutes() {
-    const mode = String(capacityLockSelect?.value || '60');
-    if (mode === 'eod') return minutesUntilEndOfDay();
-    if (mode === 'custom') {
-      const custom = Math.floor(Number(capacityCustomMinutes?.value));
-      if (!Number.isFinite(custom) || custom < 1) return null;
-      return Math.min(24 * 60, custom);
-    }
-    const preset = Math.floor(Number(mode));
-    return Number.isFinite(preset) && preset >= 1 ? preset : 60;
-  }
-
-  function syncCapacityCustomVisibility() {
-    if (!capacityCustomWrap) return;
-    capacityCustomWrap.hidden = String(capacityLockSelect?.value || '') !== 'custom';
-  }
-
-  function paintCapacityFormLocked(locked) {
-    if (capacitySeatsInput) capacitySeatsInput.disabled = locked;
-    if (capacityLockSelect) capacityLockSelect.disabled = locked;
-    if (capacityCustomMinutes) capacityCustomMinutes.disabled = locked;
-    if (capacitySaveBtn) capacitySaveBtn.hidden = locked;
-    if (capacityUnlockBtn) capacityUnlockBtn.hidden = !locked;
-  }
-
   function paintCapacityStatus() {
-    const locked = Number.isFinite(capacityLockUntilMs) && capacityLockUntilMs > Date.now();
     if (capacityStatusEl) {
-      if (locked) {
-        capacityStatusEl.dataset.open = '0';
-        capacityStatusEl.textContent = `${capacitySeats} · נעול ${formatRemain(capacityLockUntilMs - Date.now())}`;
-      } else {
-        capacityStatusEl.dataset.open = '1';
-        capacityStatusEl.textContent = String(capacitySeats);
-      }
+      capacityStatusEl.dataset.open = '1';
+      capacityStatusEl.textContent = String(capacitySeats);
     }
     if (capacitySeatsInput && document.activeElement !== capacitySeatsInput) {
       capacitySeatsInput.value = String(capacitySeats);
     }
-    if (capacityLockHint) {
-      if (locked) {
-        capacityLockHint.hidden = false;
-        capacityLockHint.textContent = `נעול עוד ${formatRemain(capacityLockUntilMs - Date.now())} — אי אפשר לשנות עד השחרור`;
-      } else {
-        capacityLockHint.hidden = true;
-        capacityLockHint.textContent = '';
-      }
-    }
-    paintCapacityFormLocked(locked);
-    syncCapacityCustomVisibility();
-  }
-
-  function armCapacityTick() {
-    if (capacityTick) {
-      window.clearInterval(capacityTick);
-      capacityTick = null;
-    }
-    if (capacityLockUntilMs && capacityLockUntilMs > Date.now()) {
-      capacityTick = window.setInterval(() => {
-        if (!capacityLockUntilMs || capacityLockUntilMs <= Date.now()) {
-          capacityLockUntilMs = null;
-          armCapacityTick();
-          return;
-        }
-        paintCapacityStatus();
-      }, 1000);
-    }
-    paintCapacityStatus();
   }
 
   function applyCapacityStateFromApi(state) {
     capacitySeats = Math.floor(Number(state?.seats)) || 30;
-    const lockIso = state?.lockUntil;
-    const t = lockIso ? Date.parse(lockIso) : NaN;
-    capacityLockUntilMs = Number.isFinite(t) && t > Date.now() ? t : null;
-    global.LechaimPlaceReservations?.applyCapacityState?.(capacitySeats, capacityLockUntilMs);
-    armCapacityTick();
+    global.LechaimPlaceReservations?.applyCapacityState?.(capacitySeats);
+    paintCapacityStatus();
   }
 
   async function refreshCapacity() {
     const api = global.LechaimSupabaseOrders;
     if (typeof api?.getPlaceReservationCapacityState !== 'function') {
       capacitySeats = global.LechaimPlaceReservations?.getCapacitySeats?.() || 30;
-      capacityLockUntilMs = global.LechaimPlaceReservations?.getCapacityLockUntilMs?.() || null;
-      armCapacityTick();
+      paintCapacityStatus();
       return;
     }
     try {
@@ -289,24 +211,15 @@
       applyCapacityStateFromApi(state);
     } catch (err) {
       console.warn('[admin-settings] capacity load failed', err);
-      armCapacityTick();
+      paintCapacityStatus();
     }
   }
 
   async function saveCapacity() {
     if (capacityBusy) return;
-    if (Number.isFinite(capacityLockUntilMs) && capacityLockUntilMs > Date.now()) {
-      showError('התפוסה נעולה — שחררו נעילה או המתינו עד שיפוג הזמן');
-      return;
-    }
     const seats = Math.floor(Number(capacitySeatsInput?.value));
     if (!Number.isFinite(seats) || seats < 1 || seats > 60) {
       showError('מספר מקומות חייב להיות בין 1 ל־60');
-      return;
-    }
-    const lockMinutes = resolveCapacityLockMinutes();
-    if (lockMinutes == null) {
-      showError('נא להזין משך נעילה בדקות');
       return;
     }
     const api = global.LechaimSupabaseOrders;
@@ -318,36 +231,14 @@
     if (capacitySaveBtn) capacitySaveBtn.disabled = true;
     showError('');
     try {
-      const state = await api.setPlaceReservationCapacity({ seats, lockMinutes });
+      const state = await api.setPlaceReservationCapacity({ seats });
       applyCapacityStateFromApi(state);
-      showToast(`תפוסה ${state.seats} ננעלה ל־${lockMinutes} דק׳`);
+      showToast(`תפוסה עודכנה ל־${state.seats}`);
     } catch (err) {
       showError(err?.message || 'שמירת התפוסה נכשלה — הריצו supabase-place-reservation-capacity-setting.sql');
     } finally {
       capacityBusy = false;
       if (capacitySaveBtn) capacitySaveBtn.disabled = false;
-    }
-  }
-
-  async function unlockCapacity() {
-    if (capacityBusy) return;
-    const api = global.LechaimSupabaseOrders;
-    if (typeof api?.clearPlaceReservationCapacityLock !== 'function') {
-      showError('שחרור נעילה לא זמין');
-      return;
-    }
-    capacityBusy = true;
-    if (capacityUnlockBtn) capacityUnlockBtn.disabled = true;
-    showError('');
-    try {
-      const state = await api.clearPlaceReservationCapacityLock();
-      applyCapacityStateFromApi(state);
-      showToast('הנעילה שוחררה');
-    } catch (err) {
-      showError(err?.message || 'שחרור הנעילה נכשל');
-    } finally {
-      capacityBusy = false;
-      if (capacityUnlockBtn) capacityUnlockBtn.disabled = false;
     }
   }
 
@@ -769,12 +660,8 @@
     accessCodeDisableBtn?.addEventListener('click', () => {
       disableAccessCode().catch((err) => console.error('[admin-settings] access disable', err));
     });
-    capacityLockSelect?.addEventListener('change', syncCapacityCustomVisibility);
     capacitySaveBtn?.addEventListener('click', () => {
       saveCapacity().catch((err) => console.error('[admin-settings] capacity save', err));
-    });
-    capacityUnlockBtn?.addEventListener('click', () => {
-      unlockCapacity().catch((err) => console.error('[admin-settings] capacity unlock', err));
     });
   }
 
@@ -806,10 +693,7 @@
           dineInCloseAtMs = evt.flagValue && evt.flagText ? Date.parse(evt.flagText) : null;
           if (!Number.isFinite(dineInCloseAtMs)) dineInCloseAtMs = null;
           armKitchenTick();
-        } else if (
-          evt?.flagKey === 'place_res_capacity'
-          || evt?.flagKey === 'place_res_capacity_lock_until'
-        ) {
+        } else if (evt?.flagKey === 'place_res_capacity') {
           refreshCapacity().catch(() => {});
         } else if (
           evt?.flagKey === 'shop_force_open'
@@ -838,10 +722,6 @@
     if (kitchenTick) {
       window.clearInterval(kitchenTick);
       kitchenTick = null;
-    }
-    if (capacityTick) {
-      window.clearInterval(capacityTick);
-      capacityTick = null;
     }
     if (typeof flagsUnsub === 'function') {
       try { flagsUnsub(); } catch (_) { /* ignore */ }

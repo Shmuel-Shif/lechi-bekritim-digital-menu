@@ -2963,41 +2963,24 @@
   }
 
   /**
-   * @returns {Promise<{seats:number, lockUntil:string|null, locked:boolean}>}
+   * @returns {Promise<{seats:number}>}
    */
   async function getPlaceReservationCapacityState() {
     const sb = getClient();
     const { data, error } = await sb
       .from('restaurant_flags')
-      .select('flag_key, flag_value, flag_text')
-      .in('flag_key', ['place_res_capacity', 'place_res_capacity_lock_until']);
+      .select('flag_key, flag_text')
+      .eq('flag_key', 'place_res_capacity')
+      .maybeSingle();
     throwIfError(error, 'getPlaceReservationCapacityState');
 
-    let seats = PLACE_RES_CAPACITY_DEFAULT;
-    let lockUntil = null;
-    (data || []).forEach((row) => {
-      const key = String(row?.flag_key || '');
-      const text = row?.flag_text == null ? '' : String(row.flag_text).trim();
-      if (key === 'place_res_capacity' && text) {
-        seats = clampPlaceResCapacity(text);
-      }
-      if (key === 'place_res_capacity_lock_until' && row?.flag_value && text) {
-        const t = Date.parse(text);
-        if (Number.isFinite(t) && t > Date.now()) {
-          lockUntil = new Date(t).toISOString();
-        }
-      }
-    });
-    return {
-      seats,
-      lockUntil,
-      locked: Boolean(lockUntil),
-    };
+    const text = data?.flag_text == null ? '' : String(data.flag_text).trim();
+    return { seats: text ? clampPlaceResCapacity(text) : PLACE_RES_CAPACITY_DEFAULT };
   }
 
   /**
-   * Set diner capacity and lock editing for `lockMinutes` (1–24*60).
-   * @param {{seats:number, lockMinutes:number}} opts
+   * Set permanent diner capacity (until next manual change).
+   * @param {{seats:number}} opts
    */
   async function setPlaceReservationCapacity(opts = {}) {
     const sb = getClient();
@@ -3008,8 +2991,6 @@
       );
     }
     const seats = clampPlaceResCapacity(opts.seats);
-    const lockMinutes = Math.max(1, Math.min(24 * 60, Math.floor(Number(opts.lockMinutes) || 60)));
-    const lockUntil = new Date(Date.now() + lockMinutes * 60 * 1000).toISOString();
     const now = new Date().toISOString();
 
     const { error: seatsErr } = await sb
@@ -3022,40 +3003,17 @@
       }, { onConflict: 'flag_key' });
     throwIfError(seatsErr, 'setPlaceReservationCapacity.seats');
 
-    const { error: lockErr } = await sb
-      .from('restaurant_flags')
-      .upsert({
-        flag_key: 'place_res_capacity_lock_until',
-        flag_value: true,
-        flag_text: lockUntil,
-        updated_at: now,
-      }, { onConflict: 'flag_key' });
-    throwIfError(lockErr, 'setPlaceReservationCapacity.lock');
-
-    return { seats, lockUntil, locked: true, lockMinutes };
-  }
-
-  /**
-   * Clear capacity edit lock (keeps current seats).
-   */
-  async function clearPlaceReservationCapacityLock() {
-    const sb = getClient();
-    const { data: authData } = await sb.auth.getSession();
-    if (!authData?.session) {
-      throw new Error(
-        'clearPlaceReservationCapacityLock: must be signed in as admin (RLS blocks anon write)'
-      );
-    }
-    const { error } = await sb
+    /* Clear leftover edit-lock flag from earlier timer UI (if any) */
+    await sb
       .from('restaurant_flags')
       .upsert({
         flag_key: 'place_res_capacity_lock_until',
         flag_value: false,
         flag_text: null,
-        updated_at: new Date().toISOString(),
+        updated_at: now,
       }, { onConflict: 'flag_key' });
-    throwIfError(error, 'clearPlaceReservationCapacityLock');
-    return getPlaceReservationCapacityState();
+
+    return { seats };
   }
 
   /**
@@ -3738,7 +3696,6 @@
     clearDineInCloseCountdown,
     getPlaceReservationCapacityState,
     setPlaceReservationCapacity,
-    clearPlaceReservationCapacityLock,
     getDineInOrdersClosed,
     setDineInOrdersClosed,
     getDeliveriesClosed,

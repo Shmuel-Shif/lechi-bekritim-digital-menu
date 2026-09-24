@@ -4,8 +4,9 @@
 -- Safe to re-run.
 --
 -- Flags:
---   place_res_capacity            flag_text = seats ("1"–"60"), default 30
---   place_res_capacity_lock_until flag_text = ISO deadline while editing locked
+--   place_res_capacity  flag_text = seats ("1"–"60"), default 30 (permanent until admin changes)
+-- Slot lock behavior: when pending+confirmed+arrived seats for a 45-minute window
+-- reach capacity, that arrival time shows as full (מלא) — same as today.
 -- =============================================================================
 
 -- Allow party sizes up to absolute max (capacity check uses flag, not this alone)

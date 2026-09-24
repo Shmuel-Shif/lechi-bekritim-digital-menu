@@ -3,7 +3,7 @@
  * Isolated from food orders / sessions / admin seat-hold `reservations` table.
  *
  * Capacity (enforced on create via RPC): seats from restaurant_flags.place_res_capacity
- * (default 30), AVG_SIT_MINUTES=45. Admin can lock the value for a chosen duration.
+ * (default 30, permanent until admin changes it), AVG_SIT_MINUTES=45.
  * Customer slots: half-hour 14:00–21:00.
  * Capacity holds: pending + confirmed + arrived (cancelled does not hold).
  * Admin meter "תפוסה מאושרת": confirmed + arrived only.
@@ -16,7 +16,6 @@
   const MAX_CAPACITY_SEATS = 60;
   const AVG_SIT_MINUTES = 45;
   let capacitySeats = DEFAULT_CAPACITY_SEATS;
-  let capacityLockUntilMs = null;
   let capacityLoaded = false;
   let capacityFlagsUnsub = null;
   const capacityListeners = new Set();
@@ -31,34 +30,18 @@
     return capacitySeats;
   }
 
-  function getCapacityLockUntilMs() {
-    return capacityLockUntilMs;
-  }
-
-  function isCapacityLocked() {
-    return Number.isFinite(capacityLockUntilMs) && capacityLockUntilMs > Date.now();
-  }
-
   function notifyCapacityListeners() {
     capacityListeners.forEach((fn) => {
       try {
-        fn({
-          seats: capacitySeats,
-          lockUntilMs: capacityLockUntilMs,
-          locked: isCapacityLocked(),
-        });
+        fn({ seats: capacitySeats });
       } catch (_) { /* ignore */ }
     });
   }
 
-  function applyCapacityState(seats, lockUntilMs) {
+  function applyCapacityState(seats) {
     const nextSeats = clampCapacitySeats(seats);
-    const nextLock = Number.isFinite(lockUntilMs) && lockUntilMs > Date.now()
-      ? lockUntilMs
-      : null;
-    const changed = nextSeats !== capacitySeats || nextLock !== capacityLockUntilMs;
+    const changed = nextSeats !== capacitySeats;
     capacitySeats = nextSeats;
-    capacityLockUntilMs = nextLock;
     capacityLoaded = true;
     if (global.LechaimPlaceReservations) {
       global.LechaimPlaceReservations.CAPACITY_SEATS = capacitySeats;
@@ -78,35 +61,25 @@
     });
   }
 
-  function parseLockUntil(raw) {
-    const iso = String(raw || '').trim();
-    if (!iso) return null;
-    const t = Date.parse(iso);
-    return Number.isFinite(t) ? t : null;
-  }
-
   async function refreshCapacityFromFlags() {
     const api = global.LechaimSupabaseOrders;
     if (typeof api?.getPlaceReservationCapacityState === 'function') {
       try {
         const state = await api.getPlaceReservationCapacityState();
-        applyCapacityState(state?.seats, parseLockUntil(state?.lockUntil));
+        applyCapacityState(state?.seats);
         return;
       } catch (err) {
         console.warn('[place-reservations] capacity load failed', err);
       }
     }
-    if (!capacityLoaded) applyCapacityState(DEFAULT_CAPACITY_SEATS, null);
+    if (!capacityLoaded) applyCapacityState(DEFAULT_CAPACITY_SEATS);
   }
 
   function ensureCapacityWatch() {
     const api = global.LechaimSupabaseOrders;
     if (!capacityFlagsUnsub && typeof api?.subscribeRestaurantFlags === 'function') {
       capacityFlagsUnsub = api.subscribeRestaurantFlags((evt) => {
-        if (
-          evt?.flagKey !== 'place_res_capacity'
-          && evt?.flagKey !== 'place_res_capacity_lock_until'
-        ) return;
+        if (evt?.flagKey !== 'place_res_capacity') return;
         refreshCapacityFromFlags().catch(() => {});
       });
       refreshCapacityFromFlags().catch(() => {});
@@ -786,8 +759,6 @@
     DEFAULT_CAPACITY_SEATS,
     MAX_CAPACITY_SEATS,
     getCapacitySeats,
-    getCapacityLockUntilMs,
-    isCapacityLocked,
     applyCapacityState,
     refreshCapacityFromFlags,
     ensureCapacityWatch,
