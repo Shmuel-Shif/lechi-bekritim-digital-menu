@@ -744,6 +744,10 @@ const DISH_I18N = {
       name: 'Salmon Carpaccio',
       desc: 'Fresh salmon slices on a bed of olive oil, cherry tomatoes, hot pepper and soy drops.',
     },
+    'saviche-denis': {
+      name: 'Sea Bream Carpaccio',
+      desc: 'Fresh sea bream slices on a bed of olive oil, cherry tomatoes, hot pepper and soy drops.',
+    },
     'whole-fish': {
       name: 'Whole Baked Sea Bream',
       desc: 'Fresh sea bream baked with herbs and olive oil.',
@@ -1006,6 +1010,14 @@ const MENU_DATA = {
           description: 'פרוסות סלמון טרי על מצע של שמן זית, עגבניות שרי, פלפל חריף וטיפות סויה.',
           price: 20,
           image: dishImage('saviche'),
+        },
+        {
+          id: 'saviche-denis',
+          name: 'קרפצ\'יו דניס טרי',
+          printName: 'saviche denis',
+          description: 'פרוסות דניס טרי על מצע של שמן זית, עגבניות שרי, פלפל חריף וטיפות סויה.',
+          price: 20,
+          image: dishImage('saviche-denis'),
         },
       ],
     },

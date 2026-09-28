@@ -44,6 +44,7 @@
     'staik-antarkot': 'Αντρεκότ',
     asado: 'Ασάντο',
     saviche: 'saviche',
+    'saviche-denis': 'saviche denis',
     schnitzel: 'Σνίτσελ',
     'chicken-steak': 'Παργκίτ σχάρας',
     'whole-fish': 'Τσιπούρα ολόκληρη',
