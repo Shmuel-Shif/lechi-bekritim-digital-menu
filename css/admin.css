@@ -4056,6 +4056,14 @@ body.admin-inventory-open {
   color: #6b2f1a;
 }
 
+.history-pick-card--reservations .history-pick-card__num {
+  font-size: 1.05rem;
+}
+
+.history-card--place .history-card__total {
+  font-variant-numeric: normal;
+}
+
 .history-detail__header {
   display: flex;
   flex-wrap: wrap;

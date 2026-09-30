@@ -1,5 +1,5 @@
 /**
- * LECHAIM — Admin closed-session history by table / takeaway / Shabbat.
+ * LECHAIM — Admin closed-session history by table / takeaway / Shabbat / place reservations.
  * Compact cards → modal details; restore or delete with confirm.
  */
 (function (global) {
@@ -20,6 +20,13 @@
 
   const TABLE_MIN = 60;
   const TABLE_MAX = 73;
+
+  const PLACE_RES_STATUS = {
+    pending: 'ממתין',
+    confirmed: 'אושר',
+    arrived: 'הגיע',
+    cancelled: 'בוטל',
+  };
 
   let activeKey = null;
   let cacheRows = [];
@@ -49,6 +56,20 @@
     return `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}`;
   }
 
+  function formatDateStr(value) {
+    const s = String(value || '').trim();
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return `${m[3]}.${m[2]}.${m[1]}`;
+    return formatDate(value);
+  }
+
+  function formatTimeValue(value) {
+    const s = String(value || '').trim();
+    const m = s.match(/^(\d{1,2}):(\d{2})/);
+    if (m) return `${pad2(Number(m[1]))}:${m[2]}`;
+    return formatClock(value);
+  }
+
   function formatMoney(amount) {
     const n = Number(amount) || 0;
     return `€${n.toLocaleString('en-US', {
@@ -59,6 +80,10 @@
 
   function api() {
     return global.LechaimSupabaseOrders;
+  }
+
+  function placeApi() {
+    return global.LechaimPlaceReservations;
   }
 
   function showConfirm(message, yesLabel) {
@@ -119,6 +144,14 @@
     return cacheRows.find((row) => String(row?.session?.session_id) === String(sessionId)) || null;
   }
 
+  function findCachedPlace(id) {
+    return cacheRows.find((row) => row?.kind === 'place' && String(row?.id) === String(id)) || null;
+  }
+
+  function isPlaceHistoryKey(key) {
+    return key === 'reservations' || key === 'place-reservations';
+  }
+
   function renderPicker() {
     if (!pickerEl) return;
     closeModal();
@@ -147,6 +180,12 @@
       <button type="button" class="history-pick-card history-pick-card--shabbat" data-history-key="shabbat">
         <span class="history-pick-card__num">שבת</span>
         <span class="history-pick-card__label">הזמנות לשבת</span>
+      </button>
+    `);
+    tables.push(`
+      <button type="button" class="history-pick-card history-pick-card--reservations" data-history-key="reservations">
+        <span class="history-pick-card__num">מקום</span>
+        <span class="history-pick-card__label">הזמנות להיום</span>
       </button>
     `);
     pickerEl.innerHTML = `<div class="history-picker__grid">${tables.join('')}</div>`;
@@ -215,6 +254,60 @@
     `;
   }
 
+  function renderPlaceReservations(rows, title) {
+    cacheRows = (Array.isArray(rows) ? rows : []).map((row) => ({
+      kind: 'place',
+      ...row,
+    }));
+    if (detailTitle) detailTitle.textContent = title;
+    if (pickerEl) pickerEl.hidden = true;
+    if (detailEl) detailEl.hidden = false;
+
+    if (!cacheRows.length) {
+      if (detailList) detailList.innerHTML = '';
+      if (detailEmpty) {
+        detailEmpty.hidden = false;
+        detailEmpty.textContent = 'אין היסטוריית הזמנות מקום';
+      }
+      return;
+    }
+    if (detailEmpty) detailEmpty.hidden = true;
+    if (!detailList) return;
+
+    detailList.innerHTML = `
+      <div class="history-session-cards">
+        ${cacheRows.map((row) => {
+          const id = String(row.id || '');
+          const status = String(row.status || '');
+          const statusLabel = PLACE_RES_STATUS[status] || status || '—';
+          const party = Math.floor(Number(row.party_size)) || 0;
+          return `
+            <article class="history-card history-card--place" data-place-id="${escapeHtml(id)}">
+              <button type="button" class="history-card__main" data-history-place-open="${escapeHtml(id)}">
+                <span class="history-card__name">${escapeHtml(row.customer_name || '—')}</span>
+                <span class="history-card__time">${escapeHtml(formatTimeValue(row.arrival_time))}</span>
+                <span class="history-card__date">${escapeHtml(formatDateStr(row.reservation_date))}</span>
+                <span class="history-card__total">${party ? `${party} סועדים` : '—'} · ${escapeHtml(statusLabel)}</span>
+              </button>
+              <button
+                type="button"
+                class="history-card__restore"
+                data-history-place-restore="${escapeHtml(id)}"
+              >שחזר</button>
+              <button
+                type="button"
+                class="history-card__delete"
+                data-history-place-delete="${escapeHtml(id)}"
+                aria-label="מחק כרטיס"
+                title="מחק"
+              >×</button>
+            </article>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
   function closeModal() {
     if (!modal) return;
     if (typeof focusTrapRelease === 'function') focusTrapRelease();
@@ -222,6 +315,43 @@
     modal.hidden = true;
     modal.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('admin-modal-open');
+  }
+
+  function openPlaceModal(placeId) {
+    const row = findCachedPlace(placeId);
+    if (!row || !modal) return;
+    const status = String(row.status || '');
+    const statusLabel = PLACE_RES_STATUS[status] || status || '—';
+    const party = Math.floor(Number(row.party_size)) || 0;
+    const notes = row.notes == null ? '' : String(row.notes).trim();
+
+    if (modalTitle) {
+      modalTitle.textContent = `${row.customer_name || 'הזמנת מקום'} · ${formatTimeValue(row.arrival_time)}`;
+    }
+
+    if (modalBody) {
+      modalBody.innerHTML = `
+        <div class="history-session-modal__summary">
+          <p><strong>תאריך:</strong> ${escapeHtml(formatDateStr(row.reservation_date))}</p>
+          <p><strong>שעת הגעה:</strong> ${escapeHtml(formatTimeValue(row.arrival_time))}</p>
+          <p><strong>סטטוס:</strong> ${escapeHtml(statusLabel)}</p>
+          <p><strong>סועדים:</strong> ${party || '—'}</p>
+          <p><strong>לקוח:</strong> ${escapeHtml(row.customer_name || '—')}${
+            row.customer_phone ? ` · ${escapeHtml(row.customer_phone)}` : ''
+          }</p>
+          ${notes ? `<p><strong>הערות:</strong> ${escapeHtml(notes)}</p>` : ''}
+          <p><strong>נוצר:</strong> ${escapeHtml(formatDate(row.created_at))} ${escapeHtml(formatClock(row.created_at))}</p>
+        </div>
+      `;
+    }
+
+    modal.hidden = false;
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('admin-modal-open');
+    if (typeof focusTrapRelease === 'function') focusTrapRelease();
+    const release = global.LechaimFocusTrap?.activate?.(modal);
+    focusTrapRelease = typeof release === 'function' ? release : null;
+    modalClose?.focus();
   }
 
   function openSessionModal(sessionId) {
@@ -331,7 +461,6 @@
       btn.click();
       return;
     }
-    /* Fallback: boards refresh while History stays open */
     if (tab === 'shabbat') global.LechaimAdminShabbat?.refresh?.();
     else global.LechaimAdminTables?.start?.();
   }
@@ -414,6 +543,72 @@
     }
   }
 
+  async function deletePlaceCard(placeId) {
+    const ok = await showConfirm(
+      'האם אתה בטוח שברצונך למחוק את הזמנת המקום מההיסטוריה?\nלא ניתן לשחזר.',
+      'מחק'
+    );
+    if (!ok) return;
+
+    const places = placeApi();
+    if (typeof places?.deleteRequest !== 'function') {
+      showNotice('מחיקה לא זמינה');
+      return;
+    }
+
+    try {
+      await places.deleteRequest(placeId);
+      closeModal();
+      cacheRows = cacheRows.filter((row) => !(row?.kind === 'place' && String(row?.id) === String(placeId)));
+      renderPlaceReservations(
+        cacheRows.map(({ kind, ...rest }) => rest),
+        detailTitle?.textContent || 'הזמנות להיום — היסטוריה'
+      );
+      showNotice('הכרטיס נמחק');
+    } catch (err) {
+      showNotice(err?.message || 'המחיקה נכשלה');
+    }
+  }
+
+  async function restorePlaceCard(placeId) {
+    const row = findCachedPlace(placeId);
+    if (!row) {
+      showNotice('הכרטיס לא נמצא');
+      return;
+    }
+    const name = row.customer_name ? String(row.customer_name) : 'הזמנת מקום';
+    const ok = await showConfirm(
+      `לשחזר את "${name}" להזמנות להיום?\nהתאריך יעודכן להיום והסטטוס לאושר.`,
+      'שחזר'
+    );
+    if (!ok) return;
+
+    const places = placeApi();
+    if (typeof places?.restoreToToday !== 'function') {
+      showNotice('שחזור לא זמין');
+      return;
+    }
+
+    try {
+      await places.restoreToToday(placeId);
+      closeModal();
+      cacheRows = cacheRows.filter((rowItem) => !(rowItem?.kind === 'place' && String(rowItem?.id) === String(placeId)));
+      renderPlaceReservations(
+        cacheRows.map(({ kind, ...rest }) => rest),
+        detailTitle?.textContent || 'הזמנות להיום — היסטוריה'
+      );
+      showNotice('ההזמנה שוחזרה');
+      goToTab('reservations');
+      global.LechaimAdminReservations?.start?.();
+    } catch (err) {
+      if (err?.code === 'CAPACITY_EXCEEDED' || String(err?.message || '').includes('CAPACITY_EXCEEDED')) {
+        showNotice('אין מספיק מקומות פנויים לשעה הזו היום');
+        return;
+      }
+      showNotice(err?.message || 'השחזור נכשל');
+    }
+  }
+
   async function resetAllHistory() {
     const ok = await showConfirm(
       'האם אתה בטוח שברצונך לאפס את כל ההיסטוריה?\nכל הכרטיסים הסגורים של שולחנות ואיסוף עצמי יימחקו לצמיתות.',
@@ -446,6 +641,32 @@
     if (detailEmpty) detailEmpty.hidden = true;
     if (pickerEl) pickerEl.hidden = true;
     if (detailEl) detailEl.hidden = false;
+
+    if (isPlaceHistoryKey(key)) {
+      const places = placeApi();
+      if (!places?.isConfigured?.() || typeof places.listHistory !== 'function') {
+        if (detailTitle) detailTitle.textContent = 'הזמנות להיום — היסטוריה';
+        if (detailList) detailList.innerHTML = '';
+        if (detailEmpty) {
+          detailEmpty.hidden = false;
+          detailEmpty.textContent = places?.isConfigured?.()
+            ? 'היסטוריית הזמנות מקום לא זמינה'
+            : 'Supabase לא זמין';
+        }
+        return;
+      }
+      try {
+        const rows = await places.listHistory({ limit: 80 });
+        renderPlaceReservations(rows, 'הזמנות להיום — היסטוריה');
+      } catch (err) {
+        if (detailList) detailList.innerHTML = '';
+        if (detailEmpty) {
+          detailEmpty.hidden = false;
+          detailEmpty.textContent = err?.message || 'טעינת ההיסטוריה נכשלה';
+        }
+      }
+      return;
+    }
 
     const ordersApi = api();
     if (!ordersApi?.isConfigured?.()) {
@@ -509,6 +730,25 @@
       resetAllHistory();
     });
     detailList?.addEventListener('click', (event) => {
+      const placeRestore = event.target.closest('[data-history-place-restore]');
+      if (placeRestore) {
+        event.preventDefault();
+        event.stopPropagation();
+        restorePlaceCard(placeRestore.dataset.historyPlaceRestore);
+        return;
+      }
+      const placeDel = event.target.closest('[data-history-place-delete]');
+      if (placeDel) {
+        event.preventDefault();
+        event.stopPropagation();
+        deletePlaceCard(placeDel.dataset.historyPlaceDelete);
+        return;
+      }
+      const placeOpen = event.target.closest('[data-history-place-open]');
+      if (placeOpen) {
+        openPlaceModal(placeOpen.dataset.historyPlaceOpen);
+        return;
+      }
       const restoreBtn = event.target.closest('[data-history-restore]');
       if (restoreBtn) {
         event.preventDefault();

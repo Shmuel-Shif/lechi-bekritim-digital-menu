@@ -662,6 +662,61 @@
   }
 
   /**
+   * Admin history restore: move a past request onto today's live board as confirmed.
+   * Uses next open weekday if today is Fri/Sat.
+   */
+  async function restoreToToday(id) {
+    const sb = getClient();
+    if (!id) throw new Error('חסר מזהה בקשה');
+
+    const { data: current, error: readErr } = await sb
+      .from(TABLE)
+      .select(
+        'id, customer_name, customer_phone, party_size, notes, arrival_time, reservation_date, status'
+      )
+      .eq('id', String(id))
+      .single();
+    if (readErr) throw new Error(readErr.message || 'טעינת הבקשה נכשלה');
+
+    let day = todayDateStr();
+    if (isPlaceResWeekend(day)) {
+      day = nextOpenPlaceResDate(day) || day;
+    }
+    const arrival_time = minutesToTime(timeToMinutes(current.arrival_time));
+    if (!arrival_time) throw new Error('שעת הגעה לא תקינה');
+
+    const party_size = Math.floor(Number(current.party_size)) || 0;
+    if (!Number.isFinite(party_size) || party_size < 1) {
+      throw new Error('מספר סועדים לא תקין');
+    }
+
+    ensureCapacityWatch();
+    const occupancy = await getOccupancyForDate(day);
+    const others = occupiedSeatsForWindow(occupancy, arrival_time, String(id));
+    if (others + party_size > getCapacitySeats()) {
+      const e = new Error('CAPACITY_EXCEEDED');
+      e.code = 'CAPACITY_EXCEEDED';
+      throw e;
+    }
+
+    const { data, error } = await sb
+      .from(TABLE)
+      .update({
+        reservation_date: day,
+        arrival_time,
+        status: 'confirmed',
+      })
+      .eq('id', String(id))
+      .select(
+        'id, customer_name, customer_phone, party_size, notes, arrival_time, reservation_date, status, created_at'
+      )
+      .single();
+
+    if (error) throw new Error(error.message || 'שחזור ההזמנה נכשל');
+    return data;
+  }
+
+  /**
    * Admin: permanently remove a request from the list.
    */
   async function deleteRequest(id) {
@@ -741,6 +796,29 @@
   }
 
   /**
+   * Admin history: past dates (any status) + arrived (any date — left the live board).
+   * Newest dates first.
+   */
+  async function listHistory(opts = {}) {
+    const sb = getClient();
+    const before = todayDateStr();
+    const limit = Math.max(1, Math.min(200, Math.floor(Number(opts.limit)) || 80));
+    const { data, error } = await sb
+      .from(TABLE)
+      .select(
+        'id, customer_name, customer_phone, party_size, notes, arrival_time, reservation_date, status, created_at'
+      )
+      .or(`reservation_date.lt.${before},status.eq.arrived`)
+      .order('reservation_date', { ascending: false })
+      .order('arrival_time', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) throw new Error(error.message || 'טעינת היסטוריית הזמנות מקום נכשלה');
+    return data || [];
+  }
+
+  /**
    * Customer dine-in check-in: mark today's matching request as arrived.
    * Does not throw on "no match"; returns { matched, reason? }.
    */
@@ -767,8 +845,10 @@
     createConfirmedRequest,
     listForDate,
     listUpcomingActive,
+    listHistory,
     setStatus,
     deleteRequest,
+    restoreToToday,
     updateRequest,
     markArrivedByName,
     getOccupancyForDate,

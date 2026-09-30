@@ -628,8 +628,8 @@
 
   /**
    * Tab badge = cards that appear under "הזמנות להיום":
-   * open manual holds for today + active website requests for today
-   * (pending / confirmed / arrived — not cancelled, not future dates).
+   * open manual holds for today + pending/confirmed website requests for today
+   * (arrived moves to history; cancelled / future dates excluded).
    */
   async function refreshTodayBadge() {
     const day = todayDateStr();
@@ -638,10 +638,12 @@
         listOpenForDate(day),
         listUpcomingPlaceRequests().catch(() => []),
       ]);
-      const todayRequests = (requests || []).filter(
-        (r) => normalizeDateStr(r.reservation_date) === day
-          && String(r.status || '') !== 'cancelled'
-      );
+      const todayRequests = (requests || []).filter((r) => {
+        const status = String(r.status || '');
+        return normalizeDateStr(r.reservation_date) === day
+          && status !== 'cancelled'
+          && status !== 'arrived';
+      });
       setTabBadge((holds || []).length + todayRequests.length);
     } catch (_) {
       /* keep previous badge */
@@ -682,7 +684,6 @@
       ? `<p class="reservation-card__notes">${escapeHtml(notes)}</p>`
       : '';
     const created = formatCreatedAt(r.created_at);
-    const arrivedClass = status === 'arrived' ? ' reservation-card--arrived' : '';
     const confirmedClass = status === 'confirmed' ? ' reservation-card--confirmed' : '';
     const shelveBtn = opts.showShelveToDate ? shelveToDateButtonHtml() : '';
     let actionsHtml = '';
@@ -702,16 +703,9 @@
             <button type="button" class="admin-btn admin-btn--primary" data-place-res-action="arrive">הלקוח הגיע</button>
             <button type="button" class="admin-btn admin-btn--ghost" data-place-res-action="cancel">בטל</button>
           </div>`;
-    } else if (status === 'arrived') {
-      actionsHtml = `<div class="reservation-card__actions">
-            ${whatsAppButtonHtml()}
-            ${editButtonHtml('data-place-res-action')}
-            ${shelveBtn}
-            <button type="button" class="admin-btn admin-btn--ghost" data-place-res-action="cancel">בטל</button>
-          </div>`;
     }
     return `
-        <article class="reservation-card reservation-card--request${arrivedClass}${confirmedClass}" data-id="${escapeHtml(r.id)}" data-card-kind="place">
+        <article class="reservation-card reservation-card--request${confirmedClass}" data-id="${escapeHtml(r.id)}" data-card-kind="place">
           <button type="button" class="reservation-card__dismiss" data-place-res-action="delete" aria-label="מחק מהרשימה" title="מחק">×</button>
           <p class="reservation-card__time">${escapeHtml(formatTime(r.arrival_time))}</p>
           <p class="reservation-card__date">${escapeHtml(formatDateDisplay(r.reservation_date))}</p>
@@ -820,8 +814,11 @@
     ]);
     cache = holds || [];
     futureHoldsCache = futureHolds || [];
-    /* Keep pending + confirmed (+ arrived) so WhatsApp stays available after approve */
-    requestsCache = (requests || []).filter((r) => String(r.status || '') !== 'cancelled');
+    /* Live board: pending + confirmed only. Arrived goes straight to history. */
+    requestsCache = (requests || []).filter((r) => {
+      const status = String(r.status || '');
+      return status !== 'cancelled' && status !== 'arrived';
+    });
     updateOccupancyMeter(daily?.occupied, daily?.capacity);
     render();
     await refreshTodayBadge();
@@ -1062,7 +1059,11 @@
         yes: 'אשר הזמנה',
         done: 'הבקשה אושרה — ניתן לשלוח WhatsApp ללקוח',
       },
-      arrived: { ask: 'לסמן שהלקוח הגיע?', yes: 'הלקוח הגיע', done: 'סומן שהלקוח הגיע' },
+      arrived: {
+        ask: 'לסמן שהלקוח הגיע ולהעביר להיסטוריה?',
+        yes: 'הלקוח הגיע',
+        done: 'הלקוח הגיע — הועבר להיסטוריה',
+      },
       cancelled: { ask: 'לדחות את בקשת ההזמנה?', yes: 'דחייה', done: 'הבקשה נדחתה' },
     };
     const copy = messages[nextStatus];
@@ -1077,10 +1078,10 @@
         }
       }
       await global.LechaimPlaceReservations.setStatus(id, nextStatus);
-      /* Optimistic local update so the card stays visible as confirmed + WhatsApp */
+      /* Optimistic: remove cancelled + arrived from live board immediately */
       const idx = requestsCache.findIndex((r) => String(r.id) === String(id));
       if (idx >= 0) {
-        if (nextStatus === 'cancelled') {
+        if (nextStatus === 'cancelled' || nextStatus === 'arrived') {
           requestsCache.splice(idx, 1);
         } else {
           requestsCache[idx] = { ...requestsCache[idx], status: nextStatus };
