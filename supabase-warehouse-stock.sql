@@ -14,11 +14,15 @@ create table if not exists public.warehouse_stock (
   qty          numeric(12, 2) not null default 0
                check (qty >= 0),
   is_custom    boolean not null default false,
+  is_removed   boolean not null default false,
   updated_at   timestamptz not null default now(),
   constraint warehouse_stock_name_len check (char_length(trim(name)) between 1 and 120),
   constraint warehouse_stock_category_len check (char_length(trim(category_id)) between 1 and 80),
   constraint warehouse_stock_product_len check (char_length(trim(product_id)) between 1 and 120)
 );
+
+alter table public.warehouse_stock
+  add column if not exists is_removed boolean not null default false;
 
 create index if not exists warehouse_stock_category_idx
   on public.warehouse_stock (category_id, name);

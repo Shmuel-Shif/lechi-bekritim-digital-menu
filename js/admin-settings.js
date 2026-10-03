@@ -35,6 +35,12 @@
   const capacitySeatsInput = document.getElementById('settings-capacity-seats');
   const capacityHoldSelect = document.getElementById('settings-capacity-hold');
   const capacitySaveBtn = document.getElementById('settings-capacity-save');
+  const homeNoticeStatusEl = document.getElementById('settings-home-notice-status');
+  const homeNoticeTitleInput = document.getElementById('settings-home-notice-title');
+  const homeNoticeBodyInput = document.getElementById('settings-home-notice-body');
+  const homeNoticeErrorEl = document.getElementById('settings-home-notice-error');
+  const homeNoticeSaveBtn = document.getElementById('settings-home-notice-save');
+  const homeNoticeDisableBtn = document.getElementById('settings-home-notice-disable');
 
   let started = false;
   let flagsUnsub = null;
@@ -50,6 +56,7 @@
   let accessCodeConfigured = false;
   let accessCodeHasSecret = false;
   let accessCodeBusy = false;
+  let homeNotice = { enabled: false, title: '', body: '', version: '' };
 
   function showToast(message) {
     if (typeof global.LechaimAdminTables?.showSuccessModal === 'function') {
@@ -618,6 +625,67 @@
     }
   }
 
+  function setHomeNoticeError(message) {
+    if (!homeNoticeErrorEl) return;
+    homeNoticeErrorEl.hidden = !message;
+    homeNoticeErrorEl.textContent = message || '';
+  }
+
+  function paintHomeNotice() {
+    paintStatus(homeNoticeStatusEl, Boolean(homeNotice.enabled && homeNotice.body), 'פעיל', 'כבוי');
+    if (homeNoticeTitleInput && document.activeElement !== homeNoticeTitleInput) {
+      homeNoticeTitleInput.value = homeNotice.title || '';
+    }
+    if (homeNoticeBodyInput && document.activeElement !== homeNoticeBodyInput) {
+      homeNoticeBodyInput.value = homeNotice.body || '';
+    }
+    if (homeNoticeDisableBtn) homeNoticeDisableBtn.hidden = !homeNotice.enabled;
+  }
+
+  async function refreshHomeNotice() {
+    try {
+      const api = global.LechaimHomeNotice;
+      if (typeof api?.loadNotice !== 'function') return;
+      homeNotice = await api.loadNotice() || homeNotice;
+    } catch (err) {
+      console.warn('[admin-settings] home notice load', err);
+    }
+    paintHomeNotice();
+  }
+
+  async function saveHomeNotice(enabled) {
+    setHomeNoticeError('');
+    const title = String(homeNoticeTitleInput?.value || '').trim();
+    const body = String(homeNoticeBodyInput?.value || '').trim();
+    if (enabled && !body) {
+      setHomeNoticeError('כתבו תוכן להודעה');
+      return;
+    }
+    const api = global.LechaimHomeNotice;
+    if (typeof api?.saveNotice !== 'function') {
+      setHomeNoticeError('שמירה לא זמינה');
+      return;
+    }
+    if (homeNoticeSaveBtn) homeNoticeSaveBtn.disabled = true;
+    if (homeNoticeDisableBtn) homeNoticeDisableBtn.disabled = true;
+    try {
+      homeNotice = await api.saveNotice({
+        enabled: Boolean(enabled),
+        title,
+        body,
+        version: String(Date.now()),
+      });
+      paintHomeNotice();
+      showToast(enabled ? 'ההודעה פעילה' : 'ההודעה כבויה');
+    } catch (err) {
+      console.error('[admin-settings] home notice save', err);
+      setHomeNoticeError(err?.message || 'השמירה נכשלה');
+    } finally {
+      if (homeNoticeSaveBtn) homeNoticeSaveBtn.disabled = false;
+      if (homeNoticeDisableBtn) homeNoticeDisableBtn.disabled = false;
+    }
+  }
+
   function itemEl(key) {
     return indexEl?.querySelector(`.settings-item[data-settings-key="${key}"]`) || null;
   }
@@ -684,6 +752,12 @@
     capacitySaveBtn?.addEventListener('click', () => {
       saveCapacity().catch((err) => console.error('[admin-settings] capacity save', err));
     });
+    homeNoticeSaveBtn?.addEventListener('click', () => {
+      saveHomeNotice(true).catch((err) => console.error('[admin-settings] home notice save', err));
+    });
+    homeNoticeDisableBtn?.addEventListener('click', () => {
+      saveHomeNotice(false).catch((err) => console.error('[admin-settings] home notice disable', err));
+    });
   }
 
   function start() {
@@ -695,6 +769,7 @@
     armAccessCodeAutofillGuard();
     refreshAccessCodeStatus().catch(() => {});
     refreshCapacity().catch(() => {});
+    refreshHomeNotice().catch(() => {});
     if (started) return;
     started = true;
     bind();
@@ -714,6 +789,8 @@
           dineInCloseAtMs = evt.flagValue && evt.flagText ? Date.parse(evt.flagText) : null;
           if (!Number.isFinite(dineInCloseAtMs)) dineInCloseAtMs = null;
           armKitchenTick();
+        } else if (evt?.flagKey === 'home_page_notice') {
+          refreshHomeNotice().catch(() => {});
         } else if (
           evt?.flagKey === 'place_res_capacity'
           || evt?.flagKey === 'place_res_hold_minutes'

@@ -19,6 +19,7 @@
   let client = null;
   let qtyById = new Map();
   let customById = new Map();
+  let removedIds = new Set();
   let busyId = '';
   let bound = false;
   let focusTrapRelease = null;
@@ -100,28 +101,26 @@
 
   function mergedCategories() {
     const cats = catalogCategories().map((cat) => {
+      const mapItem = (item, groupId) => ({
+        id: item.id,
+        name: item.name,
+        qty: qtyById.has(item.id) ? qtyById.get(item.id) : 0,
+        isCustom: false,
+        categoryId: cat.id,
+        groupId: groupId || null,
+      });
       const groups = (cat.groups || []).map((group) => ({
         id: group.id,
         title: group.title,
-        items: (group.items || []).map((item) => ({
-          id: item.id,
-          name: item.name,
-          qty: qtyById.has(item.id) ? qtyById.get(item.id) : 0,
-          isCustom: false,
-          categoryId: cat.id,
-          groupId: group.id,
-        })),
+        items: (group.items || [])
+          .filter((item) => !removedIds.has(item.id))
+          .map((item) => mapItem(item, group.id)),
       }));
       const baseItems = groups.length
         ? groups.flatMap((group) => group.items)
-        : (cat.items || []).map((item) => ({
-          id: item.id,
-          name: item.name,
-          qty: qtyById.has(item.id) ? qtyById.get(item.id) : 0,
-          isCustom: false,
-          categoryId: cat.id,
-          groupId: null,
-        }));
+        : (cat.items || [])
+          .filter((item) => !removedIds.has(item.id))
+          .map((item) => mapItem(item, null));
       return {
         id: cat.id,
         emoji: cat.emoji,
@@ -132,6 +131,7 @@
     });
 
     customById.forEach((row) => {
+      if (removedIds.has(row.product_id)) return;
       const cat = cats.find((item) => item.id === row.category_id);
       if (!cat) return;
       const item = {
@@ -189,12 +189,15 @@
       <article class="stock-row" data-stock-id="${escapeHtml(item.id)}">
         <div class="stock-row__main">
           <div class="stock-row__name">${escapeHtml(item.name)}</div>
-          ${item.isCustom ? '<span class="stock-row__tag">נוסף</span>' : ''}
         </div>
         ${renderQtyControls(item)}
-        ${item.isCustom
-          ? `<button type="button" class="admin-btn admin-btn--danger stock-row__delete" data-stock-delete="${escapeHtml(item.id)}" aria-label="מחק מוצר">מחק</button>`
-          : ''}
+        <button
+          type="button"
+          class="stock-row__delete"
+          data-stock-delete="${escapeHtml(item.id)}"
+          aria-label="מחק ${escapeHtml(item.name)}"
+          title="מחק"
+        >×</button>
       </article>
     `;
   }
@@ -280,24 +283,31 @@
     loadPromise = (async () => {
       const { data, error } = await sb
         .from('warehouse_stock')
-        .select('product_id, name, category_id, group_id, qty, is_custom');
+        .select('product_id, name, category_id, group_id, qty, is_custom, is_removed');
       if (error) {
         console.error('[admin-stock] load', error);
         showPanelError('לא ניתן לטעון כמויות מחסן כרגע');
         qtyById = new Map();
         customById = new Map();
+        removedIds = new Set();
         return;
       }
       const nextQty = new Map();
       const nextCustom = new Map();
+      const nextRemoved = new Set();
       (Array.isArray(data) ? data : []).forEach((row) => {
         const id = String(row.product_id || '');
         if (!id) return;
+        if (row.is_removed) {
+          nextRemoved.add(id);
+          return;
+        }
         nextQty.set(id, normalizeQty(row.qty));
         if (row.is_custom) nextCustom.set(id, row);
       });
       qtyById = nextQty;
       customById = nextCustom;
+      removedIds = nextRemoved;
       showPanelError('');
     })();
     try {
@@ -325,6 +335,7 @@
       group_id: info.group_id || info.groupId || null,
       qty: normalizeQty(qty),
       is_custom: Boolean(info.is_custom || info.isCustom),
+      is_removed: false,
     };
     const { error } = await sb.from('warehouse_stock').upsert(row, { onConflict: 'product_id' });
     if (error) {
@@ -421,23 +432,58 @@
     render();
   }
 
-  async function deleteCustom(productId) {
-    const row = customById.get(productId);
-    if (!row) return;
-    const ok = await showConfirm(`למחוק את "${row.name}"?`, 'מחק');
+  async function deleteProduct(productId) {
+    const custom = customById.get(productId);
+    const catalog = findCatalogMeta(productId);
+    const name = custom?.name || catalog?.name || 'המוצר';
+    const ok = await showConfirm(`למחוק את "${name}"?`, 'מחק');
     if (!ok) return;
     const sb = getClient();
     if (!sb) {
       showPanelError('לא ניתן למחוק כרגע');
       return;
     }
-    const { error } = await sb.from('warehouse_stock').delete().eq('product_id', productId);
-    if (error) {
-      console.error('[admin-stock] delete', error);
-      showPanelError('המחיקה נכשלה');
+
+    if (custom) {
+      const { error } = await sb.from('warehouse_stock').delete().eq('product_id', productId);
+      if (error) {
+        console.error('[admin-stock] delete', error);
+        showPanelError('המחיקה נכשלה');
+        return;
+      }
+      customById.delete(productId);
+      qtyById.delete(productId);
+      removedIds.delete(productId);
+      render();
       return;
     }
-    customById.delete(productId);
+
+    const meta = catalog || {
+      name,
+      category_id: 'stock-grocery',
+      group_id: null,
+      is_custom: false,
+    };
+    const { error } = await sb.from('warehouse_stock').upsert({
+      product_id: productId,
+      name: meta.name,
+      category_id: meta.category_id || meta.categoryId || 'stock-grocery',
+      group_id: meta.group_id || meta.groupId || null,
+      qty: qtyById.has(productId) ? qtyById.get(productId) : 0,
+      is_custom: false,
+      is_removed: true,
+    }, { onConflict: 'product_id' });
+    if (error) {
+      console.error('[admin-stock] remove', error);
+      const msg = String(error.message || '');
+      if (/is_removed/i.test(msg)) {
+        showPanelError('יש לעדכן את שמירת המחסן ואז לנסות שוב');
+      } else {
+        showPanelError('המחיקה נכשלה');
+      }
+      return;
+    }
+    removedIds.add(productId);
     qtyById.delete(productId);
     render();
   }
@@ -457,7 +503,7 @@
       }
       const delBtn = event.target.closest('[data-stock-delete]');
       if (delBtn) {
-        deleteCustom(delBtn.dataset.stockDelete);
+        deleteProduct(delBtn.dataset.stockDelete);
       }
     });
 

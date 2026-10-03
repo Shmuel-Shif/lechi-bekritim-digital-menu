@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=146">
+  <link rel="stylesheet" href="css/admin.css?v=148">
   <link rel="stylesheet" href="css/admin-dashboard.css?v=6">
   <link rel="stylesheet" href="css/admin-reminders.css?v=1">
   <link rel="stylesheet" href="css/admin-notes.css?v=2">
@@ -62,56 +62,56 @@
       </div>
 
       <nav class="admin-tabs" id="admin-tabs" aria-label="ניווט ניהול">
-        <div class="admin-tabs__group">
+        <div class="admin-tabs__group" data-tabs-group="ops">
           <span class="admin-tabs__label">תפעול</span>
-          <div class="admin-tabs__row">
-            <button type="button" class="admin-tab is-active" data-tab="tables">
+          <div class="admin-tabs__row" data-tabs-row="ops">
+            <button type="button" class="admin-tab is-active" data-tab="tables" draggable="true">
               שולחנות
               <span class="admin-tab__badge" id="tab-badge-tables" data-count="0" hidden>0</span>
             </button>
-            <button type="button" class="admin-tab" data-tab="reservations">
+            <button type="button" class="admin-tab" data-tab="reservations" draggable="true">
               הזמנות להיום
               <span class="admin-tab__badge" id="tab-badge-reservations" data-count="0" hidden>0</span>
             </button>
-            <button type="button" class="admin-tab" data-tab="support">
+            <button type="button" class="admin-tab" data-tab="support" draggable="true">
               שירות לקוחות
               <span class="admin-tab__badge" id="tab-badge-support" data-count="0" hidden>0</span>
             </button>
-            <button type="button" class="admin-tab" data-tab="pickup">
+            <button type="button" class="admin-tab" data-tab="pickup" draggable="true">
               איסוף עצמי
               <span class="admin-tab__badge" id="tab-badge-pickup" data-count="0" hidden>0</span>
             </button>
-            <button type="button" class="admin-tab" data-tab="delivery">
+            <button type="button" class="admin-tab" data-tab="delivery" draggable="true">
               משלוחים
               <span class="admin-tab__badge" id="tab-badge-delivery" data-count="0" hidden>0</span>
             </button>
-            <button type="button" class="admin-tab" data-tab="butcher">
+            <button type="button" class="admin-tab" data-tab="butcher" draggable="true">
               חנות בשרים
               <span class="admin-tab__badge" id="tab-badge-butcher" data-count="0" hidden>0</span>
             </button>
-            <button type="button" class="admin-tab" data-tab="shabbat">
+            <button type="button" class="admin-tab" data-tab="shabbat" draggable="true">
               הזמנות לשבת
               <span class="admin-tab__badge" id="tab-badge-shabbat" data-count="0" hidden>0</span>
             </button>
           </div>
         </div>
-        <div class="admin-tabs__group">
+        <div class="admin-tabs__group" data-tabs-group="mgmt">
           <span class="admin-tabs__label">ניהול</span>
-          <div class="admin-tabs__row">
-            <button type="button" class="admin-tab" data-tab="kitchen">
+          <div class="admin-tabs__row" data-tabs-row="mgmt">
+            <button type="button" class="admin-tab" data-tab="kitchen" draggable="true">
               מטבח
               <span class="admin-tab__badge" id="tab-badge-kitchen" data-count="0" hidden>0</span>
             </button>
-            <button type="button" class="admin-tab" data-tab="staff-hours">Attendance hours</button>
-            <button type="button" class="admin-tab" data-tab="notes">פתקים</button>
-            <button type="button" class="admin-tab" data-tab="history">היסטוריה</button>
-            <button type="button" class="admin-tab" data-tab="till">מכירות</button>
-            <button type="button" class="admin-tab" data-tab="inventory">מלאי</button>
-            <button type="button" class="admin-tab" data-tab="warehouse">מחסן</button>
-            <button type="button" class="admin-tab" data-tab="documents">מסמכים</button>
-            <button type="button" class="admin-tab" data-tab="stats">קופונים</button>
-            <button type="button" class="admin-tab" data-tab="settings">הגדרות</button>
-            <button type="button" class="admin-tab" data-tab="dashboard">דשבורד</button>
+            <button type="button" class="admin-tab" data-tab="staff-hours" draggable="true">Attendance hours</button>
+            <button type="button" class="admin-tab" data-tab="notes" draggable="true">פתקים</button>
+            <button type="button" class="admin-tab" data-tab="history" draggable="true">היסטוריה</button>
+            <button type="button" class="admin-tab" data-tab="till" draggable="true">מכירות</button>
+            <button type="button" class="admin-tab" data-tab="inventory" draggable="true">מלאי</button>
+            <button type="button" class="admin-tab" data-tab="warehouse" draggable="true">מחסן</button>
+            <button type="button" class="admin-tab" data-tab="documents" draggable="true">מסמכים</button>
+            <button type="button" class="admin-tab" data-tab="stats" draggable="true">קופונים</button>
+            <button type="button" class="admin-tab" data-tab="settings" draggable="true">הגדרות</button>
+            <button type="button" class="admin-tab" data-tab="dashboard" draggable="true">דשבורד</button>
           </div>
         </div>
       </nav>
@@ -1123,12 +1123,42 @@
               </div>
             </article>
               </section>
+
+              <section class="settings-item" data-settings-key="home-notice">
+                <button type="button" class="settings-index__row" data-settings-open="home-notice" aria-expanded="false">
+                  <span class="settings-index__copy">
+                    <span class="settings-index__title">הודעה בעמוד הבית</span>
+                    <span class="settings-index__hint">חלון שמופיע ללקוחות ב־index</span>
+                  </span>
+                  <span class="settings-status" id="settings-home-notice-status" data-open="0">כבוי</span>
+                  <span class="settings-index__chevron" aria-hidden="true"></span>
+                </button>
+                <article class="settings-card" id="settings-card-home-notice" hidden>
+                  <header class="settings-card__head">
+                    <h2 class="settings-card__title">הודעה בעמוד הבית</h2>
+                  </header>
+                  <p class="settings-card__hint">כשפעיל — הלקוחות רואים חלון עם התוכן שתכתבו כאן (גם במובייל). אפשר לכבות בכל רגע.</p>
+                  <div class="settings-card__fields">
+                    <label class="admin-field settings-card__field--wide">
+                      <span>כותרת</span>
+                      <input type="text" id="settings-home-notice-title" maxlength="120" autocomplete="off" placeholder="לדוגמה: שימו לב">
+                    </label>
+                    <label class="admin-field settings-card__field--wide">
+                      <span>תוכן ההודעה</span>
+                      <textarea id="settings-home-notice-body" rows="6" maxlength="4000" placeholder="כתבו כאן את ההודעה ללקוחות"></textarea>
+                    </label>
+                  </div>
+                  <p class="admin-error" id="settings-home-notice-error" role="alert" hidden></p>
+                  <div class="settings-card__actions">
+                    <button type="button" class="admin-btn admin-btn--primary" id="settings-home-notice-save">שמור והפעל</button>
+                    <button type="button" class="admin-btn admin-btn--ghost" id="settings-home-notice-disable">כבה הודעה</button>
+                  </div>
+                </article>
+              </section>
             </div>
           </div>
         </section>
       </div>
-
-      <!-- Inventory tab -->
       <div class="admin-view" id="admin-view-inventory" hidden>
         <header class="admin-header">
           <div class="admin-header__text">
@@ -2600,10 +2630,12 @@
   <script src="js/docs-monthly-xlsx.js?v=7" defer></script>
   <script src="js/docs-monthly-pdf.js?v=1" defer></script>
   <script src="js/admin-documents.js?v=34" defer></script>
-  <script src="js/admin-settings.js?v=15" defer></script>
+  <script src="js/home-notice.js?v=3" defer></script>
+  <script src="js/admin-tabs-order.js?v=2" defer></script>
+  <script src="js/admin-settings.js?v=16" defer></script>
   <script src="js/stock-catalog.js?v=7" defer></script>
-  <script src="js/admin-stock.js?v=4" defer></script>
-  <script src="js/admin.js?v=76" defer></script>
+  <script src="js/admin-stock.js?v=6" defer></script>
+  <script src="js/admin.js?v=77" defer></script>
   <script src="js/admin-push.js?v=3" defer></script>
   <script src="js/admin-reminders.js?v=3" defer></script>
   <script src="js/admin-pwa.js?v=2" defer></script>

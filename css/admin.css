@@ -840,12 +840,22 @@ body::before {
   font: inherit;
   font-weight: 700;
   font-size: 0.8125rem;
-  cursor: pointer;
+  cursor: grab;
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
   position: relative;
   transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-tab.is-dragging {
+  opacity: 0.55;
+  cursor: grabbing;
+}
+
+.admin-tab.is-drag-over {
+  outline: 2px solid rgba(30, 51, 84, 0.35);
+  outline-offset: 2px;
 }
 
 .admin-tab:hover:not(.is-active):not(:disabled) {
@@ -6675,8 +6685,24 @@ body.admin-inventory-open {
 }
 
 .stock-row__delete {
-  padding: 0.35rem 0.55rem;
-  font-size: 0.78rem;
+  width: 1.55rem;
+  height: 1.55rem;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #9b1c1c;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stock-row__delete:hover {
+  background: rgba(155, 28, 28, 0.1);
 }
 
 .stock-add-modal__panel {

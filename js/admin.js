@@ -1067,6 +1067,7 @@
 
       window.LechaimAdminPush?.onLoggedIn?.();
       window.LechaimAdminReminders?.start?.();
+      window.LechaimAdminTabsOrder?.start?.();
     } catch (err) {
       console.error('[admin] panel load error', err);
       showError(panelError, err?.message || String(err));
