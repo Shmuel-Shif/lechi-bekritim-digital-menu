@@ -77,15 +77,23 @@
     const checked = validateCreditInput(input);
     if (!checked.ok) return checked;
     const id = String(input?.id || '').trim();
+    const storagePath = input?.storage_path == null ? null : String(input.storage_path).trim() || null;
+    const originalFilename = storagePath
+      ? String(input?.original_filename || '').trim()
+      : '';
+    const mimeType = storagePath ? String(input?.mime_type || '').trim() : '';
+    const fileSize = storagePath && Number.isFinite(Number(input?.file_size_bytes))
+      ? Number(input.file_size_bytes)
+      : null;
     return {
       ok: true,
       row: {
         id: id || undefined,
         storage_bucket: 'business-documents',
-        storage_path: null,
-        original_filename: '',
-        mime_type: '',
-        file_size_bytes: null,
+        storage_path: storagePath,
+        original_filename: originalFilename,
+        mime_type: mimeType,
+        file_size_bytes: fileSize,
         document_type: CREDIT_DOCUMENT_TYPE,
         category: checked.credit.category,
         supplier_name: CREDIT_SUPPLIER,

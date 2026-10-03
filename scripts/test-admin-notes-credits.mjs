@@ -130,6 +130,22 @@ section('זיכויים — יצירה ושדות');
   assert(cash.row.category === 'cash', 'זיכוי במזומן');
   assert(cash.row.document_type === 'income_credit', 'סוג מסמך זיכוי');
   assert(cash.row.supplier_name === 'זיכויים', 'תיקיית זיכויים');
+  assert(cash.row.storage_path == null, 'זיכוי בלי קובץ');
+
+  const withFile = credits.buildCreditDocument({
+    document_date: '2026-10-03',
+    amount: 80,
+    description: 'זיכוי עם צילום',
+    method: 'credit',
+    storage_path: '2026/10/abc/photo.jpg',
+    original_filename: 'photo.jpg',
+    mime_type: 'image/jpeg',
+    file_size_bytes: 12345,
+  }, 'user-1');
+  assert(withFile.ok, 'יצירת זיכוי עם קובץ');
+  assert(withFile.row.storage_path === '2026/10/abc/photo.jpg', 'נתיב קובץ בזיכוי');
+  assert(withFile.row.original_filename === 'photo.jpg', 'שם קובץ בזיכוי');
+  assert(withFile.row.mime_type === 'image/jpeg', 'סוג קובץ בזיכוי');
 
   const card = credits.validateCreditInput({
     date: '2026-10-03',

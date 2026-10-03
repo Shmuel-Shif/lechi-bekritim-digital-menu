@@ -1148,16 +1148,18 @@
             : 'סה״כ החודש'));
     }
     if (scanBtn) {
-      scanBtn.hidden = manual || salary || creditIncome;
-      scanBtn.textContent = zReport
-        ? 'סרוק דוח Z'
-        : (privateExp ? 'סרוק חשבונית פרטית' : 'סרוק חשבונית');
+      scanBtn.hidden = manual || salary;
+      scanBtn.textContent = creditIncome
+        ? 'צלם'
+        : (zReport
+          ? 'סרוק דוח Z'
+          : (privateExp ? 'סרוק חשבונית פרטית' : 'סרוק חשבונית'));
     }
-    if (fileBtn) fileBtn.hidden = manual || salary || creditIncome;
+    if (fileBtn) fileBtn.hidden = manual || salary;
     if (noInvoiceBtn) noInvoiceBtn.hidden = manual || salary || zReport || privateExp || creditIncome;
     if (payBtn) {
       payBtn.hidden = !(manual || privateExp || creditIncome);
-      if (creditIncome) payBtn.textContent = 'זיכוי חדש';
+      if (creditIncome) payBtn.textContent = 'זיכוי בלי קובץ';
       else if (privateExp) payBtn.textContent = 'רכישה בלי חשבונית';
       else if (manual) payBtn.textContent = 'תשלום חדש';
     }
@@ -1167,7 +1169,7 @@
       emptyEl.textContent = salary
         ? 'אין משכורות ששולמו — רושמים אותן בשעות עובדים (בנק/מזומן)'
         : (creditIncome
-          ? 'אין זיכויים עדיין — הוסיפו את הראשון'
+          ? 'אין זיכויים עדיין — צלמו, צרפו קובץ או הוסיפו בלי קובץ'
           : (manual
             ? 'אין תשלומים עדיין — הוסיפו את הראשון'
             : (privateExp
@@ -1230,7 +1232,9 @@
                 )}</strong>`;
               const method = !zReport ? payMethodLabel(row.category, { creditIncome }) : '';
               const note = !zReport ? String(row.notes || '').trim() : '';
-              const kind = creditIncome ? 'זיכוי' : '';
+              const kind = creditIncome
+                ? (hasDocumentFile(row) ? 'זיכוי · קובץ' : 'זיכוי')
+                : '';
               const meta = [kind, method, note].filter(Boolean).join(' · ');
               const metaHtml = meta ? `<span class="docs-inv__meta">${escapeHtml(meta)}</span>` : '';
               return `
@@ -2066,12 +2070,15 @@
     const general = isGeneralInvoiceSupplier(supplier);
     const zReport = isZReportSupplier(supplier);
     const creditIncome = isCreditSupplier(supplier);
-    const textOnly = noInvoiceMode || manual || creditIncome || (privateExp && !pendingFile && !editingId);
+    const textOnly = noInvoiceMode
+      || manual
+      || (creditIncome && !pendingFile)
+      || (privateExp && !pendingFile && !editingId);
     if (formTitleEl) {
       formTitleEl.textContent = editingId
         ? 'עריכה'
         : (creditIncome
-          ? 'זיכוי'
+          ? (pendingFile ? 'זיכוי עם קובץ' : 'זיכוי')
           : (privateExp
             ? (textOnly || noInvoiceMode ? 'רכישה פרטית בלי חשבונית' : PRIVATE_EXPENSE_SUPPLIER)
             : (textOnly && !manual
@@ -2286,7 +2293,10 @@
       return;
     }
     noInvoiceMode = false;
-    if (isPrivateExpenseSupplier(key) && !normalizeBusinessPayMethod(pendingPayMethod)) {
+    if (
+      (isPrivateExpenseSupplier(key) || isCreditSupplier(key))
+      && !normalizeBusinessPayMethod(pendingPayMethod)
+    ) {
       pendingPayMethod = 'cash';
     }
     cameraInput?.click();
@@ -2627,9 +2637,10 @@
     const zReport = isZReportSupplier(supplier);
     const creditIncome = isCreditSupplier(supplier);
     const existingEdit = editingId ? cache.find((item) => item.id === editingId) : null;
+    const creditWithFile = creditIncome && Boolean(pendingFile);
     const textOnly = noInvoiceMode
-      || creditIncome
-      || (existingEdit ? !hasDocumentFile(existingEdit) : false)
+      || (creditIncome && !creditWithFile && !(existingEdit && hasDocumentFile(existingEdit)))
+      || (!creditIncome && existingEdit ? !hasDocumentFile(existingEdit) : false)
       || (privateExp && !pendingFile && !editingId);
     if (zReport) {
       if (simple.cash == null || simple.credit == null) {
@@ -2703,7 +2714,7 @@
         showToast('עודכן');
         return;
       }
-      if (manual || creditIncome || textOnly || noInvoiceMode) {
+      if ((manual || creditIncome || textOnly || noInvoiceMode) && !creditWithFile) {
         const id = global.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
         const row = {
           id,
@@ -2759,7 +2770,7 @@
         original_filename: filename,
         mime_type: mime,
         file_size_bytes: prepared.size,
-        document_type: 'supplier_invoice',
+        document_type: creditIncome ? CREDIT_DOCUMENT_TYPE : 'supplier_invoice',
         category: saveCategory,
         supplier_name: supplier,
         document_number: '',
@@ -2768,7 +2779,9 @@
         amount_before_vat: zReport ? simple.cash : null,
         vat_amount: zReport ? simple.credit : null,
         amount_total: simple.total,
-        notes: zReport ? '' : (general || privateExp ? simple.notes : (simple.notes || '')),
+        notes: zReport
+          ? ''
+          : (creditIncome || general || privateExp ? simple.notes : (simple.notes || '')),
         status: 'saved',
         ocr_status: 'none',
         ocr_raw: null,
@@ -2790,8 +2803,8 @@
       showToast('✓ נשמר');
     } catch (err) {
       console.error('[documents] save', err);
-      if (creditIncome && /income_credit|document_type/i.test(String(err?.message || ''))) {
-        showFormError(formErrorEl, 'שמירת זיכוי לא זמינה כרגע');
+      if (creditIncome && /manual_file|storage_path|income_credit|document_type/i.test(String(err?.message || ''))) {
+        showFormError(formErrorEl, 'יש להריץ מחדש את supabase-business-documents-income-credit.sql ב-SQL Editor של Supabase');
       } else if (isMissingManualPaymentSupport(err) || isMissingSuppliersTable(err)) {
         showFormError(formErrorEl, 'יש להריץ את supabase-business-documents-suppliers-and-manual.sql ב-SQL Editor של Supabase');
       } else if (err?.code === 'not_unlocked' || err?.code === 'not_authenticated') {
