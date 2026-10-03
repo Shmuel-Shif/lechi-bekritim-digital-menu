@@ -28,6 +28,8 @@
   const PRIVATE_EXPENSE_SUPPLIER = 'רכישה פרטית / מחוץ לכספי העסק';
   const Z_REPORT_SUPPLIER = 'דוח Z';
   const SALARY_SUPPLIER = 'משכורות';
+  const CREDIT_SUPPLIER = global.LechaimAdminCreditsCore?.CREDIT_SUPPLIER || 'זיכויים';
+  const CREDIT_DOCUMENT_TYPE = global.LechaimAdminCreditsCore?.CREDIT_DOCUMENT_TYPE || 'income_credit';
   const DEFAULT_SUPPLIERS = [
     'ירקות',
     'דה מארט',
@@ -41,6 +43,7 @@
     SALARY_SUPPLIER,
     Z_REPORT_SUPPLIER,
     MANUAL_PAYMENT_SUPPLIER,
+    CREDIT_SUPPLIER,
   ];
   const SUPPLIER_COLORS = {
     'ירקות': '#3f8f5b',
@@ -55,6 +58,7 @@
     [SALARY_SUPPLIER]: '#7a4a3a',
     [Z_REPORT_SUPPLIER]: '#1e3354',
     [MANUAL_PAYMENT_SUPPLIER]: '#5a6b4e',
+    [CREDIT_SUPPLIER]: '#2f6f5e',
   };
   const EXTRA_COLORS = ['#8d6e4c', '#5a7d6a', '#9a5b6a', '#4a6d8c', '#7d6b3a', '#5c6b9a'];
   const TILL_COUNT_FROM_YMD = '2026-08-10';
@@ -277,11 +281,27 @@
     return supplierKey(name) === SALARY_SUPPLIER;
   }
 
+  function isCreditSupplier(name) {
+    if (typeof global.LechaimAdminCreditsCore?.isCreditSupplier === 'function') {
+      return global.LechaimAdminCreditsCore.isCreditSupplier(name);
+    }
+    return supplierKey(name) === CREDIT_SUPPLIER;
+  }
+
+  function isCreditDocument(row) {
+    if (typeof global.LechaimAdminCreditsCore?.isCreditDocument === 'function') {
+      return global.LechaimAdminCreditsCore.isCreditDocument(row);
+    }
+    return isCreditSupplier(row?.supplier_name)
+      || String(row?.document_type || '') === CREDIT_DOCUMENT_TYPE;
+  }
+
   function isReservedSupplier(name) {
     return isManualPaymentSupplier(name)
       || isZReportSupplier(name)
       || isSalarySupplier(name)
-      || isPrivateExpenseSupplier(name);
+      || isPrivateExpenseSupplier(name)
+      || isCreditSupplier(name);
   }
 
   function isInvoiceExportRow(row) {
@@ -294,10 +314,12 @@
     return Boolean(String(row?.storage_path || '').trim());
   }
 
-  function payMethodLabel(value) {
+  function payMethodLabel(value, opts) {
     if (value === 'cash') return 'מזומן';
     if (value === 'credit') return 'אשראי';
-    if (value === 'bank') return 'בנק';
+    if (value === 'bank') {
+      return opts?.creditIncome ? 'חשבון בנק' : 'בנק';
+    }
     if (value === 'private') return 'רכישה פרטית';
     return '';
   }
@@ -1056,7 +1078,13 @@
         <span class="docs-chat__body">
           <strong class="docs-chat__name">${escapeHtml(item.name)}</strong>
           <span class="docs-chat__sum">${escapeHtml(sumText)} החודש</span>
-          <span class="docs-chat__count">${item.monthCount} ${isManualPaymentSupplier(item.name) || isSalarySupplier(item.name) || isPrivateExpenseSupplier(item.name) ? 'תשלומים' : (isZReportSupplier(item.name) ? 'דוחות' : 'חשבוניות')}</span>
+          <span class="docs-chat__count">${item.monthCount} ${
+            isCreditSupplier(item.name)
+              ? 'זיכויים'
+              : (isManualPaymentSupplier(item.name) || isSalarySupplier(item.name) || isPrivateExpenseSupplier(item.name)
+                ? 'תשלומים'
+                : (isZReportSupplier(item.name) ? 'דוחות' : 'חשבוניות'))
+          }</span>
         </span>
       </button>
     `;
@@ -1103,6 +1131,7 @@
     const privateExp = isPrivateExpenseSupplier(name);
     const zReport = isZReportSupplier(name);
     const salary = isSalarySupplier(name);
+    const creditIncome = isCreditSupplier(name);
     if (sumEl) {
       sumEl.classList.toggle('is-z', zReport);
       if (zReport) sumEl.innerHTML = zSumHtml(sumZAmounts(monthRows));
@@ -1112,21 +1141,24 @@
     if (sumLabel) {
       sumLabel.textContent = salary
         ? 'משכורות ששולמו בשעות עובדים'
-        : (privateExp
-          ? 'רכישות פרטיות — נכללות בהוצאות (€) בלי קופה/בנק/אשראי עסקי'
-          : 'סה״כ החודש');
+        : (creditIncome
+          ? 'זיכויים שנכנסו — נכללים בסיכום לפי אופן התשלום'
+          : (privateExp
+            ? 'רכישות פרטיות — נכללות בהוצאות (€) בלי קופה/בנק/אשראי עסקי'
+            : 'סה״כ החודש'));
     }
     if (scanBtn) {
-      scanBtn.hidden = manual || salary;
+      scanBtn.hidden = manual || salary || creditIncome;
       scanBtn.textContent = zReport
         ? 'סרוק דוח Z'
         : (privateExp ? 'סרוק חשבונית פרטית' : 'סרוק חשבונית');
     }
-    if (fileBtn) fileBtn.hidden = manual || salary;
-    if (noInvoiceBtn) noInvoiceBtn.hidden = manual || salary || zReport || privateExp;
+    if (fileBtn) fileBtn.hidden = manual || salary || creditIncome;
+    if (noInvoiceBtn) noInvoiceBtn.hidden = manual || salary || zReport || privateExp || creditIncome;
     if (payBtn) {
-      payBtn.hidden = !(manual || privateExp);
-      if (privateExp) payBtn.textContent = 'רכישה בלי חשבונית';
+      payBtn.hidden = !(manual || privateExp || creditIncome);
+      if (creditIncome) payBtn.textContent = 'זיכוי חדש';
+      else if (privateExp) payBtn.textContent = 'רכישה בלי חשבונית';
       else if (manual) payBtn.textContent = 'תשלום חדש';
     }
     if (copyPayBtn) copyPayBtn.hidden = !manual;
@@ -1134,11 +1166,13 @@
     if (emptyEl) {
       emptyEl.textContent = salary
         ? 'אין משכורות ששולמו — רושמים אותן בשעות עובדים (בנק/מזומן)'
-        : (manual
-          ? 'אין תשלומים עדיין — הוסיפו את הראשון'
-          : (privateExp
-            ? 'אין רכישות פרטיות עדיין — סרקו חשבונית או הוסיפו בלי חשבונית'
-            : (zReport ? 'אין דוחות Z עדיין — סרקו את הראשון' : 'אין חשבוניות עדיין — סרקו את הראשונה')));
+        : (creditIncome
+          ? 'אין זיכויים עדיין — הוסיפו את הראשון'
+          : (manual
+            ? 'אין תשלומים עדיין — הוסיפו את הראשון'
+            : (privateExp
+              ? 'אין רכישות פרטיות עדיין — סרקו חשבונית או הוסיפו בלי חשבונית'
+              : (zReport ? 'אין דוחות Z עדיין — סרקו את הראשון' : 'אין חשבוניות עדיין — סרקו את הראשונה'))));
     }
     const groups = new Map();
     if (rows.length) groups.set(ym, []);
@@ -1194,12 +1228,13 @@
                     ? formatMoneyCurrency(row.amount_total, rowCurrency(row))
                     : formatMoney(row.amount_total)
                 )}</strong>`;
-              const method = !zReport ? payMethodLabel(row.category) : '';
+              const method = !zReport ? payMethodLabel(row.category, { creditIncome }) : '';
               const note = !zReport ? String(row.notes || '').trim() : '';
-              const meta = [method, note].filter(Boolean).join(' · ');
+              const kind = creditIncome ? 'זיכוי' : '';
+              const meta = [kind, method, note].filter(Boolean).join(' · ');
               const metaHtml = meta ? `<span class="docs-inv__meta">${escapeHtml(meta)}</span>` : '';
               return `
-              <button type="button" class="docs-inv${zReport ? ' docs-inv--z' : ''}${privateExp ? ' docs-inv--private' : ''}" data-docs-open="${escapeHtml(row.id)}">
+              <button type="button" class="docs-inv${zReport ? ' docs-inv--z' : ''}${privateExp ? ' docs-inv--private' : ''}${creditIncome ? ' docs-inv--credit' : ''}" data-docs-open="${escapeHtml(row.id)}">
                 <span class="docs-inv__main">
                   <span class="docs-inv__date">${escapeHtml(formatDate(row.document_date))}</span>
                   ${metaHtml}
@@ -1207,7 +1242,17 @@
                 ${amountHtml}
                 <span class="docs-inv__chev" aria-hidden="true">‹</span>
               </button>`;
-            }).join('') : `<p class="docs-month__empty">${salary ? 'אין משכורות ששולמו בחודש זה' : (manual ? 'אין תשלומים בחודש זה' : (privateExp ? 'אין רכישות פרטיות בחודש זה' : (zReport ? 'אין דוחות Z בחודש זה' : 'אין חשבוניות בחודש זה')))}</p>`}
+            }).join('') : `<p class="docs-month__empty">${
+              salary
+                ? 'אין משכורות ששולמו בחודש זה'
+                : (creditIncome
+                  ? 'אין זיכויים בחודש זה'
+                  : (manual
+                    ? 'אין תשלומים בחודש זה'
+                    : (privateExp
+                      ? 'אין רכישות פרטיות בחודש זה'
+                      : (zReport ? 'אין דוחות Z בחודש זה' : 'אין חשבוניות בחודש זה'))))
+            }</p>`}
           </div>
         </section>
       `;
@@ -1413,9 +1458,17 @@
     return periodDocuments().filter((row) => isZReportSupplier(row.supplier_name));
   }
 
+  function periodCreditRows() {
+    return periodDocuments().filter((row) => isCreditDocument(row));
+  }
+
   function periodExpenseRows() {
     return periodDocuments()
-      .filter((row) => !isZReportSupplier(row.supplier_name) && !isSalarySupplier(row.supplier_name))
+      .filter((row) =>
+        !isZReportSupplier(row.supplier_name)
+        && !isSalarySupplier(row.supplier_name)
+        && !isCreditDocument(row)
+      )
       .concat(salaryDocRows().filter((row) => inReportRange(row.document_date)));
   }
 
@@ -1637,12 +1690,14 @@
   function expenseBreakdown() {
     const map = new Map();
     DEFAULT_SUPPLIERS.forEach((name) => {
-      if (!isZReportSupplier(name)) map.set(name, { name, sum: 0, count: 0 });
+      if (!isZReportSupplier(name) && !isCreditSupplier(name)) {
+        map.set(name, { name, sum: 0, count: 0 });
+      }
     });
     periodExpenseRows().forEach((row) => {
       if (!isEurExpenseRow(row)) return;
       const name = canonicalSupplier(row.supplier_name);
-      if (!name || isZReportSupplier(name)) return;
+      if (!name || isZReportSupplier(name) || isCreditSupplier(name)) return;
       if (!map.has(name)) map.set(name, { name, sum: 0, count: 0 });
       const item = map.get(name);
       item.sum += Number(row.amount_total) || 0;
@@ -1669,6 +1724,10 @@
   function renderReport() {
     ensureReportRange();
     const zSplit = sumZAmounts(periodZRows());
+    const creditRows = periodCreditRows();
+    const creditIncome = typeof global.LechaimAdminCreditsCore?.sumCreditsByMethod === 'function'
+      ? global.LechaimAdminCreditsCore.sumCreditsByMethod(creditRows)
+      : { cash: 0, credit: 0, bank: 0, total: 0 };
     const expenseRows = periodExpenseRows();
     const cashExpenses = sumPayCategoryEur(expenseRows, 'cash');
     const creditExpenses = sumPayCategoryEur(expenseRows, 'credit');
@@ -1682,7 +1741,7 @@
     const daily = dayReportsByRange[reportRangeKey()];
     const dailyLoaded = Boolean(daily?.loaded);
     const tips = dailyLoaded ? daily.tip : 0;
-    const result = roundMoney(zSplit.total - expenseTotal);
+    const result = roundMoney(zSplit.total + creditIncome.total - expenseTotal);
     const breakdown = expenseBreakdown();
     const applied = document.getElementById('docs-period-applied');
     if (applied) applied.textContent = periodLabel();
@@ -1693,6 +1752,10 @@
     const tipsEl = document.getElementById('docs-fin-tips');
     const expensesEl = document.getElementById('docs-fin-expenses');
     const resultEl = document.getElementById('docs-fin-result');
+    const creditsTotalEl = document.getElementById('docs-fin-credits-total');
+    const creditsCashEl = document.getElementById('docs-fin-credits-cash');
+    const creditsCreditEl = document.getElementById('docs-fin-credits-credit');
+    const creditsBankEl = document.getElementById('docs-fin-credits-bank');
     const expCashEl = document.getElementById('docs-fin-exp-cash');
     const expCreditEl = document.getElementById('docs-fin-exp-credit');
     const expBankEl = document.getElementById('docs-fin-exp-bank');
@@ -1705,6 +1768,10 @@
     if (creditEl) creditEl.textContent = formatMoney(zSplit.credit);
     if (tipsEl) tipsEl.textContent = dailyLoaded ? formatMoney(tips) : '…';
     if (expensesEl) expensesEl.textContent = formatMoney(expenseTotal);
+    if (creditsTotalEl) creditsTotalEl.textContent = formatMoney(creditIncome.total);
+    if (creditsCashEl) creditsCashEl.textContent = formatMoney(creditIncome.cash);
+    if (creditsCreditEl) creditsCreditEl.textContent = formatMoney(creditIncome.credit);
+    if (creditsBankEl) creditsBankEl.textContent = formatMoney(creditIncome.bank);
     if (resultEl) resultEl.textContent = formatMoney(result);
     if (expCashEl) expCashEl.textContent = formatMoney(cashExpenses);
     if (expCreditEl) expCreditEl.textContent = formatMoney(creditExpenses);
@@ -1744,6 +1811,9 @@
         return;
       }
       const zSplit = sumZAmounts(periodZRows());
+      const creditIncome = typeof global.LechaimAdminCreditsCore?.sumCreditsByMethod === 'function'
+        ? global.LechaimAdminCreditsCore.sumCreditsByMethod(periodCreditRows())
+        : { cash: 0, credit: 0, bank: 0, total: 0 };
       const expenseRows = periodExpenseRows();
       const cashExpenses = sumPayCategoryEur(expenseRows, 'cash');
       const creditExpenses = sumPayCategoryEur(expenseRows, 'credit');
@@ -1765,13 +1835,17 @@
         cash: zSplit.cash,
         credit: zSplit.credit,
         tips: daily.tip,
+        creditsTotal: creditIncome.total,
+        creditsCash: creditIncome.cash,
+        creditsCredit: creditIncome.credit,
+        creditsBank: creditIncome.bank,
         expense,
         cashExpenses,
         creditExpenses,
         bankExpenses,
         privateExpenses,
         otherExpenses,
-        result: roundMoney(zSplit.total - expense),
+        result: roundMoney(zSplit.total + creditIncome.total - expense),
         suppliers: breakdown.map((item) => ({ name: item.name, sum: item.sum })),
       });
       showToast('הקובץ ירד');
@@ -1991,26 +2065,36 @@
     const privateExp = isPrivateExpenseSupplier(supplier);
     const general = isGeneralInvoiceSupplier(supplier);
     const zReport = isZReportSupplier(supplier);
-    const textOnly = noInvoiceMode || manual || (privateExp && !pendingFile && !editingId);
+    const creditIncome = isCreditSupplier(supplier);
+    const textOnly = noInvoiceMode || manual || creditIncome || (privateExp && !pendingFile && !editingId);
     if (formTitleEl) {
       formTitleEl.textContent = editingId
         ? 'עריכה'
-        : (privateExp
-          ? (textOnly || noInvoiceMode ? 'רכישה פרטית בלי חשבונית' : PRIVATE_EXPENSE_SUPPLIER)
-          : (textOnly && !manual
-            ? 'הוצאה בלי חשבונית'
-            : (manual ? MANUAL_PAYMENT_SUPPLIER : (zReport ? 'דוח Z' : (supplier || 'חשבונית')))));
+        : (creditIncome
+          ? 'זיכוי'
+          : (privateExp
+            ? (textOnly || noInvoiceMode ? 'רכישה פרטית בלי חשבונית' : PRIVATE_EXPENSE_SUPPLIER)
+            : (textOnly && !manual
+              ? 'הוצאה בלי חשבונית'
+              : (manual ? MANUAL_PAYMENT_SUPPLIER : (zReport ? 'דוח Z' : (supplier || 'חשבונית'))))));
     }
     const hint = document.getElementById('docs-form-supplier');
     if (hint) hint.hidden = true;
     const notesLabel = document.getElementById('docs-field-notes-label');
     if (notesLabel) {
-      notesLabel.textContent = (textOnly || general || privateExp)
-        ? 'על מה יצא התשלום'
-        : 'פרטים (אופציונלי)';
+      notesLabel.textContent = creditIncome
+        ? 'תיאור'
+        : ((textOnly || general || privateExp)
+          ? 'על מה יצא התשלום'
+          : 'פרטים (אופציונלי)');
+    }
+    const payLabel = document.querySelector('#docs-pay-fields .docs-pay-label');
+    if (payLabel) {
+      payLabel.textContent = creditIncome ? 'אופן קבלת הכסף' : 'אמצעי תשלום';
     }
     setManualFormVisible(
       manual
+      || creditIncome
       || general
       || privateExp
       || textOnly
@@ -2020,12 +2104,12 @@
     setPayBankVisible(!zReport);
     setCurrencyFieldsVisible(privateExp);
     setCurrencyHighlight(pendingCurrency || 'EUR');
-    if (privateExp && !normalizeBusinessPayMethod(pendingPayMethod)) {
+    if ((privateExp || creditIncome) && !normalizeBusinessPayMethod(pendingPayMethod)) {
       pendingPayMethod = 'cash';
     }
     syncPayMethodUi(pendingPayMethod);
     setPrivatePayHint(privateExp);
-    setZFormVisible(zReport && !manual && !textOnly && !privateExp);
+    setZFormVisible(zReport && !manual && !creditIncome && !textOnly && !privateExp);
     setScanStep('form');
     if (pendingSupplierNotes) {
       const notesEl = document.getElementById('docs-field-notes');
@@ -2033,12 +2117,26 @@
       setManualFormVisible(true);
     }
     window.setTimeout(() => (
-      (manual || general || privateExp || textOnly)
+      (manual || creditIncome || general || privateExp || textOnly)
         ? document.getElementById('docs-field-notes')?.focus()
         : (zReport
           ? document.getElementById('docs-field-cash')?.focus()
           : document.getElementById('docs-field-total')?.focus())
     ), 80);
+  }
+
+  function openCreditForm() {
+    scanSupplier = CREDIT_SUPPLIER;
+    rememberSupplier(CREDIT_SUPPLIER);
+    editingId = null;
+    pendingFile = null;
+    noInvoiceMode = true;
+    revokePreviewUrl();
+    resetForm();
+    pendingPayMethod = 'cash';
+    setManualFormVisible(true);
+    goToForm();
+    openScanOverlay();
   }
 
   function openManualPaymentForm() {
@@ -2072,6 +2170,10 @@
     const key = canonicalSupplier(supplierName || activeSupplier);
     if (!key || isZReportSupplier(key) || isSalarySupplier(key)) {
       showError('בחרו ספק תחילה');
+      return;
+    }
+    if (isCreditSupplier(key)) {
+      openCreditForm();
       return;
     }
     if (isManualPaymentSupplier(key)) {
@@ -2252,9 +2354,14 @@
     const editBtn = document.getElementById('docs-view-edit');
     const deleteBtn = document.getElementById('docs-view-delete');
     const salary = row.source === 'salary' || isSalarySupplier(row.supplier_name);
+    const creditIncome = isCreditDocument(row);
     try {
       const folder = canonicalSupplier(row.supplier_name);
-      if (viewTitleEl) viewTitleEl.textContent = salary ? (row.notes || 'משכורת') : (folder || 'חשבונית');
+      if (viewTitleEl) {
+        viewTitleEl.textContent = salary
+          ? (row.notes || 'משכורת')
+          : (creditIncome ? 'זיכוי' : (folder || 'חשבונית'));
+      }
       if (viewMetaEl) {
         viewMetaEl.textContent = salary
           ? [
@@ -2263,19 +2370,32 @@
             formatMoney(row.amount_total),
             row.category === 'bank' ? 'בנק' : 'מזומן',
           ].filter(Boolean).join(' · ')
-          : [
-            folder,
-            formatDateFull(row.document_date),
-            isZReportSupplier(row.supplier_name)
-              ? `מזומן ${formatMoney(zAmounts(row).cash)} · אשראי ${formatMoney(zAmounts(row).credit)}`
-              : (isPrivateExpenseSupplier(row.supplier_name)
-                ? `${formatMoneyCurrency(row.amount_total, rowCurrency(row))}${payMethodLabel(row.category) ? ` · ${payMethodLabel(row.category)}` : ''}`
-                : `${formatMoney(row.amount_total)}${payMethodLabel(row.category) ? ` · ${payMethodLabel(row.category)}` : ''}`),
-            row.notes || '',
-          ].filter(Boolean).join(' · ');
+          : (creditIncome
+            ? [
+              'זיכוי',
+              formatDateFull(row.document_date),
+              formatMoney(row.amount_total),
+              payMethodLabel(row.category, { creditIncome: true }),
+              row.notes || '',
+            ].filter(Boolean).join(' · ')
+            : [
+              folder,
+              formatDateFull(row.document_date),
+              isZReportSupplier(row.supplier_name)
+                ? `מזומן ${formatMoney(zAmounts(row).cash)} · אשראי ${formatMoney(zAmounts(row).credit)}`
+                : (isPrivateExpenseSupplier(row.supplier_name)
+                  ? `${formatMoneyCurrency(row.amount_total, rowCurrency(row))}${payMethodLabel(row.category) ? ` · ${payMethodLabel(row.category)}` : ''}`
+                  : `${formatMoney(row.amount_total)}${payMethodLabel(row.category) ? ` · ${payMethodLabel(row.category)}` : ''}`),
+              row.notes || '',
+            ].filter(Boolean).join(' · '));
       }
       if (downloadBtn) downloadBtn.hidden = salary || !hasDocumentFile(row);
-      if (moveBtn) moveBtn.hidden = salary || isManualPaymentSupplier(row.supplier_name) || isPrivateExpenseSupplier(row.supplier_name);
+      if (moveBtn) {
+        moveBtn.hidden = salary
+          || isManualPaymentSupplier(row.supplier_name)
+          || isPrivateExpenseSupplier(row.supplier_name)
+          || creditIncome;
+      }
       if (editBtn) editBtn.hidden = salary;
       if (deleteBtn) deleteBtn.hidden = salary;
       if (viewFrameEl) {
@@ -2285,6 +2405,13 @@
           box.className = 'docs-view-note';
           if (salary) {
             box.textContent = `${row.notes || 'עובד'} · ${row.category === 'bank' ? 'בנק' : 'מזומן'} · ${formatMoney(row.amount_total)}`;
+          } else if (creditIncome) {
+            box.textContent = [
+              'זיכוי',
+              formatMoney(row.amount_total),
+              payMethodLabel(row.category, { creditIncome: true }),
+              row.notes || '',
+            ].filter(Boolean).join(' · ');
           } else if (isPrivateExpenseSupplier(row.supplier_name)) {
             box.textContent = [
               formatMoneyCurrency(row.amount_total, rowCurrency(row)),
@@ -2498,8 +2625,10 @@
     const privateExp = isPrivateExpenseSupplier(supplier);
     const general = isGeneralInvoiceSupplier(supplier);
     const zReport = isZReportSupplier(supplier);
+    const creditIncome = isCreditSupplier(supplier);
     const existingEdit = editingId ? cache.find((item) => item.id === editingId) : null;
     const textOnly = noInvoiceMode
+      || creditIncome
       || (existingEdit ? !hasDocumentFile(existingEdit) : false)
       || (privateExp && !pendingFile && !editingId);
     if (zReport) {
@@ -2512,12 +2641,19 @@
       showFormError(formErrorEl, 'הזינו סכום סופי');
       return;
     }
-    if ((manual || general || privateExp || textOnly) && !simple.notes) {
+    if (creditIncome && !simple.notes) {
+      showFormError(formErrorEl, 'כתבו תיאור לזיכוי');
+      return;
+    }
+    if ((manual || general || privateExp || (textOnly && !creditIncome)) && !simple.notes) {
       showFormError(formErrorEl, 'כתבו על מה יצא התשלום');
       return;
     }
     if (!zReport && !normalizeBusinessPayMethod(simple.method)) {
-      showFormError(formErrorEl, 'בחרו מזומן, אשראי או בנק');
+      showFormError(
+        formErrorEl,
+        creditIncome ? 'בחרו אופן קבלת הכסף' : 'בחרו מזומן, אשראי או בנק'
+      );
       return;
     }
     simple.method = normalizeBusinessPayMethod(simple.method);
@@ -2542,7 +2678,7 @@
         const existing = cache.find((item) => item.id === editingId);
         const notesValue = zReport
           ? (existing?.notes || '')
-          : ((manual || general || privateExp || textOnly)
+          : ((manual || creditIncome || general || privateExp || textOnly)
             ? simple.notes
             : (simple.notes || existing?.notes || ''));
         const data = await insertBusinessDocument(sb, {
@@ -2556,6 +2692,9 @@
           category: saveCategory,
           currency: privateExp ? saveCurrency : (existing?.currency || 'EUR'),
           status: 'saved',
+          document_type: creditIncome
+            ? CREDIT_DOCUMENT_TYPE
+            : (existing?.document_type || undefined),
         }, true);
         upsertCache(data);
         pendingSupplierNotes = '';
@@ -2564,7 +2703,7 @@
         showToast('עודכן');
         return;
       }
-      if (manual || textOnly || noInvoiceMode) {
+      if (manual || creditIncome || textOnly || noInvoiceMode) {
         const id = global.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
         const row = {
           id,
@@ -2573,7 +2712,7 @@
           original_filename: '',
           mime_type: '',
           file_size_bytes: null,
-          document_type: 'manual_payment',
+          document_type: creditIncome ? CREDIT_DOCUMENT_TYPE : 'manual_payment',
           category: saveCategory,
           supplier_name: supplier,
           document_number: '',
@@ -2651,7 +2790,9 @@
       showToast('✓ נשמר');
     } catch (err) {
       console.error('[documents] save', err);
-      if (isMissingManualPaymentSupport(err) || isMissingSuppliersTable(err)) {
+      if (creditIncome && /income_credit|document_type/i.test(String(err?.message || ''))) {
+        showFormError(formErrorEl, 'שמירת זיכוי לא זמינה כרגע');
+      } else if (isMissingManualPaymentSupport(err) || isMissingSuppliersTable(err)) {
         showFormError(formErrorEl, 'יש להריץ את supabase-business-documents-suppliers-and-manual.sql ב-SQL Editor של Supabase');
       } else if (err?.code === 'not_unlocked' || err?.code === 'not_authenticated') {
         showFormError(formErrorEl, 'אין הרשאה לשמור. נעלו ופתחו שוב את כספת המסמכים.');
@@ -2986,7 +3127,8 @@
       });
     });
     document.getElementById('docs-add-payment')?.addEventListener('click', () => {
-      if (isPrivateExpenseSupplier(activeSupplier)) openPrivateExpenseForm();
+      if (isCreditSupplier(activeSupplier)) openCreditForm();
+      else if (isPrivateExpenseSupplier(activeSupplier)) openPrivateExpenseForm();
       else openManualPaymentForm();
     });
     document.getElementById('docs-add-no-invoice')?.addEventListener('click', () => {

@@ -1,0 +1,200 @@
+/* LECHAIM — Admin sticky notes (פתקים) */
+
+#admin-view-notes {
+  padding: 1rem 1.1rem 2.5rem;
+}
+
+.notes-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.notes-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.notes-filter .admin-btn.is-active {
+  background: var(--admin-ink, #1e3354);
+  color: #fff;
+  border-color: transparent;
+}
+
+.notes-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 220px));
+  justify-content: start;
+  gap: 0.75rem;
+}
+
+.notes-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  width: 100%;
+  max-width: 220px;
+  min-height: 168px;
+  padding: 0.8rem 0.85rem;
+  border: 1px solid rgba(30, 51, 84, 0.12);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fffdf8 0%, #f7f1e7 100%);
+}
+
+.notes-card.is-open {
+  border-color: rgba(196, 90, 61, 0.35);
+  box-shadow: inset 3px 0 0 #c45a3d;
+}
+
+.notes-card.is-due {
+  border-color: rgba(180, 40, 40, 0.45);
+  background: linear-gradient(180deg, #fff5f2 0%, #f8e4dd 100%);
+  box-shadow: inset 4px 0 0 #b42828;
+}
+
+.notes-card.is-done {
+  opacity: 0.78;
+  background: #f4f2ee;
+  box-shadow: none;
+}
+
+.notes-card__main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.notes-card__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.45rem;
+}
+
+.notes-card__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e3354;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.notes-card__status {
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #7a4a3a;
+}
+
+.notes-card.is-due .notes-card__status {
+  color: #9b1c1c;
+}
+
+.notes-card.is-done .notes-card__status {
+  color: #5a6b4e;
+}
+
+.notes-card__body {
+  margin: 0.3rem 0 0;
+  white-space: pre-wrap;
+  line-height: 1.35;
+  font-size: 0.86rem;
+  color: #2c3340;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.notes-card__metas {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-top: 0.4rem;
+}
+
+.notes-card__meta {
+  font-size: 0.72rem;
+  color: #6b7c8a;
+}
+
+.notes-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: auto;
+}
+
+.notes-card__actions .admin-btn {
+  padding: 0.35rem 0.55rem;
+  font-size: 0.78rem;
+}
+
+.notes-modal__panel {
+  width: min(520px, 100%);
+  padding: 1rem 1.1rem 1.2rem;
+}
+
+.notes-form {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 0.75rem;
+}
+
+.notes-field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.notes-field span {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #1e3354;
+}
+
+.notes-field input,
+.notes-field textarea {
+  width: 100%;
+  border: 1px solid rgba(30, 51, 84, 0.18);
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem;
+  font: inherit;
+  background: #fff;
+}
+
+.notes-field textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.notes-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.notes-history {
+  margin-top: 0.25rem;
+}
+
+@media (max-width: 640px) {
+  .notes-toolbar {
+    align-items: stretch;
+  }
+
+  .notes-toolbar .admin-btn--primary {
+    width: 100%;
+  }
+
+  .notes-list {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+
+  .notes-card {
+    max-width: none;
+  }
+}

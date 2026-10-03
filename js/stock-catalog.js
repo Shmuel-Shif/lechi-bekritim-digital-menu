@@ -2,8 +2,8 @@
  * LECHAIM — Warehouse / raw-goods catalog (admin only).
  * Isolated from MENU_DATA and the dishes `inventory` table.
  *
- * Stage 1: names + categories only.
- * Later slots on each item: qty, unit, minQty (alerts / +/- come in UI).
+ * Base names + categories. Live qty / custom products live in warehouse_stock
+ * via js/admin-stock.js (not the dishes inventory table).
  */
 (function (global) {
   'use strict';

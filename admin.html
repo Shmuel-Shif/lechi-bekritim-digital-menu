@@ -15,9 +15,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=144">
+  <link rel="stylesheet" href="css/admin.css?v=146">
   <link rel="stylesheet" href="css/admin-dashboard.css?v=6">
   <link rel="stylesheet" href="css/admin-reminders.css?v=1">
+  <link rel="stylesheet" href="css/admin-notes.css?v=2">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
 <body>
@@ -102,9 +103,11 @@
               <span class="admin-tab__badge" id="tab-badge-kitchen" data-count="0" hidden>0</span>
             </button>
             <button type="button" class="admin-tab" data-tab="staff-hours">Attendance hours</button>
+            <button type="button" class="admin-tab" data-tab="notes">פתקים</button>
             <button type="button" class="admin-tab" data-tab="history">היסטוריה</button>
             <button type="button" class="admin-tab" data-tab="till">מכירות</button>
             <button type="button" class="admin-tab" data-tab="inventory">מלאי</button>
+            <button type="button" class="admin-tab" data-tab="warehouse">מחסן</button>
             <button type="button" class="admin-tab" data-tab="documents">מסמכים</button>
             <button type="button" class="admin-tab" data-tab="stats">קופונים</button>
             <button type="button" class="admin-tab" data-tab="settings">הגדרות</button>
@@ -598,6 +601,59 @@
         </section>
       </div>
 
+      <!-- Notes tab -->
+      <div class="admin-view" id="admin-view-notes" hidden>
+        <section class="tables-category">
+          <header class="admin-header admin-header--row">
+            <div class="admin-header__text">
+              <p class="admin-header__eyebrow">ניהול</p>
+              <h1 class="admin-header__title">פתקים</h1>
+              <p class="admin-header__subtitle">רשמו תזכורות ומשימות — פתק שבוצע נשאר בהיסטוריה</p>
+            </div>
+            <button type="button" class="admin-btn admin-btn--primary" id="notes-add-btn">פתק חדש</button>
+          </header>
+          <p class="admin-error" id="notes-error" role="alert" hidden></p>
+          <div class="notes-toolbar">
+            <div class="notes-filter" id="notes-filter" role="tablist" aria-label="סינון פתקים">
+              <button type="button" class="admin-btn admin-btn--soft is-active" data-notes-filter="open">פתוחים</button>
+              <button type="button" class="admin-btn admin-btn--soft" data-notes-filter="done">בוצעו</button>
+              <button type="button" class="admin-btn admin-btn--soft" data-notes-filter="all">הכל</button>
+            </div>
+          </div>
+          <div class="notes-list" id="notes-list"></div>
+          <p class="tables-category__empty" id="notes-empty" hidden>אין פתקים פתוחים</p>
+        </section>
+      </div>
+
+      <div class="admin-modal" id="notes-modal" hidden aria-hidden="true">
+        <button type="button" class="admin-modal__backdrop" id="notes-modal-backdrop" aria-label="סגור"></button>
+        <div class="admin-modal__panel notes-modal__panel" role="dialog" aria-modal="true" aria-labelledby="notes-modal-title">
+          <header class="history-session-modal__header">
+            <h2 class="history-session-modal__title" id="notes-modal-title">פתק חדש</h2>
+            <button type="button" class="admin-btn admin-btn--ghost" id="notes-modal-close">סגור</button>
+          </header>
+          <form id="notes-form" class="notes-form" novalidate>
+            <label class="notes-field">
+              <span>כותרת</span>
+              <input type="text" id="notes-field-title" maxlength="120" autocomplete="off" required>
+            </label>
+            <label class="notes-field">
+              <span>תוכן הפתק</span>
+              <textarea id="notes-field-body" maxlength="4000" required></textarea>
+            </label>
+            <label class="notes-field">
+              <span>תזכורת (אופציונלי)</span>
+              <input type="datetime-local" id="notes-field-remind" dir="ltr">
+            </label>
+            <p class="admin-error" id="notes-form-error" role="alert" hidden></p>
+            <div class="notes-form__actions">
+              <button type="submit" class="admin-btn admin-btn--primary">שמור</button>
+              <button type="button" class="admin-btn admin-btn--ghost" id="notes-form-cancel">ביטול</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
       <!-- History tab -->
       <div class="admin-view" id="admin-view-history" hidden>
         <section class="tables-category">
@@ -605,7 +661,7 @@
             <div class="admin-header__text">
               <p class="admin-header__eyebrow">ניהול</p>
               <h1 class="admin-header__title">היסטוריה</h1>
-              <p class="admin-header__subtitle">בחרו שולחן, איסוף עצמי, חנות בשרים, הזמנות לשבת או הזמנות להיום לצפייה בהיסטוריה</p>
+              <p class="admin-header__subtitle">בחרו שולחן, איסוף עצמי, חנות בשרים, הזמנות לשבת, הזמנות להיום או פתקים</p>
             </div>
             <button type="button" class="admin-btn admin-btn--danger" id="history-reset-all-btn">אפס היסטוריה</button>
           </header>
@@ -1086,7 +1142,6 @@
           <button type="button" class="admin-filter" data-inventory-scope="shabbat" role="tab" aria-selected="false">מלאי של שבת</button>
           <button type="button" class="admin-filter is-active" data-inventory-scope="weekday" role="tab" aria-selected="true">מלאי יום חול</button>
           <button type="button" class="admin-filter" data-inventory-scope="butcher" role="tab" aria-selected="false">מלאי חנות בשרים</button>
-          <button type="button" class="admin-filter" data-inventory-scope="warehouse" role="tab" aria-selected="false">📦 מלאי מחסן</button>
         </div>
 
         <div id="admin-inventory-dish-ui">
@@ -1136,8 +1191,47 @@
         <p class="admin-status" id="admin-status" aria-live="polite"></p>
         <div class="admin-list" id="admin-list"></div>
         </div>
+      </div>
 
-        <div id="admin-stock-panel" hidden></div>
+      <!-- Warehouse stock tab -->
+      <div class="admin-view" id="admin-view-warehouse" hidden>
+        <header class="admin-header">
+          <div class="admin-header__text">
+            <p class="admin-header__eyebrow">ניהול</p>
+            <h1 class="admin-header__title">מחסן</h1>
+            <p class="admin-header__subtitle">כמויות מוצרים במחסן · אפשר להוסיף מוצרים חדשים</p>
+          </div>
+        </header>
+        <div id="admin-stock-panel"></div>
+      </div>
+
+      <div class="admin-modal" id="stock-add-modal" hidden aria-hidden="true">
+        <button type="button" class="admin-modal__backdrop" id="stock-add-backdrop" aria-label="סגור"></button>
+        <div class="admin-modal__panel stock-add-modal__panel" role="dialog" aria-modal="true" aria-labelledby="stock-add-title">
+          <header class="history-session-modal__header">
+            <h2 class="history-session-modal__title" id="stock-add-title">הוספת מוצר למחסן</h2>
+            <button type="button" class="admin-btn admin-btn--ghost" id="stock-add-close">סגור</button>
+          </header>
+          <form id="stock-add-form" class="stock-add-form" novalidate>
+            <label class="stock-add-field">
+              <span>שם המוצר</span>
+              <input type="text" id="stock-add-name" maxlength="120" autocomplete="off" required>
+            </label>
+            <label class="stock-add-field">
+              <span>קטגוריה</span>
+              <select id="stock-add-category" required></select>
+            </label>
+            <label class="stock-add-field">
+              <span>כמות</span>
+              <input type="number" id="stock-add-qty" min="0" step="1" inputmode="decimal" dir="ltr" value="0">
+            </label>
+            <p class="admin-error" id="stock-add-error" role="alert" hidden></p>
+            <div class="stock-add-form__actions">
+              <button type="submit" class="admin-btn admin-btn--primary">שמור</button>
+              <button type="button" class="admin-btn admin-btn--ghost" id="stock-add-cancel">ביטול</button>
+            </div>
+          </form>
+        </div>
       </div>
 
       <!-- Documents tab -->
@@ -1245,8 +1339,27 @@
                 </article>
               </div>
 
+              <section class="docs-fin__exp" aria-label="זיכויים">
+                <div class="docs-fin__exp-line">
+                  <span>זיכויים</span>
+                  <strong id="docs-fin-credits-total">€0</strong>
+                </div>
+                <div class="docs-fin__exp-line">
+                  <span>זיכויים במזומן</span>
+                  <strong id="docs-fin-credits-cash">€0</strong>
+                </div>
+                <div class="docs-fin__exp-line">
+                  <span>זיכויים באשראי</span>
+                  <strong id="docs-fin-credits-credit">€0</strong>
+                </div>
+                <div class="docs-fin__exp-line">
+                  <span>זיכויים בחשבון בנק</span>
+                  <strong id="docs-fin-credits-bank">€0</strong>
+                </div>
+              </section>
+
               <div class="docs-fin__result">
-                <span class="docs-fin__result-label">מכירות פחות הוצאות</span>
+                <span class="docs-fin__result-label">מכירות + זיכויים פחות הוצאות</span>
                 <strong class="docs-fin__result-value" id="docs-fin-result">€0</strong>
               </div>
 
@@ -1590,7 +1703,7 @@
               <div class="docs-pay-methods" role="group" aria-label="אמצעי תשלום">
                 <button type="button" class="admin-btn admin-btn--soft" data-docs-pay="cash">מזומן</button>
                 <button type="button" class="admin-btn admin-btn--soft" data-docs-pay="credit">אשראי</button>
-                <button type="button" class="admin-btn admin-btn--soft" data-docs-pay="bank">בנק</button>
+                <button type="button" class="admin-btn admin-btn--soft" data-docs-pay="bank">חשבון בנק</button>
               </div>
             </div>
             <div id="docs-currency-fields" hidden>
@@ -2475,19 +2588,22 @@
   <script src="js/kitchen-alert-service.js?v=13" defer></script>
   <script src="js/admin-kitchen-alerts.js?v=17" defer></script>
   <script src="js/admin-kitchen-board.js?v=34" defer></script>
-  <script src="js/admin-history.js?v=4" defer></script>
+  <script src="js/admin-history.js?v=5" defer></script>
+  <script src="js/admin-notes-core.js?v=1" defer></script>
+  <script src="js/admin-notes.js?v=1" defer></script>
   <script src="js/admin-coupons.js" defer></script>
   <script src="js/admin-till.js?v=21" defer></script>
   <script src="js/admin-dashboard.js?v=6" defer></script>
   <script src="js/staff-hours-xlsx.js?v=4" defer></script>
   <script src="js/admin-staff-hours.js?v=23" defer></script>
-  <script src="js/docs-monthly-xlsx.js?v=6" defer></script>
+  <script src="js/admin-credits-core.js?v=1" defer></script>
+  <script src="js/docs-monthly-xlsx.js?v=7" defer></script>
   <script src="js/docs-monthly-pdf.js?v=1" defer></script>
-  <script src="js/admin-documents.js?v=33" defer></script>
+  <script src="js/admin-documents.js?v=34" defer></script>
   <script src="js/admin-settings.js?v=15" defer></script>
-  <script src="js/stock-catalog.js?v=6" defer></script>
-  <script src="js/admin-stock.js?v=2" defer></script>
-  <script src="js/admin.js?v=74" defer></script>
+  <script src="js/stock-catalog.js?v=7" defer></script>
+  <script src="js/admin-stock.js?v=4" defer></script>
+  <script src="js/admin.js?v=76" defer></script>
   <script src="js/admin-push.js?v=3" defer></script>
   <script src="js/admin-reminders.js?v=3" defer></script>
   <script src="js/admin-pwa.js?v=2" defer></script>

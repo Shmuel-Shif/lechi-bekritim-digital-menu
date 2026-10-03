@@ -188,6 +188,12 @@
         <span class="history-pick-card__label">הזמנות להיום</span>
       </button>
     `);
+    tables.push(`
+      <button type="button" class="history-pick-card history-pick-card--notes" data-history-key="notes">
+        <span class="history-pick-card__num">פתק</span>
+        <span class="history-pick-card__label">פתקים</span>
+      </button>
+    `);
     pickerEl.innerHTML = `<div class="history-picker__grid">${tables.join('')}</div>`;
     pickerEl.hidden = false;
     if (detailEl) detailEl.hidden = true;
@@ -641,6 +647,19 @@
     if (detailEmpty) detailEmpty.hidden = true;
     if (pickerEl) pickerEl.hidden = true;
     if (detailEl) detailEl.hidden = false;
+
+    if (key === 'notes') {
+      if (detailTitle) detailTitle.textContent = 'פתקים';
+      if (detailEmpty) detailEmpty.hidden = true;
+      if (detailList) detailList.innerHTML = '';
+      if (typeof global.LechaimAdminNotes?.mountHistory === 'function') {
+        global.LechaimAdminNotes.mountHistory(detailList);
+      } else if (detailEmpty) {
+        detailEmpty.hidden = false;
+        detailEmpty.textContent = 'פתקים לא זמינים';
+      }
+      return;
+    }
 
     if (isPlaceHistoryKey(key)) {
       const places = placeApi();

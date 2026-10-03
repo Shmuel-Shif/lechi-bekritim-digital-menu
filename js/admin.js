@@ -25,8 +25,6 @@
   const searchInput = document.getElementById('admin-inventory-filter');
   const filtersEl = document.querySelector('.admin-filters');
   const scopesEl = document.querySelector('.admin-inventory-scopes');
-  const dishInventoryUi = document.getElementById('admin-inventory-dish-ui');
-  const stockPanel = document.getElementById('admin-stock-panel');
   const statTotal = document.getElementById('stat-total');
   const statAvailable = document.getElementById('stat-available');
   const statUnavailable = document.getElementById('stat-unavailable');
@@ -36,7 +34,9 @@
   const viewReservations = document.getElementById('admin-view-reservations');
   const viewSupport = document.getElementById('admin-view-support');
   const viewHistory = document.getElementById('admin-view-history');
+  const viewNotes = document.getElementById('admin-view-notes');
   const viewInventory = document.getElementById('admin-view-inventory');
+  const viewWarehouse = document.getElementById('admin-view-warehouse');
   const viewStats = document.getElementById('admin-view-stats');
   const viewTill = document.getElementById('admin-view-till');
   const viewStaffHours = document.getElementById('admin-view-staff-hours');
@@ -163,6 +163,7 @@
 
   function setTab(tab) {
     if (tab === 'inventory') currentTab = 'inventory';
+    else if (tab === 'warehouse') currentTab = 'warehouse';
     else if (tab === 'stats') currentTab = 'stats';
     else if (tab === 'till') currentTab = 'till';
     else if (tab === 'staff-hours') currentTab = 'staff-hours';
@@ -173,6 +174,7 @@
     else if (tab === 'shabbat') currentTab = 'shabbat';
     else if (tab === 'reservations') currentTab = 'reservations';
     else if (tab === 'support') currentTab = 'support';
+    else if (tab === 'notes') currentTab = 'notes';
     else if (tab === 'history') currentTab = 'history';
     else if (tab === 'settings') currentTab = 'settings';
     else if (tab === 'kitchen') currentTab = 'kitchen';
@@ -193,10 +195,12 @@
     if (viewShabbat) viewShabbat.hidden = currentTab !== 'shabbat';
     if (viewReservations) viewReservations.hidden = currentTab !== 'reservations';
     if (viewSupport) viewSupport.hidden = currentTab !== 'support';
+    if (viewNotes) viewNotes.hidden = currentTab !== 'notes';
     if (viewHistory) viewHistory.hidden = currentTab !== 'history';
     if (viewTill) viewTill.hidden = currentTab !== 'till';
     if (viewStaffHours) viewStaffHours.hidden = currentTab !== 'staff-hours';
     if (viewInventory) viewInventory.hidden = currentTab !== 'inventory';
+    if (viewWarehouse) viewWarehouse.hidden = currentTab !== 'warehouse';
     if (viewStats) viewStats.hidden = currentTab !== 'stats';
     if (viewSettings) viewSettings.hidden = currentTab !== 'settings';
     if (viewKitchen) viewKitchen.hidden = currentTab !== 'kitchen';
@@ -233,6 +237,12 @@
       window.LechaimAdminShabbat?.closeDrawer?.();
     }
 
+    if (currentTab === 'notes') {
+      window.LechaimAdminNotes?.start?.();
+    } else if (currentTab !== 'history') {
+      window.LechaimAdminNotes?.stop?.();
+    }
+
     if (currentTab === 'history') {
       window.LechaimAdminHistory?.start?.();
     }
@@ -265,6 +275,10 @@
     } else {
       window.LechaimAdminDashboard?.stop?.();
     }
+
+    if (currentTab === 'warehouse') {
+      window.LechaimAdminStock?.render?.();
+    }
   }
 
   function escapeHtml(str) {
@@ -287,21 +301,7 @@
     return `€${price}`;
   }
 
-  function isWarehouseScope() {
-    return currentInventoryScope === 'warehouse';
-  }
-
-  function applyInventoryScopeUi() {
-    const warehouse = isWarehouseScope();
-    if (dishInventoryUi) dishInventoryUi.hidden = warehouse;
-    if (stockPanel) stockPanel.hidden = !warehouse;
-    if (warehouse) {
-      window.LechaimAdminStock?.render?.();
-    }
-  }
-
   function refreshCatalogCache() {
-    if (isWarehouseScope()) return catalogCache;
     catalogCache = LechaimInventory.getCatalog({ scope: currentInventoryScope });
     if (!catalogCache.length) {
       const report = LechaimInventory.diagnoseMenuGlobals?.() || {
@@ -484,8 +484,6 @@
   }
 
   function renderList() {
-    applyInventoryScopeUi();
-    if (isWarehouseScope()) return;
     if (!listEl) return;
 
     refreshCatalogCache();
@@ -517,7 +515,6 @@
   }
 
   function updateCard(productId) {
-    if (isWarehouseScope()) return;
     refreshCatalogCache();
     updateStats();
 
@@ -1057,7 +1054,6 @@
       if (!inventorySubscribed) {
         inventorySubscribed = true;
         LechaimInventory.subscribe((payload) => {
-          if (isWarehouseScope()) return;
           if (currentTab !== 'inventory') {
             refreshCatalogCache();
             updateStats();
@@ -1257,10 +1253,12 @@
       && tab !== 'shabbat'
       && tab !== 'reservations'
       && tab !== 'support'
+      && tab !== 'notes'
       && tab !== 'history'
       && tab !== 'till'
       && tab !== 'staff-hours'
       && tab !== 'inventory'
+      && tab !== 'warehouse'
       && tab !== 'stats'
       && tab !== 'settings'
       && tab !== 'kitchen'

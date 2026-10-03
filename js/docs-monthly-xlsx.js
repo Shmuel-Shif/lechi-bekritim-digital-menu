@@ -135,6 +135,10 @@
     const cash = money(payload?.cash);
     const credit = money(payload?.credit);
     const tips = money(payload?.tips);
+    const creditsTotal = money(payload?.creditsTotal);
+    const creditsCash = money(payload?.creditsCash);
+    const creditsCredit = money(payload?.creditsCredit);
+    const creditsBank = money(payload?.creditsBank);
     const expense = money(payload?.expense);
     const cashExpenses = money(payload?.cashExpenses);
     const creditExpenses = money(payload?.creditExpenses);
@@ -145,7 +149,9 @@
         ? payload.otherExpenses
         : (expense - cashExpenses - creditExpenses - bankExpenses - privateExpenses)
     );
-    const result = money(payload?.result != null ? payload.result : (sales - expense));
+    const result = money(
+      payload?.result != null ? payload.result : (sales + creditsTotal - expense)
+    );
     const rows = Array.isArray(payload?.suppliers) ? payload.suppliers : [];
 
     const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -227,24 +233,28 @@
     xmlRows.push(`<row r="4">${sCell(sst, 'A4', 'מזומן')}${numCell('B4', cash, 3)}</row>`);
     xmlRows.push(`<row r="5">${sCell(sst, 'A5', 'אשראי')}${numCell('B5', credit, 3)}</row>`);
     xmlRows.push(`<row r="6">${sCell(sst, 'A6', 'טיפים')}${numCell('B6', tips, 3)}</row>`);
-    xmlRows.push(`<row r="7">${sCell(sst, 'A7', 'סה״כ הוצאות')}${numCell('B7', expense, 3)}</row>`);
-    xmlRows.push('<row r="8"/>');
-    xmlRows.push(`<row r="9">${sCell(sst, 'A9', 'מכירות פחות הוצאות', 4)}${numCell('B9', result, 4)}</row>`);
-    xmlRows.push('<row r="10"/>');
-    xmlRows.push(`<row r="11">${sCell(sst, 'A11', 'הוצאות מזומן')}${numCell('B11', cashExpenses, 3)}</row>`);
-    xmlRows.push(`<row r="12">${sCell(sst, 'A12', 'הוצאות אשראי')}${numCell('B12', creditExpenses, 3)}</row>`);
-    xmlRows.push(`<row r="13">${sCell(sst, 'A13', 'הוצאות בנקאיות')}${numCell('B13', bankExpenses, 3)}</row>`);
-    xmlRows.push(`<row r="14">${sCell(sst, 'A14', 'רכישה פרטית / מחוץ לכספי העסק')}${numCell('B14', privateExpenses, 3)}</row>`);
-    xmlRows.push(`<row r="15">${sCell(sst, 'A15', 'הוצאות ללא אמצעי תשלום')}${numCell('B15', otherExpenses, 3)}</row>`);
-    xmlRows.push('<row r="16"/>');
-    xmlRows.push(`<row r="17">${sCell(sst, 'A17', 'ספק', 2)}${sCell(sst, 'B17', 'סה״כ', 2)}</row>`);
+    xmlRows.push(`<row r="7">${sCell(sst, 'A7', 'זיכויים')}${numCell('B7', creditsTotal, 3)}</row>`);
+    xmlRows.push(`<row r="8">${sCell(sst, 'A8', 'זיכויים במזומן')}${numCell('B8', creditsCash, 3)}</row>`);
+    xmlRows.push(`<row r="9">${sCell(sst, 'A9', 'זיכויים באשראי')}${numCell('B9', creditsCredit, 3)}</row>`);
+    xmlRows.push(`<row r="10">${sCell(sst, 'A10', 'זיכויים בחשבון בנק')}${numCell('B10', creditsBank, 3)}</row>`);
+    xmlRows.push(`<row r="11">${sCell(sst, 'A11', 'סה״כ הוצאות')}${numCell('B11', expense, 3)}</row>`);
+    xmlRows.push('<row r="12"/>');
+    xmlRows.push(`<row r="13">${sCell(sst, 'A13', 'מכירות + זיכויים פחות הוצאות', 4)}${numCell('B13', result, 4)}</row>`);
+    xmlRows.push('<row r="14"/>');
+    xmlRows.push(`<row r="15">${sCell(sst, 'A15', 'הוצאות מזומן')}${numCell('B15', cashExpenses, 3)}</row>`);
+    xmlRows.push(`<row r="16">${sCell(sst, 'A16', 'הוצאות אשראי')}${numCell('B16', creditExpenses, 3)}</row>`);
+    xmlRows.push(`<row r="17">${sCell(sst, 'A17', 'הוצאות בנקאיות')}${numCell('B17', bankExpenses, 3)}</row>`);
+    xmlRows.push(`<row r="18">${sCell(sst, 'A18', 'רכישה פרטית / מחוץ לכספי העסק')}${numCell('B18', privateExpenses, 3)}</row>`);
+    xmlRows.push(`<row r="19">${sCell(sst, 'A19', 'הוצאות ללא אמצעי תשלום')}${numCell('B19', otherExpenses, 3)}</row>`);
+    xmlRows.push('<row r="20"/>');
+    xmlRows.push(`<row r="21">${sCell(sst, 'A21', 'ספק', 2)}${sCell(sst, 'B21', 'סה״כ', 2)}</row>`);
 
     rows.forEach((row, idx) => {
-      const r = 18 + idx;
+      const r = 22 + idx;
       xmlRows.push(`<row r="${r}">${sCell(sst, `A${r}`, row.name || '—')}${numCell(`B${r}`, row.sum, 3)}</row>`);
     });
 
-    const lastRow = Math.max(17, 17 + rows.length);
+    const lastRow = Math.max(21, 21 + rows.length);
     const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <dimension ref="A1:B${lastRow}"/>
