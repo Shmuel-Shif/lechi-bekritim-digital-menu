@@ -685,27 +685,21 @@ button {
 }
 
 .hero-welcome {
-  font-family: var(--font-hebrew);
-  font-size: clamp(1.15rem, 4vw, 1.5rem);
-  font-weight: 600;
-  line-height: 1.3;
-  color: var(--color-white);
-  margin: 0 0 var(--space-xs);
-  text-shadow: 0 2px 14px rgba(21, 38, 64, 0.45);
+  display: none;
 }
 
 .hero-title {
   font-family: var(--font-hebrew);
-  font-size: clamp(1.5rem, 5.5vw, 2.25rem);
+  font-size: clamp(1.85rem, 6.2vw, 2.55rem);
   font-weight: 700;
-  line-height: 1.25;
+  line-height: 1.2;
   color: var(--color-white);
   margin: 0 0 var(--space-sm);
 }
 
 .hero-kosher {
   font-family: var(--font-hebrew);
-  font-size: clamp(1rem, 3.2vw, 1.125rem);
+  font-size: clamp(1.2rem, 4vw, 1.45rem);
   font-weight: 700;
   color: var(--color-white);
   margin: 0 0 var(--space-md);
@@ -3935,6 +3929,29 @@ body.browse-only #order-back-toggle {
     padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--hero-fade-h) + 1.25rem);
   }
 
+  body:not(.butcher-mode) .hero-content {
+    justify-content: stretch;
+  }
+
+  body:not(.butcher-mode) .hero-bottom {
+    flex: 1;
+    height: 100%;
+    justify-content: space-between;
+    padding-top: calc(var(--header-height) + 5.15rem);
+  }
+
+  body:not(.butcher-mode) .hero-text {
+    margin-bottom: 0;
+  }
+
+  body:not(.butcher-mode) .hero-title {
+    font-size: clamp(2.05rem, 8.4vw, 2.7rem);
+  }
+
+  body:not(.butcher-mode) .hero-kosher {
+    font-size: clamp(1.3rem, 5vw, 1.65rem);
+  }
+
   .hero-cert {
     display: block;
     max-width: 22ch;
@@ -4060,6 +4077,10 @@ body.browse-only #order-back-toggle {
   .hero-content {
     /* Keep CTA clear of the hero↔menu fade band on desktop too */
     padding-block: var(--space-3xl) calc(var(--hero-fade-h) + 1.5rem);
+  }
+
+  body:not(.butcher-mode) .hero-text {
+    margin-bottom: clamp(2.75rem, 7vh, 4.5rem);
   }
 
   .menu-category {
