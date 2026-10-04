@@ -48,7 +48,7 @@
 }
 .help-bot-fab__bot {
   position: absolute;
-  left: 0;
+  left: 5px;
   bottom: 0;
   width: auto;
   height: 5.9rem;
@@ -423,6 +423,33 @@ body.lang-fab-on:has(#lechaim-help-bot-fab) .site-footer--compact {
 
 body.lang-fab-on.waiter-fab-on:has(#lechaim-help-bot-fab) .site-footer--compact {
   padding-bottom: calc(16.6rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* UserWay position 5 is bottom-left. Lift it above the left-side controls. */
+.uwy.userway_p5 .userway_buttons_wrapper {
+  top: auto !important;
+  right: auto !important;
+  left: calc(1rem + 1.6rem - 22px) !important;
+  transform: none !important;
+  bottom: calc(var(--lechaim-fab-floor) + var(--lechaim-help-bot-h) + var(--lechaim-fab-gap) + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+body.lang-fab-on:not(.entry-pending) .uwy.userway_p5 .userway_buttons_wrapper {
+  bottom: calc(var(--lechaim-fab-floor) + var(--lechaim-help-bot-h) + (var(--lechaim-fab-gap) * 2) + 5.5rem + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+body.waiter-fab-on.lang-fab-on:not(.entry-pending) .uwy.userway_p5 .userway_buttons_wrapper {
+  bottom: calc(var(--lechaim-fab-floor) + var(--lechaim-help-bot-h) + var(--lechaim-waiter-size) + (var(--lechaim-fab-gap) * 3) + 5.5rem + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+body.entry-pending .uwy.userway_p5 .userway_buttons_wrapper {
+  bottom: calc(0.85rem + 7.9rem + 0.45rem + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+@media (max-width: 768px) {
+  .uwy.userway_p5 .userway_buttons_wrapper {
+    left: calc(0.65rem + 1.6rem - 22px) !important;
+  }
 }
 
 @media (max-width: 640px) {

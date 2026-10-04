@@ -2355,6 +2355,7 @@
     const welcomeEl = document.querySelector('[data-i18n="heroWelcome"]');
     const kosherEl = document.querySelector('[data-i18n="heroKosher"]');
     const desc = document.getElementById('butcher-hero-desc');
+    const cta = document.getElementById('hero-cta');
 
     if (butcher) {
       /* Order: shop title → kashrut line → description */
@@ -2375,6 +2376,7 @@
           .map((line) => `<p>${escapeHtml(line)}</p>`)
           .join('');
       }
+      if (cta) cta.textContent = t('butcherHeroCta');
     } else {
       if (titleEl) titleEl.textContent = t('heroTitle');
       if (welcomeEl) {
@@ -2389,6 +2391,7 @@
         desc.hidden = true;
         desc.innerHTML = '';
       }
+      if (cta) cta.textContent = t('viewMenu');
     }
   }
 

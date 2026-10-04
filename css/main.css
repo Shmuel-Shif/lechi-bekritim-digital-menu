@@ -4275,6 +4275,26 @@ body.butcher-mode .hero-butcher-desc p:last-child {
   color: rgba(255, 255, 255, 0.98);
 }
 
+/* Desktop header stays visible, so the butcher copy must start below it. */
+@media (min-width: 960px) {
+  body.butcher-mode .hero {
+    box-sizing: border-box;
+    padding-top: var(--header-height);
+    min-height: 100svh;
+    min-height: 100dvh;
+    height: auto;
+  }
+
+  body.butcher-mode .hero-content {
+    justify-content: safe center;
+    flex: 1 0 auto;
+    min-height: calc(100svh - var(--header-height));
+    min-height: calc(100dvh - var(--header-height));
+    padding-top: 5.25rem;
+    padding-bottom: calc(var(--hero-fade-h) + 1.25rem);
+  }
+}
+
 .food-card--by-weight .food-meta {
   flex-direction: column;
   align-items: stretch;
