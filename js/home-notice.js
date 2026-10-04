@@ -104,14 +104,12 @@
     root.innerHTML = `
       <button type="button" class="home-notice__backdrop" data-home-notice-close aria-label="סגור"></button>
       <div class="home-notice__panel" role="dialog" aria-modal="true" aria-labelledby="home-notice-title">
+        <button type="button" class="home-notice__close" data-home-notice-close aria-label="סגור">×</button>
         <div class="home-notice__head">
           <h2 class="home-notice__title" id="home-notice-title"></h2>
         </div>
         <div class="home-notice__scroll">
           <div class="home-notice__body" id="home-notice-body"></div>
-        </div>
-        <div class="home-notice__foot">
-          <button type="button" class="home-notice__ok" data-home-notice-close>הבנתי</button>
         </div>
       </div>
     `;

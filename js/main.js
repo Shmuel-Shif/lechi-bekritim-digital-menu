@@ -4637,9 +4637,59 @@
     scrollEl.scrollBy({ left: offset, behavior: 'smooth' });
   }
 
+  let scrollAnimRaf = 0;
+
+  function prefersReducedMotion() {
+    try {
+      return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /** Soft ease-in-out — slower start/end so long jumps don’t feel like a “boom”. */
+  function easeInOutQuint(t) {
+    return t < 0.5
+      ? 16 * t * t * t * t * t
+      : 1 - ((-2 * t + 2) ** 5) / 2;
+  }
+
+  function animateScrollToY(top, { duration } = {}) {
+    const targetY = Math.max(0, Math.round(top));
+    const startY = window.scrollY || window.pageYOffset || 0;
+    const delta = targetY - startY;
+    if (Math.abs(delta) < 1) return;
+
+    const dist = Math.abs(delta);
+    /* Never hard-jump: even with reduced-motion use a short soft glide */
+    const ms = prefersReducedMotion()
+      ? Math.min(480, Math.max(320, dist * 0.4))
+      : (duration ?? Math.min(1100, Math.max(650, dist * 0.85)));
+
+    if (scrollAnimRaf) cancelAnimationFrame(scrollAnimRaf);
+    const t0 = performance.now();
+
+    const step = (now) => {
+      const t = Math.min(1, (now - t0) / ms);
+      window.scrollTo(0, startY + delta * easeInOutQuint(t));
+      if (t < 1) {
+        scrollAnimRaf = requestAnimationFrame(step);
+      } else {
+        scrollAnimRaf = 0;
+      }
+    };
+
+    scrollAnimRaf = requestAnimationFrame(step);
+  }
+
+  let smoothScrollInited = false;
+
   function initSmoothScroll() {
+    if (smoothScrollInited) return;
+    smoothScrollInited = true;
+
     document.addEventListener('click', (e) => {
-      const link = e.target.closest('a[href^="#"]');
+      const link = e.target.closest?.('a[href^="#"]');
       if (!link) return;
 
       const id = link.getAttribute('href').slice(1);
@@ -4649,7 +4699,7 @@
       if (!target) return;
 
       e.preventDefault();
-      scrollToSection(id);
+      scrollToSection(id, { fromHero: link.id === 'hero-cta' });
 
       if (link.classList.contains('category-link')) {
         setActiveCategory(id);
@@ -4658,13 +4708,20 @@
     });
   }
 
-  function scrollToSection(id) {
+  function scrollToSection(id, options = {}) {
     const target = document.getElementById(id);
     if (!target) return;
 
     const offset = getScrollOffset();
     const top = target.getBoundingClientRect().top + window.scrollY - offset;
-    window.scrollTo({ top, behavior: 'smooth' });
+    const dist = Math.abs(top - (window.scrollY || 0));
+
+    /* Hero → menu: longer, softer glide (native smooth feels abrupt on this jump). */
+    const duration = options.fromHero
+      ? Math.min(1450, Math.max(950, dist * 1.1))
+      : undefined;
+
+    animateScrollToY(top, { duration });
   }
 
   function getScrollOffset() {
@@ -8108,10 +8165,13 @@
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
+      /* Soft hash scrolling must work even before entry-gate calls startApp */
+      initSmoothScroll();
       /* Entry gate owns startup when present; otherwise start menu immediately */
       if (!document.getElementById('entry-gate')) startApp();
     });
-  } else if (!document.getElementById('entry-gate')) {
-    startApp();
+  } else {
+    initSmoothScroll();
+    if (!document.getElementById('entry-gate')) startApp();
   }
 })();

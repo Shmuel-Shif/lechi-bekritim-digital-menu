@@ -1451,8 +1451,8 @@
       if (!key || seen.has(key)) return;
       if (!resolveOpenEntry(key)?.order) {
         dishGroupsBySession.delete(key);
-        return;
-      }
+      return;
+    }
       seen.add(key);
       next.push(key);
     });
@@ -1461,9 +1461,9 @@
 
   function renderOpenTicket(entry) {
     const sid = String(entry.order?.sessionId || '');
-    const counts = readyCounts(entry.order.items);
+      const counts = readyCounts(entry.order.items);
     const waiting = waitingCount(entry);
-    const allDone = Boolean(entry.order.kitchenAllReady) && counts.allReady;
+      const allDone = Boolean(entry.order.kitchenAllReady) && counts.allReady;
     const groups = dishGroups?.buildDisplayGroups?.(entry.order.items) || [];
     dishGroupsBySession.set(sid, groups);
     const showAllReady = counts.allReady && !entry.order.kitchenAllReady;

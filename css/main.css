@@ -464,7 +464,10 @@ button {
    HERO
    ============================================ */
 .hero {
+  /* Same fade length family as .bg-bridge--menu-footer */
+  --hero-fade-h: clamp(8rem, 20vw, 12rem);
   position: relative;
+  z-index: 2;
   min-height: 100svh;
   min-height: 100vh;
   display: flex;
@@ -478,6 +481,37 @@ button {
   inset: 0;
   z-index: 0;
   overflow: hidden;
+  /*
+    Footer principle, inverted: the continuing layer underneath is the menu photo;
+    this layer fades away with the same stop curve as .bg-bridge--menu-footer.
+    CTA stays in .hero-content (outside the masked layer).
+  */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 calc(100% - var(--hero-fade-h)),
+    rgba(0, 0, 0, 0.85) calc(100% - (var(--hero-fade-h) * 0.82)),
+    rgba(0, 0, 0, 0.55) calc(100% - (var(--hero-fade-h) * 0.55)),
+    rgba(0, 0, 0, 0.28) calc(100% - (var(--hero-fade-h) * 0.32)),
+    rgba(0, 0, 0, 0.1) calc(100% - (var(--hero-fade-h) * 0.12)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 calc(100% - var(--hero-fade-h)),
+    rgba(0, 0, 0, 0.85) calc(100% - (var(--hero-fade-h) * 0.82)),
+    rgba(0, 0, 0, 0.55) calc(100% - (var(--hero-fade-h) * 0.55)),
+    rgba(0, 0, 0, 0.28) calc(100% - (var(--hero-fade-h) * 0.32)),
+    rgba(0, 0, 0, 0.1) calc(100% - (var(--hero-fade-h) * 0.12)),
+    transparent 100%
+  );
+}
+
+/* Fade is the hero-bg mask — no solid navy slab under the CTA */
+.hero::after {
+  content: none;
+  display: none;
 }
 
 .hero-slides {
@@ -522,6 +556,7 @@ button {
   object-position: center center;
   transform: scale(1);
   transform-origin: center center;
+  filter: none;
   backface-visibility: hidden;
 }
 
@@ -542,18 +577,21 @@ button {
 .hero-overlay {
   position: absolute;
   inset: 0;
+  /* Strong over copy/CTA; clears in the fade band so two photos can blend */
   background: linear-gradient(
-    to top,
-    rgba(0, 0, 0, 0.92) 0%,
-    rgba(0, 0, 0, 0.58) 32%,
-    rgba(0, 0, 0, 0.22) 58%,
-    rgba(0, 0, 0, 0.06) 100%
+    to bottom,
+    rgba(21, 38, 64, 0.12) 0%,
+    rgba(21, 38, 64, 0.4) 34%,
+    rgba(21, 38, 64, 0.72) calc(100% - var(--hero-fade-h) - 1.5rem),
+    rgba(21, 38, 64, 0.35) calc(100% - (var(--hero-fade-h) * 0.55)),
+    rgba(21, 38, 64, 0.08) calc(100% - (var(--hero-fade-h) * 0.2)),
+    transparent 100%
   );
 }
 
 .hero-content {
   position: relative;
-  z-index: 1;
+  z-index: 5;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -561,7 +599,8 @@ button {
   align-items: center;
   width: 100%;
   text-align: center;
-  padding-block: clamp(2rem, 8vh, 4rem) clamp(2.5rem, 10vh, 5rem);
+  /* CTA fully above the fade band */
+  padding-block: clamp(2rem, 8vh, 4rem) calc(var(--hero-fade-h) + 1.35rem);
 }
 
 .hero-bottom {
@@ -3871,11 +3910,13 @@ body.browse-only #order-back-toggle {
 
   .hero-overlay {
     background: linear-gradient(
-      to top,
-      rgba(21, 38, 64, 0.94) 0%,
-      rgba(21, 38, 64, 0.72) 26%,
-      rgba(21, 38, 64, 0.45) 52%,
-      rgba(21, 38, 64, 0.30) 100%
+      to bottom,
+      rgba(21, 38, 64, 0.14) 0%,
+      rgba(21, 38, 64, 0.42) 32%,
+      rgba(21, 38, 64, 0.76) calc(100% - var(--hero-fade-h) - 1.25rem),
+      rgba(21, 38, 64, 0.32) calc(100% - (var(--hero-fade-h) * 0.55)),
+      rgba(21, 38, 64, 0.08) calc(100% - (var(--hero-fade-h) * 0.2)),
+      transparent 100%
     );
   }
 
@@ -3893,7 +3934,8 @@ body.browse-only #order-back-toggle {
     pointer-events: auto;
     width: 100%;
     padding-inline: var(--space-lg);
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 4.25rem);
+    /* Clear space under CTA before fade starts (safe-area + fade band + gap) */
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--hero-fade-h) + 1.25rem);
   }
 
   .hero-cert {
@@ -4019,7 +4061,8 @@ body.browse-only #order-back-toggle {
   }
 
   .hero-content {
-    padding-block: var(--space-3xl) 5rem;
+    /* Keep CTA clear of the hero↔menu fade band on desktop too */
+    padding-block: var(--space-3xl) calc(var(--hero-fade-h) + 1.5rem);
   }
 
   .menu-category {
