@@ -1085,7 +1085,7 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#lechai
 
 .entry-gate.is-home .entry-gate__lang {
   display: inline-flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   padding: 0.18rem;
   border: 0;
@@ -1484,6 +1484,20 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#lechai
   z-index: 0;
   pointer-events: none;
   overflow: hidden;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 10%,
+    #000 90%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 10%,
+    #000 90%,
+    transparent 100%
+  );
 }
 
 .entry-gate.is-home .entry-gate__about-veil {
@@ -1510,7 +1524,7 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#lechai
 }
 
 .entry-gate.is-home .entry-gate__about-float--a {
-  top: -8%;
+  top: 5%;
   inset-inline-start: 22%;
   width: clamp(10rem, 34vw, 17rem);
   height: clamp(10rem, 34vw, 17rem);
@@ -1530,7 +1544,7 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#lechai
   top: auto;
   left: auto;
   right: auto;
-  bottom: -10%;
+  bottom: 5%;
   inset-inline-start: 18%;
   width: clamp(10rem, 34vw, 17rem);
   height: clamp(10rem, 34vw, 17rem);
@@ -1570,7 +1584,7 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#lechai
 }
 
 .entry-gate.is-home .entry-gate__about-title {
-  margin: 0 0 1rem;
+  margin: 0 0 0.35rem;
   font-family: var(--font-display, 'Frank Ruhl Libre', 'Playfair Display', serif);
   font-size: clamp(1.65rem, 4.5vw, 2.25rem);
   font-weight: 700;
@@ -1580,6 +1594,12 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#lechai
   text-shadow:
     0 0 12px rgba(248, 243, 235, 0.95),
     0 0 28px rgba(248, 243, 235, 0.9);
+}
+
+.entry-gate.is-home .entry-gate__about-text--lead {
+  margin-bottom: 1rem;
+  font-weight: 700;
+  font-size: clamp(1.05rem, 2.6vw, 1.22rem);
 }
 
 .entry-gate.is-home .entry-gate__about-text {
@@ -2005,6 +2025,7 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#lechai
 .entry-gate.is-home .entry-gate__about-float--a.entry-gate__reveal.is-inview {
   opacity: 0.62;
   transform: rotate(-8deg) translate3d(0, 0, 0) scale(1);
+  animation: entry-about-drift 12s ease-in-out infinite;
 }
 
 .entry-gate.is-home .entry-gate__about-float--b.entry-gate__reveal.is-inview {
@@ -2015,6 +2036,17 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#lechai
 .entry-gate.is-home .entry-gate__about-float--c.entry-gate__reveal.is-inview {
   opacity: 0.5;
   transform: rotate(4deg) translate3d(0, 0, 0) scale(1);
+  animation: entry-about-drift 14s ease-in-out 0.8s infinite;
+}
+
+@keyframes entry-about-drift {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 1.1rem;
+  }
 }
 
 .entry-gate.is-home .entry-gate__about-float--d.entry-gate__reveal.is-inview {
@@ -2170,6 +2202,7 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#lechai
   .entry-gate.is-home .entry-gate__about-float--a.is-inview,
   .entry-gate.is-home .entry-gate__about-float--a {
     transform: rotate(-8deg);
+    animation: none;
   }
 
   .entry-gate.is-home .entry-gate__about-float--b.is-inview,
@@ -2181,6 +2214,7 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#lechai
   .entry-gate.is-home .entry-gate__about-float--c {
     opacity: 0.5;
     transform: rotate(4deg);
+    animation: none;
   }
 
   .entry-gate.is-home .entry-gate__about-float--d.is-inview,
@@ -2377,17 +2411,28 @@ body.home-notice-open {
   box-shadow: 0 18px 42px rgba(21, 38, 64, 0.28);
 }
 
-.entry-gate:has(#entry-step-place-res:not([hidden])) .entry-gate__back {
-  color: #fff;
-  background: rgba(21, 38, 64, 0.32);
-  border-radius: 999px;
-  padding: 0.4rem 0.95rem;
-  text-shadow: 0 1px 8px rgba(21, 38, 64, 0.45);
+.entry-gate__back--place {
+  display: none;
 }
 
-.entry-gate:has(#entry-step-place-res:not([hidden])) .entry-gate__back:hover {
-  color: #fff;
-  background: rgba(21, 38, 64, 0.48);
+.entry-gate:has(#entry-step-place-res:not([hidden])) .entry-gate__back--place {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #1e3354;
+  border: 1px solid rgba(196, 160, 106, 0.45);
+  box-shadow: 0 2px 10px rgba(21, 38, 64, 0.12);
+  text-shadow: none;
+  justify-self: auto;
+}
+
+.entry-gate:has(#entry-step-place-res:not([hidden])) .entry-gate__back--place:hover {
+  color: #1e3354;
+  background: #fff;
 }
 
 .entry-place-res .entry-pickup__error {

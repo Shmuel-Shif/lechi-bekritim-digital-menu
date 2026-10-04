@@ -3504,12 +3504,9 @@ body.browse-only #order-back-toggle {
 
   .cart-bill-btn,
   .cart-clear-btn {
+    grid-column: 1 / -1;
     padding: 0.58rem 0.45rem;
     font-size: 0.84rem;
-  }
-
-  .cart-bill-btn[hidden] + .cart-clear-btn {
-    grid-column: 1 / -1;
   }
 
   .order-receipt__panel {

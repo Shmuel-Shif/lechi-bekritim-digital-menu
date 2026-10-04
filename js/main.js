@@ -5992,8 +5992,7 @@
     if (!cartDishNotes) return;
     const show = (isDineInContext() || isTakeawayContext())
       && !isButcherContext()
-      && !Boolean(window.LechaimOrderContext?.browseOnly)
-      && isOrderingAllowed();
+      && !Boolean(window.LechaimOrderContext?.browseOnly);
     cartDishNotes.hidden = !show;
     cartDishNotes.disabled = !show || sending || isSendingOrder;
     if (!sending) cartDishNotes.textContent = t('dineInNotesBtn');

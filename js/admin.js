@@ -25,6 +25,7 @@
   const searchInput = document.getElementById('admin-inventory-filter');
   const filtersEl = document.querySelector('.admin-filters');
   const scopesEl = document.querySelector('.admin-inventory-scopes');
+  const categoriesEl = document.getElementById('admin-inventory-categories');
   const statTotal = document.getElementById('stat-total');
   const statAvailable = document.getElementById('stat-available');
   const statUnavailable = document.getElementById('stat-unavailable');
@@ -72,6 +73,7 @@
   let currentFilter = 'all';
   let currentQuery = '';
   let currentInventoryScope = 'weekday';
+  let currentCategory = 'all';
   let catalogCache = [];
   let openProductId = null;
   let inventoryFocusRelease = null;
@@ -348,9 +350,40 @@
     return true;
   }
 
+  function matchesCategory(item) {
+    if (!currentCategory || currentCategory === 'all') return true;
+    return (item.categoryId || 'other') === currentCategory;
+  }
+
   function getVisibleCatalog() {
     const query = currentQuery.trim().toLowerCase();
-    return catalogCache.filter((item) => matchesFilter(item) && matchesQuery(item, query));
+    return catalogCache.filter((item) => matchesFilter(item) && matchesCategory(item) && matchesQuery(item, query));
+  }
+
+  function renderCategoryBar() {
+    if (!categoriesEl) return;
+    const groups = groupCatalog(catalogCache);
+    const ids = new Set(groups.map((group) => group.id));
+    if (currentCategory !== 'all' && !ids.has(currentCategory)) currentCategory = 'all';
+    const buttons = [
+      { id: 'all', title: 'הכל' },
+      ...groups.map((group) => ({ id: group.id, title: group.title })),
+    ];
+    const wanted = buttons.map((button) => button.id).join('|');
+    const existing = [...categoriesEl.querySelectorAll('[data-inventory-category]')];
+    const have = existing.map((el) => el.dataset.inventoryCategory).join('|');
+    if (wanted && wanted === have) {
+      existing.forEach((el) => {
+        const active = el.dataset.inventoryCategory === currentCategory;
+        el.classList.toggle('is-active', active);
+        el.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      return;
+    }
+    categoriesEl.innerHTML = buttons.map((button) => {
+      const active = button.id === currentCategory;
+      return `<button type="button" class="admin-filter${active ? ' is-active' : ''}" data-inventory-category="${escapeAttr(button.id)}" role="tab" aria-selected="${active ? 'true' : 'false'}">${escapeHtml(button.title)}</button>`;
+    }).join('');
   }
 
   function groupCatalog(items) {
@@ -503,6 +536,7 @@
 
     refreshCatalogCache();
     updateStats();
+    renderCategoryBar();
 
     const visible = getVisibleCatalog();
     const groups = groupCatalog(visible);
@@ -1261,11 +1295,21 @@
     const scope = btn.dataset.inventoryScope;
     if (!scope || scope === currentInventoryScope) return;
     currentInventoryScope = scope;
+    currentCategory = 'all';
     scopesEl.querySelectorAll('[data-inventory-scope]').forEach((el) => {
       const active = el === btn;
       el.classList.toggle('is-active', active);
       el.setAttribute('aria-selected', active ? 'true' : 'false');
     });
+    renderList();
+  });
+
+  categoriesEl?.addEventListener('click', (event) => {
+    const btn = event.target.closest('[data-inventory-category]');
+    if (!btn) return;
+    const categoryId = btn.dataset.inventoryCategory || 'all';
+    if (categoryId === currentCategory) return;
+    currentCategory = categoryId;
     renderList();
   });
 

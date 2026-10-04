@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=149">
+  <link rel="stylesheet" href="css/admin.css?v=150">
   <link rel="stylesheet" href="css/admin-dashboard.css?v=6">
   <link rel="stylesheet" href="css/admin-reminders.css?v=1">
   <link rel="stylesheet" href="css/admin-notes.css?v=2">
@@ -106,7 +106,7 @@
             <button type="button" class="admin-tab" data-tab="notes" draggable="true">פתקים</button>
             <button type="button" class="admin-tab" data-tab="history" draggable="true">היסטוריה</button>
             <button type="button" class="admin-tab" data-tab="till" draggable="true">מכירות</button>
-            <button type="button" class="admin-tab" data-tab="inventory" draggable="true">מלאי</button>
+            <button type="button" class="admin-tab" data-tab="inventory" draggable="true">תפריט</button>
             <button type="button" class="admin-tab" data-tab="warehouse" draggable="true">מחסן</button>
             <button type="button" class="admin-tab" data-tab="documents" draggable="true">מסמכים</button>
             <button type="button" class="admin-tab" data-tab="stats" draggable="true">קופונים</button>
@@ -1163,16 +1163,18 @@
         <header class="admin-header">
           <div class="admin-header__text">
             <p class="admin-header__eyebrow">ניהול</p>
-            <h1 class="admin-header__title">ניהול מלאי</h1>
-            <p class="admin-header__subtitle">לחצו על שם המנה לעריכה · מלאי, מומלץ, תפריט מתחלף, שם, מחיר, תיאור ומעקב כמות</p>
+            <h1 class="admin-header__title">תפריט</h1>
+            <p class="admin-header__subtitle">בחרו קטגוריה, ולחצו על שם המנה לעריכה</p>
           </div>
         </header>
 
-        <div class="admin-inventory-scopes" role="tablist" aria-label="סוג מלאי">
-          <button type="button" class="admin-filter" data-inventory-scope="shabbat" role="tab" aria-selected="false">מלאי של שבת</button>
-          <button type="button" class="admin-filter is-active" data-inventory-scope="weekday" role="tab" aria-selected="true">מלאי יום חול</button>
-          <button type="button" class="admin-filter" data-inventory-scope="butcher" role="tab" aria-selected="false">מלאי חנות בשרים</button>
+        <div class="admin-inventory-scopes" role="tablist" aria-label="סוג תפריט">
+          <button type="button" class="admin-filter" data-inventory-scope="shabbat" role="tab" aria-selected="false">תפריט שבת</button>
+          <button type="button" class="admin-filter is-active" data-inventory-scope="weekday" role="tab" aria-selected="true">תפריט יום חול</button>
+          <button type="button" class="admin-filter" data-inventory-scope="butcher" role="tab" aria-selected="false">תפריט חנות הבשר</button>
         </div>
+
+        <div class="admin-inventory-categories" id="admin-inventory-categories" role="tablist" aria-label="קטגוריות"></div>
 
         <div id="admin-inventory-dish-ui">
         <div class="admin-stats" id="admin-stats" aria-live="polite">
@@ -2636,7 +2638,7 @@
   <script src="js/admin-settings.js?v=16" defer></script>
   <script src="js/stock-catalog.js?v=7" defer></script>
   <script src="js/admin-stock.js?v=6" defer></script>
-  <script src="js/admin.js?v=78" defer></script>
+  <script src="js/admin.js?v=79" defer></script>
   <script src="js/admin-push.js?v=3" defer></script>
   <script src="js/admin-reminders.js?v=3" defer></script>
   <script src="js/admin-pwa.js?v=2" defer></script>

@@ -43,20 +43,43 @@ body.shabbat-page {
   display: none !important;
 }
 
+body.shabbat-page:has(#shabbat-app:not([hidden])) {
+  background-color: #152640;
+}
+
 .shabbat-app {
-  padding-top: calc(var(--header-height, 72px) + 1.85rem);
+  --shabbat-title-band: 8.75rem;
+  padding-top: var(--header-height, 72px);
 }
 
 .shabbat-hero {
-  padding: 0 0 0.75rem;
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-height: var(--shabbat-title-band);
+  margin-bottom: calc(var(--shabbat-title-band) * -1);
+  padding: 0 0 0.35rem;
   text-align: center;
+  pointer-events: none;
 }
 
 .shabbat-hero__title {
-  margin: 0 1.25rem 1rem;
+  margin: 0 1.25rem;
   font-family: var(--font-display, 'Frank Ruhl Libre', serif);
   font-size: clamp(1.5rem, 5vw, 2rem);
-  color: var(--color-navy, #1e3354);
+  color: #fff;
+  text-shadow: 0 2px 16px rgba(21, 38, 64, 0.55);
+}
+
+/* Photo starts flush under the header; title sits on top of it. */
+body.shabbat-page #shabbat-menu.menu-main {
+  margin-top: 0;
+}
+
+body.shabbat-page #shabbat-menu.menu-main > .container {
+  padding-top: calc(var(--shabbat-title-band, 8.75rem) + 1.15rem);
 }
 
 .shabbat-menu-empty {
@@ -74,24 +97,64 @@ body.shabbat-page {
   line-height: 1.4;
 }
 
-.shabbat-menu-notes {
-  margin: 0.25rem auto 1.15rem;
-  padding: 1rem 1.15rem;
-  border-radius: 14px;
-  background: rgba(30, 51, 84, 0.06);
-  border: 1px solid rgba(30, 51, 84, 0.1);
-  display: grid;
-  gap: 0.45rem;
-  text-align: start;
+.shabbat-notice {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(1rem, env(safe-area-inset-top, 0px)) 1.15rem max(1rem, env(safe-area-inset-bottom, 0px));
 }
 
-.shabbat-menu-notes__title {
-  margin: 0 0 0.15rem;
-  font-family: var(--font-body, 'Heebo', sans-serif);
-  font-size: 1.05rem;
-  font-weight: 700;
+.shabbat-notice[hidden] {
+  display: none !important;
+}
+
+.shabbat-notice__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  background: rgba(21, 38, 64, 0.55);
+  cursor: pointer;
+}
+
+.shabbat-notice__panel {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 24rem);
+  display: grid;
+  gap: 0.9rem;
+  padding: 1.35rem 1.2rem 1.15rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(196, 160, 106, 0.55);
+  box-shadow: 0 18px 48px rgba(21, 38, 64, 0.28);
+  text-align: center;
+}
+
+.shabbat-notice__title {
+  margin: 0;
+  font-family: var(--font-display, 'Frank Ruhl Libre', serif);
+  font-size: clamp(1.45rem, 4.5vw, 1.8rem);
+  font-weight: 600;
   color: var(--color-navy, #1e3354);
-  line-height: 1.3;
+}
+
+.shabbat-notice__panel .entry-gate__btn {
+  width: 100%;
+}
+
+.shabbat-menu-notes {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+  text-align: center;
+  background: none;
+  border: 0;
 }
 
 .shabbat-menu-notes p {
@@ -111,11 +174,6 @@ body.shabbat-page {
 /* Checkout details overlay on top of the Shabbat menu */
 body.shabbat-details-pending {
   overflow: hidden;
-}
-
-body.shabbat-details-pending > *:not(#shabbat-entry-gate) {
-  visibility: hidden;
-  pointer-events: none;
 }
 
 .shabbat-entry-pickup-note {
@@ -146,6 +204,7 @@ body.shabbat-details-pending > *:not(#shabbat-entry-gate) {
 
 body.shabbat-browse-only #shabbat-cart-toggle,
 body.shabbat-browse-only #shabbat-cart-panel,
+body.shabbat-browse-only #shabbat-cart-notes,
 body.shabbat-browse-only .food-add-btn,
 body.shabbat-browse-only .food-qty-control {
   display: none !important;
@@ -157,4 +216,76 @@ body.shabbat-browse-only .header-action--home {
 
 .shabbat-closed__text {
   white-space: normal;
+}
+
+/* Checkout sits over the menu, like takeaway — not a separate page. */
+#shabbat-entry-gate.entry-gate {
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(21, 38, 64, 0.48);
+  background-image: none;
+}
+
+#shabbat-entry-gate .entry-gate__chrome,
+#shabbat-entry-gate .entry-gate__bh,
+#shabbat-entry-gate .entry-gate__brand {
+  display: none;
+}
+
+#shabbat-entry-gate .entry-gate__shell {
+  width: min(100%, 22rem);
+  max-height: min(88dvh, 36rem);
+  overflow: auto;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 1.15rem 1rem 1rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(196, 160, 106, 0.45);
+  box-shadow: 0 18px 42px rgba(21, 38, 64, 0.28);
+  text-align: start;
+}
+
+#shabbat-entry-gate .entry-gate__prompt {
+  margin: 0;
+  text-align: center;
+  font-family: var(--font-display, 'Frank Ruhl Libre', serif);
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--color-navy, #1e3354);
+}
+
+#shabbat-entry-gate .shabbat-entry-pickup-note {
+  margin: 0;
+  text-align: center;
+}
+
+#shabbat-entry-gate .entry-gate__step {
+  display: grid;
+  gap: 0.65rem;
+}
+
+#shabbat-entry-gate .entry-pickup {
+  text-align: start;
+}
+
+#shabbat-entry-gate #shabbat-pickup-submit {
+  width: 100%;
+  border: 0;
+  border-radius: 12px;
+  background: #2f6f47;
+  color: #fff;
+  box-shadow: none;
+}
+
+#shabbat-entry-gate #shabbat-entry-back {
+  width: 100%;
+}
+
+body.shabbat-page:has(#shabbat-notice:not([hidden])) .lang-fab,
+body.shabbat-page:has(#shabbat-notice:not([hidden])) .help-bot-fab,
+body.shabbat-page:has(#shabbat-entry-gate:not([hidden])) .lang-fab,
+body.shabbat-page:has(#shabbat-entry-gate:not([hidden])) .help-bot-fab {
+  display: none !important;
 }

@@ -27,6 +27,10 @@
   const appEl = $('#shabbat-app');
   const browseBtn = $('#shabbat-browse-menu');
   const notesBody = $('#shabbat-menu-notes-body');
+  const noticeEl = $('#shabbat-notice');
+  const noticeClose = $('#shabbat-notice-close');
+  const noticeBackdrop = $('#shabbat-notice-backdrop');
+  let noticeShown = false;
   const yearEl = $('#shabbat-year');
   const cartToggle = $('#shabbat-cart-toggle');
   const cartIcon = $('#shabbat-cart-icon');
@@ -48,6 +52,10 @@
   const pickupName = $('#shabbat-pickup-name');
   const pickupPhone = $('#shabbat-pickup-phone');
   const pickupNotes = $('#shabbat-pickup-notes');
+  const cartNotesBtn = $('#shabbat-cart-notes');
+  const notesModal = $('#shabbat-notes-modal');
+  const notesInput = $('#shabbat-notes-input');
+  let notesDraft = '';
   const pickupError = $('#shabbat-pickup-error');
   const feedback = $('#shabbat-feedback');
   const langToggle = $('#shabbat-lang-toggle');
@@ -173,6 +181,13 @@
       });
       toggle.setAttribute('aria-label', t('langAria'));
     });
+    const langFab = document.getElementById('lechaim-lang-fab');
+    if (langFab) {
+      langFab.querySelectorAll('[data-lang]').forEach((opt) => {
+        opt.classList.toggle('is-active', opt.dataset.lang === lang);
+      });
+      langFab.setAttribute('aria-label', t('langAria'));
+    }
     if (yearEl) yearEl.textContent = String(new Date().getFullYear());
     renderNotes();
     updateCartToggleMode();
@@ -199,6 +214,7 @@
           customerPhone: String(parsed.customerPhone),
           customerNotes: String(parsed.customerNotes || ''),
         };
+        notesDraft = customerDetails.customerNotes;
       } else {
         customerDetails = null;
       }
@@ -209,6 +225,9 @@
 
   function saveCustomerDetails(details) {
     customerDetails = details;
+    if (details && details.customerNotes != null) {
+      notesDraft = String(details.customerNotes);
+    }
     try {
       sessionStorage.setItem(DETAILS_KEY, JSON.stringify(details));
     } catch {
@@ -723,6 +742,20 @@
     }).join('');
   }
 
+  function openNoticeModal() {
+    if (noticeShown || !noticeEl) return;
+    const notes = window.SHABBAT_MENU_DATA?.notes || [];
+    if (!notes.length) return;
+    noticeShown = true;
+    noticeEl.hidden = false;
+    noticeClose?.focus();
+  }
+
+  function closeNoticeModal() {
+    if (!noticeEl) return;
+    noticeEl.hidden = true;
+  }
+
   function isProductAvailable(itemId) {
     if (!window.LechaimInventory?.isAvailable) return true;
     return window.LechaimInventory.isAvailable(itemId);
@@ -976,6 +1009,35 @@
     });
   }
 
+  function currentOrderNotes() {
+    return String(customerDetails?.customerNotes || notesDraft || '');
+  }
+
+  function saveOrderNotes(text) {
+    notesDraft = String(text || '').trim();
+    if (pickupNotes) pickupNotes.value = notesDraft;
+    if (!customerDetails) return;
+    saveCustomerDetails({ ...customerDetails, customerNotes: notesDraft });
+  }
+
+  function openNotesModal() {
+    if (!notesModal || browseOnly) return;
+    if (notesInput) notesInput.value = currentOrderNotes();
+    notesModal.hidden = false;
+    notesModal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('app-confirm-open');
+    setFocusTrap('notes', notesModal);
+    notesInput?.focus();
+  }
+
+  function closeNotesModal() {
+    if (!notesModal) return;
+    clearFocusTrap('notes');
+    notesModal.hidden = true;
+    notesModal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('app-confirm-open');
+  }
+
   function closeCart() {
     if (!cartPanel) return;
     clearFocusTrap('cart');
@@ -1004,7 +1066,9 @@
         pickupName.value = customerDetails.customerNameRaw || customerDetails.customerName || '';
       }
       if (pickupPhone) pickupPhone.value = customerDetails.customerPhone || '';
-      if (pickupNotes) pickupNotes.value = customerDetails.customerNotes || '';
+      if (pickupNotes) pickupNotes.value = customerDetails.customerNotes || notesDraft || '';
+    } else if (pickupNotes) {
+      pickupNotes.value = notesDraft || '';
     }
     const submitLabel = entryGate.querySelector('#shabbat-pickup-submit .entry-gate__btn-label');
     if (submitLabel) submitLabel.textContent = t('sendOrder');
@@ -1041,6 +1105,7 @@
     applyI18n();
     renderMenu();
     if (!browseOnly) renderCart();
+    openNoticeModal();
   }
 
   function enterBrowseOnly() {
@@ -1304,6 +1369,29 @@
     applyI18n();
   }
 
+  function ensureLangFab() {
+    let fab = document.getElementById('lechaim-lang-fab');
+    if (!fab) {
+      fab = document.createElement('button');
+      fab.type = 'button';
+      fab.id = 'lechaim-lang-fab';
+      fab.className = 'lang-fab';
+      fab.innerHTML =
+        '<span class="lang-fab__opt" data-lang="he" aria-hidden="true">' +
+          '<img class="lang-flag" src="assets/icons/flag-il.svg" alt="" width="22" height="16">' +
+        '</span>' +
+        '<span class="lang-fab__sep" aria-hidden="true"></span>' +
+        '<span class="lang-fab__opt" data-lang="en" aria-hidden="true">' +
+          '<img class="lang-flag" src="assets/icons/flag-us.svg" alt="" width="22" height="16">' +
+        '</span>';
+      fab.addEventListener('click', onLangClick);
+      document.body.append(fab);
+    }
+    document.body.classList.add('lang-fab-on');
+    applyI18n();
+    return fab;
+  }
+
   function onLangClick(event) {
     const next = event.target.closest('[data-lang]')?.dataset.lang;
     if (next !== 'he' && next !== 'en') return;
@@ -1347,10 +1435,30 @@
       });
     }
 
+    ensureLangFab();
     langToggle?.addEventListener('click', onLangClick);
     entryLangToggle?.addEventListener('click', onLangClick);
 
     browseBtn?.addEventListener('click', enterBrowseOnly);
+    noticeClose?.addEventListener('click', closeNoticeModal);
+    noticeBackdrop?.addEventListener('click', closeNoticeModal);
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      if (notesModal && !notesModal.hidden) {
+        closeNotesModal();
+        return;
+      }
+      if (!noticeEl || noticeEl.hidden) return;
+      closeNoticeModal();
+    });
+    cartNotesBtn?.addEventListener('click', openNotesModal);
+    document.getElementById('shabbat-notes-form')?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      saveOrderNotes(notesInput?.value || '');
+      closeNotesModal();
+    });
+    document.getElementById('shabbat-notes-cancel')?.addEventListener('click', closeNotesModal);
+    document.getElementById('shabbat-notes-backdrop')?.addEventListener('click', closeNotesModal);
 
     cartToggle?.addEventListener('click', openCart);
     cartClose?.addEventListener('click', closeCart);
@@ -1436,6 +1544,10 @@
     });
 
     pickupForm?.addEventListener('submit', handlePickupSubmit);
+    entryGate?.addEventListener('click', (event) => {
+      if (event.target !== entryGate) return;
+      closeDetailsToMenu();
+    });
     $('#shabbat-entry-back')?.addEventListener('click', (event) => {
       event.preventDefault();
       closeDetailsToMenu();

@@ -8,10 +8,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/main.css?v=47">
-  <link rel="stylesheet" href="css/theme-lechaim.css?v=2">
+  <link rel="stylesheet" href="css/main.css?v=82">
+  <link rel="stylesheet" href="css/theme-lechaim.css?v=38">
   <link rel="stylesheet" href="css/entry-gate.css">
-  <link rel="stylesheet" href="css/shabbat.css?v=27">
+  <link rel="stylesheet" href="css/help-bot.css?v=25">
+  <link rel="stylesheet" href="css/shabbat.css?v=35">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
 <body class="shabbat-page">
@@ -45,7 +46,7 @@
         <img src="assets/logo/logo-image.png" alt="" class="entry-gate__logo" width="96" height="96">
         <img src="assets/logo/logo-text.png" alt="LECHAIM" class="entry-gate__wordmark" width="220" height="56">
       </div>
-      <p class="entry-gate__prompt" id="shabbat-entry-title" data-i18n="brand">הזמנות לשבת</p>
+      <p class="entry-gate__prompt" id="shabbat-entry-title" data-i18n="detailsTitle">פרטי הזמנה</p>
       <p class="shabbat-entry-pickup-note" data-i18n="pickupFixed">איסוף ביום שישי בשעה 14:00</p>
 
       <div class="entry-gate__step" id="shabbat-entry-step">
@@ -67,7 +68,7 @@
             <span class="entry-gate__btn-label" data-i18n="sendOrder">שלח הזמנה</span>
           </button>
         </form>
-        <button type="button" class="entry-gate__back" id="shabbat-entry-back" data-i18n="backHome">חזרה</button>
+        <button type="button" class="cart-clear-btn" id="shabbat-entry-back" data-i18n="detailsCancel">ביטול</button>
       </div>
     </div>
   </div>
@@ -80,16 +81,6 @@
         <img src="assets/logo/logo-text.png" alt="LECHAIM — The Pearl of Crete" class="brand__wordmark" width="190" height="50" loading="eager" decoding="async">
       </a>
       <div class="header-actions">
-        <button
-          type="button"
-          class="lang-toggle header-actions__lang"
-          id="shabbat-lang-toggle"
-          aria-label="החלפת שפה – עברית / English"
-        >
-          <span class="lang-toggle__option lang-toggle__option--active" data-lang="he">עב</span>
-          <span class="lang-toggle__sep" aria-hidden="true">|</span>
-          <span class="lang-toggle__option" data-lang="en">EN</span>
-        </button>
         <a href="index.html" class="header-action header-action--home" id="shabbat-back-home" data-i18n="backHome">חזרה</a>
         <button type="button" class="header-action header-action--cart" id="shabbat-cart-toggle" aria-label="פתח סל" aria-controls="shabbat-cart-panel" aria-expanded="false" hidden>
           <img src="assets/icons/cart.svg" alt="" width="24" height="24" id="shabbat-cart-icon">
@@ -115,10 +106,6 @@
   <div id="shabbat-app" class="shabbat-app" hidden>
     <section class="shabbat-hero">
       <h1 class="shabbat-hero__title" data-i18n="brand">הזמנות לשבת</h1>
-      <aside class="shabbat-menu-notes container" id="shabbat-menu-notes" role="note">
-        <h2 class="shabbat-menu-notes__title" data-i18n="noticeTitle">שימו לב</h2>
-        <div id="shabbat-menu-notes-body"></div>
-      </aside>
     </section>
 
     <div class="category-nav-wrapper" id="shabbat-nav-wrapper">
@@ -135,6 +122,19 @@
         <p class="shabbat-menu-empty" id="shabbat-menu-empty" data-i18n="menuComingSoon" hidden>התפריט לשבת יתעדכן בקרוב</p>
       </div>
     </main>
+  </div>
+
+  <div class="shabbat-notice" id="shabbat-notice" hidden>
+    <button type="button" class="shabbat-notice__backdrop" id="shabbat-notice-backdrop" data-i18n-aria="close" aria-label="סגור"></button>
+    <div class="shabbat-notice__panel" role="dialog" aria-modal="true" aria-labelledby="shabbat-notice-title">
+      <h2 class="shabbat-notice__title" id="shabbat-notice-title" data-i18n="noticeTitle">שימו לב</h2>
+      <div class="shabbat-menu-notes" id="shabbat-menu-notes">
+        <div id="shabbat-menu-notes-body"></div>
+      </div>
+      <button type="button" class="entry-gate__btn entry-gate__btn--primary" id="shabbat-notice-close">
+        <span class="entry-gate__btn-label" data-i18n="close">סגור</span>
+      </button>
+    </div>
   </div>
 
   <footer class="site-footer site-footer--compact" id="shabbat-footer">
@@ -181,7 +181,10 @@
           <span class="cart-total-price" id="shabbat-cart-total">€0</span>
         </div>
         <div class="cart-actions">
-          <button type="button" class="cart-send-btn" id="shabbat-continue" data-i18n="continueOrder" disabled>שלח הזמנה</button>
+          <div class="cart-send-row">
+            <button type="button" class="cart-send-btn" id="shabbat-continue" data-i18n="continueOrder" disabled>שלח הזמנה</button>
+            <button type="button" class="cart-notes-btn" id="shabbat-cart-notes" data-i18n="notesBtn">הערות למנה</button>
+          </div>
           <button type="button" class="cart-clear-btn" id="shabbat-clear" data-i18n="clearCart" disabled>נקה עגלה</button>
         </div>
       </footer>
@@ -212,6 +215,24 @@
 
   <div class="order-feedback" id="shabbat-feedback" role="status" aria-live="polite" hidden></div>
 
+  <div class="app-confirm" id="shabbat-notes-modal" hidden aria-hidden="true">
+    <button type="button" class="app-confirm__backdrop" id="shabbat-notes-backdrop" data-i18n-aria="close" aria-label="סגור"></button>
+    <div class="app-confirm__panel app-confirm__panel--form" role="dialog" aria-modal="true" aria-labelledby="shabbat-notes-title">
+      <h2 class="app-confirm__title" id="shabbat-notes-title" data-i18n="notesTitle">הערות למנה</h2>
+      <p class="app-confirm__text app-confirm__text--soft" id="shabbat-notes-hint" data-i18n="notesHint">כתבו בקשה למסעדה. אפשר לשלוח את ההזמנה גם בלי הערה.</p>
+      <form class="butcher-checkout" id="shabbat-notes-form" novalidate>
+        <label class="butcher-checkout__field">
+          <span class="butcher-checkout__label" data-i18n="notesTitle">הערות למנה</span>
+          <textarea id="shabbat-notes-input" class="butcher-checkout__input butcher-checkout__textarea" name="customerNotes" rows="3" maxlength="240" dir="auto"></textarea>
+        </label>
+        <div class="app-confirm__actions">
+          <button type="submit" class="cart-send-btn" id="shabbat-notes-submit" data-i18n="notesSubmit">שמור</button>
+          <button type="button" class="cart-clear-btn" id="shabbat-notes-cancel" data-i18n="notesCancel">ביטול</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Food item modal (same pattern as main menu) -->
   <div class="food-modal" id="shabbat-food-modal" hidden aria-hidden="true">
     <button type="button" class="food-modal-backdrop" id="shabbat-food-modal-backdrop" aria-label="סגור"></button>
@@ -228,9 +249,11 @@
   <script src="js/order-types.js" defer></script>
   <script src="js/supabase-order-service.js?v=17" defer></script>
   <script src="js/app-settings.js?v=7" defer></script>
-  <script src="js/shabbat-menu-data.js?v=43" defer></script>
+  <script src="js/menu-data.js?v=115" defer></script>
+  <script src="js/shabbat-menu-data.js?v=45" defer></script>
   <script src="js/inventory.js?v=47" defer></script>
   <script src="js/a11y-focus-trap.js" defer></script>
-  <script src="js/shabbat-app.js?v=32" defer></script>
+  <script src="js/shabbat-app.js?v=36" defer></script>
+  <script src="js/help-bot.js?v=24" defer></script>
 </body>
 </html>

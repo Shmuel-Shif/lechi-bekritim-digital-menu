@@ -455,6 +455,25 @@ body::before {
   padding: 0.6rem 1.05rem;
 }
 
+.admin-inventory-categories {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.4rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  margin: 0 0 1rem;
+  padding-bottom: 0.15rem;
+}
+
+.admin-inventory-categories::-webkit-scrollbar {
+  display: none;
+}
+
+.admin-inventory-categories .admin-filter {
+  flex: 0 0 auto;
+}
+
 .admin-filters {
   display: flex;
   flex-wrap: nowrap;

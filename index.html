@@ -8,9 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/main.css?v=81">
-  <link rel="stylesheet" href="css/theme-lechaim.css?v=35">
-  <link rel="stylesheet" href="css/entry-gate.css?v=37">
+  <link rel="stylesheet" href="css/main.css?v=82">
+  <link rel="stylesheet" href="css/theme-lechaim.css?v=38">
+  <link rel="stylesheet" href="css/entry-gate.css?v=42">
   <link rel="stylesheet" href="css/help-bot.css?v=25">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
@@ -18,6 +18,7 @@
   <!-- Entry gate: order type → table (dine-in) — language toggle always available -->
   <div class="entry-gate is-home" id="entry-gate" role="dialog" aria-modal="true" aria-labelledby="entry-hero-title">
     <div class="entry-gate__chrome">
+      <button type="button" class="entry-gate__back entry-gate__back--place" data-entry-back="order" data-entry-i18n="back">חזרה</button>
       <img
         src="assets/logo/kosher-badge.png"
         alt="כשר למהדרין"
@@ -223,10 +224,14 @@
         </div>
 
         <div class="entry-gate__about-copy">
-          <h2 class="entry-gate__about-title entry-gate__reveal entry-gate__reveal--fade" id="entry-about-title" data-entry-i18n="aboutTitle" style="--reveal-delay: 180ms">מי אנחנו</h2>
-          <p class="entry-gate__about-text entry-gate__reveal entry-gate__reveal--up" data-entry-i18n="aboutP1" style="--reveal-delay: 280ms">מסעדת לחיים היא מסעדה כשרה למהדרין בכרתים.</p>
-          <p class="entry-gate__about-text entry-gate__reveal entry-gate__reveal--up" data-entry-i18n="aboutP2" style="--reveal-delay: 380ms">אנו מגישים אוכל ישראלי כשר למהדרין.</p>
-          <p class="entry-gate__about-text entry-gate__reveal entry-gate__reveal--up" data-entry-i18n="aboutP3" style="--reveal-delay: 480ms">המסעדה ממוקמת בלב כרתים ומציעה ישיבה במקום, איסוף עצמי והזמנות מיוחדות לשבת.</p>
+          <h2 class="entry-gate__about-title entry-gate__reveal entry-gate__reveal--fade" id="entry-about-title" data-entry-i18n="aboutTitle" style="--reveal-delay: 180ms">מסעדת לחיים</h2>
+          <p class="entry-gate__about-text entry-gate__about-text--lead entry-gate__reveal entry-gate__reveal--up" data-entry-i18n="aboutP1" style="--reveal-delay: 280ms">מסעדה כשרה למהדרין בכרתים</p>
+          <p class="entry-gate__about-text entry-gate__reveal entry-gate__reveal--up" data-entry-i18n="aboutP2" style="--reveal-delay: 340ms">בלב האי היפה כרתים אנחנו מביאים איתנו את הטעמים, האווירה והאירוח הישראלי, עם תפריט המבוסס על אוכל ישראלי אהוב ומוכר, חומרי גלם איכותיים והקפדה על כשרות למהדרין.</p>
+          <p class="entry-gate__about-text entry-gate__reveal entry-gate__reveal--up" data-entry-i18n="aboutP3" style="--reveal-delay: 400ms">אצלנו תוכלו ליהנות מארוחה באווירה נעימה ומשפחתית, בין אם אתם מגיעים לארוחת צהריים או ערב, מחפשים מקום נעים לשבת בו עם המשפחה והחברים, או פשוט רוצים ליהנות מאוכל כשר ואיכותי במהלך החופשה שלכם בכרתים.</p>
+          <p class="entry-gate__about-text entry-gate__reveal entry-gate__reveal--up" data-entry-i18n="aboutP4" style="--reveal-delay: 460ms">לחיים היא לא רק מקום לאכול בו. אנחנו רוצים להיות המקום שבו עוצרים לרגע, יושבים יחד, נהנים מאוכל טוב ומרגישים קצת בבית – גם כשנמצאים רחוק מישראל.</p>
+          <p class="entry-gate__about-text entry-gate__reveal entry-gate__reveal--up" data-entry-i18n="aboutP5" style="--reveal-delay: 520ms">המסעדה מציעה ישיבה במקום ואיסוף עצמי, ובנוסף אנו נותנים מענה להזמנות מיוחדות ולארוחות לשבת, כדי שגם במהלך החופשה בכרתים תוכלו ליהנות מארוחה כשרה, טעימה ומושקעת.</p>
+          <p class="entry-gate__about-text entry-gate__reveal entry-gate__reveal--up" data-entry-i18n="aboutP6" style="--reveal-delay: 580ms">מחכים לארח אתכם אצלנו.</p>
+          <p class="entry-gate__about-text entry-gate__reveal entry-gate__reveal--up" data-entry-i18n="aboutP7" style="--reveal-delay: 640ms">לחיים!</p>
         </div>
       </section>
 
@@ -383,7 +388,6 @@
             <span class="entry-gate__btn-label" data-entry-i18n="placeResSubmit">שלח</span>
           </button>
         </form>
-        <button type="button" class="entry-gate__back" data-entry-back="order" data-entry-i18n="back">חזרה</button>
       </div>
 
       <div class="entry-gate__step" id="entry-step-pickup" hidden>
@@ -1180,9 +1184,9 @@
   <script src="js/order-engine.js" defer></script>
   <script src="js/a11y-focus-trap.js" defer></script>
   <script src="js/home-notice.js?v=4" defer></script>
-  <script src="js/main.js?v=114" defer></script>
+  <script src="js/main.js?v=115" defer></script>
   <script src="js/place-reservations.js?v=15" defer></script>
-  <script src="js/entry-gate.js?v=75" defer></script>
+  <script src="js/entry-gate.js?v=77" defer></script>
   <script src="js/around-us.js?v=7" defer></script>
   <script src="js/help-bot.js?v=24" defer></script>
   <script src="js/waiter-call.js?v=2" defer></script>

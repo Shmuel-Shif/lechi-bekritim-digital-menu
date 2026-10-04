@@ -84,11 +84,13 @@
 }
 
 .site-header {
-  background-color: var(--color-header-bg);
+  background-color: rgba(245, 241, 234, 0.52);
   background-image: radial-gradient(rgba(30, 51, 84, 0.04) 1px, transparent 1px);
   background-size: 18px 18px;
-  border-bottom: 1px solid var(--color-cream-dark);
+  border-bottom: 1px solid rgba(232, 223, 208, 0.45);
   box-shadow: 0 1px 0 rgba(30, 51, 84, 0.04);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
 
 .site-header__bh {
@@ -344,11 +346,11 @@ html[dir="ltr"] .search-panel__input {
 }
 
 .site-header.is-scrolled {
-  background: var(--color-header-bg);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: rgba(245, 241, 234, 0.52);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   box-shadow: 0 2px 12px var(--color-shadow);
-  border-bottom-color: var(--color-cream-dark);
+  border-bottom-color: rgba(232, 223, 208, 0.45);
 }
 
 .lang-toggle {
@@ -502,12 +504,12 @@ html[dir="ltr"] .search-panel__input {
 
 /* --- Category nav --- */
 .category-nav {
-  background-color: var(--color-header-bg);
+  background-color: rgba(245, 241, 234, 0.52);
   background-image: radial-gradient(rgba(30, 51, 84, 0.04) 1px, transparent 1px);
   background-size: 18px 18px;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-bottom-color: var(--color-cream-dark);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom-color: rgba(232, 223, 208, 0.45);
   box-shadow: 0 2px 8px var(--color-shadow);
 }
 
@@ -811,8 +813,8 @@ html[dir="ltr"] .search-panel__input {
 }
 
 .food-modal-body .food-modal-card {
-  background: var(--color-white);
-  border-color: var(--color-cream-dark);
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(196, 160, 106, 0.45);
 }
 
 .food-modal-title {
@@ -824,8 +826,8 @@ html[dir="ltr"] .search-panel__input {
 }
 
 .food-modal-actions {
-  background: var(--color-cream);
-  border-top-color: var(--color-cream-dark);
+  background: rgba(255, 255, 255, 0.92);
+  border-top-color: rgba(196, 160, 106, 0.35);
 }
 
 .food-modal-add.btn {
@@ -849,8 +851,9 @@ html[dir="ltr"] .search-panel__input {
 }
 
 .sides-modal-dialog {
-  background: var(--color-white);
-  border: 1px solid var(--color-cream-dark);
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(196, 160, 106, 0.45);
+  box-shadow: 0 18px 42px rgba(21, 38, 64, 0.28);
 }
 
 .sides-modal-close {
@@ -904,13 +907,24 @@ html[dir="ltr"] .search-panel__input {
 }
 
 /* --- Cart --- */
+.app-confirm__panel,
+.order-receipt__panel,
+.home-notice__panel,
+.help-bot-panel__card,
+.shabbat-notice__panel {
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(196, 160, 106, 0.45);
+  box-shadow: 0 18px 42px rgba(21, 38, 64, 0.28);
+}
+
 .cart-backdrop {
   background: rgba(21, 38, 64, 0.48);
 }
 
 .cart-drawer {
-  background: var(--color-white);
-  border-color: var(--color-cream-dark);
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(196, 160, 106, 0.45);
+  box-shadow: 0 18px 42px rgba(21, 38, 64, 0.28);
 }
 
 .cart-header {
@@ -938,8 +952,9 @@ html[dir="ltr"] .search-panel__input {
 }
 
 .cart-item {
-  background: var(--color-cream);
-  border-radius: var(--radius-sm);
+  background: rgba(255, 252, 247, 0.96);
+  border: 1px solid rgba(196, 160, 106, 0.28);
+  border-radius: 14px;
   padding: 0.5rem 0.55rem;
   margin-bottom: 0.45rem;
   border-bottom: none;
@@ -1064,8 +1079,8 @@ html[dir="ltr"] .search-panel__input {
 }
 
 .cart-footer {
-  background: var(--color-cream);
-  border-top-color: var(--color-cream-dark);
+  background: rgba(255, 255, 255, 0.72);
+  border-top-color: rgba(196, 160, 106, 0.35);
 }
 
 .order-feedback {
@@ -1154,8 +1169,8 @@ html[dir='ltr'] .food-modal-body .food-card .food-content {
 /* --- Desktop header always visible --- */
 @media (min-width: 960px) {
   .site-header:not(.is-scrolled) {
-    background: var(--color-header-bg);
-    border-bottom: 1px solid var(--color-cream-dark);
+    background: rgba(245, 241, 234, 0.52);
+    border-bottom: 1px solid rgba(232, 223, 208, 0.45);
   }
 
   .site-header:not(.is-scrolled) .header-inner {
