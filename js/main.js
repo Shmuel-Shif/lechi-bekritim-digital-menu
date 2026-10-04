@@ -951,8 +951,35 @@
     bifHeroFoto("knafi'im.webp"),
   ];
 
+  function collectHeroSlideshowFromInventory() {
+    const inv = window.LechaimInventory;
+    if (!inv?.isLoaded?.() || typeof inv.isHeroSlideshow !== 'function') return [];
+    const urls = [];
+    const seen = new Set();
+    (inv.getCatalog?.() || []).forEach((item) => {
+      if (!item?.id) return;
+      if (item.scope === 'butcher' || item.scope === 'shabbat') return;
+      if (inv.isHeroSlideshow(item.id) !== true) return;
+      if (inv.isAvailable?.(item.id) === false) return;
+      const src = String(item.image || '').trim();
+      if (!src || seen.has(src)) return;
+      seen.add(src);
+      urls.push(src);
+    });
+    return urls;
+  }
+
   function getHeroSlides() {
-    return shuffleArray(isButcherContext() ? HERO_SLIDES_BUTCHER : HERO_SLIDES_MENU);
+    if (isButcherContext()) return shuffleArray(HERO_SLIDES_BUTCHER);
+    const fromInventory = collectHeroSlideshowFromInventory();
+    if (fromInventory.length >= 2) return shuffleArray(fromInventory);
+    if (fromInventory.length === 1) {
+      /* Keep rotation alive: one featured dish + classic header fotos */
+      const featured = fromInventory[0];
+      const rest = HERO_SLIDES_MENU.filter((src) => src !== featured);
+      return [featured, ...shuffleArray(rest)];
+    }
+    return shuffleArray(HERO_SLIDES_MENU);
   }
 
   /* ---------- i18n ---------- */
@@ -3681,6 +3708,10 @@
           });
           return;
         }
+        if (change === 'hero_slideshow') {
+          initHeroSlideshow();
+          return;
+        }
         refreshFoodCardById(productId, { full: true });
         if (openModalItemId === productId) openFoodModalById(productId);
         if (isHotSide(productId)) refreshSidesModal();
@@ -3689,6 +3720,7 @@
 
       syncAllMenuItemVisibility();
       syncAllRecommendedBadges();
+      initHeroSlideshow();
       updateOpenFoodModal();
       refreshSidesModal();
     };
@@ -3697,6 +3729,7 @@
       .then(() => {
         syncAllMenuItemVisibility();
         syncAllRecommendedBadges();
+        initHeroSlideshow();
         guardCartStock();
         updateOpenFoodModal();
         refreshSidesModal();
@@ -4724,14 +4757,27 @@
     const container = $('#hero-slides');
     if (!container) return;
 
+    if (heroSlideTimer) {
+      window.clearInterval(heroSlideTimer);
+      heroSlideTimer = null;
+    }
+    container.replaceChildren();
+
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const SLIDE_MS = 5000;
-    const FADE_MS = 1600;
+    const SLIDE_MS = 5500;
+    const FADE_MS = reducedMotion ? 420 : 1800;
     const HERO_IMG_W = 1600;
     const HERO_IMG_H = 900;
 
     const slides = [];
     const preloadedHrefs = new Set();
+    const fadeTokens = new WeakMap();
+
+    const setSlideOpacity = (el, value) => {
+      if (!el) return;
+      /* Plain inline opacity (no !important) so rAF can update every frame */
+      el.style.opacity = String(value);
+    };
 
     const loadSlideImage = (entry) => {
       if (!entry || entry.loaded) return;
@@ -4757,7 +4803,43 @@
       preloadHref(entry.src, priority);
     };
 
-    getHeroSlides().forEach((src, index) => {
+    const fadeSlide = (el, from, to, ms) => {
+      if (!el) return Promise.resolve();
+      const prev = fadeTokens.get(el);
+      if (prev) prev.cancelled = true;
+      const token = { cancelled: false };
+      fadeTokens.set(el, token);
+
+      const duration = Math.max(280, Number(ms) || 0);
+      /* rAF opacity tween — independent of CSS transitions / reduced-motion */
+      return new Promise((resolve) => {
+        const start = performance.now();
+        setSlideOpacity(el, from);
+        const tick = (now) => {
+          if (token.cancelled) {
+            resolve();
+            return;
+          }
+          const p = Math.min(1, (now - start) / duration);
+          const eased = p < 0.5
+            ? 2 * p * p
+            : 1 - ((-2 * p + 2) ** 2) / 2;
+          setSlideOpacity(el, from + (to - from) * eased);
+          if (p < 1) {
+            requestAnimationFrame(tick);
+          } else {
+            setSlideOpacity(el, to);
+            resolve();
+          }
+        };
+        requestAnimationFrame(tick);
+      });
+    };
+
+    const sources = getHeroSlides().filter((src) => Boolean(String(src || '').trim()));
+    const eagerAll = sources.length > 0 && sources.length <= 10;
+
+    sources.forEach((src, index) => {
       const slide = document.createElement('div');
       slide.className = 'hero-slide';
 
@@ -4770,14 +4852,13 @@
 
       const entry = { slide, img, src, loaded: false, prefetched: false };
 
-      if (index === 0) {
-        img.loading = 'eager';
-        img.fetchPriority = 'high';
+      if (index === 0 || eagerAll) {
+        img.loading = index === 0 ? 'eager' : 'lazy';
+        if (index === 0) img.fetchPriority = 'high';
         entry.prefetched = true;
-        preloadHref(src, 'high');
+        preloadHref(src, index === 0 ? 'high' : 'low');
         loadSlideImage(entry);
       } else {
-        /* Defer src until slide is about to show — avoids loading ~18 hero images upfront. */
         img.loading = 'lazy';
       }
 
@@ -4790,6 +4871,8 @@
         if (wasActive && slides[0]) {
           loadSlideImage(slides[0]);
           slides[0].slide.classList.add('is-active');
+          slides[0].slide.style.opacity = '1';
+          restartKenBurns(slides[0].img);
         }
       });
 
@@ -4798,13 +4881,25 @@
       slides.push(entry);
     });
 
-    if (slides[0]) {
-      slides[0].slide.classList.add('is-active');
+    function restartKenBurns(imgEl) {
+      if (!imgEl || reducedMotion) return;
+      imgEl.style.animation = 'none';
+      void imgEl.offsetWidth;
+      imgEl.style.animation = '';
+      imgEl.style.transform = '';
     }
 
-    if (reducedMotion || slides.length < 2) return;
+    if (slides[0]) {
+      slides[0].slide.classList.add('is-active');
+      setSlideOpacity(slides[0].slide, 1);
+      restartKenBurns(slides[0].img);
+    }
+    slides.slice(1).forEach((entry) => {
+      setSlideOpacity(entry.slide, 0);
+    });
 
-    /* Warm the next slide so the first transition is smooth */
+    if (slides.length < 2) return;
+
     loadSlideImage(slides[1]);
     preloadSlide(1, 'low');
 
@@ -4823,7 +4918,6 @@
       loadSlideImage(incoming);
       loadSlideImage(upcoming);
 
-      /* Freeze outgoing zoom so scale doesn't snap mid-fade */
       const outgoingImg = outgoing?.img;
       if (outgoingImg) {
         const scale = getComputedStyle(outgoingImg).transform;
@@ -4831,16 +4925,24 @@
         outgoingImg.style.transform = scale === 'none' ? 'scale(1)' : scale;
       }
 
+      outgoing?.slide.classList.add('is-leaving');
       outgoing?.slide.classList.remove('is-active');
       incoming?.slide.classList.add('is-active');
+      restartKenBurns(incoming?.img);
 
-      window.setTimeout(() => {
+      Promise.all([
+        fadeSlide(outgoing?.slide, 1, 0, FADE_MS),
+        fadeSlide(incoming?.slide, 0, 1, FADE_MS),
+      ]).finally(() => {
+        outgoing?.slide.classList.remove('is-leaving');
+        setSlideOpacity(outgoing?.slide, 0);
+        setSlideOpacity(incoming?.slide, 1);
         if (outgoingImg) {
           outgoingImg.style.animation = '';
           outgoingImg.style.transform = '';
         }
         isTransitioning = false;
-      }, FADE_MS);
+      });
     };
 
     heroSlideTimer = window.setInterval(goNext, SLIDE_MS);

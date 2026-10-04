@@ -23,7 +23,6 @@
   const chatBtn = document.getElementById('kt-chat-btn');
   const chatBadge = document.getElementById('kt-chat-badge');
   const chatSheet = document.getElementById('kt-chat-sheet');
-  const tableSheet = document.getElementById('kt-table-sheet');
   const chatLog = document.getElementById('kt-chat-log');
   const chatInput = document.getElementById('kt-chat-input');
   const tiles = document.querySelectorAll('[data-kt-type]');
@@ -309,7 +308,6 @@
     if (closeSheet) closeSheet.hidden = true;
     if (faultSheet) faultSheet.hidden = true;
     if (chatSheet) chatSheet.hidden = true;
-    if (tableSheet) tableSheet.hidden = true;
     if (faultOther) faultOther.hidden = true;
   }
 
@@ -589,7 +587,7 @@
     btn.addEventListener('click', closeSheets);
   });
 
-  [stockSheet, otherSheet, closeSheet, faultSheet, chatSheet, tableSheet].forEach((sheet) => {
+  [stockSheet, otherSheet, closeSheet, faultSheet, chatSheet].forEach((sheet) => {
     sheet?.addEventListener('click', (event) => {
       if (event.target === sheet) closeSheets();
     });

@@ -620,7 +620,18 @@ body::before {
   color: #152640;
 }
 
-.admin-btn--recommend {
+.admin-card__slide {
+  justify-self: start;
+  border-radius: 999px;
+  padding: 0.1rem 0.38rem;
+  font-size: 0.58rem;
+  font-weight: 800;
+  background: #2d4a73;
+  color: #fff;
+}
+
+.admin-btn--recommend,
+.admin-btn--slideshow {
   width: 100%;
   min-height: 44px;
   margin: 0;
@@ -638,14 +649,25 @@ body::before {
   background: #d4b88a;
 }
 
-.admin-btn--recommend.is-off {
+.admin-btn--recommend.is-off,
+.admin-btn--slideshow.is-off {
   background: rgba(255, 255, 255, 0.72);
   color: var(--color-navy);
   border-color: var(--color-cream-dark);
 }
 
-.admin-btn--recommend.is-off:hover:not(:disabled) {
+.admin-btn--recommend.is-off:hover:not(:disabled),
+.admin-btn--slideshow.is-off:hover:not(:disabled) {
   background: var(--color-cream);
+}
+
+.admin-btn--slideshow.is-on {
+  background: #2d4a73;
+  color: #fff;
+}
+
+.admin-btn--slideshow.is-on:hover:not(:disabled) {
+  background: #1e3354;
 }
 
 .admin-card__summary {
@@ -6918,6 +6940,10 @@ body.admin-inventory-open {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.45rem;
+}
+
+.admin-inventory-modal__toggles .admin-btn--slideshow {
+  grid-column: 1 / -1;
 }
 
 .admin-inventory-modal__field {

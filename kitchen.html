@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@600;700;800&family=Heebo:wght@500;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/kitchen-tablet.css?v=66">
+  <link rel="stylesheet" href="css/kitchen-tablet.css?v=73">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
 </head>
 <body>
@@ -40,6 +40,9 @@
         <span data-kt-label="tabTables">Τραπέζια</span>
         <span class="kt-tab__badge" id="kt-tables-badge" hidden>0</span>
       </button>
+      <button type="button" class="kt-tab" data-kt-tab="products">
+        <span data-kt-label="tabProducts">Προϊόντα</span>
+      </button>
       <button type="button" class="kt-tab" data-kt-tab="delivery">
         <span data-kt-label="tabDelivery">Διανομές</span>
         <span class="kt-tab__badge" id="kt-delivery-badge" hidden>0</span>
@@ -60,21 +63,13 @@
     <div class="kt-view" id="kt-view-tables">
       <div class="kt-tables-layout">
         <div class="kt-tables-col">
-          <div class="kt-tables" id="kt-tables-grid"></div>
-          <div class="kt-sheet kt-sheet--incol" id="kt-table-sheet" hidden>
-            <div class="kt-sheet__panel kt-sheet__panel--table" role="dialog" aria-labelledby="kt-table-title">
-              <div class="kt-sheet__head">
-                <h2 class="kt-sheet__title" id="kt-table-title">Τραπέζι</h2>
-                <button type="button" class="kt-sheet__close" data-kt-close aria-label="Κλείσιμο">×</button>
-              </div>
-              <div class="kt-table-meta" id="kt-table-meta"></div>
-              <div class="kt-dishes" id="kt-table-items"></div>
-              <button type="button" class="kt-send" id="kt-all-ready" hidden data-kt-label="allReady">✅ Έτοιμα όλα</button>
-            </div>
-          </div>
+          <div class="kt-order-rail" id="kt-order-rail" aria-live="polite"></div>
         </div>
-        <aside class="kt-prep" id="kt-prep-board" aria-live="polite"></aside>
       </div>
+    </div>
+
+    <div class="kt-view" id="kt-view-products" hidden>
+      <aside class="kt-prep kt-prep--screen" id="kt-prep-board" aria-live="polite"></aside>
     </div>
 
     <div class="kt-view" id="kt-view-alerts" hidden>
@@ -196,6 +191,7 @@
   </div>
 
   <div class="kt-note-toast" id="kt-note-toast" hidden></div>
+  <div class="kt-overflow-toast" id="kt-overflow-toast" hidden role="status" aria-live="assertive"></div>
   <div class="kt-flash" id="kt-flash" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
@@ -204,12 +200,12 @@
   <script src="js/order-session.js?v=6" defer></script>
   <script src="js/supabase-order-service.js?v=27" defer></script>
   <script src="js/menu-data.js?v=114" defer></script>
-  <script src="js/inventory.js?v=46" defer></script>
+  <script src="js/inventory.js?v=47" defer></script>
   <script src="js/kitchen-progress.js?v=2" defer></script>
   <script src="js/kitchen-dish-groups.js?v=1" defer></script>
-  <script src="js/kitchen-i18n.js?v=32" defer></script>
+  <script src="js/kitchen-i18n.js?v=34" defer></script>
   <script src="js/kitchen-alert-service.js?v=13" defer></script>
-  <script src="js/kitchen-tablet.js?v=26" defer></script>
-  <script src="js/kitchen-admin.js?v=50" defer></script>
+  <script src="js/kitchen-tablet.js?v=27" defer></script>
+  <script src="js/kitchen-admin.js?v=66" defer></script>
 </body>
 </html>

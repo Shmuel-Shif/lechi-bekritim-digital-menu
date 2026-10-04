@@ -2,7 +2,7 @@
  * LECHAIM — Inventory + menu overrides (Supabase)
  *
  * Catalog source of truth: MENU_DATA + HOT_SIDE_ITEMS (never duplicated).
- * Availability: table `inventory` (product_id, available, recommended)
+ * Availability: table `inventory` (product_id, available, recommended, hero_slideshow)
  * Content overrides: table `menu_overrides` (product_id, name, description, price, image)
  *
  * Future hooks are stubbed for: add/delete dish, reorder, promos, tags, hours, i18n.
@@ -15,11 +15,13 @@
   const COL_PRODUCT_ID = 'product_id';
   const COL_AVAILABLE = 'available';
   const COL_RECOMMENDED = 'recommended';
+  const COL_HERO_SLIDESHOW = 'hero_slideshow';
   const COL_STOCK_TRACKED = 'stock_tracked';
   const COL_STOCK_QTY = 'stock_qty';
 
   const availability = new Map();
   const recommended = new Map();
+  const heroSlideshow = new Map();
   const stockTracked = new Map();
   const stockQty = new Map();
   const overrides = new Map();
@@ -32,6 +34,7 @@
   let loaded = false;
   let overridesEnabled = true;
   let recommendedEnabled = true;
+  let heroSlideshowEnabled = true;
   let stockQtyEnabled = true;
 
   function getConfig() {
@@ -103,6 +106,16 @@
     return prev === value ? null : id;
   }
 
+  function applyHeroSlideshowRow(row) {
+    if (!row || row[COL_PRODUCT_ID] == null) return null;
+    if (!Object.prototype.hasOwnProperty.call(row, COL_HERO_SLIDESHOW)) return null;
+    const id = String(row[COL_PRODUCT_ID]);
+    const value = row[COL_HERO_SLIDESHOW] === true;
+    const prev = heroSlideshow.has(id) ? heroSlideshow.get(id) : false;
+    heroSlideshow.set(id, value);
+    return prev === value ? null : id;
+  }
+
   function applyStockRow(row) {
     if (!row || row[COL_PRODUCT_ID] == null) return null;
     if (!Object.prototype.hasOwnProperty.call(row, COL_STOCK_TRACKED)
@@ -149,6 +162,13 @@
     const id = String(productId);
     if (!recommended.has(id)) return false;
     return recommended.get(id) === true;
+  }
+
+  function isHeroSlideshow(productId) {
+    if (productId == null || !heroSlideshowEnabled) return false;
+    const id = String(productId);
+    if (!heroSlideshow.has(id)) return false;
+    return heroSlideshow.get(id) === true;
   }
 
   function isStockTracked(productId) {
@@ -272,6 +292,7 @@
           categoryTitle,
           available: isAvailable(resolved.id),
           recommended: isRecommended(resolved.id),
+          heroSlideshow: isHeroSlideshow(resolved.id),
           stockTracked: isStockTracked(resolved.id),
           stockQty: getStockQty(resolved.id),
           adminOnly: Boolean(item.adminOnly),
@@ -322,6 +343,7 @@
         categoryTitle: getCategoryTitle(categoryTitleKey, categoryId),
         available: isAvailable(resolved.id),
         recommended: isRecommended(resolved.id),
+        heroSlideshow: isHeroSlideshow(resolved.id),
         stockTracked: isStockTracked(resolved.id),
         stockQty: getStockQty(resolved.id),
         adminOnly: Boolean(item.adminOnly),
@@ -389,55 +411,83 @@
     const sb = getClient();
     if (!sb) return;
 
-    const withRec = await sb
-      .from(TABLE_INVENTORY)
-      .select(`${COL_PRODUCT_ID}, ${COL_AVAILABLE}, ${COL_RECOMMENDED}, ${COL_STOCK_TRACKED}, ${COL_STOCK_QTY}`);
+    const fullCols = `${COL_PRODUCT_ID}, ${COL_AVAILABLE}, ${COL_RECOMMENDED}, ${COL_HERO_SLIDESHOW}, ${COL_STOCK_TRACKED}, ${COL_STOCK_QTY}`;
+    const withAll = await sb.from(TABLE_INVENTORY).select(fullCols);
 
-    let rows = withRec.data;
-    if (withRec.error) {
-      const missingStock = /stock_tracked|stock_qty/i.test(String(withRec.error.message || ''));
-      const missingRec = /recommended/i.test(String(withRec.error.message || ''));
-      if (missingStock && !missingRec) {
-        stockQtyEnabled = false;
-        console.warn('[inventory] stock_qty columns unavailable:', withRec.error.message);
-        const fallback = await sb
+    let rows = withAll.data;
+    if (withAll.error) {
+      const msg = String(withAll.error.message || '');
+      const missingHero = /hero_slideshow/i.test(msg);
+      const missingStock = /stock_tracked|stock_qty/i.test(msg);
+      const missingRec = /recommended/i.test(msg);
+
+      if (missingHero && !missingRec && !missingStock) {
+        heroSlideshowEnabled = false;
+        console.warn('[inventory] hero_slideshow column unavailable:', withAll.error.message);
+        const withRec = await sb
           .from(TABLE_INVENTORY)
-          .select(`${COL_PRODUCT_ID}, ${COL_AVAILABLE}, ${COL_RECOMMENDED}`);
-        if (fallback.error) {
-          recommendedEnabled = false;
-          stockQtyEnabled = false;
-          console.warn('[inventory] recommended column unavailable:', fallback.error.message);
-          const bare = await sb
-            .from(TABLE_INVENTORY)
-            .select(`${COL_PRODUCT_ID}, ${COL_AVAILABLE}`);
-          if (bare.error) throw bare.error;
-          rows = bare.data;
+          .select(`${COL_PRODUCT_ID}, ${COL_AVAILABLE}, ${COL_RECOMMENDED}, ${COL_STOCK_TRACKED}, ${COL_STOCK_QTY}`);
+        if (withRec.error) {
+          /* fall through to older fallbacks below */
+          Object.assign(withAll, withRec);
         } else {
           recommendedEnabled = true;
+          stockQtyEnabled = true;
+          rows = withRec.data;
+        }
+      }
+
+      if (withAll.error && rows == null) {
+        const errMsg = String(withAll.error.message || '');
+        const noStock = /stock_tracked|stock_qty/i.test(errMsg);
+        const noRec = /recommended/i.test(errMsg);
+        if (noStock && !noRec) {
+          stockQtyEnabled = false;
+          console.warn('[inventory] stock_qty columns unavailable:', withAll.error.message);
+          const fallback = await sb
+            .from(TABLE_INVENTORY)
+            .select(`${COL_PRODUCT_ID}, ${COL_AVAILABLE}, ${COL_RECOMMENDED}`);
+          if (fallback.error) {
+            recommendedEnabled = false;
+            stockQtyEnabled = false;
+            heroSlideshowEnabled = false;
+            console.warn('[inventory] recommended column unavailable:', fallback.error.message);
+            const bare = await sb
+              .from(TABLE_INVENTORY)
+              .select(`${COL_PRODUCT_ID}, ${COL_AVAILABLE}`);
+            if (bare.error) throw bare.error;
+            rows = bare.data;
+          } else {
+            recommendedEnabled = true;
+            rows = fallback.data;
+          }
+        } else {
+          recommendedEnabled = false;
+          stockQtyEnabled = false;
+          heroSlideshowEnabled = false;
+          console.warn('[inventory] recommended column unavailable:', withAll.error.message);
+          const fallback = await sb
+            .from(TABLE_INVENTORY)
+            .select(`${COL_PRODUCT_ID}, ${COL_AVAILABLE}`);
+          if (fallback.error) throw fallback.error;
           rows = fallback.data;
         }
-      } else {
-        recommendedEnabled = false;
-        stockQtyEnabled = false;
-        console.warn('[inventory] recommended column unavailable:', withRec.error.message);
-        const fallback = await sb
-          .from(TABLE_INVENTORY)
-          .select(`${COL_PRODUCT_ID}, ${COL_AVAILABLE}`);
-        if (fallback.error) throw fallback.error;
-        rows = fallback.data;
       }
     } else {
       recommendedEnabled = true;
+      heroSlideshowEnabled = true;
       stockQtyEnabled = true;
     }
 
     availability.clear();
     recommended.clear();
+    heroSlideshow.clear();
     stockTracked.clear();
     stockQty.clear();
     (rows || []).forEach((row) => {
       applyAvailabilityRow(row);
       applyRecommendedRow(row);
+      applyHeroSlideshowRow(row);
       applyStockRow(row);
     });
   }
@@ -559,6 +609,7 @@
             const id = String(payload.old[COL_PRODUCT_ID]);
             availability.delete(id);
             recommended.delete(id);
+            heroSlideshow.delete(id);
             stockTracked.delete(id);
             stockQty.delete(id);
             notifyProduct(id, 'availability');
@@ -567,10 +618,12 @@
           const row = payload.new || payload.old;
           const availChanged = applyAvailabilityRow(row);
           const recChanged = applyRecommendedRow(row);
+          const heroChanged = applyHeroSlideshowRow(row);
           const stockChanged = applyStockRow(row);
           if (availChanged) notifyProduct(availChanged, 'availability');
           else if (stockChanged) notifyProduct(stockChanged, 'stock');
           else if (recChanged) notifyProduct(recChanged, 'recommended');
+          else if (heroChanged) notifyProduct(heroChanged, 'hero_slideshow');
         }
       );
     }
@@ -732,6 +785,65 @@
     recommended.set(id, saved);
     notifyProduct(id, 'recommended');
     console.log('[inventory] PROOF recommended saved', selectRes.data);
+    return saved;
+  }
+
+  async function setHeroSlideshow(productId, value) {
+    const sb = getClient();
+    if (!sb) throw new Error('Supabase is not configured');
+    if (!heroSlideshowEnabled) {
+      throw new Error(
+        'עמודת hero_slideshow חסרה בטבלת inventory.\n' +
+        'הרצו את supabase-inventory-hero-slideshow.sql ב-Supabase SQL Editor, ואז רעננו את האדמין.'
+      );
+    }
+
+    const sessionRes = await sb.auth.getSession();
+    if (sessionRes.error) throwSupabaseError(sessionRes.error, 'auth.getSession before inventory hero_slideshow upsert');
+    const session = sessionRes.data?.session;
+    if (!session) throw new Error('No active session. Sign in again before updating inventory.');
+    await syncRealtimeAuth(session);
+
+    const id = String(productId);
+    const next = value === true;
+
+    const upsertRes = await sb.from(TABLE_INVENTORY).upsert(
+      { [COL_PRODUCT_ID]: id, [COL_HERO_SLIDESHOW]: next },
+      { onConflict: COL_PRODUCT_ID }
+    );
+
+    if (upsertRes.error) {
+      throwSupabaseError(upsertRes.error, `inventory.upsert product_id=${id} hero_slideshow=${next}`);
+    }
+
+    const selectRes = await sb
+      .from(TABLE_INVENTORY)
+      .select(`${COL_PRODUCT_ID}, ${COL_HERO_SLIDESHOW}`)
+      .eq(COL_PRODUCT_ID, id)
+      .maybeSingle();
+
+    if (selectRes.error) {
+      throwSupabaseError(selectRes.error, `inventory.select after hero_slideshow upsert product_id=${id}`);
+    }
+
+    if (!selectRes.data) {
+      throw new Error(
+        `inventory SELECT after hero_slideshow upsert returned no row for product_id=${id}. ` +
+        `Upsert may have been blocked by RLS. Check policies for authenticated INSERT/UPDATE.`
+      );
+    }
+
+    const saved = selectRes.data[COL_HERO_SLIDESHOW] === true;
+    if (saved !== next) {
+      throw new Error(
+        `inventory hero_slideshow proof mismatch for product_id=${id}. ` +
+        `Expected hero_slideshow=${next}, SELECT returned ${JSON.stringify(selectRes.data)}`
+      );
+    }
+
+    heroSlideshow.set(id, saved);
+    notifyProduct(id, 'hero_slideshow');
+    console.log('[inventory] PROOF hero_slideshow saved', selectRes.data);
     return saved;
   }
 
@@ -950,6 +1062,7 @@
     getStats,
     isAvailable,
     isRecommended,
+    isHeroSlideshow,
     isStockTracked,
     getStockQty,
     patchStockQty,
@@ -966,10 +1079,12 @@
     subscribe,
     setAvailable,
     setRecommended,
+    setHeroSlideshow,
     setStock,
     saveContent,
     areOverridesEnabled: () => overridesEnabled,
     areRecommendedEnabled: () => recommendedEnabled,
+    areHeroSlideshowEnabled: () => heroSlideshowEnabled,
     areStockQtyEnabled: () => stockQtyEnabled,
     /* Future */
     addProduct,

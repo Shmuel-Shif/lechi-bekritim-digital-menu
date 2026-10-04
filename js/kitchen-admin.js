@@ -11,26 +11,31 @@
   const typesApi = global.LechaimOrderTypes;
   const dishGroups = global.LechaimKitchenDishGroups;
 
-  const gridEl = document.getElementById('kt-tables-grid');
+  const orderRailEl = document.getElementById('kt-order-rail');
+  const tablesColEl = orderRailEl?.closest('.kt-tables-col') || null;
   const prepEl = document.getElementById('kt-prep-board');
   const statusEl = document.getElementById('kt-status');
-  const drawerEl = document.getElementById('kt-table-sheet');
-  const drawerTitle = document.getElementById('kt-table-title');
-  const drawerMeta = document.getElementById('kt-table-meta');
-  const drawerItems = document.getElementById('kt-table-items');
   const viewTables = document.getElementById('kt-view-tables');
+  const viewProducts = document.getElementById('kt-view-products');
   const viewAlerts = document.getElementById('kt-view-alerts');
+  const overflowToastEl = document.getElementById('kt-overflow-toast');
 
   const TABLE_MIN = sessionApi?.TABLE_MIN || 60;
   const TABLE_MAX = sessionApi?.TABLE_MAX || 73;
 
-  if (!gridEl) return;
+  if (!orderRailEl) return;
 
   let board = [];
   let tableBoard = [];
   let pickupBoard = [];
   let deliveryBoard = [];
-  let openEntryId = null;
+  /** Expanded (OPEN) session ids — LTR, append on open */
+  let openEntryIds = [];
+  /** CLOSED sessions parked at the end after UI close (X) */
+  let closedTailIds = [];
+  const dishGroupsBySession = new Map();
+  let prevBoardSessionIds = new Set();
+  let overflowToastTimer = null;
   let currentTab = 'tables';
   let refreshTimer = null;
   let sending = false;
@@ -59,7 +64,6 @@
   const NEW_PULSE_MS = 10000;
   const LATE_MS = 20 * 60 * 1000;
   let lateChimed = new Set();
-  let lastDishGroups = [];
   let pollTimer = null;
   let pollMs = 0;
   let unsubRealtimeStatus = null;
@@ -416,7 +420,7 @@
     dismissedNeoIds.add(id);
     neoPulseUntil.delete(id);
     if (!showing) return false;
-    if (!opts?.silent && openEntryId) fillDrawer(openEntryId);
+    if (!opts?.silent && openEntryIds.length) renderOrderRail();
     return true;
   }
 
@@ -1116,7 +1120,8 @@
 
   function renderPrepBoard() {
     if (!prepEl) return;
-    const { mains, sides } = buildPrepTotals(board);
+    /* Full products screen: totals across tables + pickup + delivery */
+    const { mains, sides } = buildPrepTotals(allBoardEntries());
     const now = Date.now();
     const nextQty = new Map();
     const markPulse = (role, rows) => {
@@ -1162,28 +1167,30 @@
     return { ready, total, allReady: total > 0 && list.every(isDishReady) };
   }
 
-  function dishReadyBtn(group, index) {
+  function dishReadyBtn(group, index, sessionId) {
     const ready = Boolean(group.allReady);
     return `
       <button type="button"
         class="kt-ready${ready ? ' is-on' : ''}"
         data-kt-dish-toggle="${escapeHtml(String(index))}"
+        data-kt-session="${escapeHtml(String(sessionId || ''))}"
         aria-pressed="${ready ? 'true' : 'false'}"
         aria-label="${escapeHtml(ready ? txt('dishReady') : txt('dishWait'))}"
       ></button>
     `;
   }
 
-  function unitStepperHtml(group, index) {
+  function unitStepperHtml(group, index, sessionId) {
     const remaining = Number(group.remainingQty) || 0;
     const total = Number(group.totalQty) || 0;
     const minusOff = remaining <= 0;
     const plusOff = remaining >= total;
+    const sid = escapeHtml(String(sessionId || ''));
     return `
       <div class="kt-unit" dir="ltr">
-        <button type="button" class="kt-unit__btn" data-kt-unit-delta="-1" data-kt-unit-group="${escapeHtml(String(index))}" ${minusOff ? 'disabled' : ''} aria-label="−">−</button>
+        <button type="button" class="kt-unit__btn" data-kt-unit-delta="-1" data-kt-unit-group="${escapeHtml(String(index))}" data-kt-session="${sid}" ${minusOff ? 'disabled' : ''} aria-label="−">−</button>
         <span class="kt-unit__n">${escapeHtml(String(remaining))}</span>
-        <button type="button" class="kt-unit__btn" data-kt-unit-delta="1" data-kt-unit-group="${escapeHtml(String(index))}" ${plusOff ? 'disabled' : ''} aria-label="+">+</button>
+        <button type="button" class="kt-unit__btn" data-kt-unit-delta="1" data-kt-unit-group="${escapeHtml(String(index))}" data-kt-session="${sid}" ${plusOff ? 'disabled' : ''} aria-label="+">+</button>
       </div>
     `;
   }
@@ -1309,7 +1316,7 @@
     if (key) dismissedLateKeys.add(key);
   }
 
-  function renderGroupedDish(group, index) {
+  function renderGroupedDish(group, index, sessionId) {
     const ready = Boolean(group.allReady);
     const neoItem = (group.mains || []).find((item) => showNeo(item));
     const neo = Boolean(neoItem);
@@ -1322,7 +1329,7 @@
         <div class="kt-dish kt-dish--main ${ready ? 'is-ready' : 'is-waiting'}" data-item-id="${escapeHtml(item.itemId)}">
           <div class="kt-dish__top">
             <span class="kt-dish__name">${urgent ? `<span class="kt-urgent-tag">${escapeHtml(txt('dishUrgent'))}</span>` : ''}${neo ? `<span class="kt-new-tag">${escapeHtml(txt('dishNew'))}</span>` : ''}${escapeHtml(String(qty))} × ${escapeHtml(dishName(item))}</span>
-            ${ready || qty <= 1 ? dishReadyBtn(group, index) : unitStepperHtml(group, index)}
+            ${ready || qty <= 1 ? dishReadyBtn(group, index, sessionId) : unitStepperHtml(group, index, sessionId)}
           </div>
         </div>
         ${kids ? `<div class="kt-dish__kids">${kids}</div>` : ''}
@@ -1381,8 +1388,15 @@
     setBadge('kt-delivery-badge', deliveryBoard.length);
   }
 
+  function waitingCount(entry) {
+    const counts = readyCounts(entry?.order?.items);
+    return Math.max(0, (Number(counts.total) || 0) - (Number(counts.ready) || 0));
+  }
+
   function renderCard(entry) {
+    const sid = String(entry.order?.sessionId || '');
     const counts = readyCounts(entry.order?.items);
+    const waiting = waitingCount(entry);
     const allDone = Boolean(entry.order?.kitchenAllReady) && counts.allReady;
     const urgentList = urgentMains(entry.order?.items);
     const urgent = !allDone && urgentList.length > 0;
@@ -1398,100 +1412,323 @@
         : (overdue
           ? txt('tableLate')
           : (fresh ? txt('tableFresh') : statusLabel(entry.uiStatus))));
-    const urgentLabel = urgentList.map((item) => dishName(item)).filter(Boolean).slice(0, 2).join(' · ');
     const noteBadge = noteBadgeLabel(unreadNoteCount(entry.order?.items));
     const hasNotes = hasAnyKitchenNote(entry.order?.items);
-    const noteMark = hasNotes
-      ? `<span class="kt-table-card__note-mark" aria-hidden="true">!</span>`
-      : '';
     const face = urgentPulse ? '🫨' : (fresh ? '🥳' : (wave ? '😇' : (overdue ? '⏰' : (noteTone ? '🤓' : ''))));
     const named = entry.kind === 'pickup' || entry.kind === 'delivery';
+    const kindLabel = entry.kind === 'delivery'
+      ? txt('deliveryPrefix')
+      : (entry.kind === 'pickup' ? txt('pickupPrefix') : '');
     return `
       <button type="button"
         class="kt-table-card${named ? ' is-named' : ''} is-${escapeHtml(cardTone(entry.uiStatus))}${fresh ? ' is-fresh' : ''}${wave ? ' is-wave' : ''}${urgentPulse ? ' is-urgent' : ''}${urgent && !urgentPulse ? ' is-urgent-seen' : ''}${overdue ? ' is-late' : ''}${allDone && !wave ? ' is-allready' : ''}${noteTone ? ' is-note' : ''}${hasNotes ? ' has-notes' : ''}"
-        data-kt-entry="${escapeHtml(String(entry.order?.sessionId || ''))}"
+        data-kt-entry="${escapeHtml(sid)}"
+        data-kt-session="${escapeHtml(sid)}"
+        aria-expanded="false"
       >
         ${face ? `<span class="kt-table-card__face" aria-hidden="true">${face}</span>` : ''}
+        ${kindLabel ? `<span class="kt-table-card__kind">${escapeHtml(kindLabel)}</span>` : ''}
         <span class="kt-table-card__num">${escapeHtml(entryCardNum(entry))}</span>
         <span class="kt-table-card__status">${escapeHtml(statusText)}</span>
-        ${urgentLabel ? `<span class="kt-table-card__urgent">${escapeHtml(urgentLabel)}</span>` : ''}
-        ${noteBadge ? `<span class="kt-table-card__note">${escapeHtml(noteBadge)}</span>` : ''}
-        ${global.LechaimKitchenProgress?.barHtml?.(
-          global.LechaimKitchenProgress.fromItems(entry.order?.items),
-          { readyWord: txt('progressReady') }
-        ) || `<span class="kt-table-card__items">${escapeHtml(String(counts.ready))} / ${escapeHtml(String(counts.total))} ${escapeHtml(txt('readyCount'))}${noteMark}</span>`}
+        <span class="kt-table-card__items">${escapeHtml(String(waiting))} ${escapeHtml(txt('waitCount'))}${noteBadge ? ` · ${escapeHtml(noteBadge)}` : ''}</span>
         ${allDone ? `<span class="kt-table-card__done">${escapeHtml(txt('allReadyDone'))}</span>` : ''}
         <span class="kt-table-card__time">${escapeHtml(formatElapsed(entry.openedAt))}</span>
       </button>
     `;
   }
 
-  function renderBoard() {
-    if (gridEl) {
-      gridEl.innerHTML = board.length
-        ? board.map(renderCard).join('')
-        : `<p class="kt-news__empty">${escapeHtml(emptyMessage())}</p>`;
+  function resolveOpenEntry(sessionId) {
+    const id = String(sessionId || '');
+    if (!id) return null;
+    return findEntry(id) || board.find((row) => String(row.order?.sessionId || '') === id) || null;
+  }
+
+  function pruneOpenEntryIds() {
+    const next = [];
+    const seen = new Set();
+    openEntryIds.forEach((id) => {
+      const key = String(id || '');
+      if (!key || seen.has(key)) return;
+      if (!resolveOpenEntry(key)?.order) {
+        dishGroupsBySession.delete(key);
+        return;
+      }
+      seen.add(key);
+      next.push(key);
+    });
+    openEntryIds = next;
+  }
+
+  function renderOpenTicket(entry) {
+    const sid = String(entry.order?.sessionId || '');
+    const counts = readyCounts(entry.order.items);
+    const waiting = waitingCount(entry);
+    const allDone = Boolean(entry.order.kitchenAllReady) && counts.allReady;
+    const groups = dishGroups?.buildDisplayGroups?.(entry.order.items) || [];
+    dishGroupsBySession.set(sid, groups);
+    const showAllReady = counts.allReady && !entry.order.kitchenAllReady;
+    const named = entry.kind === 'pickup' || entry.kind === 'delivery';
+    const kindLabel = entry.kind === 'delivery'
+      ? txt('deliveryPrefix')
+      : (entry.kind === 'pickup' ? txt('pickupPrefix') : txt('tablePrefix'));
+    return `
+      <article class="kt-open-ticket${named ? ' is-named' : ''} is-${escapeHtml(cardTone(entry.uiStatus))}${allDone ? ' is-allready' : ''}"
+        data-kt-open-session="${escapeHtml(sid)}"
+        data-kt-session="${escapeHtml(sid)}"
+        role="region"
+        aria-label="${escapeHtml(entryTitle(entry))}"
+      >
+        <div class="kt-open-ticket__head">
+          <div class="kt-open-ticket__title-wrap">
+            <h2 class="kt-open-ticket__num">
+              <span class="kt-open-ticket__kind">${escapeHtml(kindLabel)}</span>
+              ${escapeHtml(entryCardNum(entry))}
+            </h2>
+            <p class="kt-open-ticket__meta">
+              ${escapeHtml(statusLabel(entry.uiStatus))}
+              · ${escapeHtml(String(waiting))} ${escapeHtml(txt('waitCount'))}
+              · ${escapeHtml(String(counts.ready))}/${escapeHtml(String(counts.total))}
+              ${allDone ? ` · ${escapeHtml(txt('allReadyDone'))}` : ''}
+            </p>
+          </div>
+          <button type="button" class="kt-open-ticket__close" data-kt-ticket-close="${escapeHtml(sid)}" aria-label="×" title="×">×</button>
+        </div>
+        <div class="kt-dishes">
+          ${groups.length
+            ? groups.map((row, index) => renderGroupedDish(row, index, sid)).join('')
+            : `<p class="kt-news__empty">${escapeHtml(txt('dishesEmpty'))}</p>`}
+        </div>
+        <button type="button" class="kt-send kt-open-ticket__all-ready" data-kt-all-ready="${escapeHtml(sid)}" ${showAllReady ? '' : 'hidden'} ${showAllReady ? '' : 'disabled'}>
+          ${escapeHtml(txt('allReady'))}
+        </button>
+      </article>
+    `;
+  }
+
+  function pruneClosedTailIds() {
+    const alive = new Set(
+      board.map((entry) => String(entry?.order?.sessionId || '')).filter(Boolean)
+    );
+    const open = new Set(openEntryIds);
+    const next = [];
+    const seen = new Set();
+    closedTailIds.forEach((id) => {
+      const key = String(id || '');
+      if (!key || seen.has(key) || !alive.has(key) || open.has(key)) return;
+      seen.add(key);
+      next.push(key);
+    });
+    closedTailIds = next;
+  }
+
+  function closedBoardEntries() {
+    pruneOpenEntryIds();
+    pruneClosedTailIds();
+    const open = new Set(openEntryIds);
+    const tail = new Set(closedTailIds);
+    const regular = board.filter((entry) => {
+      const sid = String(entry?.order?.sessionId || '');
+      return sid && !open.has(sid) && !tail.has(sid);
+    });
+    const parked = closedTailIds
+      .map((id) => resolveOpenEntry(id))
+      .filter((entry) => entry?.order && !open.has(String(entry.order.sessionId)));
+    return [...regular, ...parked];
+  }
+
+  function isCardOffscreen(el, rail) {
+    if (!el || !rail) return null;
+    const er = el.getBoundingClientRect();
+    const rr = rail.getBoundingClientRect();
+    /* Not laid out yet — caller should retry */
+    if (er.width < 2 || rr.width < 2) return null;
+    return er.right > rr.right + 2 || er.left < rr.left - 2;
+  }
+
+  function hideOverflowToast() {
+    window.clearTimeout(overflowToastTimer);
+    overflowToastTimer = null;
+    if (overflowToastEl) overflowToastEl.hidden = true;
+  }
+
+  function showOverflowToast(entry) {
+    if (!overflowToastEl || !entry) return;
+    const label = entryTitle(entry) || entryCardNum(entry);
+    overflowToastEl.innerHTML = `
+      <p class="kt-overflow-toast__title">${escapeHtml(txt('overflowTitle'))}</p>
+      <p class="kt-overflow-toast__table">${escapeHtml(label)}</p>
+      <p class="kt-overflow-toast__hint">${escapeHtml(txt('overflowHint'))}</p>
+    `;
+    overflowToastEl.hidden = false;
+    if (!rangThisRefresh) playNewTicketChime();
+    window.clearTimeout(overflowToastTimer);
+    overflowToastTimer = window.setTimeout(hideOverflowToast, 3000);
+  }
+
+  function notifyOverflowIfNeeded(newSessionIds, attempt) {
+    if (!newSessionIds?.length || !orderRailEl) return;
+    const rail = orderRailEl;
+    let pendingLayout = false;
+    for (let i = 0; i < newSessionIds.length; i += 1) {
+      const id = String(newSessionIds[i] || '');
+      if (!id) continue;
+      const el = [...rail.children]
+        .find((node) => String(node.dataset?.ktSession || node.dataset?.ktOpenSession || node.dataset?.ktEntry || '') === id);
+      if (!el) continue;
+      const off = isCardOffscreen(el, rail);
+      if (off === null) {
+        pendingLayout = true;
+        continue;
+      }
+      if (!off) continue;
+      const entry = resolveOpenEntry(id);
+      if (entry) {
+        showOverflowToast(entry);
+        return;
+      }
     }
+    if (pendingLayout && (attempt || 0) < 5) {
+      window.setTimeout(() => notifyOverflowIfNeeded(newSessionIds, (attempt || 0) + 1), 32);
+    }
+  }
+
+  function fitOpenTicketNames(root) {
+    const scope = root || orderRailEl;
+    if (!scope) return;
+    scope.querySelectorAll('.kt-open-ticket .kt-dish__name').forEach((el) => {
+      el.style.fontSize = '';
+      const minPx = 10;
+      let size = parseFloat(window.getComputedStyle(el).fontSize) || 16;
+      let guard = 0;
+      while (el.scrollWidth > el.clientWidth + 1 && size > minPx && guard < 24) {
+        size -= 0.5;
+        el.style.fontSize = `${size}px`;
+        guard += 1;
+      }
+    });
+  }
+
+  function renderOrderRail(opts = {}) {
+    if (!orderRailEl) return;
+    pruneOpenEntryIds();
+    pruneClosedTailIds();
+
+    const scrollLeft = orderRailEl.scrollLeft;
+    const scrollMap = new Map();
+    orderRailEl.querySelectorAll('[data-kt-open-session]').forEach((ticket) => {
+      const id = String(ticket.dataset.ktOpenSession || '');
+      const dishes = ticket.querySelector('.kt-dishes');
+      if (id && dishes) scrollMap.set(id, dishes.scrollTop);
+    });
+
+    if (!board.length) {
+      orderRailEl.innerHTML = `<p class="kt-news__empty">${escapeHtml(emptyMessage())}</p>`;
+      tablesColEl?.classList.remove('has-open');
+      return;
+    }
+
+    const openHtml = openEntryIds
+      .map((id) => {
+        const entry = resolveOpenEntry(id);
+        return entry?.order ? renderOpenTicket(entry) : '';
+      })
+      .join('');
+    const closedHtml = closedBoardEntries().map(renderCard).join('');
+    orderRailEl.innerHTML = `${openHtml}${closedHtml}`;
+    tablesColEl?.classList.toggle('has-open', openEntryIds.length > 0);
+
+    orderRailEl.scrollLeft = scrollLeft;
+    orderRailEl.querySelectorAll('[data-kt-open-session]').forEach((ticket) => {
+      const id = String(ticket.dataset.ktOpenSession || '');
+      const dishes = ticket.querySelector('.kt-dishes');
+      if (dishes && scrollMap.has(id)) dishes.scrollTop = scrollMap.get(id);
+    });
+    fitOpenTicketNames(orderRailEl);
+
+    const focusId = opts.focusId ? String(opts.focusId) : '';
+    if (focusId) {
+      const panel = [...orderRailEl.querySelectorAll('[data-kt-open-session], [data-kt-entry]')]
+        .find((el) => String(el.dataset.ktOpenSession || el.dataset.ktEntry || '') === focusId);
+      panel?.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+    }
+  }
+
+  function openTicket(sessionId, opts = {}) {
+    const entry = resolveOpenEntry(sessionId);
+    if (!entry?.order) {
+      closeTicket(sessionId);
+      return;
+    }
+    const id = String(entry.order.sessionId || '');
+    if (!id) return;
+    closedTailIds = closedTailIds.filter((row) => row !== id);
+    if (!openEntryIds.includes(id)) openEntryIds.push(id);
+    renderOrderRail({ focusId: opts.focus !== false ? id : '' });
+  }
+
+  function closeTicket(sessionId) {
+    const id = String(sessionId || '');
+    if (!id) return;
+    /* UI-only collapse — park compact card at the end; does not complete the order */
+    openEntryIds = openEntryIds.filter((row) => row !== id);
+    dishGroupsBySession.delete(id);
+    closedTailIds = closedTailIds.filter((row) => row !== id);
+    if (resolveOpenEntry(id)?.order) closedTailIds.push(id);
+    renderOrderRail();
+  }
+
+  function closeAllTickets() {
+    openEntryIds.forEach((id) => {
+      if (!closedTailIds.includes(id) && resolveOpenEntry(id)?.order) closedTailIds.push(id);
+    });
+    openEntryIds = [];
+    dishGroupsBySession.clear();
+    renderOrderRail();
+  }
+
+  /** Backward-compatible aliases used across existing call sites */
+  function fillDrawer(sessionId) {
+    openTicket(sessionId);
+  }
+
+  function closeDrawer() {
+    closeAllTickets();
+  }
+
+  function renderBoard(opts = {}) {
+    const beforeIds = prevBoardSessionIds;
+    const nowIds = new Set(
+      board.map((entry) => String(entry?.order?.sessionId || '')).filter(Boolean)
+    );
+    let arrived = [];
+    if (primed && beforeIds.size) {
+      arrived = [...nowIds].filter((id) => !beforeIds.has(id));
+      /* New sessions append at the end of the CLOSED queue */
+      arrived.forEach((id) => {
+        if (openEntryIds.includes(id)) return;
+        closedTailIds = closedTailIds.filter((row) => row !== id);
+        closedTailIds.push(id);
+      });
+    }
+
+    renderOrderRail(opts);
     renderPrepBoard();
     schedulePulseExpiry();
     updateBoardBadges();
     chimeIfNewlyOverdue();
-    if (openEntryId) fillDrawer(openEntryId);
-  }
 
-  function fillDrawer(sessionId) {
-    const entry = findEntry(sessionId) || board.find((row) => String(row.order?.sessionId || '') === String(sessionId));
-    if (!entry?.order) {
-      closeDrawer();
-      return;
+    if (arrived.length) {
+      /* Sync + async: layout may not be ready in the same frame */
+      notifyOverflowIfNeeded(arrived);
+      window.setTimeout(() => notifyOverflowIfNeeded(arrived), 0);
     }
-    openEntryId = String(entry.order.sessionId || '');
-    if (drawerTitle) drawerTitle.textContent = entryTitle(entry);
-    if (drawerMeta) {
-      const counts = readyCounts(entry.order.items);
-      const allDone = Boolean(entry.order.kitchenAllReady) && counts.allReady;
-      drawerMeta.innerHTML = `
-        <p class="kt-table-meta__row">${escapeHtml(statusLabel(entry.uiStatus))} · ${escapeHtml(String(counts.ready))} / ${escapeHtml(String(counts.total))} ${escapeHtml(txt('readyCount'))}</p>
-        ${allDone ? `<p class="kt-table-meta__done">${escapeHtml(txt('allReadyDone'))}</p>` : statsHtml(entry.order.items)}
-      `;
-    }
-    if (drawerItems) {
-      const scrollTop = drawerItems.scrollTop;
-      const groups = dishGroups?.buildDisplayGroups?.(entry.order.items) || [];
-      lastDishGroups = groups;
-      drawerItems.innerHTML = groups.length
-        ? groups.map((row, index) => renderGroupedDish(row, index)).join('')
-        : `<p class="kt-news__empty">${escapeHtml(txt('dishesEmpty'))}</p>`;
-      drawerItems.scrollTop = scrollTop;
-    }
-    const allReadyBtn = document.getElementById('kt-all-ready');
-    if (allReadyBtn) {
-      const counts = readyCounts(entry.order.items);
-      const show = counts.allReady && !entry.order.kitchenAllReady;
-      allReadyBtn.hidden = !show;
-      allReadyBtn.disabled = !show;
-      allReadyBtn.dataset.sessionId = entry.order.sessionId || '';
-      allReadyBtn.textContent = txt('allReady');
-    }
-    if (drawerEl) drawerEl.hidden = false;
-  }
-
-  function closeDrawer() {
-    openEntryId = null;
-    if (drawerEl) drawerEl.hidden = true;
-    const allReadyBtn = document.getElementById('kt-all-ready');
-    if (allReadyBtn) allReadyBtn.hidden = true;
-  }
-
-  if (drawerEl && typeof MutationObserver === 'function') {
-    new MutationObserver(() => {
-      if (drawerEl.hidden) openEntryId = null;
-    }).observe(drawerEl, { attributes: true, attributeFilter: ['hidden'] });
+    prevBoardSessionIds = nowIds;
   }
 
   function setTab(tab) {
     let next = currentTab;
     if (tab === 'alerts') next = 'alerts';
+    else if (tab === 'products') next = 'products';
     else if (tab === 'pickup' || tab === 'delivery' || tab === 'tables') next = tab;
     else return;
     const changed = next !== currentTab;
@@ -1499,9 +1736,14 @@
     document.querySelectorAll('[data-kt-tab]').forEach((btn) => {
       btn.classList.toggle('is-active', btn.dataset.ktTab === currentTab);
     });
-    if (viewTables) viewTables.hidden = currentTab === 'alerts';
+    if (viewTables) viewTables.hidden = currentTab === 'alerts' || currentTab === 'products';
+    if (viewProducts) viewProducts.hidden = currentTab !== 'products';
     if (viewAlerts) viewAlerts.hidden = currentTab !== 'alerts';
-    if (currentTab === 'alerts' || changed) closeDrawer();
+    if (currentTab === 'alerts' || currentTab === 'products' || changed) closeDrawer();
+    if (currentTab === 'products') {
+      renderPrepBoard();
+      return;
+    }
     if (currentTab !== 'alerts') {
       syncVisibleBoard();
       if (changed) renderBoard();
@@ -1565,11 +1807,13 @@
     await dishGroups.peelOneUnit(api, item, allItems, unitStatus);
   }
 
-  async function adjustDishGroup(index, delta) {
+  async function adjustDishGroup(sessionId, index, delta) {
     if (sending) return;
-    const group = lastDishGroups[Number(index)];
+    const sid = String(sessionId || '');
+    const groups = dishGroupsBySession.get(sid) || [];
+    const group = groups[Number(index)];
     if (!group || !dishGroups?.bumpGroup) return;
-    const entry = findEntryByItemId(group.main?.itemId);
+    const entry = (sid ? resolveOpenEntry(sid) : null) || findEntryByItemId(group.main?.itemId);
     const allItems = entry?.order?.items || [];
     hushRing();
     sending = true;
@@ -1609,10 +1853,11 @@
     }
   }
 
-  async function toggleItemReady(index) {
-    const group = lastDishGroups[Number(index)];
+  async function toggleItemReady(sessionId, index) {
+    const groups = dishGroupsBySession.get(String(sessionId || '')) || [];
+    const group = groups[Number(index)];
     if (!group) return;
-    await adjustDishGroup(index, group.allReady ? 1 : -1);
+    await adjustDishGroup(sessionId, index, group.allReady ? 1 : -1);
   }
 
   async function startKitchen(entry) {
@@ -1663,10 +1908,13 @@
     if (sending) return;
     hushRing();
     sending = true;
+    const id = String(sessionId || '');
     try {
-      await api.markSessionKitchenAllReady(sessionId);
+      await api.markSessionKitchenAllReady(id);
       setError('');
       await loadBoard();
+      /* UI: collapse the finished order after "all ready" */
+      if (id) closeTicket(id);
     } catch (err) {
       setError(err?.message || txt('statusFail'));
     } finally {
@@ -1677,7 +1925,10 @@
   document.addEventListener('click', unlockAudio, { once: true });
   document.addEventListener('touchstart', unlockAudio, { once: true });
 
-  gridEl?.addEventListener('click', (event) => {
+  orderRailEl?.addEventListener('click', (event) => {
+    if (event.target.closest('[data-kt-ticket-close], [data-kt-dish-toggle], [data-kt-unit-group], [data-kt-all-ready], [data-kt-note-ack], [data-kt-neo]')) {
+      return;
+    }
     const btn = event.target.closest('[data-kt-entry]');
     if (!btn || btn.disabled) return;
     const sessionId = String(btn.dataset.ktEntry || '');
@@ -1715,6 +1966,11 @@
   });
 
   document.addEventListener('click', (event) => {
+    const ticketClose = event.target.closest('[data-kt-ticket-close]');
+    if (ticketClose) {
+      closeTicket(ticketClose.dataset.ktTicketClose);
+      return;
+    }
     const prepSide = event.target.closest('[data-kt-prep-side]');
     if (prepSide) {
       const key = String(prepSide.dataset.ktPrepSide || '');
@@ -1760,14 +2016,20 @@
       if (unitBtn.disabled) return;
       const neoId = unitBtn.closest('[data-kt-neo]')?.dataset.ktNeo;
       if (neoId) dismissNeo(neoId, { silent: true });
-      adjustDishGroup(unitBtn.dataset.ktUnitGroup, Number(unitBtn.dataset.ktUnitDelta));
+      const sessionId = unitBtn.dataset.ktSession
+        || unitBtn.closest('[data-kt-open-session]')?.dataset.ktOpenSession
+        || '';
+      adjustDishGroup(sessionId, unitBtn.dataset.ktUnitGroup, Number(unitBtn.dataset.ktUnitDelta));
       return;
     }
     const toggle = event.target.closest('[data-kt-dish-toggle]');
     if (toggle) {
       const neoId = toggle.closest('[data-kt-neo]')?.dataset.ktNeo;
       if (neoId) dismissNeo(neoId, { silent: true });
-      toggleItemReady(toggle.dataset.ktDishToggle);
+      const sessionId = toggle.dataset.ktSession
+        || toggle.closest('[data-kt-open-session]')?.dataset.ktOpenSession
+        || '';
+      toggleItemReady(sessionId, toggle.dataset.ktDishToggle);
       return;
     }
     const neoRow = event.target.closest('[data-kt-neo]');
@@ -1775,9 +2037,9 @@
       dismissNeo(neoRow.dataset.ktNeo);
       return;
     }
-    const allReady = event.target.closest('#kt-all-ready');
-    if (allReady && allReady.dataset.sessionId) {
-      markAllReady(allReady.dataset.sessionId);
+    const allReady = event.target.closest('[data-kt-all-ready]');
+    if (allReady && allReady.dataset.ktAllReady) {
+      markAllReady(allReady.dataset.ktAllReady);
     }
   });
 
@@ -1797,6 +2059,36 @@
 
   global.LechaimKitchenBoard = {
     applyLang: renderBoard,
+    openTicket,
+    closeTicket,
+    closeAllTickets,
+    getOpenEntryIds: () => openEntryIds.slice(),
+    getClosedTailIds: () => closedTailIds.slice(),
+    __testShowOverflow: showOverflowToast,
+    /** Test helper: inject compact board entries without touching Supabase */
+    __testSetBoard(next, opts = {}) {
+      const tables = Array.isArray(next?.tables) ? next.tables : (Array.isArray(next) ? next : []);
+      tableBoard = tables;
+      pickupBoard = Array.isArray(next?.pickup) ? next.pickup : [];
+      deliveryBoard = Array.isArray(next?.delivery) ? next.delivery : [];
+      syncVisibleBoard();
+      if (opts.seedSeen) {
+        prevBoardSessionIds = new Set(
+          board.map((entry) => String(entry?.order?.sessionId || '')).filter(Boolean)
+        );
+        /* Avoid treating the seed itself as an overflow arrival */
+        const keepPrimed = primed;
+        primed = false;
+        renderBoard();
+        primed = keepPrimed;
+        prevBoardSessionIds = new Set(
+          board.map((entry) => String(entry?.order?.sessionId || '')).filter(Boolean)
+        );
+        hideOverflowToast();
+        return;
+      }
+      renderBoard();
+    },
   };
 
   loadBoard();

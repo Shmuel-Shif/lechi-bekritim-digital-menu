@@ -2248,7 +2248,7 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#lechai
   background: #fffdf9;
   box-shadow: 0 22px 56px rgba(0, 0, 0, 0.3);
   color: #1e3354;
-  text-align: start;
+  text-align: center;
 }
 
 .home-notice__head {
@@ -2272,23 +2272,26 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#lechai
   flex: 0 0 auto;
   overflow: visible;
   padding: 0.85rem 1.25rem 0.25rem;
+  text-align: center;
 }
 
 .home-notice__body {
-  margin: 0;
+  margin: 0 auto;
   max-width: 100%;
   overflow-wrap: anywhere;
   word-break: break-word;
   line-height: 1.55;
   font-size: 1rem;
   color: #2a3342;
+  text-align: center;
 }
 
 .home-notice__p {
-  margin: 0;
+  margin: 0 auto;
   max-width: 100%;
   overflow-wrap: anywhere;
   word-break: break-word;
+  text-align: center;
 }
 
 .home-notice__p + .home-notice__p {

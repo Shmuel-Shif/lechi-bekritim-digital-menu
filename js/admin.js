@@ -53,6 +53,7 @@
   const inventoryMeta = document.getElementById('admin-inventory-modal-meta');
   const inventoryStockBtn = document.getElementById('admin-inventory-stock');
   const inventoryRecBtn = document.getElementById('admin-inventory-rec');
+  const inventorySlideshowBtn = document.getElementById('admin-inventory-slideshow');
   const inventoryNameInput = document.getElementById('admin-inventory-name');
   const inventoryStockTrack = document.getElementById('admin-inventory-stock-track');
   const inventoryStockQtyField = document.getElementById('admin-inventory-stock-qty-field');
@@ -401,6 +402,16 @@
       inventoryRecBtn.textContent = recOn ? 'מומלץ' : 'סמן כמומלץ';
       inventoryRecBtn.disabled = false;
     }
+    const slideOn = typeof LechaimInventory.isHeroSlideshow === 'function'
+      ? LechaimInventory.isHeroSlideshow(productId)
+      : false;
+    if (inventorySlideshowBtn) {
+      inventorySlideshowBtn.classList.toggle('is-on', slideOn);
+      inventorySlideshowBtn.classList.toggle('is-off', !slideOn);
+      inventorySlideshowBtn.setAttribute('aria-pressed', slideOn ? 'true' : 'false');
+      inventorySlideshowBtn.textContent = slideOn ? 'בתפריט מתחלף' : 'תפריט מתחלף';
+      inventorySlideshowBtn.disabled = false;
+    }
   }
 
   function stockQtyEnabled() {
@@ -456,6 +467,9 @@
     const recOn = typeof LechaimInventory.isRecommended === 'function'
       ? LechaimInventory.isRecommended(item.id)
       : Boolean(item.recommended);
+    const slideOn = typeof LechaimInventory.isHeroSlideshow === 'function'
+      ? LechaimInventory.isHeroSlideshow(item.id)
+      : Boolean(item.heroSlideshow);
     const name = item.name || '';
     const image = item.image || '';
     const priceLabel = formatPrice(item.price);
@@ -465,7 +479,7 @@
       : `<span class="admin-card__img admin-card__img--empty">אין תמונה</span>`;
 
     return `
-      <article class="admin-card${available ? '' : ' is-unavailable'}${recOn ? ' is-recommended' : ''}" data-product-id="${pid}">
+      <article class="admin-card${available ? '' : ' is-unavailable'}${recOn ? ' is-recommended' : ''}${slideOn ? ' is-slideshow' : ''}" data-product-id="${pid}">
         <button type="button" class="admin-card__hit" data-action="open-item">
           <span class="admin-card__media">${thumb}</span>
           <span class="admin-card__summary">
@@ -473,6 +487,7 @@
             <span class="admin-card__name">${escapeHtml(name)}</span>
             <span class="admin-card__price">${escapeHtml(priceLabel)}</span>
             ${recOn ? '<span class="admin-card__rec">מומלץ</span>' : ''}
+            ${slideOn ? '<span class="admin-card__slide">תפריט מתחלף</span>' : ''}
             ${LechaimInventory.isStockTracked?.(item.id)
               ? `<span class="admin-card__qty">נשארו ${escapeHtml(String(LechaimInventory.getStockQty?.(item.id) || 0))}</span>`
               : ''}
@@ -604,6 +619,24 @@
       console.error('[admin] recommended toggle failed', err);
       showError(panelError, err?.message || String(err));
       inventoryRecBtn.disabled = false;
+    }
+  }
+
+  async function handleToggleHeroSlideshow() {
+    const productId = openProductId;
+    if (!productId || !inventorySlideshowBtn) return;
+    const next = inventorySlideshowBtn.getAttribute('aria-pressed') !== 'true';
+    inventorySlideshowBtn.disabled = true;
+    showError(panelError, '');
+    try {
+      await LechaimInventory.setHeroSlideshow(productId, next);
+      updateCard(productId);
+      syncInventoryModalToggles(productId);
+      showToast(next ? 'עודכן: בתפריט מתחלף' : 'עודכן: הוסר מהתפריט המתחלף');
+    } catch (err) {
+      console.error('[admin] hero slideshow toggle failed', err);
+      showError(panelError, err?.message || String(err));
+      inventorySlideshowBtn.disabled = false;
     }
   }
 
@@ -1030,6 +1063,11 @@
           panelError,
           'כדי לסמן מנות מומלצות: הריצו את supabase-inventory-recommended.sql ב-Supabase SQL Editor, ואז רעננו את האדמין.'
         );
+      } else if (LechaimInventory.areHeroSlideshowEnabled?.() === false) {
+        showError(
+          panelError,
+          'כדי לסמן מנות לתפריט המתחלף: הריצו את supabase-inventory-hero-slideshow.sql ב-Supabase SQL Editor, ואז רעננו את האדמין.'
+        );
       } else if (LechaimInventory.areStockQtyEnabled?.() === false) {
         showError(
           panelError,
@@ -1291,6 +1329,9 @@
   });
   inventoryRecBtn?.addEventListener('click', () => {
     handleToggleRecommended();
+  });
+  inventorySlideshowBtn?.addEventListener('click', () => {
+    handleToggleHeroSlideshow();
   });
   inventoryStockTrack?.addEventListener('change', () => {
     const on = Boolean(inventoryStockTrack.checked);

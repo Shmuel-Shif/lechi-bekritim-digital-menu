@@ -490,16 +490,20 @@ button {
 .hero-slide {
   position: absolute;
   inset: 0;
+  /* Opacity is owned by JS crossfade — do not set opacity on .is-active here */
   opacity: 0;
   z-index: 0;
   overflow: hidden;
-  transition: opacity 1.6s ease-in-out;
   pointer-events: none;
+  will-change: opacity;
 }
 
 .hero-slide.is-active {
-  opacity: 1;
-  z-index: 1;
+  z-index: 2;
+}
+
+.hero-slide.is-leaving {
+  z-index: 3;
 }
 
 .hero-slide img {
@@ -4066,10 +4070,6 @@ body.browse-only #order-back-toggle {
   .hero .reveal {
     opacity: 1;
     transform: none;
-    transition: none;
-  }
-
-  .hero-slide {
     transition: none;
   }
 
