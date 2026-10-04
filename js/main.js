@@ -2912,6 +2912,7 @@
   /**
    * Always land on the menu hero (ברוכים הבאים + צפייה בתפריט),
    * never mid-page from scroll restoration or #menu hash.
+   * Staff tablet skips the hero and lands on the menu itself.
    */
   function scrollToHeroWelcome() {
     try {
@@ -2925,6 +2926,22 @@
         history.replaceState(null, '', `${location.pathname}${location.search}`);
       }
     } catch (_) { /* ignore */ }
+
+    if (isStaffOrderPage()) {
+      const goMenu = () => {
+        const menu = document.getElementById('menu') || document.getElementById('menu-sections');
+        if (menu && typeof menu.scrollIntoView === 'function') {
+          menu.scrollIntoView({ behavior: 'auto', block: 'start' });
+        } else {
+          window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+        }
+      };
+      goMenu();
+      requestAnimationFrame(goMenu);
+      window.setTimeout(goMenu, 0);
+      window.setTimeout(goMenu, 120);
+      return;
+    }
 
     const goTop = () => {
       window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
@@ -3380,6 +3397,17 @@
       showOrderFeedback('err', t('tableChangeLocked'));
     },
     returnToEntry: returnCustomerToEntryGate,
+    getCartCount() {
+      return cartLines.reduce((sum, line) => sum + (Number(line.qty) || 0), 0);
+    },
+    /** Staff: submit cart wave. options.quietStaff skips staff “sent” toast (used by הדפס). */
+    sendCartOrder(options) {
+      return handleSendOrder(options || {});
+    },
+    /** Staff: append cart lines into existing table session order (no print, no new session). */
+    addCartToActiveTableSession() {
+      return addCartToActiveTableSession();
+    },
   };
 
   function isProductAvailable(itemId) {
@@ -5967,28 +5995,29 @@
     LechaimOrderEngine.setOrderItems(printedOnly);
   }
 
-  async function handleSendOrder() {
-    if (isSendingOrder) return;
+  async function handleSendOrder(options = {}) {
+    const quietStaff = Boolean(options?.quietStaff);
+    if (isSendingOrder) return false;
     isSendingOrder = true;
 
     let syncedOk = false;
     try {
       if (!isOrderingAllowed()) {
         showOrderFeedback('err', t('orderingClosedToast'));
-        return;
+        return false;
       }
 
       if (!cartLines.length) {
         showOrderFeedback('err', t('cartEmpty'));
-        return;
+        return false;
       }
 
-      if (!guardCartStock()) return;
+      if (!guardCartStock()) return false;
 
       if (!window.LechaimOrderEngine?.ensureActiveOrder) {
         console.error('[cart] Order engine missing');
         showOrderFeedback('err', t('orderSentFail'));
-        return;
+        return false;
       }
 
       /* Delivery min order before customer details — products only, excl. €10 fee */
@@ -5997,21 +6026,21 @@
         const minOrder = getDeliveryMinOrder();
         if (itemsTotal + 1e-9 < minOrder) {
           showDeliveryMinOrderModal();
-          return;
+          return false;
         }
       }
 
       /* Butcher / takeaway: collect details at checkout (after browsing the catalog). */
       if (isButcherContext() && !hasButcherCustomerDetails()) {
         openButcherCheckoutModal();
-        return;
+        return false;
       }
       if (isDineInContext() || (isTakeawayContext() && !isButcherContext())) {
         persistCartDishNotes(getDineInUserNotesDraft());
       }
       if (isTakeawayContext() && !hasTakeawayCustomerDetails()) {
         openTakeawayCheckoutModal();
-        return;
+        return false;
       }
 
       setSendButtonState({ sending: true });
@@ -6022,7 +6051,7 @@
       if (!session) {
         console.error('[cart] No active session and cannot create one');
         showOrderFeedback('err', t('orderSentFail'));
-        return;
+        return false;
       }
 
       const order = LechaimOrderEngine.ensureActiveOrder({
@@ -6034,7 +6063,7 @@
       if (!order?.orderId) {
         console.error('[cart] ensureActiveOrder failed');
         showOrderFeedback('err', t('orderSentFail'));
-        return;
+        return false;
       }
 
       /* Drop leftover unprinted lines from a failed previous send, then add the
@@ -6087,7 +6116,7 @@
           if (!added) {
             console.error('[cart] addProductToOrder failed', line.itemId);
             showOrderFeedback('err', t('orderSentFail'));
-            return;
+            return false;
           }
 
           if (added._lastAddedItemId) {
@@ -6106,7 +6135,7 @@
       if (!waveItems.length) {
         console.error('[cart] no wave items to sync');
         showOrderFeedback('err', t('orderSentFail'));
-        return;
+        return false;
       }
 
       const clientSendId = getOrCreateClientSendIdFromCart(cartLines);
@@ -6149,7 +6178,7 @@
         lockDineInAfterSend();
         clearDineInNotesConfirmation();
         if (isStaffOrderPage() && typeof window.LechaimStaffOrder?.onOrderSent === 'function') {
-          window.LechaimStaffOrder.onOrderSent();
+          window.LechaimStaffOrder.onOrderSent({ quiet: quietStaff });
         } else {
           showOrderReceipt(waveItems);
           initRemoteSessionClosedWatcher();
@@ -6159,25 +6188,27 @@
         console.warn('[cart] post-sync UI failed', err);
         showOrderFeedback('ok', t('orderSentSuccess'));
       }
+      return true;
     } catch (err) {
       if (syncedOk) {
         console.warn('[cart] post-sync failed', err);
         try { showOrderFeedback('ok', t('orderSentSuccess')); } catch (_) { /* ignore */ }
-      } else {
-        console.error('[cart] send order failed', err);
-        const stockErr = parseInsufficientStock(err);
-        if (stockErr) {
-          if (stockErr.id && window.LechaimInventory?.patchStockQty) {
-            LechaimInventory.patchStockQty(stockErr.id, stockErr.left);
-            if (stockErr.left <= 0) syncMenuItemVisibility(stockErr.id);
-          }
-          if (stockErr.id) clampCartToRemaining(stockErr.id);
-          else guardCartStock();
-          showStockLimitModal(stockErr.left);
-        } else {
-          showOrderFeedback('err', t('orderSentFail'));
-        }
+        return true;
       }
+      console.error('[cart] send order failed', err);
+      const stockErr = parseInsufficientStock(err);
+      if (stockErr) {
+        if (stockErr.id && window.LechaimInventory?.patchStockQty) {
+          LechaimInventory.patchStockQty(stockErr.id, stockErr.left);
+          if (stockErr.left <= 0) syncMenuItemVisibility(stockErr.id);
+        }
+        if (stockErr.id) clampCartToRemaining(stockErr.id);
+        else guardCartStock();
+        showStockLimitModal(stockErr.left);
+      } else {
+        showOrderFeedback('err', t('orderSentFail'));
+      }
+      return false;
     } finally {
       isSendingOrder = false;
       renderCart();
@@ -7074,6 +7105,135 @@
     }
   }
 
+  function buildLocalItemsFromCartLines() {
+    const items = [];
+    const lineToItemId = new Map();
+    const sortedLines = [...cartLines].sort((a, b) => {
+      const aLinked = a.linkedToMainLineId ? 1 : 0;
+      const bLinked = b.linkedToMainLineId ? 1 : 0;
+      return aLinked - bLinked;
+    });
+    for (const line of sortedLines) {
+      const product = resolveCartProductForOrder(line.itemId, line);
+      if (!product) continue;
+      const itemId = `staff_add_${line.lineId}`;
+      lineToItemId.set(line.lineId, itemId);
+      const catalog = findItem(line.itemId);
+      items.push({
+        itemId,
+        productId: String(line.itemId),
+        name: product.name || catalog?.name || line.itemId,
+        printName: catalog?.printName || product.printName || '',
+        price: Number(product.price) || 0,
+        qty: Number(line.qty) || 1,
+        notes: product.notes || '',
+        linkedToMainItemId: line.linkedToMainLineId
+          ? (lineToItemId.get(line.linkedToMainLineId) || null)
+          : null,
+        selectedWeight: product.selectedWeight,
+        pricePerKg: product.pricePerKg,
+        unitType: product.unitType,
+        thawCount: product.thawCount,
+        category: catalog?.categoryId || null,
+      });
+    }
+    return items;
+  }
+
+  /**
+   * Staff "הוסף לשולחן": append cart into an existing open dine-in session order.
+   * No print. No new session. No new order row when one already exists.
+   */
+  async function addCartToActiveTableSession() {
+    if (!isStaffOrderPage()) {
+      return { ok: false, error: 'not_staff' };
+    }
+    if (!isDineInContext() || window.LechaimOrderContext?.tableNumber == null) {
+      return { ok: false, error: 'no_table', message: 'אין שולחן פעיל' };
+    }
+    if (!cartLines.length) {
+      return { ok: false, error: 'empty_cart', message: 'בחרו מנות תחילה' };
+    }
+    if (!guardCartStock()) {
+      return { ok: false, error: 'stock', message: 'אין מספיק מלאי' };
+    }
+
+    const api = window.LechaimSupabaseOrders;
+    if (!api?.isConfigured?.() || typeof api.getSessionOrders !== 'function') {
+      return { ok: false, error: 'no_api', message: 'שמירה לא זמינה' };
+    }
+
+    const tableNumber = Number(window.LechaimOrderContext.tableNumber);
+    const open = await api.getOpenSessions();
+    const existing = (open || []).find((row) => (
+      String(row.order_type || '') === 'dine_in'
+      && Number(row.table_number) === tableNumber
+    ));
+    if (!existing?.session_id) {
+      return {
+        ok: false,
+        error: 'no_session',
+        message: 'אין הזמנה פעילה בשולחן — השתמשו ב«שלח הזמנה» לפתיחה',
+      };
+    }
+
+    const orders = await api.getSessionOrders(existing.session_id);
+    const target = window.LechaimPrintSessionWaves?.pickSessionAddTargetOrder?.(orders)
+      || (Array.isArray(orders) && orders.length
+        ? orders.slice().sort((a, b) => (Number(b.order_number) || 0) - (Number(a.order_number) || 0))[0]
+        : null);
+    if (!target?.id) {
+      return {
+        ok: false,
+        error: 'no_order',
+        message: 'אין הזמנה פעילה בשולחן — השתמשו ב«שלח הזמנה» לפתיחה',
+      };
+    }
+
+    const items = buildLocalItemsFromCartLines();
+    if (!items.length) {
+      return { ok: false, error: 'empty_items', message: 'בחרו מנות תחילה' };
+    }
+
+    writeLocalRemoteMapSafe(
+      window.LechaimOrderContext?.sessionId
+        || window.LechaimOrderSession?.getSession?.()?.sessionId,
+      existing.session_id
+    );
+
+    await createSupabaseOrderItems(target.id, items);
+    if (typeof api.refreshOrderTotal === 'function') {
+      await api.refreshOrderTotal(target.id);
+    }
+
+    try {
+      clearCartAfterSuccessfulSend();
+    } catch (err) {
+      console.warn('[staff-add] clear cart failed', err);
+    }
+    try {
+      await syncRemoteSessionTotal(existing.session_id);
+    } catch (err) {
+      console.warn('[staff-add] sync total failed', err);
+    }
+
+    return {
+      ok: true,
+      sessionId: existing.session_id,
+      orderId: target.id,
+      itemCount: items.length,
+    };
+  }
+
+  function writeLocalRemoteMapSafe(localId, remoteId) {
+    if (!localId || !remoteId) return;
+    try {
+      const map = readSupabaseSessionMap();
+      map[String(localId)] = String(remoteId);
+      writeSupabaseSessionMap(map);
+    } catch (_) { /* ignore */ }
+  }
+
   /**
    * Sync local wave to Supabase. Resolves on success; rejects on failure.
    * Restaurant PC prints via Admin — customer never calls print-engine.
@@ -7734,6 +7894,9 @@
     }
 
     updateTableHeader();
+    if (isStaffOrderPage()) {
+      window.LechaimStaffOrder?.syncPrintButton?.();
+    }
 
     if (!cartBody) return;
 

@@ -1,6 +1,7 @@
 /**
  * Kitchen print buzzer.
- * One beep per kitchen ticket. Manual beep is separate.
+ * Manual beep only (admin button /cloud beep job).
+ * Auto-beep after kitchen tickets is disabled.
  * Beeps go through the kitchen print queue so they never overlap a ticket.
  */
 'use strict';
@@ -17,8 +18,9 @@ function queueBeep() {
 }
 
 function onKitchenPrinted() {
-  queueBeep();
-  console.log('[kitchen-alert] printed → beep once');
+  /* No auto-beep when Admin/Service prints a kitchen ticket.
+     Manual beep stays available via beepOnce / admin kitchen beep button. */
+  console.log('[kitchen-alert] printed → beep skipped');
 }
 
 function beepOnce() {

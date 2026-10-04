@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="css/theme-lechaim.css?v=6">
   <link rel="stylesheet" href="css/entry-gate.css?v=22">
   <link rel="stylesheet" href="css/dine-in-map.css?v=2">
-  <link rel="stylesheet" href="css/staff-order.css?v=4">
+  <link rel="stylesheet" href="css/staff-order.css?v=8">
   <link rel="icon" href="assets/logo/logo-favicon.png" type="image/png" sizes="192x192">
   <!-- Dine-in only: floor-plan map overlays #entry-tables buttons (positions in data/table-map.json). -->
   <style>
@@ -294,12 +294,20 @@
           <span class="cart-session-total__price" id="cart-session-total-price">€0.00</span>
         </div>
         <div class="cart-actions">
-          <div class="cart-send-row">
+          <div class="cart-send-row cart-send-row--staff-split">
             <button type="button" class="cart-send-btn" id="cart-send" data-i18n="sendOrder" disabled>
               שלח הזמנה
             </button>
+            <button type="button" class="cart-print-btn" id="cart-print" disabled>
+              הדפס
+            </button>
+          </div>
+          <div class="cart-notes-row cart-notes-row--staff-split">
             <button type="button" class="cart-notes-btn" id="cart-dish-notes" data-i18n="dineInNotesBtn">
               הערות למנה
+            </button>
+            <button type="button" class="cart-add-table-btn" id="cart-add-table" disabled>
+              ➕ הוסף לשולחן
             </button>
           </div>
           <button type="button" class="cart-bill-btn" id="cart-request-bill" data-i18n="requestBill" disabled hidden>
@@ -408,7 +416,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
   <script src="js/order-types.js" defer></script>
-  <script src="js/supabase-order-service.js?v=34" defer></script>
+  <script src="js/supabase-order-service.js?v=39" defer></script>
   <script src="js/menu-data.js?v=114" defer></script>
   <script src="js/opening-hours.js?v=12" defer></script>
   <script src="js/app-settings.js?v=7" defer></script>
@@ -416,9 +424,12 @@
   <script src="js/order-session.js?v=6" defer></script>
   <script src="js/order-engine.js" defer></script>
   <script src="js/a11y-focus-trap.js" defer></script>
-  <script src="js/main.js?v=99" defer></script>
+  <script src="js/print-engine.js?v=38" defer></script>
+  <script src="js/admin-print-cloud.js?v=2" defer></script>
+  <script src="js/print-session-waves.js?v=2" defer></script>
+  <script src="js/main.js?v=103" defer></script>
   <script src="js/entry-gate.js?v=74" defer></script>
   <script src="js/dine-in-table-map.js?v=4" defer></script>
-  <script src="js/staff-order.js?v=6" defer></script>
+  <script src="js/staff-order.js?v=10" defer></script>
 </body>
 </html>

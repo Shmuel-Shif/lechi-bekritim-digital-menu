@@ -952,40 +952,8 @@
   /**
    * Kitchen → Bar → mark printed only when both succeed.
    * One table-order sequence number is shared by kitchen + bar for this wave.
+   * No browser ding / printer beep here — pending blue cards keep the Admin chime.
    */
-  function playPrintSuccessSound() {
-    try {
-      const Ctx = global.AudioContext || global.webkitAudioContext;
-      if (!Ctx) return;
-      const ctx = playPrintSuccessSound._ctx || new Ctx();
-      playPrintSuccessSound._ctx = ctx;
-      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
-
-      const now = ctx.currentTime;
-      /* Soft “new ticket” ding — different from admin alert */
-      const tones = [
-        { freq: 523.25, at: 0, dur: 0.16 },
-        { freq: 659.25, at: 0.12, dur: 0.16 },
-        { freq: 783.99, at: 0.24, dur: 0.28 },
-      ];
-      tones.forEach((tone) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.value = tone.freq;
-        gain.gain.setValueAtTime(0.0001, now + tone.at);
-        gain.gain.exponentialRampToValueAtTime(0.22, now + tone.at + 0.025);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + tone.at + tone.dur);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(now + tone.at);
-        osc.stop(now + tone.at + tone.dur + 0.02);
-      });
-    } catch (err) {
-      console.warn('[LechaimPrintEngine] print sound failed', err);
-    }
-  }
-
   async function printOrder(order) {
     const resolved = resolveOrder(order);
     if (!resolved) return false;
@@ -1014,7 +982,6 @@
       }
     }
 
-    playPrintSuccessSound();
     return true;
   }
 

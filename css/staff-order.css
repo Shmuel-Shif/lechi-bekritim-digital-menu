@@ -8,6 +8,16 @@ body[data-staff-order="1"] #order-back-toggle {
   display: none !important;
 }
 
+/* Staff tablet: skip welcome hero + footer — land on the menu */
+body[data-staff-order="1"] #hero,
+body[data-staff-order="1"] .site-footer {
+  display: none !important;
+}
+
+body[data-staff-order="1"] #menu {
+  padding-top: calc(var(--header-height, 4.5rem) + 0.35rem);
+}
+
 body[data-staff-order="1"] #entry-tables.dine-in-map .entry-gate__table.is-occupied,
 body[data-staff-order="1"] #entry-tables.dine-in-map .entry-gate__table.is-occupied:hover {
   cursor: pointer;
@@ -30,4 +40,70 @@ body[data-staff-order="1"] #entry-tables.dine-in-map .entry-gate__table.is-occup
 body[data-staff-order="1"] .header-action--table.is-locked {
   opacity: 1;
   cursor: pointer;
+}
+
+/* Cart: שלח הזמנה | הדפס side by side */
+body[data-staff-order="1"] .cart-send-row--staff-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+  width: 100%;
+}
+
+body[data-staff-order="1"] .cart-send-row--staff-split .cart-send-btn,
+body[data-staff-order="1"] .cart-send-row--staff-split .cart-print-btn {
+  width: 100%;
+  min-height: 3rem;
+  margin: 0;
+}
+
+body[data-staff-order="1"] .cart-print-btn {
+  appearance: none;
+  border: 0;
+  border-radius: 14px;
+  padding: 0.85rem 0.75rem;
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 800;
+  cursor: pointer;
+  background: #c4a06a;
+  color: #1e3354;
+}
+
+body[data-staff-order="1"] .cart-print-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+body[data-staff-order="1"] .cart-notes-row--staff-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+  width: 100%;
+  margin-top: 0.45rem;
+}
+
+body[data-staff-order="1"] .cart-notes-row--staff-split .cart-notes-btn,
+body[data-staff-order="1"] .cart-notes-row--staff-split .cart-add-table-btn {
+  width: 100%;
+  margin: 0;
+  min-height: 3rem;
+}
+
+body[data-staff-order="1"] .cart-add-table-btn {
+  appearance: none;
+  border: 1px solid rgba(30, 51, 84, 0.22);
+  border-radius: 14px;
+  padding: 0.85rem 0.55rem;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+  background: #eef3f8;
+  color: #1e3354;
+}
+
+body[data-staff-order="1"] .cart-add-table-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }

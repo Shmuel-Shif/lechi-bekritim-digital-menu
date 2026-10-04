@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>Staff print waves tests</title>
+  <style>
+    body { font-family: sans-serif; padding: 1rem; background: #111; color: #eee; }
+    #out { white-space: pre-wrap; line-height: 1.45; }
+    .ok { color: #7dffa3; }
+    .bad { color: #ff8d8d; }
+  </style>
+</head>
+<body>
+  <h1>Staff print waves</h1>
+  <pre id="out">Running…</pre>
+  <script src="../js/print-session-waves.js"></script>
+  <script>
+    (async function () {
+      const out = document.getElementById('out');
+      const lines = [];
+      let passed = 0;
+      let failed = 0;
+      const waves = window.LechaimPrintSessionWaves;
+
+      function log(msg, cls) {
+        lines.push(cls ? `<span class="${cls}">${msg}</span>` : msg);
+        out.innerHTML = lines.join('\n');
+      }
+      function assert(cond, label) {
+        if (cond) { passed += 1; log('✓ ' + label, 'ok'); }
+        else { failed += 1; log('✗ ' + label, 'bad'); }
+      }
+
+      const orders = [
+        {
+          id: 'wave-1', order_number: 1, status: 'ready',
+          printed_at: '2026-10-03T10:00:00.000Z',
+          created_at: '2026-10-03T09:00:00.000Z',
+          order_items: [
+            { id: 'i1', product_id: 'schnitzel', product_name: 'שניצל', print_name: 'Schnitzel', quantity: 1, price: 14 },
+            { id: 'i2', product_id: 'salad', product_name: 'סלט', print_name: 'Salad', quantity: 1, price: 8 },
+          ],
+        },
+        {
+          id: 'wave-2', order_number: 2, status: 'submitted', printed_at: null,
+          created_at: '2026-10-03T11:00:00.000Z',
+          order_items: [
+            { id: 'i3', product_id: 'fries', product_name: 'צ׳יפס', print_name: 'Fries', quantity: 1, price: 5 },
+            { id: 'i4', product_id: 'coke', product_name: 'קולה', print_name: 'Coke', quantity: 1, price: 3 },
+          ],
+        },
+      ];
+
+      log('חלוקה ובניית הדפסה');
+      const parts = waves.partitionOrderLines(orders, new Set());
+      assert(parts.existing.length === 2 && parts.pending.length === 2, 'קיים / חדש');
+      const synthetic = waves.buildPrintOrderFromSession({ tableNumber: 5, sessionId: 's', orders });
+      assert(synthetic.items.length === 2 && synthetic._deltaOnly, 'רק wave חדש');
+      assert(!synthetic.items.some((r) => /Schnitzel|Salad/i.test(r.name)), 'בלי מנות ישנות');
+
+      log('\nprintOrder mock');
+      let called = false;
+      const result = await waves.printUnprintedSessionWaves({
+        tableNumber: 5,
+        sessionId: 's',
+        orders,
+        locallyPrintedIds: new Set(),
+        api: {
+          getSessionOrders: async () => orders,
+          markOrderApproved: async () => {},
+          markOrderPrinted: async () => {},
+        },
+        printEngine: {
+          printOrder: async (order) => {
+            called = true;
+            assert(order.items.length === 2, 'Engine קיבל delta');
+            return true;
+          },
+        },
+      });
+      assert(called && result.ok && result.printed, 'מנגנון Printing הקיים הופעל');
+
+      const fail = await waves.printUnprintedSessionWaves({
+        tableNumber: 5,
+        sessionId: 's',
+        orders,
+        locallyPrintedIds: new Set(),
+        api: {
+          getSessionOrders: async () => orders,
+          markOrderApproved: async () => {},
+          markOrderPrinted: async () => { throw new Error('should not mark'); },
+        },
+        printEngine: { printOrder: async () => false },
+      });
+      assert(fail.saved && !fail.printed && fail.messageKey === 'orderSavedPrintFailed', 'כשל ידידותי');
+
+      log('\nהוסף לשולחן — בחירת יעד');
+      const target = waves.pickSessionAddTargetOrder(orders);
+      assert(target && target.id === 'wave-2', 'מעדיף wave לא מודפס');
+      assert(waves.pickSessionAddTargetOrder([orders[0]])?.id === 'wave-1', 'fallback למודפס');
+      assert(waves.pickSessionAddTargetOrder([]) == null, 'ריק → null');
+
+      log(`\n${failed ? 'FAIL' : 'PASS'} ${passed} passed, ${failed} failed`, failed ? 'bad' : 'ok');
+      document.title = failed ? 'FAIL staff print' : 'PASS staff print';
+    })();
+  </script>
+</body>
+</html>

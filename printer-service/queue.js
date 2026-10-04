@@ -125,9 +125,7 @@ function pump(printer) {
     .then((result) => {
       if (result && result.success === true) {
         console.log(`[queue] done ${job.jobId} → ${job.printer}`);
-        if (job.printer === 'kitchen' && job.kind !== 'beep') {
-          require('./kitchen-alert').onKitchenPrinted();
-        }
+        /* No auto kitchen beep after printing a bon — chime is for pending (blue) cards only. */
       } else {
         console.error(`[queue] failed ${job.jobId} → ${job.printer}`, result);
       }

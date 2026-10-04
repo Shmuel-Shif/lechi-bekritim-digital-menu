@@ -3074,6 +3074,8 @@
 
   function playOrderNotifyChime() {
     try {
+      /* Never chime while Admin is approving/printing — the bon itself is the signal. */
+      if (approvePrintBusy) return;
       if (Date.now() < suppressNotifyUntil) return;
 
       const stamp = Date.now();
@@ -3120,15 +3122,9 @@
   }
 
   function boardNeedsAdminAttention(board, takeaway) {
-    const dineInNeeds = (board || []).some((entry) => (
-      entry?.uiStatus === 'pending_print'
-      || entry?.uiStatus === 'preparing'
-    ));
-    /* Takeaway / delivery / butcher: chime only until Approve — not while waiting for print */
-    const pickupNeeds = (takeaway || []).some((entry) => (
-      entry?.uiStatus === 'pending_print'
-    ));
-    return dineInNeeds || pickupNeeds;
+    /* Blue cards only (unprinted / awaiting approve). Green active + gray preparing stay silent. */
+    const needs = (list) => (list || []).some((entry) => entry?.uiStatus === 'pending_print');
+    return needs(board) || needs(takeaway);
   }
 
   function stopPendingReminder() {
@@ -3168,15 +3164,10 @@
       return;
     }
 
-    let shouldChime = false;
-    current.forEach((id) => {
-      if (!knownOrderIds.has(id)) {
-        knownOrderIds.add(id);
-        shouldChime = true; /* customer sent a new order wave */
-      }
-    });
-    if (syncCustomerAttentionStatuses(board, takeaway)) shouldChime = true;
-    if (shouldChime) playOrderNotifyChime();
+    current.forEach((id) => knownOrderIds.add(id));
+    /* Chime only when a card turns blue (pending_print) — never merely because a new
+       order id appeared (staff הדפס can INSERT+print before the board refresh). */
+    if (syncCustomerAttentionStatuses(board, takeaway)) playOrderNotifyChime();
     updatePendingReminder(board, takeaway);
   }
 
@@ -3603,7 +3594,8 @@
       return false;
     }
 
-    suppressCustomerNotify();
+    /* Long enough to cover board refresh / realtime after markPrinted. */
+    suppressCustomerNotify(12000);
 
     let printedOk = false;
     try {
@@ -3657,6 +3649,8 @@
 
     if (!printedOk) return false;
 
+    suppressCustomerNotify(12000);
+    stopPendingReminder();
     showToast('ההזמנה הודפסה', { checkOnly: true });
     closeDrawer();
     try {
@@ -3671,6 +3665,7 @@
     if (approvePrintBusy || !entry?.order) return;
 
     approvePrintBusy = true;
+    suppressCustomerNotify(12000);
     updateApprovePrintButton(entry);
 
     try {
@@ -4993,18 +4988,14 @@
         const eventType = String(payload?.eventType || payload?.event || '').toUpperCase();
         const row = payload?.new || payload?.payload?.new;
 
-        /* Customer sent a new order wave — chime on every Admin tab (incl. Shabbat) */
+        /* New order wave: remember id + refresh. Chime only after board shows blue
+           (pending_print). Avoids false chime when staff הדפס already marked printed. */
         if (table === 'orders' && eventType === 'INSERT') {
           const id = row?.id;
           const sessionId = row?.session_id;
           void (async () => {
             const isShabbat = await isShabbatSessionId(sessionId);
-            if (id && orderIdsSeeded && !knownOrderIds.has(String(id))) {
-              knownOrderIds.add(String(id));
-              playOrderNotifyChime();
-            } else if (id) {
-              knownOrderIds.add(String(id));
-            }
+            if (id) knownOrderIds.add(String(id));
             /* Shabbat has its own board — still refresh tables/takeaway for other types */
             if (!isShabbat) scheduleBoardRefresh();
           })();
