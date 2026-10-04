@@ -530,6 +530,9 @@ html[dir="ltr"] .search-panel__input {
 .category-nav-scroll {
   padding-inline: 1rem;
   text-align: start;
+  /* Scroll isolation only — list may be wider; wrapper clips page overflow */
+  max-width: 100%;
+  min-width: 0;
 }
 
 .category-nav-sep {
@@ -537,28 +540,32 @@ html[dir="ltr"] .search-panel__input {
 }
 
 /* --- Menu background (presentation only) ---
-   Sticky viewport layer (not full menu height) so scroll length never zooms the photo.
-   Mobile: portrait back-menu.jpg + contain (leave as-is — looks right).
-   Tablet/Desktop: separate landscape back-menu-desktop.jpg + cover (full width).
-   Source asset: header foto/back-menu-deskop.png → back-menu-desktop.jpg
+   Sticky viewport photo: stays put while dishes scroll over it.
+   (Absolute full-height + 100% auto made the photo scroll away mid-menu.)
+   No scale/translate animation — that caused horizontal overflow.
+   Mobile: portrait back-menu.jpg | Desktop: landscape back-menu-desktop.jpg
 */
 .menu-main {
   --menu-bg-photo-mobile: url('../assets/images/header%20foto/back-menu.jpg?v=4');
   --menu-bg-photo-desktop: url('../assets/images/header%20foto/back-menu-desktop.jpg?v=2');
   --menu-bg-photo: var(--menu-bg-photo-mobile);
-  --menu-bg-size: contain;
+  --menu-bg-tone: #d7c7a8;
   position: relative;
   isolation: isolate;
-  background-color: var(--color-parchment);
-  /* No top padding — it showed as a cream gap above the sticky photo */
+  width: 100%;
+  max-width: 100%;
+  /* Do not set overflow-x here — it breaks position:sticky in browsers */
+  background-color: var(--menu-bg-tone);
   padding-block: 0 var(--space-2xl);
 }
 
 .menu-main > .container {
+  position: relative;
+  z-index: 1;
   padding-top: 0.65rem;
 }
 
-/* Photo: full width of .menu-main (not the inner .container), stable while scrolling */
+/* Viewport-locked photo band (sticky), full bleed of .menu-main */
 .menu-main::before {
   content: '';
   display: block;
@@ -571,45 +578,34 @@ html[dir="ltr"] .search-panel__input {
   margin-bottom: -100dvh;
   z-index: 0;
   pointer-events: none;
-  background-color: var(--color-parchment);
+  background-color: var(--menu-bg-tone);
   background-image: var(--menu-bg-photo);
   background-repeat: no-repeat;
   background-position: center top;
-  background-size: var(--menu-bg-size);
+  background-size: cover;
   filter: none;
-  transform-origin: 50% 40%;
-  animation: menu-bg-flow 70s ease-in-out infinite alternate;
-  will-change: transform;
+  transform: none;
+  animation: none;
 }
 
-@keyframes menu-bg-flow {
-  from {
-    transform: scale(1.02) translate3d(0, 0, 0);
-  }
-  to {
-    transform: scale(1.05) translate3d(-1.1%, 0.7%, 0);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .menu-main::before {
-    animation: none;
-    transform: none;
-  }
-}
-
-/* Soft readability wash — separate from the photo and from food cards */
+/* Soft readability wash — sticks with the photo */
 .menu-main::after {
   content: '';
-  position: absolute;
-  inset: 0;
+  display: block;
+  position: sticky;
+  top: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  margin-bottom: -100vh;
+  margin-bottom: -100dvh;
   z-index: 0;
   pointer-events: none;
   background: linear-gradient(
     180deg,
-    rgba(243, 237, 227, 0.32) 0%,
-    rgba(235, 228, 216, 0.24) 40%,
-    rgba(243, 237, 227, 0.38) 100%
+    rgba(243, 237, 227, 0.16) 0%,
+    rgba(235, 228, 216, 0.12) 45%,
+    rgba(243, 237, 227, 0.22) 100%
   );
   filter: none;
   backdrop-filter: none;
@@ -622,11 +618,11 @@ html[dir="ltr"] .search-panel__input {
   z-index: 1;
 }
 
-/* Tablet + desktop: landscape art fills the menu band edge-to-edge */
+/* Tablet + desktop: dedicated landscape asset */
 @media (min-width: 720px) {
   .menu-main {
     --menu-bg-photo: var(--menu-bg-photo-desktop);
-    --menu-bg-size: cover;
+    --menu-bg-tone: #cbb892;
   }
 
   .menu-main::before {
