@@ -1691,6 +1691,69 @@
     if (reportRangeKey() === key) renderReport();
   }
 
+  const CASH_ACTUAL_KEY = 'lechaim-docs-cash-actual';
+
+  function readCashActualMap() {
+    try {
+      const raw = global.localStorage?.getItem(CASH_ACTUAL_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch (err) {
+      return {};
+    }
+  }
+
+  function storedCashActual(rangeKey) {
+    return global.LechaimAdminCashReconcile?.recallActual?.(readCashActualMap(), rangeKey) ?? null;
+  }
+
+  function saveCashActual(rangeKey, amount) {
+    try {
+      const map = global.LechaimAdminCashReconcile?.rememberActual?.(readCashActualMap(), rangeKey, amount)
+        || readCashActualMap();
+      global.localStorage?.setItem(CASH_ACTUAL_KEY, JSON.stringify(map));
+    } catch (err) {
+      console.error('[documents] cash actual', err);
+    }
+  }
+
+  function cashActualForReport() {
+    const input = document.getElementById('docs-fin-cash-actual');
+    const rangeKey = reportRangeKey();
+    if (!input) return storedCashActual(rangeKey);
+    if (input.dataset.range !== rangeKey) {
+      const stored = storedCashActual(rangeKey);
+      input.value = stored == null ? '' : String(stored);
+      input.dataset.range = rangeKey;
+      return stored;
+    }
+    return global.LechaimAdminCashReconcile?.parseActualCash?.(input.value) ?? null;
+  }
+
+  function renderCashReconcile(zSplit, creditRows, cashExpenses) {
+    const incomeReport = typeof global.LechaimAdminCreditsCore?.reportIncomeWithCredits === 'function'
+      ? global.LechaimAdminCreditsCore.reportIncomeWithCredits(zSplit, creditRows)
+      : { incomeCash: roundMoney(zSplit?.cash) };
+    const incomeCash = roundMoney(incomeReport.incomeCash);
+    const actual = cashActualForReport();
+    const reconciled = global.LechaimAdminCashReconcile?.reconcileCash?.({
+      incomeCash,
+      cashExpenses,
+      actual,
+    });
+    const pending = 'טרם הוזן';
+    const setText = (id, text) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    };
+    setText('docs-fin-reconcile-expenses', formatMoney(reconciled?.cashExpenses ?? cashExpenses));
+    setText('docs-fin-reconcile-income', formatMoney(reconciled?.incomeCash ?? incomeCash));
+    setText('docs-fin-reconcile-expected', formatMoney(reconciled?.expected ?? roundMoney(incomeCash - cashExpenses)));
+    if (actual == null) setText('docs-fin-reconcile-diff', pending);
+    else setText('docs-fin-reconcile-diff', formatMoney(reconciled?.difference));
+    setText('docs-fin-reconcile-deposit', formatMoney(reconciled?.deposit ?? roundMoney(incomeCash - cashExpenses)));
+  }
+
   function expenseBreakdown() {
     const map = new Map();
     DEFAULT_SUPPLIERS.forEach((name) => {
@@ -1733,14 +1796,19 @@
       ? global.LechaimAdminCreditsCore.sumCreditsByMethod(creditRows)
       : { cash: 0, credit: 0, bank: 0, total: 0 };
     const expenseRows = periodExpenseRows();
-    const cashExpenses = sumPayCategoryEur(expenseRows, 'cash');
-    const creditExpenses = sumPayCategoryEur(expenseRows, 'credit');
+    const cashExpensesAll = sumPayCategoryEur(expenseRows, 'cash');
+    const creditExpensesAll = sumPayCategoryEur(expenseRows, 'credit');
     const bankExpenses = sumPayCategoryEur(expenseRows, 'bank');
     const privateRows = expenseRows.filter(isPrivateExpenseRow);
     const privateExpenses = sumPrivateExpensesEur(expenseRows);
     const expenseTotal = roundMoney(sumEurAmounts(expenseRows));
+    const noReceiptRows = expenseRows.filter((row) => isManualPaymentSupplier(row?.supplier_name));
+    const noReceiptCash = sumPayCategoryEur(noReceiptRows, 'cash');
+    const noReceiptCredit = sumPayCategoryEur(noReceiptRows, 'credit');
+    const cashExpenses = roundMoney(cashExpensesAll - noReceiptCash);
+    const creditExpenses = roundMoney(creditExpensesAll - noReceiptCredit);
     const otherExpenses = roundMoney(
-      expenseTotal - cashExpenses - creditExpenses - bankExpenses - privateExpenses
+      expenseTotal - cashExpensesAll - creditExpensesAll - bankExpenses - privateExpenses
     );
     const daily = dayReportsByRange[reportRangeKey()];
     const dailyLoaded = Boolean(daily?.loaded);
@@ -1765,6 +1833,8 @@
     const expBankEl = document.getElementById('docs-fin-exp-bank');
     const expPrivateEl = document.getElementById('docs-fin-exp-private');
     const expOtherEl = document.getElementById('docs-fin-exp-other');
+    const expNoReceiptCashEl = document.getElementById('docs-fin-exp-noreceipt-cash');
+    const expNoReceiptCreditEl = document.getElementById('docs-fin-exp-noreceipt-credit');
     const listEl = document.getElementById('docs-expense-break');
 
     if (salesEl) salesEl.textContent = formatMoney(zSplit.total);
@@ -1782,6 +1852,8 @@
     if (expBankEl) expBankEl.textContent = formatMoney(bankExpenses);
     if (expPrivateEl) expPrivateEl.textContent = privateFolderSumText(privateRows);
     if (expOtherEl) expOtherEl.textContent = formatMoney(otherExpenses);
+    if (expNoReceiptCashEl) expNoReceiptCashEl.textContent = formatMoney(noReceiptCash);
+    if (expNoReceiptCreditEl) expNoReceiptCreditEl.textContent = formatMoney(noReceiptCredit);
     if (listEl) {
       listEl.innerHTML = breakdown.map((item) => `
         <div class="docs-break__row" ${colorStyle(item.name)}>
@@ -1791,6 +1863,7 @@
         </div>
       `).join('');
     }
+    renderCashReconcile(zSplit, creditRows, cashExpenses);
   }
 
   function changeMonth(delta) {
@@ -2986,6 +3059,22 @@
     });
     document.getElementById('docs-vault-cancel')?.addEventListener('click', closeVaultModal);
     document.getElementById('docs-vault-backdrop')?.addEventListener('click', closeVaultModal);
+    document.getElementById('docs-fin-cash-actual')?.addEventListener('input', () => {
+      const input = document.getElementById('docs-fin-cash-actual');
+      if (!input) return;
+      const rangeKey = reportRangeKey();
+      input.dataset.range = rangeKey;
+      const text = String(input.value || '').trim();
+      if (!text) {
+        saveCashActual(rangeKey, null);
+        renderReport();
+        return;
+      }
+      const parsed = global.LechaimAdminCashReconcile?.parseActualCash?.(input.value);
+      if (parsed == null) return;
+      saveCashActual(rangeKey, parsed);
+      renderReport();
+    });
 
     viewEl?.addEventListener('click', (event) => {
       if (event.target.closest('[data-docs-lock]')) {

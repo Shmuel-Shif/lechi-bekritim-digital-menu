@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=150">
+  <link rel="stylesheet" href="css/admin.css?v=153">
   <link rel="stylesheet" href="css/admin-dashboard.css?v=6">
   <link rel="stylesheet" href="css/admin-reminders.css?v=1">
   <link rel="stylesheet" href="css/admin-notes.css?v=2">
@@ -1397,6 +1397,14 @@
 
               <section class="docs-fin__exp" aria-label="פירוט הוצאות">
                 <div class="docs-fin__exp-line">
+                  <span>הוצאות ללא קבלה במזומן</span>
+                  <strong id="docs-fin-exp-noreceipt-cash">€0</strong>
+                </div>
+                <div class="docs-fin__exp-line">
+                  <span>הוצאות ללא קבלה באשראי</span>
+                  <strong id="docs-fin-exp-noreceipt-credit">€0</strong>
+                </div>
+                <div class="docs-fin__exp-line">
                   <span>הוצאות מזומן</span>
                   <strong id="docs-fin-exp-cash">€0</strong>
                 </div>
@@ -1415,6 +1423,34 @@
                 <div class="docs-fin__exp-line">
                   <span>הוצאות ללא אמצעי תשלום</span>
                   <strong id="docs-fin-exp-other">€0</strong>
+                </div>
+              </section>
+
+              <section class="docs-fin__exp docs-fin__reconcile" aria-label="פיוס מזומן">
+                <h2 class="docs-fin__reconcile-title">פיוס מזומן</h2>
+                <div class="docs-fin__exp-line">
+                  <span>הוצאות מזומן</span>
+                  <strong id="docs-fin-reconcile-expenses">€0</strong>
+                </div>
+                <div class="docs-fin__exp-line">
+                  <span>הכנסות מזומן</span>
+                  <strong id="docs-fin-reconcile-income">€0</strong>
+                </div>
+                <div class="docs-fin__exp-line">
+                  <span>יתרת מזומן צפויה</span>
+                  <strong id="docs-fin-reconcile-expected">€0</strong>
+                </div>
+                <label class="docs-fin__exp-line docs-fin__reconcile-actual">
+                  <span>כמה יש בפועל</span>
+                  <input type="text" inputmode="decimal" id="docs-fin-cash-actual" class="docs-fin__reconcile-input" dir="ltr" placeholder="טרם הוזן" autocomplete="off">
+                </label>
+                <div class="docs-fin__exp-line">
+                  <span>הפרש</span>
+                  <strong id="docs-fin-reconcile-diff">טרם הוזן</strong>
+                </div>
+                <div class="docs-fin__exp-line">
+                  <span>כמה צריך להפקיד לבנק</span>
+                  <strong id="docs-fin-reconcile-deposit">טרם הוזן</strong>
                 </div>
               </section>
 
@@ -2630,9 +2666,10 @@
   <script src="js/staff-hours-xlsx.js?v=4" defer></script>
   <script src="js/admin-staff-hours.js?v=23" defer></script>
   <script src="js/admin-credits-core.js?v=2" defer></script>
+  <script src="js/admin-cash-reconcile-core.js?v=3" defer></script>
   <script src="js/docs-monthly-xlsx.js?v=7" defer></script>
   <script src="js/docs-monthly-pdf.js?v=1" defer></script>
-  <script src="js/admin-documents.js?v=35" defer></script>
+  <script src="js/admin-documents.js?v=44" defer></script>
   <script src="js/home-notice.js?v=3" defer></script>
   <script src="js/admin-tabs-order.js?v=2" defer></script>
   <script src="js/admin-settings.js?v=16" defer></script>
