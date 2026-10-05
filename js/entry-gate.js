@@ -66,7 +66,7 @@
 
   const COPY = {
     en: {
-      welcome: '✦ Welcome ✦',
+      welcome: 'Welcome',
       title: 'to Lechaim Restaurant in Crete',
       kosher: 'Mehadrin Kosher',
       hoursSummary: 'Sun–Thu 14:00–21:00 · Fri–Sat closed',
@@ -212,7 +212,7 @@
       arrivePartyRequired: 'Please enter the number of guests (1–30)',
     },
     he: {
-      welcome: '✦ ברוכים הבאים ✦',
+      welcome: 'ברוכים הבאים',
       title: 'למסעדת לחיים בכרתים',
       kosher: 'כשר למהדרין',
       hoursSummary: 'א׳–ה׳ 14:00–21:00 · שישי–שבת סגור',
