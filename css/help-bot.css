@@ -443,7 +443,8 @@ body.waiter-fab-on.lang-fab-on:not(.entry-pending) .uwy.userway_p5 .userway_butt
 }
 
 body.entry-pending .uwy.userway_p5 .userway_buttons_wrapper {
-  bottom: calc(0.85rem + 7.9rem + 0.45rem + env(safe-area-inset-bottom, 0px)) !important;
+  left: 0.45rem !important;
+  bottom: calc(7.15rem + env(safe-area-inset-bottom, 0px)) !important;
 }
 
 @media (max-width: 768px) {

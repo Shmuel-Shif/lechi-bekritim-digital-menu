@@ -124,7 +124,12 @@
       ariaMaps: 'Open location in Google Maps',
       scrollHintAria: 'Scroll down',
       aboutTitle: 'Lechaim Restaurant',
-      aboutP1: 'A Mehadrin kosher restaurant in Crete',
+      aboutP1: 'An Israeli Mehadrin kosher restaurant in the heart of Crete',
+      aboutShort1: 'In the heart of Crete we bring Israeli flavors, atmosphere, and hospitality, with quality ingredients and Mehadrin kashrut.',
+      aboutShort2: 'A place to pause, sit with family and friends, and feel a little at home — even far from Israel.',
+      aboutReadMore: 'Read more',
+      aboutReadLess: 'Show less',
+      aboutGallery: 'Photo gallery',
       aboutP2: 'In the heart of beautiful Crete we bring the flavors, atmosphere, and hospitality of Israel, with a menu of beloved, familiar Israeli food, quality ingredients, and a commitment to Mehadrin kashrut.',
       aboutP3: 'Enjoy a meal in a warm, family atmosphere — whether you come for lunch or dinner, want a pleasant place to sit with family and friends, or simply want kosher, quality food during your holiday in Crete.',
       aboutP4: 'Lechaim is more than a place to eat. We want to be the place where you pause, sit together, enjoy good food, and feel a little at home — even far from Israel.',
@@ -274,7 +279,12 @@
       ariaMaps: 'פתחו מיקום ב-Google Maps',
       scrollHintAria: 'גלול למטה',
       aboutTitle: 'מסעדת לחיים',
-      aboutP1: 'מסעדה כשרה למהדרין בכרתים',
+      aboutP1: 'מסעדה ישראלית כשרה למהדרין בלב כרתים',
+      aboutShort1: 'בלב האי כרתים אנחנו מביאים את הטעמים, האווירה והאירוח הישראלי, עם חומרי גלם איכותיים וכשרות למהדרין.',
+      aboutShort2: 'מקום לעצור לרגע, לשבת עם המשפחה והחברים, ולהרגיש קצת בבית גם רחוק מישראל.',
+      aboutReadMore: 'קראו עוד',
+      aboutReadLess: 'הציגו פחות',
+      aboutGallery: 'לגלריית התמונות',
       aboutP2: 'בלב האי היפה כרתים אנחנו מביאים איתנו את הטעמים, האווירה והאירוח הישראלי, עם תפריט המבוסס על אוכל ישראלי אהוב ומוכר, חומרי גלם איכותיים והקפדה על כשרות למהדרין.',
       aboutP3: 'אצלנו תוכלו ליהנות מארוחה באווירה נעימה ומשפחתית, בין אם אתם מגיעים לארוחת צהריים או ערב, מחפשים מקום נעים לשבת בו עם המשפחה והחברים, או פשוט רוצים ליהנות מאוכל כשר ואיכותי במהלך החופשה שלכם בכרתים.',
       aboutP4: 'לחיים היא לא רק מקום לאכול בו. אנחנו רוצים להיות המקום שבו עוצרים לרגע, יושבים יחד, נהנים מאוכל טוב ומרגישים קצת בבית – גם כשנמצאים רחוק מישראל.',
@@ -764,27 +774,56 @@
 
   scrollHintBtn?.addEventListener('click', () => {
     const services = document.getElementById('entry-services');
-    (services || aboutSection)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const scroller = document.getElementById('entry-gate');
+    if (!services || !scroller) return;
+    const top = scroller.scrollTop
+      + services.getBoundingClientRect().top
+      - scroller.getBoundingClientRect().top
+      - 108;
+    const dest = Math.max(0, top);
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      scroller.scrollTop = dest;
+      return;
+    }
+    const start = scroller.scrollTop;
+    const change = dest - start;
+    const duration = 780;
+    const t0 = performance.now();
+    const ease = (t) => 1 - Math.pow(1 - t, 3);
+    const step = (now) => {
+      const p = Math.min(1, (now - t0) / duration);
+      scroller.scrollTop = start + change * ease(p);
+      if (p < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
   });
 
   const homeMenuBtn = document.getElementById('entry-home-menu');
   const homeNav = document.getElementById('entry-home-nav');
+  const homeBackdrop = document.getElementById('entry-home-backdrop');
+  const homeNavClose = document.getElementById('entry-home-nav-close');
+  const setHomeNav = (open) => {
+    homeNav?.classList.toggle('is-open', open);
+    homeMenuBtn?.setAttribute('aria-expanded', open ? 'true' : 'false');
+    homeNav?.setAttribute('aria-hidden', open ? 'false' : 'true');
+    if (homeBackdrop) homeBackdrop.hidden = !open;
+  };
+  homeNav?.setAttribute('aria-hidden', 'true');
   homeMenuBtn?.addEventListener('click', () => {
-    const open = homeNav?.classList.toggle('is-open');
-    homeMenuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    setHomeNav(!homeNav?.classList.contains('is-open'));
   });
+  homeBackdrop?.addEventListener('click', () => setHomeNav(false));
+  homeNavClose?.addEventListener('click', () => setHomeNav(false));
   gate.querySelectorAll('[data-home-go]').forEach((el) => {
     el.addEventListener('click', () => {
       const target = document.getElementById(el.getAttribute('data-home-go'));
-      homeNav?.classList.remove('is-open');
-      homeMenuBtn?.setAttribute('aria-expanded', 'false');
+      setHomeNav(false);
       target?.click();
     });
   });
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape' || !homeNav?.classList.contains('is-open')) return;
-    homeNav.classList.remove('is-open');
-    homeMenuBtn?.setAttribute('aria-expanded', 'false');
+    setHomeNav(false);
   });
 
   function pad2(n) {
