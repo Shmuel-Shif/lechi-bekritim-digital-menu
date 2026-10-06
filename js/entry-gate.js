@@ -67,7 +67,8 @@
   const COPY = {
     en: {
       welcome: 'Welcome',
-      title: 'to Lechaim Restaurant in Crete',
+      title: 'Lechaim',
+      homePlace: 'An Israeli restaurant in Crete',
       kosher: 'Mehadrin Kosher',
       hoursSummary: 'Sun–Thu 14:00–21:00 · Fri–Sat closed',
       promptOrder: 'How would you like to order?',
@@ -89,10 +90,11 @@
       dineInHint: 'Join us for a meal at the restaurant',
       takeAway: 'Takeaway',
       takeAwayWithDelivery: 'Takeaway / Delivery',
-      takeAwayHint: 'Order and pick up from the restaurant',
+      takeAwayHint: 'A quick order',
       takeAwayHintWithDelivery: 'Pickup from the restaurant or delivery (€10, 30–45 minutes) · min. order €100',
       deliveryOrder: 'Delivery',
-      deliveryOrderHint: 'Delivery €10 · 30–45 minutes · minimum order €100',
+      deliveryOrderHint: 'Flavors, delivered',
+      deliveryCardHint: 'Flavors, delivered',
       fulfillmentType: 'Order type',
       fulfillmentPickup: 'Takeaway',
       fulfillmentDelivery: 'Delivery',
@@ -108,7 +110,7 @@
       shabbatOrdersClosed: 'Shabbat orders are closed',
       shabbatOrdersClosedHint: 'You can order again starting Sunday',
       butcherShop: 'Our Butcher Shop',
-      butcherShopHint: 'Mehadrin Chalak meat • Lubavitch shechita • Premium kashrut',
+      butcherShopHint: 'Quality meat · Mehadrin kashrut',
       browseMenu: 'View the menu',
       browseMenuHint: 'Discover all our dishes',
       aroundUs: 'What’s around us',
@@ -173,7 +175,9 @@
       dineInClosedBrowse: 'View the menu',
       placeReservation: 'Reserve a table',
       customerService: 'Customer service',
-      customerServiceHint: 'Have something to tell us? We are here',
+      customerServiceHint: 'We have an answer here',
+      menuAria: 'Menu',
+      navButcher: 'Butcher shop',
       promptPlaceRes: 'Reserve a table',
       placeResName: 'Name',
       placeResPhone: 'WhatsApp',
@@ -213,7 +217,8 @@
     },
     he: {
       welcome: 'ברוכים הבאים',
-      title: 'למסעדת לחיים בכרתים',
+      title: 'לחיים',
+      homePlace: 'מסעדה ישראלית בכרתים',
       kosher: 'כשר למהדרין',
       hoursSummary: 'א׳–ה׳ 14:00–21:00 · שישי–שבת סגור',
       promptOrder: 'איך תרצו להזמין?',
@@ -235,10 +240,11 @@
       dineInHint: 'הצטרפו אלינו לארוחה במקום',
       takeAway: 'איסוף עצמי',
       takeAwayWithDelivery: 'איסוף עצמי / משלוחים',
-      takeAwayHint: 'הזמינו ואספו מהמסעדה',
+      takeAwayHint: 'הזמנה מהירה',
       takeAwayHintWithDelivery: 'איסוף מהמסעדה או משלוח בעלות €10 · זמן משלוח 30–45 דקות · מינימום הזמנה €100',
       deliveryOrder: 'משלוח',
-      deliveryOrderHint: 'משלוח בעלות €10 · זמן משלוח 30–45 דקות · מינימום הזמנה €100',
+      deliveryOrderHint: 'טעמים עד אליכם',
+      deliveryCardHint: 'טעמים עד אליכם',
       fulfillmentType: 'סוג הזמנה',
       fulfillmentPickup: 'איסוף עצמי',
       fulfillmentDelivery: 'משלוח',
@@ -254,7 +260,7 @@
       shabbatOrdersClosed: 'הזמנות לשבת סגורות',
       shabbatOrdersClosedHint: 'ניתן להזמין שוב החל מיום ראשון',
       butcherShop: 'חנות הבשר של לחיים',
-      butcherShopHint: 'בשר חלק כשר למהדרין • שחיטת ליובאוויטש • כשרות מהודרת',
+      butcherShopHint: 'בשר איכותי · כשרות למהדרין',
       browseMenu: 'צפייה בתפריט',
       browseMenuHint: 'גלו את כל המנות שלנו',
       aroundUs: 'מה בסביבה שלנו',
@@ -319,7 +325,9 @@
       dineInClosedBrowse: 'לצפייה בתפריט',
       placeReservation: 'הזמנת מקום',
       customerService: 'שירות לקוחות',
-      customerServiceHint: 'יש משהו לומר לנו? אנחנו כאן',
+      customerServiceHint: 'יש לנו מה לענות כאן',
+      menuAria: 'תפריט',
+      navButcher: 'חנות הבשר',
       promptPlaceRes: 'הזמנת מקום',
       placeResName: 'שם',
       placeResPhone: 'וואטסאפ',
@@ -755,7 +763,28 @@
   }
 
   scrollHintBtn?.addEventListener('click', () => {
-    aboutSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const services = document.getElementById('entry-services');
+    (services || aboutSection)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+  const homeMenuBtn = document.getElementById('entry-home-menu');
+  const homeNav = document.getElementById('entry-home-nav');
+  homeMenuBtn?.addEventListener('click', () => {
+    const open = homeNav?.classList.toggle('is-open');
+    homeMenuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  gate.querySelectorAll('[data-home-go]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const target = document.getElementById(el.getAttribute('data-home-go'));
+      homeNav?.classList.remove('is-open');
+      homeMenuBtn?.setAttribute('aria-expanded', 'false');
+      target?.click();
+    });
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !homeNav?.classList.contains('is-open')) return;
+    homeNav.classList.remove('is-open');
+    homeMenuBtn?.setAttribute('aria-expanded', 'false');
   });
 
   function pad2(n) {
@@ -1081,7 +1110,7 @@
     const label = state.lang === 'en' ? 'Closed today' : 'סגור היום';
     const dineHint = gate.querySelector('[data-order-type="dine-in"] [data-entry-i18n="dineInHint"]');
     const takeHint = gate.querySelector('[data-order-type="takeaway"] [data-entry-i18n="takeAwayHint"]');
-    const delHint = gate.querySelector('[data-order-type="delivery"] [data-entry-i18n="deliveryOrderHint"]');
+    const delHint = gate.querySelector('[data-order-type="delivery"] [data-entry-i18n="deliveryCardHint"]');
     if (closed) {
       if (dineHint) dineHint.textContent = label;
       if (takeHint) takeHint.textContent = label;
@@ -2069,8 +2098,8 @@
     /* Pickup button stays pickup-only; delivery button is hidden when closed */
     if (takeAwayLabelEl) takeAwayLabelEl.textContent = t('takeAway');
     if (takeAwayHintEl) takeAwayHintEl.textContent = t('takeAwayHint');
-    const deliveryHintEl = deliveryBtnEl?.querySelector('[data-entry-i18n="deliveryOrderHint"]');
-    if (deliveryHintEl) deliveryHintEl.textContent = t('deliveryOrderHint');
+    const deliveryHintEl = deliveryBtnEl?.querySelector('[data-entry-i18n="deliveryCardHint"]');
+    if (deliveryHintEl) deliveryHintEl.textContent = t('deliveryCardHint');
     if (deliveryBtnEl) {
       deliveryBtnEl.hidden = Boolean(state.deliveriesClosed);
       deliveryBtnEl.setAttribute('aria-hidden', state.deliveriesClosed ? 'true' : 'false');

@@ -424,12 +424,30 @@
     viewEl.classList.toggle('is-desktop', isDesktop());
     viewEl.classList.toggle('is-folder', docsPane === 'folder');
     viewEl.classList.toggle('is-report', docsPane === 'report');
+    viewEl.classList.toggle('is-deposits', docsPane === 'deposits');
     const listPane = document.getElementById('docs-app-list');
     const folderPane = document.getElementById('docs-app-folder');
     const reportPane = document.getElementById('docs-month-report');
+    const depositsPane = document.getElementById('docs-deposits');
+    const financeEl = document.getElementById('docs-finance');
+    const financeOpen = docsPane === 'report' || docsPane === 'deposits';
     if (listPane) listPane.hidden = docsPane !== 'list';
     if (folderPane) folderPane.hidden = docsPane !== 'folder';
+    if (financeEl) financeEl.hidden = !financeOpen;
     if (reportPane) reportPane.hidden = docsPane !== 'report';
+    if (depositsPane) depositsPane.hidden = docsPane !== 'deposits';
+    const financeTitle = document.getElementById('docs-finance-title');
+    const financeBack = document.getElementById('docs-finance-back');
+    if (financeTitle) financeTitle.textContent = docsPane === 'deposits' ? 'הפקדות' : 'סיכום כספי';
+    if (financeBack) {
+      if (docsPane === 'deposits') {
+        financeBack.setAttribute('data-docs-back-report', '');
+        financeBack.removeAttribute('data-docs-back');
+      } else {
+        financeBack.setAttribute('data-docs-back', '');
+        financeBack.removeAttribute('data-docs-back-report');
+      }
+    }
   }
 
   function activateTrap(modal) {
@@ -1064,6 +1082,17 @@
     loadSalaryPayments(true).catch(() => {});
   }
 
+  function openDeposits() {
+    docsPane = 'deposits';
+    ensureReportRange();
+    const dateEl = document.getElementById('docs-deposit-date');
+    if (dateEl && !dateEl.value) dateEl.value = todayYmd();
+    applyLayout();
+    renderAll();
+    loadRangeDayReports(reportFromYmd, reportToYmd).catch(() => {});
+    document.getElementById('docs-deposits')?.scrollTo?.(0, 0);
+  }
+
   function renderSuppliers() {
     const list = document.getElementById('docs-supplier-list');
     if (!list) return;
@@ -1692,6 +1721,7 @@
   }
 
   const CASH_ACTUAL_KEY = 'lechaim-docs-cash-actual';
+  const BANK_DEPOSITS_KEY = 'lechaim-docs-bank-deposits';
 
   function readCashActualMap() {
     try {
@@ -1730,28 +1760,79 @@
     return global.LechaimAdminCashReconcile?.parseActualCash?.(input.value) ?? null;
   }
 
+  function readBankDeposits() {
+    try {
+      const raw = global.localStorage?.getItem(BANK_DEPOSITS_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (err) {
+      return [];
+    }
+  }
+
+  function writeBankDeposits(list) {
+    try {
+      global.localStorage?.setItem(BANK_DEPOSITS_KEY, JSON.stringify(list));
+    } catch (err) {
+      console.error('[documents] bank deposits', err);
+    }
+  }
+
   function renderCashReconcile(zSplit, creditRows, cashExpenses) {
     const incomeReport = typeof global.LechaimAdminCreditsCore?.reportIncomeWithCredits === 'function'
       ? global.LechaimAdminCreditsCore.reportIncomeWithCredits(zSplit, creditRows)
       : { incomeCash: roundMoney(zSplit?.cash) };
     const incomeCash = roundMoney(incomeReport.incomeCash);
-    const actual = cashActualForReport();
-    const reconciled = global.LechaimAdminCashReconcile?.reconcileCash?.({
+    const core = global.LechaimAdminCashReconcile;
+    const historyRange = depositListRange();
+    const periodRows = core?.depositsInPeriod?.(readBankDeposits(), reportFromYmd, reportToYmd) || [];
+    const monthRows = core?.depositsInPeriod?.(readBankDeposits(), historyRange.from, historyRange.to) || [];
+    const deposited = core?.sumDeposits?.(periodRows) || 0;
+    cashActualForReport();
+    const reconciled = core?.reconcileCash?.({
       incomeCash,
       cashExpenses,
-      actual,
+      deposited,
     });
-    const pending = 'טרם הוזן';
     const setText = (id, text) => {
       const el = document.getElementById(id);
       if (el) el.textContent = text;
     };
+    const periodEl = document.getElementById('docs-deposits-period');
+    if (periodEl) periodEl.textContent = periodLabel();
     setText('docs-fin-reconcile-expenses', formatMoney(reconciled?.cashExpenses ?? cashExpenses));
     setText('docs-fin-reconcile-income', formatMoney(reconciled?.incomeCash ?? incomeCash));
     setText('docs-fin-reconcile-expected', formatMoney(reconciled?.expected ?? roundMoney(incomeCash - cashExpenses)));
-    if (actual == null) setText('docs-fin-reconcile-diff', pending);
-    else setText('docs-fin-reconcile-diff', formatMoney(reconciled?.difference));
-    setText('docs-fin-reconcile-deposit', formatMoney(reconciled?.deposit ?? roundMoney(incomeCash - cashExpenses)));
+    setText('docs-fin-reconcile-deposited', formatMoney(deposited));
+    setText('docs-fin-reconcile-remaining', formatMoney(reconciled?.remaining ?? roundMoney((reconciled?.expected ?? incomeCash - cashExpenses) - deposited)));
+    const historyTitle = document.getElementById('docs-deposit-history-title');
+    if (historyTitle) {
+      historyTitle.textContent = historyRange.month ? 'הפקדות החודש' : 'הפקדות בתקופה';
+    }
+    const historyEl = document.getElementById('docs-deposit-history');
+    if (historyEl) {
+      historyEl.innerHTML = monthRows.length
+        ? monthRows.map((row) => `
+          <div class="docs-fin__exp-line">
+            <span>${escapeHtml(formatDateFull(row.date))}</span>
+            <span class="docs-deposit-row__end">
+              <strong>${escapeHtml(formatMoney(row.amount))}</strong>
+              <button type="button" class="docs-deposit-delete" data-docs-deposit-delete="${escapeHtml(row.id)}">מחיקה</button>
+            </span>
+          </div>
+        `).join('')
+        : '<p class="docs-app__empty">אין הפקדות בחודש הזה</p>';
+    }
+  }
+
+  function depositListRange() {
+    const fromYm = ymOfYmd(reportFromYmd);
+    const toYm = ymOfYmd(reportToYmd);
+    if (fromYm && fromYm === toYm) {
+      const bounds = monthYmdBounds(fromYm);
+      if (bounds) return { from: bounds.start, to: bounds.end, month: true };
+    }
+    return { from: reportFromYmd, to: reportToYmd, month: false };
   }
 
   function expenseBreakdown() {
@@ -1803,9 +1884,18 @@
     const privateExpenses = sumPrivateExpensesEur(expenseRows);
     const expenseTotal = roundMoney(sumEurAmounts(expenseRows));
     const noReceiptRows = expenseRows.filter((row) => isManualPaymentSupplier(row?.supplier_name));
-    const noReceiptCash = sumPayCategoryEur(noReceiptRows, 'cash');
+    const cashSalaryRows = expenseRows.filter((row) => isSalarySupplier(row?.supplier_name));
+    const cashSplit = global.LechaimAdminCashReconcile?.splitDisplayedCash?.(
+      cashExpensesAll,
+      sumPayCategoryEur(noReceiptRows, 'cash'),
+      sumPayCategoryEur(cashSalaryRows, 'cash')
+    ) || {
+      cashExpenses: roundMoney(cashExpensesAll - sumPayCategoryEur(noReceiptRows, 'cash')),
+      noReceiptCash: sumPayCategoryEur(noReceiptRows, 'cash'),
+    };
+    const noReceiptCash = cashSplit.noReceiptCash;
     const noReceiptCredit = sumPayCategoryEur(noReceiptRows, 'credit');
-    const cashExpenses = roundMoney(cashExpensesAll - noReceiptCash);
+    const cashExpenses = cashSplit.cashExpenses;
     const creditExpenses = roundMoney(creditExpensesAll - noReceiptCredit);
     const otherExpenses = roundMoney(
       expenseTotal - cashExpensesAll - creditExpensesAll - bankExpenses - privateExpenses
@@ -3075,6 +3165,31 @@
       saveCashActual(rangeKey, parsed);
       renderReport();
     });
+    document.getElementById('docs-deposit-form')?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const date = document.getElementById('docs-deposit-date')?.value;
+      const amount = document.getElementById('docs-deposit-amount')?.value;
+      const errorEl = document.getElementById('docs-deposit-error');
+      const created = global.LechaimAdminCashReconcile?.createDeposit?.({
+        date,
+        amount,
+        id: global.crypto?.randomUUID?.() || `dep-${Date.now()}`,
+      });
+      if (!created?.ok) {
+        showFormError(errorEl, created?.error || 'לא ניתן לשמור את ההפקדה');
+        return;
+      }
+      showFormError(errorEl, '');
+      const saved = global.LechaimAdminCashReconcile.appendDeposit(readBankDeposits(), {
+        ...created.deposit,
+        savedAt: new Date().toISOString(),
+      });
+      writeBankDeposits(saved);
+      const amountEl = document.getElementById('docs-deposit-amount');
+      if (amountEl) amountEl.value = '';
+      showToast('ההפקדה נשמרה');
+      renderReport();
+    });
 
     viewEl?.addEventListener('click', (event) => {
       if (event.target.closest('[data-docs-lock]')) {
@@ -3099,6 +3214,24 @@
         return;
       }
       if (event.target.closest('[data-docs-open-report]')) {
+        openReport();
+        return;
+      }
+      if (event.target.closest('[data-docs-open-deposits]')) {
+        openDeposits();
+        return;
+      }
+      const deleteDepositBtn = event.target.closest('[data-docs-deposit-delete]');
+      if (deleteDepositBtn) {
+        const id = deleteDepositBtn.getAttribute('data-docs-deposit-delete');
+        const core = global.LechaimAdminCashReconcile;
+        if (id && typeof core?.removeDeposit === 'function') {
+          writeBankDeposits(core.removeDeposit(readBankDeposits(), id));
+          renderReport();
+        }
+        return;
+      }
+      if (event.target.closest('[data-docs-back-report]')) {
         openReport();
         return;
       }

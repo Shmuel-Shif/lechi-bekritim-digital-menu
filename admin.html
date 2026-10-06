@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=153">
+  <link rel="stylesheet" href="css/admin.css?v=156">
   <link rel="stylesheet" href="css/admin-dashboard.css?v=6">
   <link rel="stylesheet" href="css/admin-reminders.css?v=1">
   <link rel="stylesheet" href="css/admin-notes.css?v=2">
@@ -1312,13 +1312,13 @@
             </div>
           </div>
 
-          <section class="docs-app__pane docs-app__pane--report" id="docs-month-report" hidden>
-            <header class="docs-app__head">
-              <button type="button" class="docs-back" data-docs-back>← חזרה</button>
-              <h1 class="docs-app__title">סיכום כספי</h1>
-              <button type="button" class="docs-app__lock" data-docs-lock aria-label="נעילה">נעילה</button>
-            </header>
-            <div class="docs-month-report__body docs-fin">
+          <div class="docs-app__pane docs-finance" id="docs-finance" hidden>
+            <header class="docs-app__head docs-finance-head">
+              <div class="docs-finance-head__bar">
+                <button type="button" class="docs-back" id="docs-finance-back" data-docs-back>← חזרה</button>
+                <h1 class="docs-app__title" id="docs-finance-title">סיכום כספי</h1>
+                <button type="button" class="docs-app__lock" data-docs-lock aria-label="נעילה">נעילה</button>
+              </div>
               <form id="docs-period-form" class="docs-fin-period" novalidate>
                 <div class="docs-fin-period__modes" role="group" aria-label="סוג תקופה">
                   <button type="button" class="admin-btn admin-btn--soft is-on" data-docs-period-mode="month">חודשים</button>
@@ -1347,6 +1347,9 @@
                 <button type="submit" class="admin-btn admin-btn--primary" id="docs-period-apply">הצג</button>
                 <p class="admin-error" id="docs-period-error" role="alert" hidden></p>
               </form>
+            </header>
+            <section class="docs-finance__body docs-app__pane--report" id="docs-month-report">
+            <div class="docs-month-report__body docs-fin">
               <p class="docs-fin-period__applied" id="docs-period-applied"></p>
               <div class="docs-fin__kpis">
                 <article class="docs-fin__kpi">
@@ -1426,6 +1429,22 @@
                 </div>
               </section>
 
+              <button type="button" class="docs-fin__entry" data-docs-open-deposits>
+                <span>הפקדות</span>
+                <strong>פיוס מזומן</strong>
+              </button>
+
+              <details class="docs-fin__suppliers">
+                <summary>פירוט לפי ספקים</summary>
+                <div id="docs-expense-break"></div>
+              </details>
+              <button type="button" class="docs-xlsx-btn" id="docs-xlsx">הורד דוח Excel</button>
+            </div>
+            </section>
+
+          <section class="docs-finance__body" id="docs-deposits" hidden>
+            <div class="docs-month-report__body docs-fin">
+              <p class="docs-fin-period__applied" id="docs-deposits-period"></p>
               <section class="docs-fin__exp docs-fin__reconcile" aria-label="פיוס מזומן">
                 <h2 class="docs-fin__reconcile-title">פיוס מזומן</h2>
                 <div class="docs-fin__exp-line">
@@ -1445,22 +1464,36 @@
                   <input type="text" inputmode="decimal" id="docs-fin-cash-actual" class="docs-fin__reconcile-input" dir="ltr" placeholder="טרם הוזן" autocomplete="off">
                 </label>
                 <div class="docs-fin__exp-line">
-                  <span>הפרש</span>
-                  <strong id="docs-fin-reconcile-diff">טרם הוזן</strong>
+                  <span>סך ההפקדות לבנק</span>
+                  <strong id="docs-fin-reconcile-deposited">€0</strong>
                 </div>
                 <div class="docs-fin__exp-line">
-                  <span>כמה צריך להפקיד לבנק</span>
-                  <strong id="docs-fin-reconcile-deposit">טרם הוזן</strong>
+                  <span>כמה נשאר להפקיד לבנק</span>
+                  <strong id="docs-fin-reconcile-remaining">€0</strong>
                 </div>
               </section>
 
-              <details class="docs-fin__suppliers">
-                <summary>פירוט לפי ספקים</summary>
-                <div id="docs-expense-break"></div>
-              </details>
-              <button type="button" class="docs-xlsx-btn" id="docs-xlsx">הורד דוח Excel</button>
+              <form id="docs-deposit-form" class="docs-fin__exp docs-deposit-form" novalidate>
+                <h2 class="docs-fin__reconcile-title">הפקדה חדשה</h2>
+                <label class="docs-fin__exp-line">
+                  <span>תאריך</span>
+                  <input type="date" id="docs-deposit-date" class="docs-fin__reconcile-input docs-fin__reconcile-input--date" dir="ltr">
+                </label>
+                <label class="docs-fin__exp-line">
+                  <span>סכום</span>
+                  <input type="text" inputmode="decimal" id="docs-deposit-amount" class="docs-fin__reconcile-input" dir="ltr" autocomplete="off">
+                </label>
+                <p class="admin-error" id="docs-deposit-error" role="alert" hidden></p>
+                <button type="submit" class="admin-btn admin-btn--primary">שמור הפקדה</button>
+              </form>
+
+              <section class="docs-fin__exp" aria-label="הפקדות החודש">
+                <h2 class="docs-fin__reconcile-title" id="docs-deposit-history-title">הפקדות החודש</h2>
+                <div id="docs-deposit-history"></div>
+              </section>
             </div>
           </section>
+          </div>
         </section>
 
         <input type="file" id="docs-camera-input" accept="image/*" capture="environment" hidden>
@@ -2666,10 +2699,10 @@
   <script src="js/staff-hours-xlsx.js?v=4" defer></script>
   <script src="js/admin-staff-hours.js?v=23" defer></script>
   <script src="js/admin-credits-core.js?v=2" defer></script>
-  <script src="js/admin-cash-reconcile-core.js?v=3" defer></script>
+  <script src="js/admin-cash-reconcile-core.js?v=7" defer></script>
   <script src="js/docs-monthly-xlsx.js?v=7" defer></script>
   <script src="js/docs-monthly-pdf.js?v=1" defer></script>
-  <script src="js/admin-documents.js?v=44" defer></script>
+  <script src="js/admin-documents.js?v=49" defer></script>
   <script src="js/home-notice.js?v=3" defer></script>
   <script src="js/admin-tabs-order.js?v=2" defer></script>
   <script src="js/admin-settings.js?v=16" defer></script>

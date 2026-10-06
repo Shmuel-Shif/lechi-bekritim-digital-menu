@@ -8044,6 +8044,33 @@ body.admin-inventory-open {
   min-height: 0;
 }
 
+.docs-finance {
+  min-height: 0;
+  background: #f8f5f0;
+}
+
+.docs-finance-head {
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.docs-finance-head__bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.7rem 0.85rem;
+}
+
+.docs-finance-head .docs-fin-period {
+  margin: 0;
+}
+
+.docs-finance__body {
+  min-height: 0;
+  overflow: auto;
+}
+
 .docs-app__head {
   display: flex;
   justify-content: space-between;
@@ -8054,6 +8081,12 @@ body.admin-inventory-open {
   padding: 0.95rem 1.2rem;
   background: #1e3354;
   color: #f7f1e8;
+}
+
+.docs-app__head.docs-finance-head {
+  flex-direction: column;
+  align-items: stretch;
+  flex: 0 0 auto;
 }
 
 .docs-app__head-actions {
@@ -8932,6 +8965,63 @@ body.admin-inventory-open {
   white-space: nowrap;
 }
 
+.docs-fin__entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin: 0 0 0.85rem;
+  padding: 1rem 1.05rem;
+  border: 0;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(21, 38, 64, 0.05);
+  color: #1e3354;
+  font: inherit;
+  font-size: 1.02rem;
+  font-weight: 800;
+  text-align: start;
+  cursor: pointer;
+}
+
+.docs-fin__entry strong {
+  color: #8a7348;
+  font-weight: 700;
+}
+
+.docs-fin__reconcile-input--date {
+  width: 9.5rem;
+}
+
+.docs-deposit-form {
+  padding-bottom: 0.95rem;
+}
+
+.docs-deposit-form .admin-btn {
+  margin-top: 0.2rem;
+}
+
+.docs-deposit-form .admin-error {
+  margin: 0 0 0.45rem;
+}
+
+.docs-deposit-row__end {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.docs-deposit-delete {
+  border: 0;
+  background: transparent;
+  color: #8a5a4a;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+
 .docs-fin__reconcile-title {
   margin: 0.75rem 0 0.1rem;
   font-size: 1.02rem;
@@ -9099,6 +9189,11 @@ body.admin-inventory-open {
 }
 
 @media (max-width: 859px) {
+  .docs-finance-head__bar {
+    flex-direction: row;
+    align-items: center;
+  }
+
   .docs-app__head {
     flex-direction: column;
     align-items: stretch;
@@ -9142,6 +9237,10 @@ body.admin-inventory-open {
 
   .docs-app__pane {
     overflow: auto;
+  }
+
+  .docs-app__pane.docs-finance {
+    overflow: hidden;
   }
 
   .docs-app__pane--list {
