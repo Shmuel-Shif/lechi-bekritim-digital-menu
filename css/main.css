@@ -651,6 +651,10 @@ button {
   box-shadow: 0 6px 18px rgba(61, 139, 90, 0.26);
 }
 
+body:not(.butcher-mode) #hero-cta {
+  display: none;
+}
+
 .hero-logo {
   display: none;
 }

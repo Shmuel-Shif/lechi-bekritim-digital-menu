@@ -3298,6 +3298,14 @@ body.home-notice-open {
   display: none;
 }
 
+.entry-gate.is-home #entry-delivery-btn.is-deliveries-closed {
+  filter: blur(3px);
+  opacity: 0.72;
+  pointer-events: none;
+  cursor: default;
+  transform: none;
+}
+
 @media (max-width: 767px) {
   .entry-gate.is-home .entry-gate__hero-screen {
     padding-bottom: calc(12rem + env(safe-area-inset-bottom, 0px));

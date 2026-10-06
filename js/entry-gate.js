@@ -2140,8 +2140,12 @@
     const deliveryHintEl = deliveryBtnEl?.querySelector('[data-entry-i18n="deliveryCardHint"]');
     if (deliveryHintEl) deliveryHintEl.textContent = t('deliveryCardHint');
     if (deliveryBtnEl) {
-      deliveryBtnEl.hidden = Boolean(state.deliveriesClosed);
-      deliveryBtnEl.setAttribute('aria-hidden', state.deliveriesClosed ? 'true' : 'false');
+      const closed = Boolean(state.deliveriesClosed);
+      deliveryBtnEl.hidden = false;
+      deliveryBtnEl.disabled = closed;
+      deliveryBtnEl.classList.toggle('is-deliveries-closed', closed);
+      deliveryBtnEl.setAttribute('aria-disabled', closed ? 'true' : 'false');
+      deliveryBtnEl.removeAttribute('aria-hidden');
     }
     syncFulfillmentUi();
     if (promptEl && stepPickup && !stepPickup.hidden) {
@@ -3439,6 +3443,9 @@
         return;
       }
       if (type === 'delivery') {
+        if (state.deliveriesClosed || orderBtn.disabled || orderBtn.classList.contains('is-deliveries-closed')) {
+          return;
+        }
         if (!isTakeawayDayOpen()) {
           showOrderingClosedStep('delivery');
           return;
