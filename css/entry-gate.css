@@ -2695,8 +2695,8 @@ body.home-notice-open {
   top: max(1.15rem, calc(env(safe-area-inset-top, 0px) + 0.7rem));
   transform: translateX(-50%);
   margin: 0;
-  color: #062468;
-  text-shadow: 0 1px 8px rgba(255, 255, 255, 0.55);
+  color: #fff;
+  text-shadow: 0 1px 8px rgba(8, 16, 34, 0.45);
   font-family: "Playfair Display", Georgia, serif;
   font-size: 0.92rem;
   font-weight: 600;
@@ -2775,36 +2775,14 @@ body.home-notice-open {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.15rem;
   margin: 0;
-  color: #062468;
-  text-shadow: 0 1px 8px rgba(255, 255, 255, 0.55);
 }
 
-.entry-gate.is-home .entry-gate__mark {
+.entry-gate.is-home .entry-gate__brand-logo {
   display: block;
-  width: 3.7rem;
-  height: 3.7rem;
-  margin: 0 0 0.4rem;
-  background: #062468;
-  -webkit-mask: url("../assets/logo/logo-image.png") center / contain no-repeat;
-  mask: url("../assets/logo/logo-image.png") center / contain no-repeat;
-}
-
-.entry-gate.is-home .entry-gate__brand-name {
-  font-family: "Playfair Display", Georgia, serif;
-  font-size: clamp(1.45rem, 5.2vw, 1.85rem);
-  font-weight: 600;
-  letter-spacing: 0.28em;
-  line-height: 1;
-}
-
-.entry-gate.is-home .entry-gate__brand-sub {
-  font-family: "Heebo", "Assistant", sans-serif;
-  font-size: 0.62rem;
-  font-weight: 500;
-  letter-spacing: 0.22em;
-  line-height: 1.4;
+  width: min(9.25rem, 52vw);
+  height: auto;
+  filter: drop-shadow(0 1px 8px rgba(255, 255, 255, 0.45));
 }
 
 .entry-gate.is-home .entry-gate__title {
@@ -3104,13 +3082,8 @@ body.home-notice-open {
     font-size: clamp(4.8rem, 8vw, 6.4rem);
   }
 
-  .entry-gate.is-home .entry-gate__brand-name {
-    font-size: 2rem;
-  }
-
-  .entry-gate.is-home .entry-gate__mark {
-    width: 4.6rem;
-    height: 4.6rem;
+  .entry-gate.is-home .entry-gate__brand-logo {
+    width: 16.5rem;
   }
 
   .entry-gate.is-home .entry-gate__services {
