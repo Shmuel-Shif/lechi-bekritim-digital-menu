@@ -2635,7 +2635,7 @@ body.home-notice-open {
 
 .entry-gate.is-home .entry-gate__home-scrim {
   background:
-    linear-gradient(180deg, rgba(8, 16, 34, 0.62) 0%, rgba(8, 16, 34, 0.16) 32%, rgba(8, 16, 34, 0.18) 62%, rgba(8, 16, 34, 0.28) 100%);
+    linear-gradient(180deg, rgba(18, 36, 62, 0.34) 0%, rgba(18, 36, 62, 0.08) 24%, rgba(18, 36, 62, 0.2) 48%, rgba(18, 36, 62, 0.14) 74%, rgba(18, 36, 62, 0.08) 100%);
 }
 
 .entry-gate.is-home .entry-gate__hero-screen::after {
@@ -2984,20 +2984,20 @@ body.home-notice-open {
   pointer-events: none;
   background: linear-gradient(
     to left,
-    rgba(10, 18, 34, 0.9) 0%,
-    rgba(10, 18, 34, 0.72) 34%,
-    rgba(10, 18, 34, 0.18) 68%,
-    rgba(10, 18, 34, 0.02) 100%
+    rgba(10, 18, 34, 0.76) 0%,
+    rgba(10, 18, 34, 0.46) 30%,
+    rgba(10, 18, 34, 0.08) 64%,
+    rgba(10, 18, 34, 0) 100%
   );
 }
 
 .entry-gate.is-home .entry-gate__shell[dir="ltr"] .entry-gate__services .entry-gate__btn::before {
   background: linear-gradient(
     to right,
-    rgba(10, 18, 34, 0.9) 0%,
-    rgba(10, 18, 34, 0.72) 34%,
-    rgba(10, 18, 34, 0.18) 68%,
-    rgba(10, 18, 34, 0.02) 100%
+    rgba(10, 18, 34, 0.76) 0%,
+    rgba(10, 18, 34, 0.46) 30%,
+    rgba(10, 18, 34, 0.08) 64%,
+    rgba(10, 18, 34, 0) 100%
   );
 }
 
