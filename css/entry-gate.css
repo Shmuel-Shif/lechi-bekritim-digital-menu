@@ -2695,7 +2695,8 @@ body.home-notice-open {
   top: max(1.15rem, calc(env(safe-area-inset-top, 0px) + 0.7rem));
   transform: translateX(-50%);
   margin: 0;
-  color: #f6e7c4;
+  color: #062468;
+  text-shadow: 0 1px 8px rgba(255, 255, 255, 0.55);
   font-family: "Playfair Display", Georgia, serif;
   font-size: 0.92rem;
   font-weight: 600;
@@ -2776,7 +2777,8 @@ body.home-notice-open {
   align-items: center;
   gap: 0.15rem;
   margin: 0;
-  color: #f6e7c4;
+  color: #062468;
+  text-shadow: 0 1px 8px rgba(255, 255, 255, 0.55);
 }
 
 .entry-gate.is-home .entry-gate__mark {
@@ -2784,7 +2786,7 @@ body.home-notice-open {
   width: 3.7rem;
   height: 3.7rem;
   margin: 0 0 0.4rem;
-  background: linear-gradient(180deg, #f8e7c0 0%, #e6cb8e 46%, #c4a06a 100%);
+  background: #062468;
   -webkit-mask: url("../assets/logo/logo-image.png") center / contain no-repeat;
   mask: url("../assets/logo/logo-image.png") center / contain no-repeat;
 }
@@ -2812,8 +2814,8 @@ body.home-notice-open {
   font-size: clamp(4.5rem, 20vw, 6.2rem);
   font-weight: 700;
   line-height: 0.95;
-  color: #f0d48a;
-  text-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  color: #062468;
+  text-shadow: 0 1px 10px rgba(255, 255, 255, 0.6);
 }
 
 .entry-gate.is-home .entry-gate__place,
@@ -2851,7 +2853,7 @@ body.home-notice-open {
   content: "";
   width: 4.4rem;
   height: 1px;
-  background: linear-gradient(90deg, transparent, #e6cb8e, transparent);
+  background: linear-gradient(90deg, transparent, #062468, transparent);
 }
 
 .entry-gate.is-home .entry-gate__hero-ctas {
