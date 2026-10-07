@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=156">
+  <link rel="stylesheet" href="css/admin.css?v=157">
   <link rel="stylesheet" href="css/admin-dashboard.css?v=6">
   <link rel="stylesheet" href="css/admin-reminders.css?v=1">
   <link rel="stylesheet" href="css/admin-notes.css?v=2">
@@ -697,8 +697,9 @@
           </div>
           <div class="admin-till-date-wrap">
             <div class="admin-till-date-shortcuts">
+              <button type="button" class="admin-btn admin-btn--ghost" id="admin-till-prev-day">יום קודם</button>
               <button type="button" class="admin-btn admin-btn--ghost" id="admin-till-today">היום</button>
-              <button type="button" class="admin-btn admin-btn--ghost" id="admin-till-yesterday">אתמול</button>
+              <button type="button" class="admin-btn admin-btn--ghost" id="admin-till-next-day">יום הבא</button>
             </div>
             <label class="admin-till-date">
               <span>תאריך</span>
@@ -734,7 +735,13 @@
           <article class="admin-till-card" id="admin-till-summary-card" hidden>
             <div class="admin-till-card__date-row">
               <p class="admin-till-card__date" id="admin-till-date-label">—</p>
-              <button type="button" class="admin-till-card__edit" id="admin-till-edit-report">עריכה</button>
+              <div class="admin-till-card__actions">
+                <span class="admin-till-lock-badge" id="admin-till-lock-badge" hidden>נעול</span>
+                <button type="button" class="admin-till-card__edit" id="admin-till-lock">נעילת דיווח</button>
+                <button type="button" class="admin-till-card__edit" id="admin-till-correct" hidden>תיקון דיווח</button>
+                <button type="button" class="admin-till-card__edit" id="admin-till-history" hidden>היסטוריה</button>
+                <button type="button" class="admin-till-card__edit" id="admin-till-edit-report">עריכה</button>
+              </div>
             </div>
             <div class="admin-till-card__row admin-till-card__row--total">
               <span class="admin-till-card__label">סה״כ מכירות</span>
@@ -1723,12 +1730,75 @@
       </div>
     </div>
 
+    <div class="admin-modal" id="till-lock-modal" hidden aria-hidden="true">
+      <button type="button" class="admin-modal__backdrop" id="till-lock-backdrop" aria-label="סגור"></button>
+      <div class="admin-modal__panel reservation-modal__panel" role="dialog" aria-modal="true" aria-labelledby="till-lock-title">
+        <h2 class="reservation-modal__title" id="till-lock-title">נעילת דיווח</h2>
+        <p class="docs-vault-hint">אחרי השמירה היום ננעל. סגירות חדשות ודוח Z לא ישנו את הארבעה האלה.</p>
+        <p class="admin-till-lock-preview" id="till-lock-preview"></p>
+        <form id="till-lock-form" class="reservation-form" novalidate>
+          <p class="admin-error" id="till-lock-error" role="alert" hidden></p>
+          <div class="reservation-modal__actions">
+            <button type="submit" class="admin-btn admin-btn--primary">אשר נעילה</button>
+            <button type="button" class="admin-btn admin-btn--ghost" id="till-lock-cancel">ביטול</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="admin-modal" id="till-correct-modal" hidden aria-hidden="true">
+      <button type="button" class="admin-modal__backdrop" id="till-correct-backdrop" aria-label="סגור"></button>
+      <div class="admin-modal__panel reservation-modal__panel" role="dialog" aria-modal="true" aria-labelledby="till-correct-title">
+        <h2 class="reservation-modal__title" id="till-correct-title">תיקון דיווח</h2>
+        <p class="docs-vault-hint">הדיווח המקורי נשאר בהיסטוריה. כאן נשמר ערך חדש עם סיבה.</p>
+        <form id="till-correct-form" class="reservation-form" novalidate>
+          <label class="admin-field">
+            <span>מזומן</span>
+            <input type="number" id="till-correct-cash" min="0" step="0.01" inputmode="decimal" dir="ltr" required>
+          </label>
+          <label class="admin-field">
+            <span>אשראי</span>
+            <input type="number" id="till-correct-credit" min="0" step="0.01" inputmode="decimal" dir="ltr" required>
+          </label>
+          <label class="admin-field">
+            <span>טיפים</span>
+            <input type="number" id="till-correct-tip" min="0" step="0.01" inputmode="decimal" dir="ltr" required>
+          </label>
+          <div class="admin-till-edit-inclusive">
+            <span>סה״כ מכירות</span>
+            <strong id="till-correct-sales" dir="ltr">€0</strong>
+          </div>
+          <label class="admin-field">
+            <span>סיבת תיקון</span>
+            <input type="text" id="till-correct-reason" required autocomplete="off">
+          </label>
+          <p class="admin-error" id="till-correct-error" role="alert" hidden></p>
+          <div class="reservation-modal__actions">
+            <button type="submit" class="admin-btn admin-btn--primary">שמור תיקון</button>
+            <button type="button" class="admin-btn admin-btn--ghost" id="till-correct-cancel">ביטול</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="admin-modal" id="till-lock-history-modal" hidden aria-hidden="true">
+      <button type="button" class="admin-modal__backdrop" id="till-lock-history-backdrop" aria-label="סגור"></button>
+      <div class="admin-modal__panel reservation-modal__panel" role="dialog" aria-modal="true" aria-labelledby="till-lock-history-title">
+        <h2 class="reservation-modal__title" id="till-lock-history-title">היסטוריית דיווח</h2>
+        <p class="admin-error" id="till-lock-history-error" role="alert" hidden></p>
+        <div id="till-lock-history-list" class="admin-till-history"></div>
+        <div class="reservation-modal__actions">
+          <button type="button" class="admin-btn admin-btn--ghost" id="till-lock-history-close">סגור</button>
+        </div>
+      </div>
+    </div>
+
     <div class="admin-modal" id="till-edit-report-modal" hidden aria-hidden="true">
       <button type="button" class="admin-modal__backdrop" id="till-edit-report-backdrop" aria-label="סגור"></button>
       <div class="admin-modal__panel reservation-modal__panel" role="dialog" aria-modal="true" aria-labelledby="till-edit-report-title">
         <h2 class="reservation-modal__title" id="till-edit-report-title">עריכת דוח מכירות</h2>
         <p class="docs-vault-hint" id="till-edit-report-date">—</p>
-        <p class="docs-vault-hint">שמירה מעדכנת את הכרטיס. מכירה חדשה אחרי השמירה מתווספת.</p>
+        <p class="docs-vault-hint">השמירה היא המספר של היום. סגירות מאוחרות לא מתווספות אליו.</p>
         <form id="till-edit-report-form" class="reservation-form" novalidate>
           <label class="admin-field">
             <span>מזומן</span>
@@ -2669,7 +2739,8 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
   <script src="js/order-types.js" defer></script>
-  <script src="js/supabase-order-service.js?v=39" defer></script>
+  <script src="js/admin-daily-lock-core.js?v=1" defer></script>
+  <script src="js/supabase-order-service.js?v=40" defer></script>
   <script src="js/menu-data.js?v=114" defer></script>
   <script src="js/opening-hours.js?v=12" defer></script>
   <script src="js/app-settings.js?v=7" defer></script>
@@ -2694,7 +2765,7 @@
   <script src="js/admin-notes-core.js?v=1" defer></script>
   <script src="js/admin-notes.js?v=1" defer></script>
   <script src="js/admin-coupons.js" defer></script>
-  <script src="js/admin-till.js?v=21" defer></script>
+  <script src="js/admin-till.js?v=24" defer></script>
   <script src="js/admin-dashboard.js?v=6" defer></script>
   <script src="js/staff-hours-xlsx.js?v=4" defer></script>
   <script src="js/admin-staff-hours.js?v=23" defer></script>

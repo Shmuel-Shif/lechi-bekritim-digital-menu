@@ -6,7 +6,9 @@
     "convert:dishes": "node scripts/convert-dishes-to-webp.mjs",
     "validate:assets": "node scripts/optimize-images.mjs --validate-only",
     "test": "node scripts/test-admin-notes-credits.mjs",
-    "test:admin-features": "node scripts/test-admin-notes-credits.mjs"
+    "test:admin-features": "node scripts/test-admin-notes-credits.mjs",
+    "test:daily-lock": "node scripts/test-admin-daily-lock.mjs",
+    "test:till-saved-report": "node scripts/test-admin-till-saved-report.mjs"
   },
   "devDependencies": {
     "sharp": "^0.34.2"

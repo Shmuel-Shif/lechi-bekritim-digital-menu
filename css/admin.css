@@ -4438,6 +4438,7 @@ body.admin-inventory-open {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 0.75rem;
 }
 
@@ -4464,6 +4465,54 @@ body.admin-inventory-open {
 .admin-till-card__edit:focus-visible {
   outline: 2px solid rgba(29, 78, 216, 0.45);
   outline-offset: 2px;
+}
+
+.admin-till-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.65rem;
+}
+
+.admin-till-lock-badge {
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: #17345d;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.admin-till-lock-preview {
+  margin: 0 0 0.8rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.admin-till-history {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+}
+
+.admin-till-history__item {
+  padding: 0.7rem 0.8rem;
+  border-radius: 12px;
+  background: #f7f2ea;
+}
+
+.admin-till-history__item h3,
+.admin-till-history__item p {
+  margin: 0;
+}
+
+.admin-till-history__item h3 {
+  font-size: 0.95rem;
+}
+
+.admin-till-history__reason {
+  margin-top: 0.25rem;
 }
 
 .admin-till-card__opening {

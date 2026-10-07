@@ -2587,6 +2587,13 @@
   async function upsertTillDayReport(dateStr, totals) {
     const sb = getClient();
     const day = assertTillBusinessDate(dateStr, 'upsertTillDayReport');
+    const lock = await getDailyReportLock(day);
+    const gate = dailyLockCore().guardTillUpsert(lock);
+    if (!gate.ok) {
+      const err = new Error('DAILY_REPORT_LOCKED');
+      err.code = 'DAILY_REPORT_LOCKED';
+      throw err;
+    }
     const cash = Math.round((Number(totals?.cash) || 0) * 100) / 100;
     const credit = Math.round((Number(totals?.credit) || 0) * 100) / 100;
     const tip = Math.round((Number(totals?.tip) || 0) * 100) / 100;
@@ -2623,6 +2630,181 @@
       .delete()
       .eq('business_date', day);
     throwTillLayerError(error, 'deleteTillDayReport', TILL_DAY_REPORTS);
+  }
+
+  const DAILY_REPORT_LOCKS = 'daily_report_locks';
+  const DAILY_REPORT_REVISIONS = 'daily_report_revisions';
+  const DAILY_LOCK_COLUMNS = 'business_date, cash, credit, tip, sales, source, note, locked_at, locked_by, revised_at, revised_by';
+  const DAILY_REVISION_COLUMNS = 'id, business_date, cash, credit, tip, sales, source, reason, created_by, created_at, action';
+
+  function dailyLockCore() {
+    const core = global.LechaimAdminDailyLock;
+    if (!core?.prepareLock || !core?.guardTillUpsert) {
+      throw new Error('[LechaimSupabaseOrders] daily lock core missing');
+    }
+    return core;
+  }
+
+  function throwDailyLockError(error, context) {
+    if (!error) return;
+    if (isMissingTillLayerTable(error, DAILY_REPORT_LOCKS) || isMissingTillLayerTable(error, DAILY_REPORT_REVISIONS)) {
+      const err = new Error('DAILY_REPORT_LOCKS_MISSING');
+      err.code = 'DAILY_REPORT_LOCKS_MISSING';
+      err.cause = error;
+      throw err;
+    }
+    if (error.code === '23505') {
+      const err = new Error('DAILY_REPORT_ALREADY_LOCKED');
+      err.code = 'DAILY_REPORT_ALREADY_LOCKED';
+      err.cause = error;
+      throw err;
+    }
+    throwIfError(error, context);
+  }
+
+  function throwDailyLockResult(result) {
+    if (result?.ok) return;
+    const code = result?.code === 'already_locked'
+      ? 'DAILY_REPORT_ALREADY_LOCKED'
+      : result?.code === 'reason_required'
+        ? 'DAILY_REPORT_REASON_REQUIRED'
+        : result?.code === 'not_locked'
+          ? 'DAILY_REPORT_NOT_LOCKED'
+          : 'DAILY_REPORT_INVALID';
+    const err = new Error(code);
+    err.code = code;
+    throw err;
+  }
+
+  /**
+   * Locked daily report for one date. Null if the day is not locked.
+   * A row of zeros is a lock. Missing tables return null so an unlocked day
+   * keeps the previous till behaviour.
+   * Does not read order_sessions, Z documents, or till_day_reports.
+   */
+  async function getDailyReportLock(dateStr) {
+    const sb = getClient();
+    const day = assertTillBusinessDate(dateStr, 'getDailyReportLock');
+    const { data, error } = await sb
+      .from(DAILY_REPORT_LOCKS)
+      .select(DAILY_LOCK_COLUMNS)
+      .eq('business_date', day)
+      .maybeSingle();
+    if (error && isMissingTillLayerTable(error, DAILY_REPORT_LOCKS)) return null;
+    throwDailyLockError(error, 'getDailyReportLock');
+    return data || null;
+  }
+
+  async function isDailyReportLocked(dateStr) {
+    const row = await getDailyReportLock(dateStr);
+    return dailyLockCore().isLocked(row);
+  }
+
+  async function getDailyReportLocksInRange(fromYmd, toYmd) {
+    const sb = getClient();
+    const from = assertTillBusinessDate(fromYmd, 'getDailyReportLocksInRange');
+    const to = assertTillBusinessDate(toYmd, 'getDailyReportLocksInRange');
+    if (from > to) return [];
+    const { data, error } = await sb
+      .from(DAILY_REPORT_LOCKS)
+      .select(DAILY_LOCK_COLUMNS)
+      .gte('business_date', from)
+      .lte('business_date', to)
+      .order('business_date', { ascending: true });
+    if (error && isMissingTillLayerTable(error, DAILY_REPORT_LOCKS)) return [];
+    throwDailyLockError(error, 'getDailyReportLocksInRange');
+    return data || [];
+  }
+
+  async function getDailyReportRevisions(dateStr) {
+    const sb = getClient();
+    const day = assertTillBusinessDate(dateStr, 'getDailyReportRevisions');
+    const { data, error } = await sb
+      .from(DAILY_REPORT_REVISIONS)
+      .select(DAILY_REVISION_COLUMNS)
+      .eq('business_date', day)
+      .order('created_at', { ascending: true });
+    if (error && isMissingTillLayerTable(error, DAILY_REPORT_REVISIONS)) return [];
+    throwDailyLockError(error, 'getDailyReportRevisions');
+    return data || [];
+  }
+
+  /**
+   * Lock one day. Refuses to overwrite an existing lock.
+   * Writes the current row and the first revision (action=lock).
+   * Does not touch orders, Z documents, or till_day_reports.
+   * sales is always cash + credit.
+   */
+  async function createDailyReportLock(dateStr, totals) {
+    const sb = getClient();
+    const day = assertTillBusinessDate(dateStr, 'createDailyReportLock');
+    const existing = await getDailyReportLock(day);
+    const prepared = dailyLockCore().prepareLock({
+      existing,
+      date: day,
+      cash: totals?.cash,
+      credit: totals?.credit,
+      tip: totals?.tip,
+      source: totals?.source || 'till',
+      note: totals?.note,
+      userId: await currentAuthUserId(sb),
+      now: new Date().toISOString(),
+    });
+    throwDailyLockResult(prepared);
+    const { data, error } = await sb.rpc('lock_daily_report', { p_row: prepared.lock });
+    if (error && /lock_daily_report|Could not find the function|schema cache/i.test(String(error.message || ''))) {
+      const err = new Error('DAILY_REPORT_LOCKS_MISSING');
+      err.code = 'DAILY_REPORT_LOCKS_MISSING';
+      err.cause = error;
+      throw err;
+    }
+    throwDailyLockError(error, 'createDailyReportLock');
+    const res = data || {};
+    if (!res.ok) throwDailyLockResult({ ok: false, code: res.error || 'invalid_row' });
+    return res.row;
+  }
+
+  /**
+   * Correct a locked day. Requires a reason.
+   * Appends action=correct and updates the current row only.
+   * The original lock revision is not updated.
+   */
+  async function correctDailyReportLock(dateStr, totals) {
+    const sb = getClient();
+    const day = assertTillBusinessDate(dateStr, 'correctDailyReportLock');
+    const existing = await getDailyReportLock(day);
+    const prepared = dailyLockCore().prepareCorrection({
+      existing,
+      date: day,
+      cash: totals?.cash,
+      credit: totals?.credit,
+      tip: totals?.tip,
+      reason: totals?.reason,
+      userId: await currentAuthUserId(sb),
+      now: new Date().toISOString(),
+    });
+    throwDailyLockResult(prepared);
+    const { data, error } = await sb.rpc('correct_daily_report', {
+      p_row: {
+        business_date: prepared.lock.business_date,
+        cash: prepared.lock.cash,
+        credit: prepared.lock.credit,
+        tip: prepared.lock.tip,
+        sales: prepared.lock.sales,
+        revised_at: prepared.lock.revised_at,
+        reason: prepared.revision.reason,
+      },
+    });
+    if (error && /correct_daily_report|Could not find the function|schema cache/i.test(String(error.message || ''))) {
+      const err = new Error('DAILY_REPORT_LOCKS_MISSING');
+      err.code = 'DAILY_REPORT_LOCKS_MISSING';
+      err.cause = error;
+      throw err;
+    }
+    throwDailyLockError(error, 'correctDailyReportLock');
+    const res = data || {};
+    if (!res.ok) throwDailyLockResult({ ok: false, code: res.error || 'invalid_row' });
+    return res.row;
   }
 
   /**
@@ -3728,6 +3910,12 @@
     getTillDayReport,
     upsertTillDayReport,
     deleteTillDayReport,
+    getDailyReportLock,
+    isDailyReportLocked,
+    getDailyReportLocksInRange,
+    getDailyReportRevisions,
+    createDailyReportLock,
+    correctDailyReportLock,
     getDineInCloseAt,
     startDineInCloseCountdown,
     clearDineInCloseCountdown,

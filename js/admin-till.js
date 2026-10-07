@@ -1,6 +1,7 @@
 /**
  * LECHAIM — Admin daily sales (מכירות): till money + sold products.
- * Till cash/credit/WhatsApp logic is unchanged.
+ * A saved till_day_reports row is shown as saved. Later closes are not added.
+ * A daily_report_lock, when present, is shown instead of that row.
  */
 (function () {
   'use strict';
@@ -17,7 +18,8 @@
   const tipEl = document.getElementById('admin-till-tip');
   const whatsappBtn = document.getElementById('admin-till-whatsapp');
   const todayBtn = document.getElementById('admin-till-today');
-  const yesterdayBtn = document.getElementById('admin-till-yesterday');
+  const prevDayBtn = document.getElementById('admin-till-prev-day');
+  const nextDayBtn = document.getElementById('admin-till-next-day');
   const productsListEl = document.getElementById('admin-till-products-list');
   const productsEmptyEl = document.getElementById('admin-till-products-empty');
   const searchInput = document.getElementById('admin-till-product-search');
@@ -40,8 +42,25 @@
   const editTipInput = document.getElementById('till-edit-tip');
   const editInclusiveEl = document.getElementById('till-edit-inclusive');
   const editReportError = document.getElementById('till-edit-report-error');
-
-  const EDIT_BASE_KEY = 'lechaim-till-edit-base';
+  const lockBtn = document.getElementById('admin-till-lock');
+  const correctBtn = document.getElementById('admin-till-correct');
+  const historyBtn = document.getElementById('admin-till-history');
+  const lockBadge = document.getElementById('admin-till-lock-badge');
+  const lockModal = document.getElementById('till-lock-modal');
+  const lockForm = document.getElementById('till-lock-form');
+  const lockPreview = document.getElementById('till-lock-preview');
+  const lockError = document.getElementById('till-lock-error');
+  const correctModal = document.getElementById('till-correct-modal');
+  const correctForm = document.getElementById('till-correct-form');
+  const correctCashInput = document.getElementById('till-correct-cash');
+  const correctCreditInput = document.getElementById('till-correct-credit');
+  const correctTipInput = document.getElementById('till-correct-tip');
+  const correctSalesEl = document.getElementById('till-correct-sales');
+  const correctReasonInput = document.getElementById('till-correct-reason');
+  const correctError = document.getElementById('till-correct-error');
+  const historyModal = document.getElementById('till-lock-history-modal');
+  const historyList = document.getElementById('till-lock-history-list');
+  const historyError = document.getElementById('till-lock-history-error');
 
   let cache = emptyCache('');
   let todayHold = null;
@@ -68,6 +87,7 @@
       products: [],
       rows: [],
       layersMissing: false,
+      lock: null,
     };
   }
 
@@ -292,10 +312,18 @@
     return toLocalYmd(new Date());
   }
 
-  function yesterdayLocalYmd() {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    return toLocalYmd(d);
+  function shiftLocalYmd(ymd, deltaDays) {
+    const match = String(ymd || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const date = match
+      ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+      : new Date();
+    date.setDate(date.getDate() + deltaDays);
+    return toLocalYmd(date);
+  }
+
+  function updateDayStepButtons() {
+    const selected = dateInput?.value || '';
+    if (nextDayBtn) nextDayBtn.disabled = !selected || selected >= todayLocalYmd();
   }
 
   function formatDisplayDate(ymd) {
@@ -323,66 +351,59 @@
     return roundMoney(roundMoney(cash) + roundMoney(credit) + roundMoney(tip));
   }
 
-  function hasSavedReport(report) {
-    if (!report) return false;
-    return roundMoney(report.cash) > 0
-      || roundMoney(report.credit) > 0
-      || roundMoney(report.tip) > 0;
-  }
-
-  function readEditBase(date) {
-    try {
-      const raw = window.localStorage.getItem(`${EDIT_BASE_KEY}:${date}`);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw);
-      if (!parsed || typeof parsed !== 'object') return null;
-      return {
-        cash: roundMoney(parsed.cash),
-        credit: roundMoney(parsed.credit),
-        tip: roundMoney(parsed.tip),
-      };
-    } catch (_) {
-      return null;
-    }
-  }
-
-  function writeEditBase(date, live) {
-    const base = {
-      cash: roundMoney(live?.cash),
-      credit: roundMoney(live?.credit),
-      tip: roundMoney(live?.tip),
+  function savedReportAmounts(report) {
+    if (!report || typeof report !== 'object') return null;
+    const cash = Number(report.cash);
+    const credit = Number(report.credit);
+    const tip = Number(report.tip);
+    if (![cash, credit, tip].every((n) => Number.isFinite(n) && n >= 0)) return null;
+    return {
+      cash: roundMoney(cash),
+      credit: roundMoney(credit),
+      tip: roundMoney(tip),
     };
-    try {
-      window.localStorage.setItem(`${EDIT_BASE_KEY}:${date}`, JSON.stringify(base));
-    } catch (_) { /* ignore quota */ }
-    return base;
   }
 
   /**
-   * After save, the card shows the edited numbers.
-   * New closes after that save are added on top (live − snapshot).
-   * Without a snapshot, keep the higher of live vs edit so old rows do not hide sales.
+   * Saved till_day_reports wins over live closes, including a row of zeros.
+   * The third argument used to be a local edit snapshot and is ignored.
    */
-  function displayedSales(live, report, base) {
-    const cash = roundMoney(live?.cash);
-    const credit = roundMoney(live?.credit);
-    const tip = roundMoney(live?.tip);
-    if (!hasSavedReport(report)) {
-      return { cash, credit, tip, source: 'live' };
-    }
-    if (base) {
-      return {
-        cash: roundMoney(roundMoney(report.cash) + Math.max(0, cash - roundMoney(base.cash))),
-        credit: roundMoney(roundMoney(report.credit) + Math.max(0, credit - roundMoney(base.credit))),
-        tip: roundMoney(roundMoney(report.tip) + Math.max(0, tip - roundMoney(base.tip))),
-        source: 'edited',
-      };
+  function displayedSales(live, report) {
+    const saved = savedReportAmounts(report);
+    if (saved) {
+      return { ...saved, source: 'report' };
     }
     return {
-      cash: Math.max(cash, roundMoney(report.cash)),
-      credit: Math.max(credit, roundMoney(report.credit)),
-      tip: Math.max(tip, roundMoney(report.tip)),
+      cash: roundMoney(live?.cash),
+      credit: roundMoney(live?.credit),
+      tip: roundMoney(live?.tip),
       source: 'live',
+    };
+  }
+
+  /**
+   * Sales screen source order: lock, then saved day report, then live closes.
+   */
+  function salesScreenFigures(lock, report, live) {
+    const core = dailyLockApi();
+    if (lock && core?.isLocked?.(lock)) {
+      return {
+        cash: roundMoney(lock.cash),
+        credit: roundMoney(lock.credit),
+        tip: roundMoney(lock.tip),
+        sales: roundMoney(lock.sales),
+        source: 'lock',
+        locked: true,
+      };
+    }
+    const shown = displayedSales(live, report);
+    return {
+      cash: shown.cash,
+      credit: shown.credit,
+      tip: shown.tip,
+      sales: roundMoney(shown.cash + shown.credit),
+      source: shown.source,
+      locked: false,
     };
   }
 
@@ -555,9 +576,27 @@
     )).join('');
   }
 
+  function dailyLockApi() {
+    return window.LechaimAdminDailyLock || null;
+  }
+
+  function cardFigures() {
+    return salesScreenFigures(cache.lock, cache.report, cache.live);
+  }
+
+  function applyLockChrome(locked) {
+    if (lockBtn) lockBtn.hidden = locked;
+    if (editReportBtn) editReportBtn.hidden = locked;
+    if (correctBtn) correctBtn.hidden = !locked;
+    if (historyBtn) historyBtn.hidden = !locked;
+    if (lockBadge) lockBadge.hidden = !locked;
+    if (summaryCard) summaryCard.classList.toggle('is-locked', locked);
+  }
+
   function renderSummary() {
-    const shown = displayedSales(cache.live, cache.report, cache.base);
-    const sales = roundMoney(shown.cash + shown.credit);
+    const shown = cardFigures();
+    const sales = shown.sales;
+    applyLockChrome(shown.locked);
     if (dateLabelEl) dateLabelEl.textContent = formatDisplayDate(cache.date);
     if (totalEl) totalEl.textContent = formatMoney(sales);
     if (cashEl) cashEl.textContent = formatMoney(shown.cash);
@@ -570,8 +609,8 @@
   }
 
   function buildWhatsAppText() {
-    const shown = displayedSales(cache.live, cache.report, cache.base);
-    const sales = roundMoney(shown.cash + shown.credit);
+    const shown = cardFigures();
+    const sales = shown.sales;
     return [
       formatDisplayDate(cache.date),
       `סה״כ מכירות ${formatMoney(sales)}`,
@@ -652,6 +691,7 @@
   function setDateAndLoad(ymd) {
     if (!dateInput || !ymd) return;
     dateInput.value = ymd;
+    updateDayStepButtons();
     scheduleRefresh();
   }
 
@@ -697,6 +737,16 @@
     return out;
   }
 
+  async function loadDailyLock(api, date) {
+    if (typeof api?.getDailyReportLock !== 'function') return null;
+    try {
+      return await api.getDailyReportLock(date);
+    } catch (err) {
+      console.warn('[admin-till] daily lock load failed', err);
+      return null;
+    }
+  }
+
   async function loadReport() {
     const api = OrdersApi();
     const date = dateInput?.value || todayLocalYmd();
@@ -712,22 +762,24 @@
     const seq = ++loadSeq;
     try {
       const beforeGoLive = date < TILL_COUNT_FROM_YMD;
-      const [rows, products, layers] = await Promise.all([
-        beforeGoLive ? Promise.resolve([]) : api.getDailyTillReport(date),
-        beforeGoLive ? Promise.resolve([]) : loadSoldProducts(api, date),
-        loadTillLayers(api, date),
-      ]);
+    const [rows, products, layers, lock] = await Promise.all([
+      beforeGoLive ? Promise.resolve([]) : api.getDailyTillReport(date),
+      beforeGoLive ? Promise.resolve([]) : loadSoldProducts(api, date),
+      loadTillLayers(api, date),
+      loadDailyLock(api, date),
+    ]);
       if (seq !== loadSeq) return;
       const sums = beforeGoLive ? { cash: 0, credit: 0, tip: 0 } : buildSummary(rows);
       cache = {
         date,
         live: sums,
         report: layers.report,
-        base: readEditBase(date),
+        base: null,
         opening: layers.opening,
         products: beforeGoLive ? [] : products,
-        rows: beforeGoLive ? [] : (Array.isArray(rows) ? rows : []),
+      rows: beforeGoLive ? [] : (Array.isArray(rows) ? rows : []),
         layersMissing: layers.missing,
+        lock: lock || null,
       };
       rememberTodayHold(cache);
       showError(layers.missing
@@ -782,7 +834,8 @@
   }
 
   function openEditReportModal() {
-    const shown = displayedSales(cache.live, cache.report, cache.base);
+    if (cache.lock) return;
+    const shown = displayedSales(cache.live, cache.report);
     if (editReportDateEl) {
       editReportDateEl.textContent = formatDisplayDate(dateInput?.value || cache.date || todayLocalYmd());
     }
@@ -806,9 +859,173 @@
     if (!open) document.body.classList.remove('admin-modal-open');
   }
 
+  function lockErrorText(err) {
+    const code = err?.code || '';
+    if (code === 'DAILY_REPORT_ALREADY_LOCKED') return 'היום כבר נעול';
+    if (code === 'DAILY_REPORT_REASON_REQUIRED') return 'חובה לכתוב סיבת תיקון';
+    if (code === 'DAILY_REPORT_LOCKED') return 'היום נעול. לשינוי צריך תיקון דיווח';
+    if (code === 'DAILY_REPORT_LOCKS_MISSING') return 'חסרות טבלאות דיווח נעול — הריצו supabase-daily-report-locks.sql';
+    return err?.message || 'לא ניתן לשמור את הדיווח';
+  }
+
+  function setModalError(el, message) {
+    if (!el) return;
+    el.hidden = !message;
+    el.textContent = message || '';
+  }
+
+  function setModalOpen(modal, open) {
+    if (!modal) return;
+    modal.hidden = !open;
+    modal.setAttribute('aria-hidden', open ? 'false' : 'true');
+    const anyOpen = document.querySelector('.admin-modal:not([hidden])');
+    document.body.classList.toggle('admin-modal-open', Boolean(anyOpen));
+  }
+
+  function openLockModal() {
+    const shown = cardFigures();
+    if (lockPreview) {
+      lockPreview.textContent = [
+        `מזומן ${formatMoney(shown.cash)}`,
+        `אשראי ${formatMoney(shown.credit)}`,
+        `טיפים ${formatMoney(shown.tip)}`,
+        `סה״כ מכירות ${formatMoney(shown.sales)}`,
+      ].join(' · ');
+    }
+    setModalError(lockError, '');
+    setModalOpen(lockModal, true);
+  }
+
+  async function submitLock(event) {
+    event.preventDefault();
+    const shown = cardFigures();
+    const api = OrdersApi();
+    const date = dateInput?.value || cache.date || todayLocalYmd();
+    if (typeof api?.createDailyReportLock !== 'function') {
+      setModalError(lockError, 'נעילת דיווח לא זמינה');
+      return;
+    }
+    setModalError(lockError, '');
+    try {
+      const row = await api.createDailyReportLock(date, {
+        cash: shown.cash,
+        credit: shown.credit,
+        tip: shown.tip,
+        source: 'till',
+      });
+      cache.lock = row;
+      renderSummary();
+      setModalOpen(lockModal, false);
+    } catch (err) {
+      console.error('[admin-till] lock report', err);
+      setModalError(lockError, lockErrorText(err));
+    }
+  }
+
+  function updateCorrectSales() {
+    if (!correctSalesEl) return;
+    const cash = parseMoneyInput(correctCashInput?.value);
+    const credit = parseMoneyInput(correctCreditInput?.value);
+    if (cash == null || credit == null) {
+      correctSalesEl.textContent = '—';
+      return;
+    }
+    correctSalesEl.textContent = formatMoney(roundMoney(cash + credit));
+  }
+
+  function openCorrectModal() {
+    if (!cache.lock) return;
+    if (correctCashInput) correctCashInput.value = String(cache.lock.cash);
+    if (correctCreditInput) correctCreditInput.value = String(cache.lock.credit);
+    if (correctTipInput) correctTipInput.value = String(cache.lock.tip);
+    if (correctReasonInput) correctReasonInput.value = '';
+    updateCorrectSales();
+    setModalError(correctError, '');
+    setModalOpen(correctModal, true);
+    window.setTimeout(() => correctReasonInput?.focus(), 50);
+  }
+
+  async function submitCorrection(event) {
+    event.preventDefault();
+    const cash = parseMoneyInput(correctCashInput?.value);
+    const credit = parseMoneyInput(correctCreditInput?.value);
+    const tip = parseMoneyInput(correctTipInput?.value);
+    const reason = String(correctReasonInput?.value || '').trim();
+    if (cash == null || credit == null || tip == null) {
+      setModalError(correctError, 'הזינו סכומים תקינים');
+      return;
+    }
+    if (!reason) {
+      setModalError(correctError, 'חובה לכתוב סיבת תיקון');
+      return;
+    }
+    const api = OrdersApi();
+    const date = dateInput?.value || cache.date || todayLocalYmd();
+    if (typeof api?.correctDailyReportLock !== 'function') {
+      setModalError(correctError, 'תיקון דיווח לא זמין');
+      return;
+    }
+    setModalError(correctError, '');
+    try {
+      const row = await api.correctDailyReportLock(date, { cash, credit, tip, reason });
+      cache.lock = row;
+      renderSummary();
+      setModalOpen(correctModal, false);
+    } catch (err) {
+      console.error('[admin-till] correct report', err);
+      setModalError(correctError, lockErrorText(err));
+    }
+  }
+
+  function formatStamp(iso) {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' });
+  }
+
+  async function openHistoryModal() {
+    setModalError(historyError, '');
+    if (historyList) historyList.innerHTML = '';
+    setModalOpen(historyModal, true);
+    const api = OrdersApi();
+    const date = dateInput?.value || cache.date || todayLocalYmd();
+    if (typeof api?.getDailyReportRevisions !== 'function') {
+      setModalError(historyError, 'היסטוריה לא זמינה');
+      return;
+    }
+    try {
+      const rows = await api.getDailyReportRevisions(date);
+      if (!historyList) return;
+      if (!rows.length) {
+        historyList.innerHTML = '<p class="admin-till-history__empty">אין היסטוריה ליום זה</p>';
+        return;
+      }
+      historyList.innerHTML = rows.map((row) => {
+        const title = row.action === 'correct' ? 'תיקון' : 'דיווח מקורי';
+        const who = row.created_by || '—';
+        const reason = row.action === 'correct' && row.reason
+          ? `<p class="admin-till-history__reason">סיבה: ${escapeHtml(row.reason)}</p>`
+          : '';
+        return `<article class="admin-till-history__item">`
+          + `<h3>${escapeHtml(title)}</h3>`
+          + `<p>${escapeHtml(formatStamp(row.created_at))} · ${escapeHtml(who)}</p>`
+          + `<p>מזומן ${escapeHtml(formatMoney(row.cash))} · אשראי ${escapeHtml(formatMoney(row.credit))} · טיפים ${escapeHtml(formatMoney(row.tip))} · מכירות ${escapeHtml(formatMoney(row.sales))}</p>`
+          + reason
+          + `</article>`;
+      }).join('');
+    } catch (err) {
+      console.error('[admin-till] lock history', err);
+      setModalError(historyError, lockErrorText(err));
+    }
+  }
+
   async function submitEditReport(event) {
     event.preventDefault();
     if (editReportBusy) return;
+    if (cache.lock) {
+      showEditReportError('היום נעול. לשינוי צריך תיקון דיווח');
+      return;
+    }
     const cash = parseMoneyInput(editCashInput?.value);
     const credit = parseMoneyInput(editCreditInput?.value);
     const tip = parseMoneyInput(editTipInput?.value);
@@ -831,12 +1048,14 @@
         credit: roundMoney(row?.credit ?? credit),
         tip: roundMoney(row?.tip ?? tip),
       };
-      cache.base = writeEditBase(date, cache.live);
+      cache.base = null;
       renderSummary();
       closeEditReportModal();
     } catch (err) {
       console.error('[admin-till] edit report save', err);
-      if (isLayersMissingError(err)) {
+      if (err?.code === 'DAILY_REPORT_LOCKED') {
+        showEditReportError('היום נעול. לשינוי צריך תיקון דיווח');
+      } else if (isLayersMissingError(err)) {
         showEditReportError('חסרות טבלאות קופה יומית — הריצו supabase-till-day-layers.sql');
       } else {
         showEditReportError('לא ניתן לשמור את הדוח');
@@ -907,9 +1126,22 @@
         searchInput.setAttribute('readonly', 'readonly');
       }, 120);
     }
-    dateInput?.addEventListener('change', () => { scheduleRefresh(); });
+    dateInput?.addEventListener('change', () => {
+      updateDayStepButtons();
+      scheduleRefresh();
+    });
+    prevDayBtn?.addEventListener('click', () => {
+      const current = dateInput?.value || cache.date || todayLocalYmd();
+      setDateAndLoad(shiftLocalYmd(current, -1));
+    });
     todayBtn?.addEventListener('click', () => { setDateAndLoad(todayLocalYmd()); });
-    yesterdayBtn?.addEventListener('click', () => { setDateAndLoad(yesterdayLocalYmd()); });
+    nextDayBtn?.addEventListener('click', () => {
+      const current = dateInput?.value || cache.date || todayLocalYmd();
+      const today = todayLocalYmd();
+      if (current >= today) return;
+      setDateAndLoad(shiftLocalYmd(current, 1));
+    });
+    updateDayStepButtons();
     searchInput?.addEventListener('input', () => {
       searchQuery = searchInput.value || '';
       renderProducts();
@@ -939,6 +1171,25 @@
       submitOpening(event).catch(() => {});
     });
     editReportBtn?.addEventListener('click', openEditReportModal);
+    lockBtn?.addEventListener('click', openLockModal);
+    lockForm?.addEventListener('submit', (event) => {
+      submitLock(event).catch(() => {});
+    });
+    document.getElementById('till-lock-cancel')?.addEventListener('click', () => setModalOpen(lockModal, false));
+    document.getElementById('till-lock-backdrop')?.addEventListener('click', () => setModalOpen(lockModal, false));
+    correctBtn?.addEventListener('click', openCorrectModal);
+    correctForm?.addEventListener('submit', (event) => {
+      submitCorrection(event).catch(() => {});
+    });
+    correctCashInput?.addEventListener('input', updateCorrectSales);
+    correctCreditInput?.addEventListener('input', updateCorrectSales);
+    document.getElementById('till-correct-cancel')?.addEventListener('click', () => setModalOpen(correctModal, false));
+    document.getElementById('till-correct-backdrop')?.addEventListener('click', () => setModalOpen(correctModal, false));
+    historyBtn?.addEventListener('click', () => {
+      openHistoryModal().catch(() => {});
+    });
+    document.getElementById('till-lock-history-close')?.addEventListener('click', () => setModalOpen(historyModal, false));
+    document.getElementById('till-lock-history-backdrop')?.addEventListener('click', () => setModalOpen(historyModal, false));
     editReportForm?.addEventListener('submit', (event) => {
       submitEditReport(event).catch(() => {});
     });
@@ -967,6 +1218,7 @@
       sessionTipCreditAmount,
       buildSummary,
       displayedSales,
+      salesScreenFigures,
       inclusiveTotal,
       roundMoney,
     },
