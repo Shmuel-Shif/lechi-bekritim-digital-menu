@@ -126,8 +126,11 @@
         if (no != null && Number(no) > 0) return `${prefix} #${Number(no)}`;
         return prefix;
       }
-      case 'butcher':
+      case 'butcher': {
+        const no = order.publicOrderNo || order.public_order_no;
+        if (no != null && Number(no) > 0) return `BUTCHER #${Number(no)}`;
         return 'BUTCHER SHOP';
+      }
       case 'shabbat': {
         const no = order.publicOrderNo || order.public_order_no;
         if (no != null && Number(no) > 0) return `SHABBAT #${Number(no)}`;

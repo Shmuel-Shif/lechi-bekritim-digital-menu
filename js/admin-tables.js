@@ -3518,11 +3518,15 @@
 
     const liveItems = (order.items || []).filter((row) => Number(row.qty) > 0);
     const lateItems = liveItems.filter((row) => row && row.isLateAdd);
-    /* Blue = new since last print → print only those. Else full reprint. */
-    const sourceItems = withLinkedCompanions(
-      lateItems.length ? lateItems : liveItems,
-      liveItems
-    );
+    /* Pickup, delivery, and butcher print the whole card from the start,
+       same as a new Shabbat card. Dine-in still prints only the new wave. */
+    const fullFromStart = entry.orderType === 'takeaway' || entry.orderType === 'butcher';
+    const sourceItems = fullFromStart
+      ? liveItems
+      : withLinkedCompanions(
+        lateItems.length ? lateItems : liveItems,
+        liveItems
+      );
 
     const items = sourceItems
       .map((row) => ({
@@ -3574,7 +3578,7 @@
       deliveryFee: order.deliveryFee == null ? null : Number(order.deliveryFee),
       publicOrderNo: order.publicOrderNo != null ? Number(order.publicOrderNo) : null,
       _skipLocalMarkPrinted: true,
-      _deltaOnly: lateItems.length > 0,
+      _deltaOnly: !fullFromStart && lateItems.length > 0,
     };
   }
 
@@ -3599,6 +3603,13 @@
 
     let printedOk = false;
     try {
+      const fullFromStart = entry.orderType === 'takeaway' || entry.orderType === 'butcher';
+      const hasNo = Number(synthetic.publicOrderNo) > 0;
+      if (fullFromStart && !hasNo && typeof api?.ensurePublicOrderNo === 'function' && synthetic.sessionId) {
+        const assigned = await api.ensurePublicOrderNo(synthetic.sessionId);
+        synthetic.publicOrderNo = assigned;
+        if (entry.order) entry.order.publicOrderNo = assigned;
+      }
       const ok = await print.printOrder(synthetic);
       if (ok !== true) {
         console.error('[admin-tables] printOrder returned', ok);
@@ -5042,6 +5053,154 @@
     pollTimer = window.setInterval(renderBoard, 45000);
   }
 
+  let channelNewKind = 'pickup';
+
+  function channelNewEls() {
+    return {
+      modal: document.getElementById('channel-new-modal'),
+      form: document.getElementById('channel-new-form'),
+      title: document.getElementById('channel-new-modal-title'),
+      name: document.getElementById('channel-new-name'),
+      phone: document.getElementById('channel-new-phone'),
+      notes: document.getElementById('channel-new-notes'),
+      address: document.getElementById('channel-new-address'),
+      addressRow: document.getElementById('channel-new-address-row'),
+      fulfillment: document.getElementById('channel-new-fulfillment'),
+      fulfillmentRow: document.getElementById('channel-new-fulfillment-row'),
+      error: document.getElementById('channel-new-form-error'),
+      save: document.getElementById('channel-new-save-btn'),
+    };
+  }
+
+  function showChannelNewError(message) {
+    const error = document.getElementById('channel-new-form-error');
+    if (!error) return;
+    if (!message) {
+      error.hidden = true;
+      error.textContent = '';
+      return;
+    }
+    error.hidden = false;
+    error.textContent = message;
+  }
+
+  function channelWantsAddress() {
+    if (channelNewKind === 'delivery') return true;
+    if (channelNewKind === 'butcher') {
+      return document.getElementById('channel-new-fulfillment')?.value === 'delivery';
+    }
+    return false;
+  }
+
+  function syncChannelNewFields() {
+    const els = channelNewEls();
+    const titles = {
+      pickup: 'כרטיס איסוף עצמי',
+      delivery: 'כרטיס משלוח',
+      butcher: 'כרטיס חנות בשר',
+    };
+    if (els.title) els.title.textContent = titles[channelNewKind] || 'כרטיס חדש';
+    if (els.fulfillmentRow) els.fulfillmentRow.hidden = channelNewKind !== 'butcher';
+    const showAddress = channelWantsAddress();
+    if (els.addressRow) els.addressRow.hidden = !showAddress;
+    if (els.address) els.address.required = showAddress;
+  }
+
+  function closeChannelNewModal() {
+    const modal = document.getElementById('channel-new-modal');
+    if (!modal) return;
+    clearFocusTrap('channel-new');
+    modal.hidden = true;
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('admin-modal-open');
+    showChannelNewError('');
+  }
+
+  function openChannelNewModal(kind) {
+    const els = channelNewEls();
+    if (!els.modal || !els.form) return;
+    channelNewKind = kind === 'delivery' || kind === 'butcher' ? kind : 'pickup';
+    showChannelNewError('');
+    els.form.reset();
+    if (els.fulfillment) els.fulfillment.value = 'pickup';
+    syncChannelNewFields();
+    els.modal.hidden = false;
+    els.modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('admin-modal-open');
+    setFocusTrap('channel-new', els.modal);
+    els.name?.focus();
+  }
+
+  function findChannelEntry(sessionId, kind) {
+    const id = String(sessionId || '');
+    if (!id) return null;
+    const list = kind === 'butcher' ? butcherCache : takeawayCache;
+    return (list || []).find((row) => (
+      String(row.order?._supabaseSessionId || row.order?.sessionId || '') === id
+    )) || null;
+  }
+
+  async function handleCreateChannelCard(event) {
+    event.preventDefault();
+    const els = channelNewEls();
+    const customerName = String(els.name?.value || '').trim();
+    const customerPhone = String(els.phone?.value || '').trim();
+    const notes = String(els.notes?.value || '').trim();
+    const address = String(els.address?.value || '').trim();
+    if (!customerName) {
+      showChannelNewError('נא להזין שם לקוח');
+      els.name?.focus();
+      return;
+    }
+    const fulfillment = channelNewKind === 'delivery'
+      || (channelNewKind === 'butcher' && els.fulfillment?.value === 'delivery')
+      ? 'delivery'
+      : 'pickup';
+    if (fulfillment === 'delivery' && !address) {
+      showChannelNewError('נא להזין כתובת');
+      els.address?.focus();
+      return;
+    }
+    const api = OrdersApi();
+    if (!api?.createSession) {
+      showChannelNewError('יצירת כרטיס לא זמינה');
+      return;
+    }
+    if (els.save) els.save.disabled = true;
+    const kind = channelNewKind;
+    try {
+      const session = await api.createSession({
+        orderType: kind === 'butcher' ? 'butcher' : 'takeaway',
+        customerName,
+        customerPhone: customerPhone || null,
+        notes: notes || null,
+        fulfillmentType: fulfillment,
+        customerAddress: fulfillment === 'delivery' ? address : null,
+        pickupType: 'ASAP',
+        language: 'he',
+      });
+      const sessionId = String(session?.session_id || '');
+      if (kind === 'butcher' && sessionId && typeof api.ensurePublicOrderNo === 'function') {
+        await api.ensurePublicOrderNo(sessionId);
+      }
+      closeChannelNewModal();
+      showToast(kind === 'butcher'
+        ? 'כרטיס חנות בשר נוצר'
+        : (kind === 'delivery' ? 'כרטיס משלוח נוצר' : 'כרטיס איסוף נוצר'));
+      await refreshBoardData();
+      const entry = findChannelEntry(sessionId, kind);
+      if (entry) {
+        openDrawer(entry);
+        openMenuPicker();
+      }
+    } catch (err) {
+      console.error('[admin-tables] create card failed', err);
+      showChannelNewError(err?.message || 'יצירת הכרטיס נכשלה');
+    } finally {
+      if (els.save) els.save.disabled = false;
+    }
+  }
+
   function stopPolling() {
     watchRunning = false;
     if (pollTimer) {
@@ -5055,6 +5214,18 @@
 
   function init() {
     bindCardClicks();
+    document.getElementById('channel-new-btn')?.addEventListener('click', () => {
+      openChannelNewModal(boardFilter === 'delivery' ? 'delivery' : 'pickup');
+    });
+    document.getElementById('butcher-new-btn')?.addEventListener('click', () => {
+      openChannelNewModal('butcher');
+    });
+    document.getElementById('channel-new-form')?.addEventListener('submit', (event) => {
+      handleCreateChannelCard(event);
+    });
+    document.getElementById('channel-new-cancel-btn')?.addEventListener('click', closeChannelNewModal);
+    document.getElementById('channel-new-modal-backdrop')?.addEventListener('click', closeChannelNewModal);
+    document.getElementById('channel-new-fulfillment')?.addEventListener('change', syncChannelNewFields);
     closeDeliveriesBtn?.addEventListener('click', () => {
       toggleDeliveriesClosed().catch((err) => {
         console.error('[admin-tables] deliveries toggle failed', err);
@@ -5324,6 +5495,11 @@
       }
       if (whatsappModal && !whatsappModal.hidden) {
         closeWhatsAppModal();
+        return;
+      }
+      const channelNewModal = document.getElementById('channel-new-modal');
+      if (channelNewModal && !channelNewModal.hidden) {
+        closeChannelNewModal();
         return;
       }
       if (successModal && !successModal.hidden) {
