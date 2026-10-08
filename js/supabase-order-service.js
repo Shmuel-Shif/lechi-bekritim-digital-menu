@@ -3067,6 +3067,30 @@
   }
 
   /**
+   * Delete closed sessions for one history category only.
+   * key: "table:65" | "takeaway" | "butcher" | "shabbat"
+   */
+  async function deleteClosedHistoryForCategory(key) {
+    const sb = getClient();
+    const raw = String(key || '');
+    let query = sb.from(TABLE_SESSIONS).delete().eq('status', 'closed');
+    if (raw.startsWith('table:')) {
+      const num = Number(raw.slice(6));
+      if (!Number.isFinite(num)) {
+        throw new Error('שולחן לא תקין');
+      }
+      query = query.eq('order_type', 'dine_in').eq('table_number', num);
+    } else if (raw === 'takeaway' || raw === 'butcher' || raw === 'shabbat') {
+      query = query.eq('order_type', raw);
+    } else {
+      throw new Error('קטגוריה לא נתמכת');
+    }
+    const { data, error } = await query.select('session_id');
+    throwIfError(error, 'deleteClosedHistoryForCategory');
+    return { deleted: (data || []).length };
+  }
+
+  /**
    * Remove a coupon from usage stats: clear coupon fields on matching sessions
    * and reset used_count on the coupons catalog row.
    * @param {string} code
@@ -3880,6 +3904,7 @@
     restoreClosedSession,
     deleteClosedSession,
     deleteAllClosedHistory,
+    deleteClosedHistoryForCategory,
     clearCouponUsage,
     getUnprintedOrdersWithItems,
     markOrderApproved,

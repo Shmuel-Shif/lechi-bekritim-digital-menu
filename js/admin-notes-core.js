@@ -167,6 +167,40 @@
     return normalizeStatus(after.status) === STATUS_DONE && after.completed_at != null;
   }
 
+  function notesForScreen(notes) {
+    return filterNotes(notes, FILTER_ALL);
+  }
+
+  function noteExcerpt(body, max) {
+    const text = String(body == null ? '' : body).replace(/\s+/g, ' ').trim();
+    const limit = Number(max) > 0 ? Number(max) : 96;
+    if (text.length <= limit) return text;
+    return `${text.slice(0, limit).trimEnd()}…`;
+  }
+
+  function noteCardModel(note) {
+    const body = note?.body == null ? '' : String(note.body);
+    return {
+      id: note?.id == null ? '' : String(note.id),
+      title: note?.title == null ? '' : String(note.title),
+      excerpt: noteExcerpt(body),
+      status: normalizeStatus(note?.status),
+      created_at: note?.created_at || null,
+      remind_at: note?.remind_at || null,
+    };
+  }
+
+  function noteViewModel(note) {
+    return {
+      id: note?.id == null ? '' : String(note.id),
+      title: note?.title == null ? '' : String(note.title),
+      body: note?.body == null ? '' : String(note.body),
+      status: normalizeStatus(note?.status),
+      created_at: note?.created_at || null,
+      remind_at: note?.remind_at || null,
+    };
+  }
+
   return {
     STATUS_OPEN,
     STATUS_DONE,
@@ -183,5 +217,9 @@
     isReminderDue,
     filterNotes,
     noteStaysInHistoryAfterDone,
+    notesForScreen,
+    noteExcerpt,
+    noteCardModel,
+    noteViewModel,
   };
 });

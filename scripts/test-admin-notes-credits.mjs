@@ -2,14 +2,22 @@
  * LECHAIM — Unit tests for admin notes + income credits cores.
  * Run: node scripts/test-admin-notes-credits.mjs
  */
-import { createRequire } from 'module';
+import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import vm from 'vm';
 
-const require = createRequire(import.meta.url);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const notes = require(path.join(root, 'js/admin-notes-core.js'));
-const credits = require(path.join(root, 'js/admin-credits-core.js'));
+
+function loadBrowserCore(file, key) {
+  const sandbox = {};
+  vm.createContext(sandbox);
+  vm.runInContext(readFileSync(file, 'utf8'), sandbox, { filename: file });
+  return sandbox[key];
+}
+
+const notes = loadBrowserCore(path.join(root, 'js/admin-notes-core.js'), 'LechaimAdminNotesCore');
+const credits = loadBrowserCore(path.join(root, 'js/admin-credits-core.js'), 'LechaimAdminCreditsCore');
 
 let passed = 0;
 let failed = 0;
@@ -224,6 +232,85 @@ section('זיכויים — מסמכים ודוחות');
   assert(report.credits.credit === 500, 'זיכוי אשראי מזוהה בדוח');
   assert(report.incomeTotal === 3900, 'הכנסה כוללת מכירות + זיכויים');
   assert(report.incomeBank === 100, 'הכנסת בנק מגיעה מזיכויים בלבד');
+}
+
+section('פתקים — מסך אחד בלי טאבים');
+{
+  const openDue = {
+    id: 'a',
+    title: 'דחוף',
+    body: 'שורה ראשונה\nשורה שנייה ועוד הרבה מלל שממשיך מעבר לתקציר של הכרטיס כדי לוודא שהתוכן המלא לא מוצג עליו',
+    status: 'open',
+    remind_at: '2026-10-04T14:30:00.000Z',
+    created_at: '2026-10-03T10:00:00.000Z',
+    completed_at: null,
+  };
+  const done = {
+    id: 'c',
+    title: 'סיימתי',
+    body: 'ok',
+    status: 'done',
+    remind_at: null,
+    created_at: '2026-09-01T08:00:00.000Z',
+    completed_at: '2026-09-02T08:00:00.000Z',
+  };
+  const before = JSON.stringify([openDue, done]);
+  const board = notes.notesForScreen([openDue, done]);
+  assert(board.length === 2, 'כל הפתקים מוצגים יחד');
+  assert(board.some((n) => n.status === 'open') && board.some((n) => n.status === 'done'), 'פתוחים ובוצעו באותה רשימה');
+  assert(JSON.stringify([openDue, done]) === before, 'אין שינוי בנתונים הקיימים');
+
+  const card = notes.noteCardModel(openDue);
+  assert(card.title === 'דחוף', 'כרטיס מציג כותרת');
+  assert(!Object.prototype.hasOwnProperty.call(card, 'body'), 'הכרטיס לא כולל את התוכן המלא');
+  assert(card.remind_at === openDue.remind_at, 'תזכורת נשמרת לנתוני הפתק');
+  assert(card.status === 'open', 'סטטוס פתוח נשמר בנתונים');
+  assert(notes.noteCardModel(done).status === 'done', 'סטטוס בוצע נשמר בנתונים');
+
+  const view = notes.noteViewModel(openDue);
+  assert(view.title === openDue.title && view.body === openDue.body, 'ה-Modal מציג את כל התוכן');
+  assert(view.created_at === openDue.created_at && view.remind_at === openDue.remind_at, 'ה-Modal מציג תאריך ותזכורת');
+
+  const html = readFileSync(path.join(root, 'admin.html'), 'utf8');
+  const viewStart = html.indexOf('id="admin-view-notes"');
+  const viewEnd = html.indexOf('id="notes-modal"');
+  const screen = html.slice(viewStart, viewEnd);
+  assert(!screen.includes('data-notes-filter'), 'אין יותר טאבים פתוחים/בוצעו/הכל');
+  assert(!screen.includes('>פתוחים<') && !screen.includes('>בוצעו<') && !screen.includes('>הכל<'), 'טקסט הטאבים הוסר מהמסך');
+  assert(screen.includes('>פתק חדש<') && screen.includes('רשמו תזכורות ומשימות'), 'כותרת וכפתור פתק חדש נשארו');
+  assert(html.includes('id="notes-view-modal"'), 'לחיצה על פתק פותחת Modal');
+  assert(html.includes('id="notes-view-body"') && html.includes('id="notes-view-title"'), 'ה-Modal מציג כותרת ותוכן');
+  assert(html.includes('id="notes-view-close"') && html.includes('id="notes-view-backdrop"'), 'סגירת Modal עובדת');
+
+  const js = readFileSync(path.join(root, 'js/admin-notes.js'), 'utf8');
+  const boardFn = js.slice(js.indexOf('function renderBoardCard'), js.indexOf('function renderHistoryCard'));
+  assert(boardFn.includes('data-note-edit') && boardFn.includes('עריכה'), 'עריכה עדיין עובדת');
+  assert(boardFn.includes('data-note-delete') && boardFn.includes('מחיקה'), 'מחיקה עדיין עובדת');
+  assert(!boardFn.includes('data-note-done') && !boardFn.includes('>בוצע<'), 'כפתור בוצע הוסר מהכרטיס');
+  assert(!boardFn.includes('notes-card__status') && !boardFn.includes('פתוח'), 'תג פתוח הוסר מהכרטיס');
+  assert(!boardFn.includes('card.excerpt') && !boardFn.includes('note.body'), 'הכרטיס מציג כותרת בלי תוכן');
+  assert(js.includes('data-note-view') && js.includes('function openView') && js.includes('function closeView'), 'פתיחה וסגירה של Modal הצפייה');
+  assert(js.includes("showConfirm('למחוק את הפתק?'"), 'אישור מחיקה עדיין עובד');
+  assert(js.includes('function saveNote') && js.includes("status: 'open'"), 'יצירת פתק חדש עדיין עובדת');
+  assert(js.includes('function markDone') && js.includes("status: 'done'"), 'שמירת סטטוס בוצע נשארת');
+  const historyFn = js.slice(js.indexOf('function renderHistoryCard'), js.indexOf('function renderList'));
+  const historyMount = js.slice(js.indexOf('function mountHistory'));
+  assert(historyFn.includes('card.title') && historyFn.includes('data-note-view'), 'בהיסטוריה לחיצה על כותרת פותחת מודל');
+  assert(!historyFn.includes('data-note-edit') && !historyFn.includes('data-note-delete'), 'בהיסטוריה אין עריכה ומחיקה');
+  assert(!historyFn.includes('note.body') && !historyFn.includes('פתוח'), 'בהיסטוריה מוצגת רק כותרת');
+  assert(!historyMount.includes('history-notes-add') && !historyMount.includes('פתק חדש'), 'בהיסטוריה אין פתק חדש');
+  assert(js.includes('async function clearAll'), 'איפוס פתקים מוחק רק את הפתקים');
+  const historyJs = readFileSync(path.join(root, 'js/admin-history.js'), 'utf8');
+  const ordersJs = readFileSync(path.join(root, 'js/supabase-order-service.js'), 'utf8');
+  assert(historyJs.includes('categoryResetLabel') && historyJs.includes('deleteClosedHistoryForCategory'), 'איפוס היסטוריה פועל על הקטגוריה הפתוחה');
+  assert(!historyJs.includes('deleteAllClosedHistory()'), 'איפוס לא מוחק את כל ההיסטוריה');
+  assert(historyJs.includes("פתחו קטגוריה כדי לאפס רק אותה"), 'בלי קטגוריה פתוחה אין איפוס כללי');
+  assert(ordersJs.includes('function deleteClosedHistoryForCategory'), 'מחיקת היסטוריה לפי קטגוריה קיימת');
+  const notesCss = readFileSync(path.join(root, 'css/admin-notes.css'), 'utf8');
+  assert(notesCss.includes('grid-template-columns: repeat(2, minmax(0, 1fr))'), 'במובייל יש לפחות שני כרטיסים בשורה');
+  const doneAgain = notes.markNoteDone(openDue, '2026-10-03T12:00:00.000Z');
+  assert(notes.noteStaysInHistoryAfterDone(openDue, doneAgain.note), 'היסטוריה עדיין שומרת פתקים שבוצעו');
+  assert(openDue.status === 'open' && openDue.completed_at == null, 'סימון בוצע לא משנה את הרשומה המקורית');
 }
 
 section('רגרסיה — לוגיקות בסיס');

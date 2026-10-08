@@ -82,6 +82,33 @@
       assert(all[0].id === 'a', 'פתק due מוצג ראשון בין הפתוחים');
     }
 
+    section('פתקים — מסך אחד');
+    {
+      const openDue = {
+        id: 'a', title: 'דחוף',
+        body: 'שורה ראשונה שורה שנייה ועוד הרבה מלל שממשיך מעבר לתקציר של הכרטיס כדי לוודא שהתוכן המלא לא מוצג עליו',
+        status: 'open', remind_at: '2026-10-04T14:30:00.000Z',
+        created_at: '2026-10-03T10:00:00.000Z', completed_at: null,
+      };
+      const done = {
+        id: 'c', title: 'סיימתי', body: 'ok', status: 'done', remind_at: null,
+        created_at: '2026-09-01T08:00:00.000Z', completed_at: '2026-09-02T08:00:00.000Z',
+      };
+      const before = JSON.stringify([openDue, done]);
+      const board = notes.notesForScreen([openDue, done]);
+      assert(board.length === 2, 'כל הפתקים מוצגים יחד');
+      const card = notes.noteCardModel(openDue);
+      assert(card.title === 'דחוף' && !Object.prototype.hasOwnProperty.call(card, 'body'), 'כרטיס שומר כותרת בלי התוכן המלא');
+      assert(!Object.prototype.hasOwnProperty.call(card, 'body'), 'הכרטיס לא כולל את התוכן המלא');
+      assert(card.remind_at === openDue.remind_at, 'תזכורת עדיין מוצגת אם קיימת');
+      const view = notes.noteViewModel(openDue);
+      assert(view.body === openDue.body && view.title === openDue.title, 'ה-Modal מציג את כל התוכן');
+      assert(JSON.stringify([openDue, done]) === before, 'אין שינוי בנתונים הקיימים');
+      const marked = notes.markNoteDone(openDue, '2026-10-03T12:00:00.000Z');
+      assert(notes.noteStaysInHistoryAfterDone(openDue, marked.note), 'היסטוריה עדיין שומרת פתקים שבוצעו');
+      assert(openDue.status === 'open', 'סימון בוצע לא משנה את הרשומה המקורית');
+    }
+
     section('זיכויים — יצירה ושדות');
     {
       const cash = credits.buildCreditDocument({

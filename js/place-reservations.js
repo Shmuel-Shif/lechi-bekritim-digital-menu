@@ -818,6 +818,18 @@
     return data || [];
   }
 
+  async function deleteHistory() {
+    const sb = getClient();
+    const before = todayDateStr();
+    const { data, error } = await sb
+      .from(TABLE)
+      .delete()
+      .or(`reservation_date.lt.${before},status.eq.arrived`)
+      .select('id');
+    if (error) throw new Error(error.message || 'איפוס היסטוריית הזמנות מקום נכשל');
+    return { deleted: (data || []).length };
+  }
+
   /**
    * Customer dine-in check-in: mark today's matching request as arrived.
    * Does not throw on "no match"; returns { matched, reason? }.
@@ -846,6 +858,7 @@
     listForDate,
     listUpcomingActive,
     listHistory,
+    deleteHistory,
     setStatus,
     deleteRequest,
     restoreToToday,

@@ -615,24 +615,59 @@
     }
   }
 
+  function categoryResetLabel(key) {
+    const raw = String(key || '');
+    if (raw.startsWith('table:')) return `שולחן ${raw.slice(6)}`;
+    if (raw === 'takeaway') return 'איסוף עצמי / משלוחים';
+    if (raw === 'butcher') return 'חנות בשר';
+    if (raw === 'shabbat') return 'הזמנות לשבת';
+    if (isPlaceHistoryKey(raw)) return 'הזמנות להיום';
+    if (raw === 'notes') return 'פתקים';
+    return '';
+  }
+
   async function resetAllHistory() {
+    const key = activeKey;
+    const label = categoryResetLabel(key);
+    if (!key || !label) {
+      showNotice('פתחו קטגוריה כדי לאפס רק אותה');
+      return;
+    }
     const ok = await showConfirm(
-      'האם אתה בטוח שברצונך לאפס את כל ההיסטוריה?\nכל הכרטיסים הסגורים של שולחנות ואיסוף עצמי יימחקו לצמיתות.',
-      'אפס הכל'
+      `האם אתה בטוח שברצונך לאפס את היסטוריית ${label}?\nרק הכרטיסים בקטגוריה הזו יימחקו.`,
+      'אפס'
     );
     if (!ok) return;
 
-    const ordersApi = api();
-    if (!ordersApi?.deleteAllClosedHistory) {
-      showNotice('איפוס לא זמין');
-      return;
-    }
-
     try {
-      const result = await ordersApi.deleteAllClosedHistory();
+      let deleted = 0;
+      if (key === 'notes') {
+        if (typeof global.LechaimAdminNotes?.clearAll !== 'function') {
+          showNotice('איפוס לא זמין');
+          return;
+        }
+        const result = await global.LechaimAdminNotes.clearAll();
+        deleted = result?.deleted ?? 0;
+      } else if (isPlaceHistoryKey(key)) {
+        const places = placeApi();
+        if (typeof places?.deleteHistory !== 'function') {
+          showNotice('איפוס לא זמין');
+          return;
+        }
+        const result = await places.deleteHistory();
+        deleted = result?.deleted ?? 0;
+      } else {
+        const ordersApi = api();
+        if (typeof ordersApi?.deleteClosedHistoryForCategory !== 'function') {
+          showNotice('איפוס לא זמין');
+          return;
+        }
+        const result = await ordersApi.deleteClosedHistoryForCategory(key);
+        deleted = result?.deleted ?? 0;
+      }
       closeModal();
-      renderPicker();
-      showNotice(`ההיסטוריה אופסה (${result?.deleted ?? 0} כרטיסים)`);
+      await openKey(key);
+      showNotice(`${label} אופס (${deleted} כרטיסים)`);
     } catch (err) {
       showNotice(err?.message || 'האיפוס נכשל');
     }

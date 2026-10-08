@@ -10,7 +10,6 @@
   const listEl = document.getElementById('notes-list');
   const emptyEl = document.getElementById('notes-empty');
   const errorEl = document.getElementById('notes-error');
-  const filterEl = document.getElementById('notes-filter');
   const addBtn = document.getElementById('notes-add-btn');
   const modal = document.getElementById('notes-modal');
   const modalBackdrop = document.getElementById('notes-modal-backdrop');
@@ -22,14 +21,24 @@
   const remindInput = document.getElementById('notes-field-remind');
   const formErrorEl = document.getElementById('notes-form-error');
   const cancelBtn = document.getElementById('notes-form-cancel');
+  const viewModal = document.getElementById('notes-view-modal');
+  const viewBackdrop = document.getElementById('notes-view-backdrop');
+  const viewClose = document.getElementById('notes-view-close');
+  const viewTitle = document.getElementById('notes-view-title');
+  const viewStatus = document.getElementById('notes-view-status');
+  const viewBody = document.getElementById('notes-view-body');
+  const viewCreated = document.getElementById('notes-view-created');
+  const viewRemindRow = document.getElementById('notes-view-remind-row');
+  const viewRemind = document.getElementById('notes-view-remind');
 
   let client = null;
   let cache = [];
-  let filter = core?.FILTER_OPEN || 'open';
+  let filter = core?.FILTER_ALL || 'all';
   let editingId = null;
   let busy = false;
   let bound = false;
   let focusTrapRelease = null;
+  let viewFocusRelease = null;
   let historyMode = false;
   let historyHost = null;
 
@@ -105,7 +114,7 @@
   }
 
   function activeFilterEl() {
-    return historyMode ? historyHost?.querySelector?.('#history-notes-filter') : filterEl;
+    return historyMode ? historyHost?.querySelector?.('#history-notes-filter') : null;
   }
 
   function setFilter(next) {
@@ -117,61 +126,86 @@
     renderList();
   }
 
+  function renderBoardCard(note) {
+    const card = core.noteCardModel(note);
+    return `
+      <article class="notes-card" data-note-id="${escapeHtml(card.id)}">
+        <button type="button" class="notes-card__main" data-note-view="${escapeHtml(card.id)}">
+          <span class="notes-card__title">${escapeHtml(card.title)}</span>
+        </button>
+        <div class="notes-card__actions">
+          <button type="button" class="admin-btn admin-btn--ghost" data-note-edit="${escapeHtml(card.id)}">עריכה</button>
+          <button type="button" class="admin-btn admin-btn--danger" data-note-delete="${escapeHtml(card.id)}">מחיקה</button>
+        </div>
+      </article>
+    `;
+  }
+
+  function renderHistoryCard(note) {
+    const card = core.noteCardModel(note);
+    return `
+      <article class="notes-card" data-note-id="${escapeHtml(card.id)}">
+        <button type="button" class="notes-card__main" data-note-view="${escapeHtml(card.id)}">
+          <span class="notes-card__title">${escapeHtml(card.title)}</span>
+        </button>
+      </article>
+    `;
+  }
+
   function renderList() {
     const host = activeListEl();
     const empty = activeEmptyEl();
     if (!host || !core) return;
-    const rows = core.filterNotes(cache, filter);
+    const rows = historyMode ? core.filterNotes(cache, filter) : core.notesForScreen(cache);
     if (!rows.length) {
       host.innerHTML = '';
       if (empty) {
         empty.hidden = false;
-        empty.textContent = filter === 'done'
-          ? 'אין פתקים שבוצעו'
-          : (filter === 'open' ? 'אין פתקים פתוחים' : 'אין פתקים');
+        empty.textContent = historyMode
+          ? (filter === 'done'
+            ? 'אין פתקים שבוצעו'
+            : (filter === 'open' ? 'אין פתקים פתוחים' : 'אין פתקים'))
+          : 'אין פתקים';
       }
       return;
     }
     if (empty) empty.hidden = true;
-    host.innerHTML = rows.map((note) => {
-      const open = core.normalizeStatus(note.status) === core.STATUS_OPEN;
-      const due = core.isReminderDue(note);
-      const classes = [
-        'notes-card',
-        open ? 'is-open' : 'is-done',
-        due ? 'is-due' : '',
-      ].filter(Boolean).join(' ');
-      const statusLabel = open ? (due ? 'תזכורת הגיעה' : 'פתוח') : 'בוצע';
-      const remindLine = note.remind_at
-        ? `<span class="notes-card__meta">תזכורת: ${escapeHtml(formatDateTime(note.remind_at))}</span>`
-        : '';
-      const doneLine = note.completed_at
-        ? `<span class="notes-card__meta">בוצע: ${escapeHtml(formatDateTime(note.completed_at))}</span>`
-        : '';
-      return `
-        <article class="${classes}" data-note-id="${escapeHtml(note.id)}">
-          <div class="notes-card__main">
-            <div class="notes-card__top">
-              <h3 class="notes-card__title">${escapeHtml(note.title)}</h3>
-              <span class="notes-card__status">${escapeHtml(statusLabel)}</span>
-            </div>
-            <p class="notes-card__body">${escapeHtml(note.body)}</p>
-            <div class="notes-card__metas">
-              <span class="notes-card__meta">נוצר: ${escapeHtml(formatDateTime(note.created_at))}</span>
-              ${remindLine}
-              ${doneLine}
-            </div>
-          </div>
-          <div class="notes-card__actions">
-            ${open
-              ? `<button type="button" class="admin-btn admin-btn--primary" data-note-done="${escapeHtml(note.id)}">בוצע</button>`
-              : `<button type="button" class="admin-btn admin-btn--soft" data-note-reopen="${escapeHtml(note.id)}">החזר לפתוח</button>`}
-            <button type="button" class="admin-btn admin-btn--ghost" data-note-edit="${escapeHtml(note.id)}">עריכה</button>
-            <button type="button" class="admin-btn admin-btn--danger" data-note-delete="${escapeHtml(note.id)}">מחיקה</button>
-          </div>
-        </article>
-      `;
-    }).join('');
+    host.innerHTML = rows.map((note) => (historyMode ? renderHistoryCard(note) : renderBoardCard(note))).join('');
+  }
+
+  function releaseModalBody() {
+    const open = document.querySelector('.admin-modal:not([hidden])');
+    if (!open) document.body.classList.remove('admin-modal-open');
+  }
+
+  function closeView() {
+    if (!viewModal) return;
+    if (typeof viewFocusRelease === 'function') viewFocusRelease();
+    viewFocusRelease = null;
+    viewModal.hidden = true;
+    viewModal.setAttribute('aria-hidden', 'true');
+    releaseModalBody();
+  }
+
+  function openView(id) {
+    const note = cache.find((row) => String(row.id) === String(id));
+    if (!note || !viewModal || !core) return;
+    const view = core.noteViewModel(note);
+    if (viewTitle) viewTitle.textContent = view.title;
+    if (viewBody) viewBody.textContent = view.body;
+    if (viewStatus) viewStatus.textContent = view.status === core.STATUS_DONE ? 'בוצע' : 'פתוח';
+    if (viewCreated) viewCreated.textContent = formatDateTime(view.created_at);
+    if (viewRemindRow) {
+      const hasRemind = Boolean(view.remind_at);
+      viewRemindRow.hidden = !hasRemind;
+      if (viewRemind && hasRemind) viewRemind.textContent = formatDateTime(view.remind_at);
+    }
+    viewModal.hidden = false;
+    viewModal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('admin-modal-open');
+    if (typeof viewFocusRelease === 'function') viewFocusRelease();
+    viewFocusRelease = global.LechaimFocusTrap?.activate?.(viewModal) || null;
+    window.setTimeout(() => viewClose?.focus?.(), 40);
   }
 
   function closeModal() {
@@ -180,8 +214,7 @@
     focusTrapRelease = null;
     modal.hidden = true;
     modal.setAttribute('aria-hidden', 'true');
-    const open = document.querySelector('.admin-modal:not([hidden])');
-    if (!open) document.body.classList.remove('admin-modal-open');
+    releaseModalBody();
     editingId = null;
     showFormError('');
   }
@@ -322,6 +355,16 @@
     renderList();
   }
 
+  async function clearAll() {
+    const sb = getClient();
+    if (!sb) throw new Error('לא ניתן לאפס כרגע');
+    const { data, error } = await sb.from('admin_notes').delete().not('id', 'is', null).select('id');
+    if (error) throw new Error(error.message || 'האיפוס נכשל');
+    cache = [];
+    renderList();
+    return { deleted: Array.isArray(data) ? data.length : 0 };
+  }
+
   async function deleteNote(id) {
     const ok = await showConfirm('למחוק את הפתק?', 'מחק');
     if (!ok) return;
@@ -337,6 +380,11 @@
   }
 
   function onListClick(event) {
+    const viewBtn = event.target.closest('[data-note-view]');
+    if (viewBtn) {
+      openView(viewBtn.dataset.noteView);
+      return;
+    }
     const done = event.target.closest('[data-note-done]');
     if (done) {
       markDone(done.dataset.noteDone);
@@ -372,9 +420,15 @@
     modalClose?.addEventListener('click', closeModal);
     modalBackdrop?.addEventListener('click', closeModal);
     listEl?.addEventListener('click', onListClick);
-    filterEl?.addEventListener('click', onFilterClick);
+    viewClose?.addEventListener('click', closeView);
+    viewBackdrop?.addEventListener('click', closeView);
     document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && modal && !modal.hidden) closeModal();
+      if (event.key !== 'Escape') return;
+      if (viewModal && !viewModal.hidden) {
+        closeView();
+        return;
+      }
+      if (modal && !modal.hidden) closeModal();
     });
   }
 
@@ -382,12 +436,12 @@
     bindOnce();
     historyMode = false;
     historyHost = null;
-    filter = core?.FILTER_OPEN || 'open';
-    setFilter(filter);
+    filter = core?.FILTER_ALL || 'all';
     loadNotes();
   }
 
   function stop() {
+    closeView();
     closeModal();
   }
 
@@ -400,22 +454,12 @@
     hostEl.innerHTML = `
       <div class="notes-history">
         <p class="admin-error notes-error" role="alert" hidden></p>
-        <div class="notes-toolbar">
-          <div class="notes-filter" id="history-notes-filter" role="tablist" aria-label="סינון פתקים">
-            <button type="button" class="admin-btn admin-btn--soft" data-notes-filter="open">פתוחים</button>
-            <button type="button" class="admin-btn admin-btn--soft" data-notes-filter="done">בוצעו</button>
-            <button type="button" class="admin-btn admin-btn--soft is-active" data-notes-filter="all">הכל</button>
-          </div>
-          <button type="button" class="admin-btn admin-btn--primary" id="history-notes-add">פתק חדש</button>
-        </div>
         <div class="notes-list" id="history-notes-list"></div>
         <p class="tables-category__empty" id="history-notes-empty" hidden>אין פתקים</p>
       </div>
     `;
-    hostEl.querySelector('#history-notes-filter')?.addEventListener('click', onFilterClick);
     hostEl.querySelector('#history-notes-list')?.addEventListener('click', onListClick);
-    hostEl.querySelector('#history-notes-add')?.addEventListener('click', () => openModal(null));
-    setFilter(filter);
+    renderList();
     loadNotes();
   }
 
@@ -424,5 +468,6 @@
     stop,
     refresh: loadNotes,
     mountHistory,
+    clearAll,
   };
 })(window);
