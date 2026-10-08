@@ -269,6 +269,7 @@ body::before {
   background: var(--color-cream);
   color: var(--color-navy);
   border: 1px solid var(--color-border);
+  font-size: 14px;
 }
 
 .admin-btn--soft:hover:not(:disabled) {
@@ -346,7 +347,7 @@ body::before {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .admin-install-btn {
@@ -8117,6 +8118,7 @@ body.admin-inventory-open {
 
 .docs-finance-head__bar .docs-app__title {
   text-align: center;
+  white-space: nowrap;
 }
 
 .docs-finance-head__actions {
