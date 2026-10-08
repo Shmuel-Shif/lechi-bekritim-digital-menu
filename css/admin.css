@@ -6842,12 +6842,25 @@ body.admin-inventory-open {
 
 @media (max-width: 640px) {
   .stock-row {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    column-gap: 0.55rem;
+    row-gap: 0.4rem;
   }
 
-  .stock-row__qty {
-    justify-self: start;
+  .stock-row__main {
+    flex: 1 0 100%;
+  }
+
+  .stock-row__qty,
+  .stock-row__delete {
+    flex: 0 0 auto;
+  }
+
+  .stock-qty-input {
+    width: 3.4rem;
   }
 
   .stock-toolbar .admin-btn--primary {

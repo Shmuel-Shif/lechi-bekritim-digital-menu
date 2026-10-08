@@ -193,7 +193,11 @@
     const view = core.noteViewModel(note);
     if (viewTitle) viewTitle.textContent = view.title;
     if (viewBody) viewBody.textContent = view.body;
-    if (viewStatus) viewStatus.textContent = view.status === core.STATUS_DONE ? 'בוצע' : 'פתוח';
+    if (viewStatus) {
+      const done = view.status === core.STATUS_DONE;
+      viewStatus.hidden = !done;
+      viewStatus.textContent = done ? 'בוצע' : '';
+    }
     if (viewCreated) viewCreated.textContent = formatDateTime(view.created_at);
     if (viewRemindRow) {
       const hasRemind = Boolean(view.remind_at);
