@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&family=Heebo:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=157">
+  <link rel="stylesheet" href="css/admin.css?v=161">
   <link rel="stylesheet" href="css/admin-dashboard.css?v=6">
   <link rel="stylesheet" href="css/admin-reminders.css?v=1">
   <link rel="stylesheet" href="css/admin-notes.css?v=2">
@@ -668,7 +668,7 @@
           <div class="history-picker" id="history-picker"></div>
           <div class="history-detail" id="history-detail" hidden>
             <header class="history-detail__header">
-              <button type="button" class="admin-btn admin-btn--ghost" id="history-back-btn">← חזרה</button>
+              <button type="button" class="admin-btn admin-btn--ghost" id="history-back-btn">חזרה</button>
               <h2 class="history-detail__title" id="history-detail-title">שולחן</h2>
             </header>
             <div class="history-detail__list" id="history-detail-list"></div>
@@ -1299,7 +1299,7 @@
 
           <div class="docs-app__pane docs-app__pane--folder" id="docs-app-folder" hidden>
             <header class="docs-app__head docs-app__head--folder">
-              <button type="button" class="docs-back" data-docs-back>← חזרה</button>
+              <button type="button" class="docs-back" data-docs-back>חזרה</button>
               <div class="docs-app__head-actions">
                 <button type="button" class="docs-app__summary" id="docs-folder-copy-pay" hidden>העתק תשלומים</button>
                 <button type="button" class="docs-app__summary" id="docs-folder-z-pdf" hidden>PDF דוח Z</button>
@@ -1322,14 +1322,22 @@
           <div class="docs-app__pane docs-finance" id="docs-finance" hidden>
             <header class="docs-app__head docs-finance-head">
               <div class="docs-finance-head__bar">
-                <button type="button" class="docs-back" id="docs-finance-back" data-docs-back>← חזרה</button>
+                <button type="button" class="docs-back" id="docs-finance-back" data-docs-back>חזרה</button>
                 <h1 class="docs-app__title" id="docs-finance-title">סיכום כספי</h1>
-                <button type="button" class="docs-app__lock" data-docs-lock aria-label="נעילה">נעילה</button>
+                <div class="docs-finance-head__actions">
+                  <button type="button" class="docs-fin-calc-open" id="docs-fin-calc-open">מחשבון</button>
+                  <button type="button" class="docs-app__lock" data-docs-lock aria-label="נעילה">נעילה</button>
+                </div>
               </div>
               <form id="docs-period-form" class="docs-fin-period" novalidate>
                 <div class="docs-fin-period__modes" role="group" aria-label="סוג תקופה">
                   <button type="button" class="admin-btn admin-btn--soft is-on" data-docs-period-mode="month">חודשים</button>
                   <button type="button" class="admin-btn admin-btn--soft" data-docs-period-mode="date">תאריכים</button>
+                </div>
+                <div class="docs-fin-period__month-steps" id="docs-period-month-steps" role="group" aria-label="מעבר בין חודשים">
+                  <button type="button" class="admin-btn admin-btn--ghost" id="docs-period-prev-month">חודש קודם</button>
+                  <button type="button" class="admin-btn admin-btn--ghost" id="docs-period-this-month">החודש</button>
+                  <button type="button" class="admin-btn admin-btn--ghost" id="docs-period-next-month">חודש הבא</button>
                 </div>
                 <div class="docs-fin-period__fields" id="docs-period-month-fields">
                   <label class="docs-fin-period__field">
@@ -1500,6 +1508,30 @@
               </section>
             </div>
           </section>
+          <div class="docs-fin-calc" id="docs-fin-calc" hidden>
+            <button type="button" class="docs-fin-calc__backdrop" id="docs-fin-calc-backdrop" aria-label="סגור"></button>
+            <div class="docs-fin-calc__sheet" role="dialog" aria-modal="true" aria-labelledby="docs-fin-calc-title">
+              <header class="docs-fin-calc__head">
+                <h2 id="docs-fin-calc-title">מחשבון</h2>
+                <button type="button" class="docs-fin-calc__close" id="docs-fin-calc-close" aria-label="סגור">×</button>
+              </header>
+              <p class="docs-fin-calc__range" id="docs-fin-calc-range">נתוני המחשבון: לפי טווח התאריכים שנבחר</p>
+              <p class="docs-fin-calc__names" id="docs-fin-calc-names">בחרו נתון</p>
+              <p class="docs-fin-calc__amounts" id="docs-fin-calc-amounts"></p>
+              <p class="docs-fin-calc__result" id="docs-fin-calc-result"></p>
+              <p class="docs-fin-calc__message" id="docs-fin-calc-message"></p>
+              <div class="docs-fin-calc__ops" aria-label="פעולות">
+                <button type="button" data-fin-calc-op="+">+</button>
+                <button type="button" data-fin-calc-op="−">−</button>
+                <button type="button" data-fin-calc-op="×">×</button>
+                <button type="button" data-fin-calc-op="÷">÷</button>
+                <button type="button" data-fin-calc-op="=">=</button>
+                <button type="button" data-fin-calc-op="C">C</button>
+                <button type="button" data-fin-calc-op="back">←</button>
+              </div>
+              <div class="docs-fin-calc__figures" id="docs-fin-calc-figures"></div>
+            </div>
+          </div>
           </div>
         </section>
 
@@ -2773,7 +2805,8 @@
   <script src="js/admin-cash-reconcile-core.js?v=7" defer></script>
   <script src="js/docs-monthly-xlsx.js?v=7" defer></script>
   <script src="js/docs-monthly-pdf.js?v=1" defer></script>
-  <script src="js/admin-documents.js?v=49" defer></script>
+  <script src="js/admin-finance-calc.js?v=2" defer></script>
+  <script src="js/admin-documents.js?v=52" defer></script>
   <script src="js/home-notice.js?v=3" defer></script>
   <script src="js/admin-tabs-order.js?v=2" defer></script>
   <script src="js/admin-settings.js?v=16" defer></script>

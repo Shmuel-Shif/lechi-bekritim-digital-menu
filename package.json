@@ -8,7 +8,8 @@
     "test": "node scripts/test-admin-notes-credits.mjs",
     "test:admin-features": "node scripts/test-admin-notes-credits.mjs",
     "test:daily-lock": "node scripts/test-admin-daily-lock.mjs",
-    "test:till-saved-report": "node scripts/test-admin-till-saved-report.mjs"
+    "test:till-saved-report": "node scripts/test-admin-till-saved-report.mjs",
+    "test:finance-calc": "node scripts/test-admin-finance-calc.mjs"
   },
   "devDependencies": {
     "sharp": "^0.34.2"

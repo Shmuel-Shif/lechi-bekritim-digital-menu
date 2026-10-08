@@ -127,6 +127,7 @@
   let moveDocId = null;
   let selectedYm = '';
   let reportMode = 'month';
+  let financeCalcState = null;
   let reportFromYmd = '';
   let reportToYmd = '';
   let incomeByYm = {};
@@ -1396,8 +1397,15 @@
     }
     const monthFields = document.getElementById('docs-period-month-fields');
     const dateFields = document.getElementById('docs-period-date-fields');
+    const monthSteps = document.getElementById('docs-period-month-steps');
     if (monthFields) monthFields.hidden = reportMode !== 'month';
     if (dateFields) dateFields.hidden = reportMode !== 'date';
+    if (monthSteps) monthSteps.hidden = reportMode !== 'month';
+    const nextMonthBtn = document.getElementById('docs-period-next-month');
+    if (nextMonthBtn) {
+      const toYm = ymOfYmd(reportToYmd);
+      nextMonthBtn.disabled = !toYm || toYm >= thisYm;
+    }
     document.querySelectorAll('[data-docs-period-mode]').forEach((btn) => {
       btn.classList.toggle('is-on', btn.getAttribute('data-docs-period-mode') === reportMode);
     });
@@ -1452,6 +1460,33 @@
   function setReportMode(mode) {
     reportMode = mode === 'date' ? 'date' : 'month';
     syncPeriodInputs();
+  }
+
+  function showSingleMonth(ym) {
+    const bounds = monthYmdBounds(ym);
+    if (!bounds) return;
+    const fromMonth = document.getElementById('docs-period-from-month');
+    const toMonth = document.getElementById('docs-period-to-month');
+    if (fromMonth) fromMonth.value = ym;
+    if (toMonth) toMonth.value = ym;
+    reportMode = 'month';
+    applyReportPeriod();
+  }
+
+  function stepReportMonth(delta) {
+    const fromYm = ymOfYmd(reportFromYmd) || currentYm();
+    const toYm = ymOfYmd(reportToYmd) || fromYm;
+    const thisYm = currentYm();
+    let nextFrom = shiftYm(fromYm, delta);
+    let nextTo = shiftYm(toYm, delta);
+    if (nextTo > thisYm) nextTo = thisYm;
+    if (nextFrom > nextTo) nextFrom = nextTo;
+    const fromMonth = document.getElementById('docs-period-from-month');
+    const toMonth = document.getElementById('docs-period-to-month');
+    if (fromMonth) fromMonth.value = nextFrom;
+    if (toMonth) toMonth.value = nextTo;
+    reportMode = 'month';
+    applyReportPeriod();
   }
 
   function emptyDayReportTotals() {
@@ -1954,6 +1989,147 @@
       `).join('');
     }
     renderCashReconcile(zSplit, creditRows, cashExpenses);
+    refreshFinanceCalcFigures();
+  }
+
+  function financeCalcApi() {
+    return global.LechaimFinanceCalc || null;
+  }
+
+  function ensureFinanceCalcState() {
+    if (!financeCalcState) {
+      const api = financeCalcApi();
+      financeCalcState = api ? api.createState() : { tokens: [], message: '' };
+    }
+    return financeCalcState;
+  }
+
+  function financeAmountLabel(el) {
+    const row = el.closest('.docs-break__row, .docs-fin__result, .docs-fin__kpi, .docs-fin__exp-line');
+    if (!row) return '';
+    const named = row.querySelector('.docs-break__name, .docs-fin__result-label, .docs-fin__label');
+    if (named && !named.contains(el)) {
+      const namedText = named.textContent.trim();
+      if (namedText) return namedText;
+    }
+    const spans = [...row.querySelectorAll(':scope > span')].filter((span) => !span.contains(el));
+    return spans.map((span) => span.textContent.trim()).find(Boolean) || '';
+  }
+
+  function visibleFinancePeriodLabel() {
+    const deposits = document.getElementById('docs-deposits');
+    if (deposits && !deposits.hidden) {
+      return document.getElementById('docs-deposits-period')?.textContent?.trim() || '';
+    }
+    return document.getElementById('docs-period-applied')?.textContent?.trim() || '';
+  }
+
+  function financeFigureRoot() {
+    const deposits = document.getElementById('docs-deposits');
+    const report = document.getElementById('docs-month-report');
+    if (deposits && !deposits.hidden) return deposits;
+    return report;
+  }
+
+  function readFinanceFigures() {
+    const root = financeFigureRoot();
+    if (!root) return [];
+    return [...root.querySelectorAll('strong, .docs-break__meta')].flatMap((el) => {
+      if (el.closest('#docs-fin-calc')) return [];
+      const label = financeAmountLabel(el);
+      const text = el.textContent.trim();
+      if (!text) return [];
+      return [{ text, label }];
+    });
+  }
+
+  function paintFinanceCalc() {
+    const api = financeCalcApi();
+    const state = ensureFinanceCalcState();
+    const view = api ? api.present(state) : { names: '', amounts: '', resultText: '', message: '' };
+    const period = state.period || visibleFinancePeriodLabel();
+    const range = document.getElementById('docs-fin-calc-range');
+    const names = document.getElementById('docs-fin-calc-names');
+    const amounts = document.getElementById('docs-fin-calc-amounts');
+    const result = document.getElementById('docs-fin-calc-result');
+    const message = document.getElementById('docs-fin-calc-message');
+    const figures = document.getElementById('docs-fin-calc-figures');
+    if (range) {
+      range.textContent = period
+        ? `נתוני המחשבון: לפי טווח התאריכים שנבחר · ${period}`
+        : 'נתוני המחשבון: לפי טווח התאריכים שנבחר';
+    }
+    if (names) names.textContent = view.names || 'בחרו נתון';
+    if (amounts) amounts.textContent = view.amounts || '';
+    if (result) result.textContent = view.resultText ? `= ${view.resultText}` : '';
+    if (message) message.textContent = view.message || '';
+    if (!figures) return;
+    const items = state.items || [];
+    figures.replaceChildren();
+    if (!items.length) {
+      const empty = document.createElement('p');
+      empty.className = 'docs-fin-calc__empty';
+      empty.textContent = 'אין סכומים להצגה בטווח הזה';
+      figures.append(empty);
+      return;
+    }
+    items.forEach((item, index) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'docs-fin-calc__figure';
+      button.setAttribute('data-fin-calc-figure', String(index));
+      const name = document.createElement('span');
+      name.className = 'docs-fin-calc__figure-name';
+      name.textContent = item.label;
+      const money = document.createElement('span');
+      money.className = 'docs-fin-calc__figure-amount';
+      money.textContent = item.display;
+      button.append(name, money);
+      figures.append(button);
+    });
+  }
+
+  function refreshFinanceCalcFigures() {
+    const modal = document.getElementById('docs-fin-calc');
+    const api = financeCalcApi();
+    if (!modal || modal.hidden || !api || !financeCalcState?.open) return;
+    financeCalcState = api.syncSession(financeCalcState, readFinanceFigures(), visibleFinancePeriodLabel());
+    paintFinanceCalc();
+  }
+
+  function openFinanceCalc() {
+    const api = financeCalcApi();
+    const modal = document.getElementById('docs-fin-calc');
+    if (!api || !modal) return;
+    financeCalcState = api.beginSession(readFinanceFigures(), visibleFinancePeriodLabel());
+    modal.hidden = false;
+    paintFinanceCalc();
+  }
+
+  function closeFinanceCalc() {
+    const api = financeCalcApi();
+    const modal = document.getElementById('docs-fin-calc');
+    if (api && financeCalcState) financeCalcState = api.closeSession(financeCalcState);
+    if (modal) modal.hidden = true;
+  }
+
+  function addFinanceFigure(index) {
+    const api = financeCalcApi();
+    const entry = ensureFinanceCalcState().items?.[index];
+    if (!api || !entry) return;
+    financeCalcState = api.pushValue(financeCalcState, entry);
+    paintFinanceCalc();
+  }
+
+  function applyFinanceCalcOp(op) {
+    const api = financeCalcApi();
+    if (!api) return;
+    const state = ensureFinanceCalcState();
+    if (op === 'C') financeCalcState = api.clearState(state);
+    else if (op === 'back') financeCalcState = api.backspace(state);
+    else if (op === '=') financeCalcState = api.commitEquals(state);
+    else financeCalcState = api.pushOp(state, op);
+    paintFinanceCalc();
   }
 
   function changeMonth(delta) {
@@ -3361,6 +3537,37 @@
         setReportMode(btn.getAttribute('data-docs-period-mode') || 'month');
       });
     });
+    document.getElementById('docs-period-prev-month')?.addEventListener('click', () => {
+      stepReportMonth(-1);
+    });
+    document.getElementById('docs-period-this-month')?.addEventListener('click', () => {
+      showSingleMonth(currentYm());
+    });
+    document.getElementById('docs-period-next-month')?.addEventListener('click', () => {
+      stepReportMonth(1);
+    });
+    document.getElementById('docs-fin-calc')?.addEventListener('click', (event) => {
+      const figure = event.target.closest('[data-fin-calc-figure]');
+      if (figure) {
+        event.preventDefault();
+        addFinanceFigure(Number(figure.getAttribute('data-fin-calc-figure')));
+        return;
+      }
+      const opBtn = event.target.closest('[data-fin-calc-op]');
+      if (opBtn) {
+        event.preventDefault();
+        applyFinanceCalcOp(opBtn.getAttribute('data-fin-calc-op') || '');
+      }
+    });
+    document.getElementById('docs-fin-calc-open')?.addEventListener('click', () => {
+      openFinanceCalc();
+    });
+    document.getElementById('docs-fin-calc-close')?.addEventListener('click', () => {
+      closeFinanceCalc();
+    });
+    document.getElementById('docs-fin-calc-backdrop')?.addEventListener('click', () => {
+      closeFinanceCalc();
+    });
     document.getElementById('docs-add-payment')?.addEventListener('click', () => {
       if (isCreditSupplier(activeSupplier)) openCreditForm();
       else if (isPrivateExpenseSupplier(activeSupplier)) openPrivateExpenseForm();
@@ -3396,6 +3603,11 @@
 
     document.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape') return;
+      const calcModal = document.getElementById('docs-fin-calc');
+      if (calcModal && !calcModal.hidden) {
+        closeFinanceCalc();
+        return;
+      }
       if (deleteModal && !deleteModal.hidden) closeDeleteModal(false);
       else if (viewModal && !viewModal.hidden) closeViewModal();
       else if (scanOverlay && !scanOverlay.hidden) closeScanOverlay();
