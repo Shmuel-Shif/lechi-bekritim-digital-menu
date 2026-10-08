@@ -95,6 +95,8 @@
       deliveryOrder: 'Delivery',
       deliveryOrderHint: 'Flavors, delivered',
       deliveryCardHint: 'Flavors, delivered',
+      deliveryClosedCardHint: 'Not available now',
+      deliveryClosedBadge: 'No deliveries right now',
       fulfillmentType: 'Order type',
       fulfillmentPickup: 'Takeaway',
       fulfillmentDelivery: 'Delivery',
@@ -250,6 +252,8 @@
       deliveryOrder: 'משלוח',
       deliveryOrderHint: 'טעמים עד אליכם',
       deliveryCardHint: 'טעמים עד אליכם',
+      deliveryClosedCardHint: 'לא זמין כרגע',
+      deliveryClosedBadge: 'אין משלוחים כרגע',
       fulfillmentType: 'סוג הזמנה',
       fulfillmentPickup: 'איסוף עצמי',
       fulfillmentDelivery: 'משלוח',
@@ -559,6 +563,8 @@
           text = state.shabbatOrdersEnabled ? t('shabbatOrders') : t('shabbatOrdersClosed');
         } else if (key === 'shabbatOrdersHint') {
           text = state.shabbatOrdersEnabled ? t('shabbatOrdersHint') : t('shabbatOrdersClosedHint');
+        } else if (key === 'deliveryCardHint') {
+          text = state.deliveriesClosed ? t('deliveryClosedCardHint') : t('deliveryCardHint');
         }
         el.innerHTML = String(text).includes('\n')
           ? String(text).split('\n').map((line) => line.replace(/</g, '&lt;')).join('<br>')
@@ -2138,14 +2144,21 @@
     if (takeAwayLabelEl) takeAwayLabelEl.textContent = t('takeAway');
     if (takeAwayHintEl) takeAwayHintEl.textContent = t('takeAwayHint');
     const deliveryHintEl = deliveryBtnEl?.querySelector('[data-entry-i18n="deliveryCardHint"]');
-    if (deliveryHintEl) deliveryHintEl.textContent = t('deliveryCardHint');
+    const closed = Boolean(state.deliveriesClosed);
+    if (deliveryHintEl) {
+      deliveryHintEl.textContent = closed ? t('deliveryClosedCardHint') : t('deliveryCardHint');
+    }
     if (deliveryBtnEl) {
-      const closed = Boolean(state.deliveriesClosed);
       deliveryBtnEl.hidden = false;
       deliveryBtnEl.disabled = closed;
       deliveryBtnEl.classList.toggle('is-deliveries-closed', closed);
       deliveryBtnEl.setAttribute('aria-disabled', closed ? 'true' : 'false');
       deliveryBtnEl.removeAttribute('aria-hidden');
+      const badge = deliveryBtnEl.querySelector('.entry-gate__closed-badge');
+      if (badge) {
+        badge.hidden = !closed;
+        badge.textContent = t('deliveryClosedBadge');
+      }
     }
     syncFulfillmentUi();
     if (promptEl && stepPickup && !stepPickup.hidden) {

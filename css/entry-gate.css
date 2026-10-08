@@ -127,7 +127,7 @@ body.entry-pending > *:not(#entry-gate):not(.entry-place-res-thanks):not(#lechai
 
 .entry-gate__title {
   font-family: var(--font-display, 'Playfair Display', serif);
-  font-size: clamp(1.45rem, 5.2vw, 1.9rem);
+  font-size: clamp(1.45rem, 5.2vw, 3.9rem);
   font-weight: 600;
   color: var(--color-navy, #1e3354);
   line-height: 1.25;
@@ -3273,12 +3273,52 @@ body.home-notice-open {
   display: none;
 }
 
-.entry-gate.is-home #entry-delivery-btn.is-deliveries-closed {
-  filter: blur(3px);
-  opacity: 0.72;
+.entry-gate.is-home #entry-delivery-btn.is-deliveries-closed,
+.entry-gate.is-home #entry-delivery-btn.is-deliveries-closed.is-inview:hover,
+.entry-gate.is-home #entry-delivery-btn.is-deliveries-closed.is-inview:active {
+  filter: none;
+  opacity: 1;
   pointer-events: none;
   cursor: default;
   transform: none;
+}
+
+.entry-gate.is-home #entry-delivery-btn.is-deliveries-closed .entry-gate__card-photo {
+  filter: grayscale(0.55) brightness(0.78);
+}
+
+.entry-gate.is-home #entry-delivery-btn.is-deliveries-closed::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: rgba(8, 16, 32, 0.34);
+}
+
+.entry-gate.is-home #entry-delivery-btn.is-deliveries-closed .entry-gate__btn-chevron {
+  display: none;
+}
+
+.entry-gate.is-home #entry-delivery-btn .entry-gate__closed-badge {
+  position: absolute;
+  z-index: 3;
+  top: 0.7rem;
+  inset-inline-end: 0.7rem;
+  max-width: 7.4rem;
+  padding: 0.28rem 0.55rem;
+  border-radius: 0.7rem;
+  background: rgba(255, 252, 247, 0.96);
+  color: #17345d;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(8, 16, 32, 0.22);
+}
+
+.entry-gate.is-home #entry-delivery-btn .entry-gate__closed-badge[hidden] {
+  display: none !important;
 }
 
 @media (max-width: 767px) {

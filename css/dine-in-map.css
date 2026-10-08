@@ -3,6 +3,15 @@
  * Marker positions use % of the image box — no fixed px layout.
  */
 
+/* Sky, sea and mountains sit behind the map. The floor plan fades into them. */
+#entry-gate[data-mode="dine-in-only"] {
+  background-color: #8ec4dc;
+  background-image: url("../assets/images/home/hero.webp?v=7");
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: cover;
+}
+
 /* Header row: kosher | ב״ה (center) | lang */
 #entry-gate[data-mode="dine-in-only"] .entry-gate__chrome {
   left: max(0.75rem, env(safe-area-inset-left, 0px));
@@ -26,11 +35,20 @@
   justify-self: center;
   margin: 0;
   font-size: 0.95rem;
+  color: #17345d;
+  transform: translateY(2.75rem);
+}
+
+#entry-gate[data-mode="dine-in-only"] .entry-gate__classic {
+  transform: translateY(2.75rem);
 }
 
 #entry-gate[data-mode="dine-in-only"] .entry-gate__lang {
   justify-self: end;
   pointer-events: auto;
+  background: #fff;
+  border-color: rgba(196, 160, 106, 0.55);
+  box-shadow: 0 2px 10px rgba(23, 52, 93, 0.06);
 }
 
 #entry-gate[data-mode="dine-in-only"] .entry-gate__shell {
@@ -58,39 +76,68 @@
 }
 
 .dine-in-map__title {
-  margin: 0;
+  margin: 0 auto;
+  width: fit-content;
+  max-width: 96%;
+  padding: 0.28rem 0.85rem 0.34rem;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(255, 253, 249, 0.88);
+  box-shadow: 0 2px 14px rgba(30, 51, 84, 0.1);
   font-family: "Frank Ruhl Libre", "Playfair Display", serif;
   font-size: clamp(1.2rem, 4.2vw, 1.55rem);
   font-weight: 700;
-  color: var(--color-navy, #1e3354);
+  line-height: 1.25;
+  color: #17345d;
+  text-shadow: none;
+  white-space: nowrap;
+  transform: translateY(2.75rem);
 }
 
 .dine-in-map__stage {
   position: relative;
   width: 92%;
   max-width: 42rem;
+  margin-top: 3.25rem;
   margin-inline: auto;
-  border-radius: 16px;
-  overflow: hidden;
-  background: #ebe6de;
-  box-shadow:
-    0 1px 0 rgba(30, 51, 84, 0.04),
-    0 10px 28px rgba(30, 51, 84, 0.1);
-  border: 1px solid rgba(196, 160, 106, 0.35);
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+  background: transparent;
+  box-shadow: none;
+  isolation: isolate;
+}
+
+/* Blurred copy of the floor plan. It fades out before the box edge, so there is no frame. */
+.dine-in-map__stage::before {
+  content: "";
+  position: absolute;
+  inset: -14%;
+  z-index: 0;
+  pointer-events: none;
+  background: url("../assets/images/tables/Tables.webp") center / cover no-repeat;
+  filter: blur(26px);
+  -webkit-mask-image: radial-gradient(ellipse at center, transparent 18%, #000 46%, transparent 76%);
+  mask-image: radial-gradient(ellipse at center, transparent 18%, #000 46%, transparent 76%);
 }
 
 .dine-in-map__img {
+  position: relative;
+  z-index: 2;
   display: block;
   width: 100%;
   height: auto;
   user-select: none;
   pointer-events: none;
+  filter: none;
+  -webkit-mask-image: radial-gradient(ellipse at center, #000 34%, transparent 70%);
+  mask-image: radial-gradient(ellipse at center, #000 47%, transparent 72%);
 }
 
 .dine-in-map__markers {
   position: absolute;
   inset: 0;
-  z-index: 2;
+  z-index: 4;
 }
 
 /* Override default entry-gate table button grid look when used as map pins */
@@ -112,9 +159,9 @@
   font-variant-numeric: tabular-nums;
   line-height: 1;
   border: 2px solid rgba(196, 160, 106, 0.85);
-  background: rgba(248, 243, 235, 0.94);
-  color: var(--color-navy, #1e3354);
-  box-shadow: 0 4px 14px rgba(30, 51, 84, 0.18);
+  background: #fff;
+  color: #17345d;
+  box-shadow: 0 4px 14px rgba(23, 52, 93, 0.12);
   cursor: pointer;
   transition:
     transform 0.15s ease,
@@ -135,19 +182,20 @@
 
 #entry-tables.dine-in-map .entry-gate__table:hover {
   transform: translate(-50%, -50%) translateY(-1px) scale(1.04);
-  border-color: var(--color-gold, #c4a06a);
+  border-color: #c4a06a;
+  background: #fffdf9;
 }
 
 #entry-tables.dine-in-map .entry-gate__table:focus-visible {
-  outline: 2px solid var(--color-gold, #c4a06a);
+  outline: 2px solid #17345d;
   outline-offset: 3px;
 }
 
 #entry-tables.dine-in-map .entry-gate__table.is-selected {
-  background: #1e3354;
-  border-color: #1e3354;
+  background: #17345d;
+  border-color: #d4b88a;
   color: #fff;
-  box-shadow: 0 6px 18px rgba(30, 51, 84, 0.28);
+  box-shadow: 0 6px 16px rgba(23, 52, 93, 0.22);
 }
 
 #entry-tables.dine-in-map .entry-gate__table.is-occupied,
@@ -235,10 +283,12 @@
     flex-direction: column;
     align-items: center;
     gap: 0.1rem;
+    transform: translateY(3.5rem);
   }
 
   #entry-gate[data-mode="dine-in-only"] .entry-gate__chrome .entry-gate__bh {
     font-size: 0.85rem;
+    transform: translateY(3.5rem);
   }
 
   #entry-gate[data-mode="dine-in-only"] .entry-gate__logo {
@@ -265,10 +315,21 @@
 
   .dine-in-map__title {
     font-size: 1.05rem;
+    transform: translateY(3.5rem);
+  }
+
+  #entry-gate[data-mode="dine-in-only"] {
+    background-image: url("../assets/images/home/hero-mobile.webp?v=7");
+    background-position: center top;
   }
 
   .dine-in-map__stage {
-    border-radius: 12px;
+    border-radius: 0;
+    margin-top: 4.25rem;
+  }
+
+  .dine-in-map__stage::before {
+    background-image: url("../assets/images/tables/Tables-mobail.webp");
   }
 
   /* Larger visible pins + generous finger hit-area (positions stay in %) */
@@ -293,6 +354,25 @@
     height: 2.85rem;
     font-size: 0.95rem;
   }
+}
+
+#entry-gate[data-mode="dine-in-only"] .entry-table-modal__panel,
+#entry-gate[data-mode="dine-in-only"] .entry-place-res-thanks__panel {
+  background: #fffdf9;
+  border-color: rgba(196, 160, 106, 0.72);
+  box-shadow: 0 16px 40px rgba(23, 52, 93, 0.14);
+}
+
+#entry-gate[data-mode="dine-in-only"] .entry-table-modal__backdrop,
+#entry-gate[data-mode="dine-in-only"] .entry-place-res-thanks__backdrop {
+  background: rgba(23, 52, 93, 0.4);
+}
+
+#entry-gate[data-mode="dine-in-only"] .entry-table-modal__find,
+#entry-gate[data-mode="dine-in-only"] .entry-table-modal__how-title,
+#entry-gate[data-mode="dine-in-only"] .entry-place-res-thanks__title,
+#entry-gate[data-mode="dine-in-only"] .entry-pickup-closed__title {
+  color: #17345d;
 }
 
 @media (max-width: 380px) {
