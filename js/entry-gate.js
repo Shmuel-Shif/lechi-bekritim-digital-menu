@@ -175,6 +175,8 @@
       pickupClosedTitle: 'Not available right now.',
       pickupClosedText: 'Takeaway orders can be placed Sunday–Thursday.\nBetween 14:00 – 21:00.',
       pickupClosedBrowse: 'View the menu',
+      shabbatHoursClosedTitle: 'Not available right now.',
+      shabbatHoursClosedText: 'Shabbat orders can be placed Sunday–Thursday.\nBetween 14:00 – 21:00.',
       deliveryClosedTitle: 'Not available right now.',
       deliveryClosedText: 'Delivery orders can be placed Sunday–Thursday.\nBetween 14:00 – 21:00.',
       dineInClosedTitle: 'Not available right now.',
@@ -332,6 +334,8 @@
       pickupClosedTitle: 'לא זמין כרגע.',
       pickupClosedText: 'ניתן לבצע הזמנות לאיסוף עצמי בימי א - ה\nבין השעות 14:00 - 21:00.',
       pickupClosedBrowse: 'לצפייה בתפריט',
+      shabbatHoursClosedTitle: 'לא זמין כרגע.',
+      shabbatHoursClosedText: 'ניתן לבצע הזמנות לשבת בימי א - ה\nבין השעות 14:00 - 21:00.',
       deliveryClosedTitle: 'לא זמין כרגע.',
       deliveryClosedText: 'ניתן לבצע הזמנות למשלוח בימי א - ה\nבין השעות 14:00 - 21:00.',
       dineInClosedTitle: 'לא זמין כרגע.',
@@ -1203,12 +1207,16 @@
     if (orderType === 'delivery') {
       return { title: 'deliveryClosedTitle', text: 'deliveryClosedText', browse: 'pickupClosedBrowse' };
     }
+    if (orderType === 'shabbat') {
+      return { title: 'shabbatHoursClosedTitle', text: 'shabbatHoursClosedText', browse: 'pickupClosedBrowse' };
+    }
     return { title: 'pickupClosedTitle', text: 'pickupClosedText', browse: 'pickupClosedBrowse' };
   }
 
   function closedPromptLabel(orderType) {
     if (orderType === 'dine-in') return t('dineIn');
     if (orderType === 'delivery') return t('deliveryOrder');
+    if (orderType === 'shabbat') return t('shabbatOrders');
     return t('takeAway');
   }
 
@@ -1773,7 +1781,7 @@
   }
 
   function enterMenu(context) {
-    window.LechaimOrderContext = context;
+    /* Leave the previous context in place so updateOrderContext can see a real type change. */
     closeGate();
 
     if (!started) {
@@ -3385,6 +3393,13 @@
     if (state.shabbatOrdersEnabled === false) {
       event.preventDefault();
       event.stopPropagation();
+      return;
+    }
+    /* Hours closed: same unavailable step as pickup. The card stays sharp; blur is only the admin Shabbat switch. */
+    if (Hours()?.isWithinOrderingHours?.() === false) {
+      event.preventDefault();
+      event.stopPropagation();
+      showOrderingClosedStep('shabbat');
     }
   });
 
@@ -3527,6 +3542,10 @@
   pickupAsap?.addEventListener('change', syncPickupTimeUi);
   pickupSelect?.addEventListener('change', syncPickupTimeUi);
   pickupClosedBrowse?.addEventListener('click', () => {
+    if (state.orderType === 'shabbat') {
+      window.location.href = 'shabbat.html?browse=1';
+      return;
+    }
     enterBrowseOnly();
   });
   placeResForm?.addEventListener('submit', submitPlaceResForm);

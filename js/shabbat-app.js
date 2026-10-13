@@ -150,11 +150,48 @@
     }
   }
 
-  function applyClosedCopy() {
+  function applyClosedCopy(hoursClosed) {
     const titleEl = $('#shabbat-closed-title');
     const textEl = $('#shabbat-closed-text');
-    if (titleEl) titleEl.setAttribute('data-i18n', 'closedTitle');
-    if (textEl) textEl.setAttribute('data-i18n', 'closedText');
+    if (titleEl) titleEl.setAttribute('data-i18n', hoursClosed ? 'hoursClosedTitle' : 'closedTitle');
+    if (textEl) textEl.setAttribute('data-i18n', hoursClosed ? 'hoursClosedText' : 'closedText');
+  }
+
+  function wantsHoursBrowse() {
+    try {
+      return new URLSearchParams(window.location.search).get('browse') === '1';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  async function isRestaurantOrderingOpen() {
+    const settings = window.LechaimAppSettings;
+    if (settings?.ready) {
+      try { await settings.ready; } catch (_) { /* defaults stay */ }
+    }
+    const hours = window.LechaimOpeningHours;
+    const api = window.LechaimSupabaseOrders;
+    if (hours && api?.isConfigured?.()) {
+      try {
+        const [openState, closeState] = await Promise.all([
+          typeof api.getShopForceOpenState === 'function'
+            ? api.getShopForceOpenState()
+            : Promise.resolve({ active: false }),
+          typeof api.getShopForceCloseState === 'function'
+            ? api.getShopForceCloseState()
+            : Promise.resolve({ active: false }),
+        ]);
+        hours.applyForceOpenFromFlag?.(openState?.active, openState?.flagText);
+        hours.applyForceCloseFromFlag?.(closeState?.active, closeState?.flagText);
+      } catch (err) {
+        console.warn('[shabbat] shop hours load failed', err);
+      }
+    }
+    if (typeof hours?.isWithinOrderingHours === 'function') {
+      return hours.isWithinOrderingHours() === true;
+    }
+    return true;
   }
 
   function applyI18n() {
@@ -1346,7 +1383,7 @@
     applyI18n();
     if (closedEl) closedEl.hidden = true;
 
-    const locked = await restoreLockIfNeeded();
+    const locked = browseOnly ? false : await restoreLockIfNeeded();
     if (locked) {
       markEnteredMenu();
       showMenuUi();
@@ -1358,14 +1395,14 @@
     showMenuUi();
   }
 
-  function bootClosedUi() {
+  function bootClosedUi(hoursClosed) {
     browseOnly = false;
     hideDetailsPage();
     if (appEl) appEl.hidden = true;
     if (cartToggle) cartToggle.hidden = true;
     if (closedEl) closedEl.hidden = false;
     document.body.classList.remove('shabbat-browse-only');
-    applyClosedCopy();
+    applyClosedCopy(hoursClosed === true);
     applyI18n();
   }
 
@@ -1409,10 +1446,18 @@
 
   async function init() {
     await refreshAdminShabbatOrdersFlag();
+    const restaurantOpen = adminShabbatOrdersEnabled
+      ? await isRestaurantOrderingOpen()
+      : true;
     window.LechaimAppSettings?.onChange?.(applyI18n);
 
     if (!adminShabbatOrdersEnabled) {
-      bootClosedUi();
+      bootClosedUi(false);
+    } else if (!restaurantOpen && wantsHoursBrowse()) {
+      browseOnly = true;
+      await bootOpenUi();
+    } else if (!restaurantOpen) {
+      bootClosedUi(true);
     } else {
       await bootOpenUi();
     }

@@ -796,9 +796,21 @@ html[dir="ltr"] .search-panel__input {
   outline-color: var(--color-gold);
 }
 
-/* --- Modal --- */
+/* --- Modal ---
+   Scroll lock unsticks the menu photo, so the dialog would sit on flat
+   navy or parchment. Paint the same Greek scene on the card itself. */
+.food-modal {
+  background-color: var(--lechaim-menu-seam);
+  background-image: var(--lechaim-menu-bg);
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: cover;
+}
+
 .food-modal-backdrop {
-  background: rgba(21, 38, 64, 0.48);
+  background: rgba(21, 38, 64, 0.28);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .food-modal-close {

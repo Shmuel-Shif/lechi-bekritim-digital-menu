@@ -3177,7 +3177,13 @@
 
   function updateOrderContext(options = {}) {
     const prev = window.LechaimOrderContext || {};
-    const orderType = options.orderType != null ? options.orderType : prev.orderType;
+    const browseOnly = options.browseOnly !== undefined
+      ? Boolean(options.browseOnly)
+      : Boolean(prev.browseOnly);
+    /* Browse is the regular menu. A null orderType must not keep the butcher catalog. */
+    const orderType = browseOnly
+      ? null
+      : (options.orderType != null ? options.orderType : prev.orderType);
     const isTakeaway = orderType === 'takeaway';
     const isButcher = orderType === 'butcher';
     const hasCustomer = isTakeaway || isButcher;
@@ -3190,7 +3196,8 @@
     const tableChanged = !isTakeaway && !isButcher &&
       options.tableNumber !== undefined &&
       Number(nextTable) !== Number(prev.tableNumber);
-    const typeChanged = options.orderType != null && options.orderType !== prev.orderType;
+    const typeChanged = Boolean(browseOnly) !== Boolean(prev.browseOnly)
+      || (!browseOnly && options.orderType != null && options.orderType !== prev.orderType);
     const nextFulfillment = (isTakeaway || isButcher)
       ? (options.fulfillmentType !== undefined
         ? normalizeFulfillmentType(options.fulfillmentType)
@@ -3206,7 +3213,7 @@
       && String(options.sessionId || '') !== String(prev.sessionId || '');
 
     window.LechaimOrderContext = {
-      browseOnly: options.browseOnly !== undefined ? Boolean(options.browseOnly) : Boolean(prev.browseOnly),
+      browseOnly,
       orderType,
       tableNumber: nextTable,
       lang: options.lang || prev.lang || currentLang,
@@ -3310,6 +3317,7 @@
       if (typeChanged) {
         rebuildNavigation();
         rebuildMenu(true);
+        initHeroSlideshow();
       }
       renderCart();
     }
